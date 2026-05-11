@@ -1,16 +1,56 @@
-name: Contract CI
+name: ci-contract
 
 on:
   push:
+    branches: [main]
     paths:
-      - 'contracts/**'
+      - "contracts/**"
+      - ".github/workflows/ci-contract.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "contracts/**"
+      - ".github/workflows/ci-contract.yml"
 
 jobs:
-  test:
+  contract:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        rust: [stable]
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: contracts/stellar-give
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Install Rust
-        run: rustup update stable
-      - name: Run tests
-        run: cd contracts/stellar-give && cargo test
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ matrix.rust }}
+          targets: wasm32-unknown-unknown
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry and target
+        # Caches cargo registry + git index + target dir for reliable CI speedups.
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: contracts/stellar-give -> target
+
+      - name: Format
+        run: cargo fmt --check
+
+      - name: Lint
+        run: cargo clippy -- -D warnings
+
+      - name: Test
+        run: cargo test
+
+      - name: Build optimized Wasm
+        # Release + wasm target mirrors deployment artifact characteristics.
+        run: cargo build --release --target wasm32-unknown-unknown

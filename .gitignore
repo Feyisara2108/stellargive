@@ -1,21 +1,63 @@
-# Node
+# ---------------------------
+# Environment & secrets
+# ---------------------------
+# Ignore local and secret environment files by default.
+.env.local
+.env.*.local
+*.env
+*.env.*
+!.env
+!.env.example
+
+# ---------------------------
+# Rust / Soroban / Wasm
+# ---------------------------
+target/
+**/target/
+**/*.wasm
+**/*.wat
+**/*.rs.bk
+.soroban/
+
+# ---------------------------
+# Node.js / Next.js
+# ---------------------------
 node_modules/
-.npm
-dist/
+**/node_modules/
+.npm/
+.pnpm-store/
+.yarn/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
 .next/
 out/
+dist/
 build/
-.env
+coverage/
+*.tsbuildinfo
+
+# ---------------------------
+# Logs
+# ---------------------------
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-# Rust
-target/
-**/*.rs.bk
-Cargo.lock
+# ---------------------------
+# IDE/editor
+# ---------------------------
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
 
-# OS
+# ---------------------------
+# OS junk
+# ---------------------------
 .DS_Store
 Thumbs.db
-
-# Soroban
-.soroban/
