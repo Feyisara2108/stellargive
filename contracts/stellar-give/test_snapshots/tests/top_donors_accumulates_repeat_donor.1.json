@@ -100,16 +100,16 @@
                   ]
                 },
                 {
-                  "string": "Medical Aid"
+                  "string": "Relief"
                 },
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 100000
+                    "lo": 500000
                   }
                 },
                 {
-                  "u64": 10000
+                  "u64": 5000
                 },
                 {
                   "address": "CDLDVFKHEZ2RVB3NG4UQA4VPD3TSHV6XMHXMHP2BSGCJ2IIWVTOHGDSG"
@@ -139,7 +139,7 @@
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 40000
+                    "lo": 20000
                   }
                 }
               ]
@@ -161,7 +161,7 @@
                     {
                       "i128": {
                         "hi": 0,
-                        "lo": 40000
+                        "lo": 20000
                       }
                     }
                   ]
@@ -173,7 +173,6 @@
         }
       ]
     ],
-    [],
     [
       [
         "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
@@ -192,7 +191,7 @@
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 60000
+                    "lo": 30000
                   }
                 }
               ]
@@ -214,7 +213,7 @@
                     {
                       "i128": {
                         "hi": 0,
-                        "lo": 60000
+                        "lo": 30000
                       }
                     }
                   ]
@@ -231,7 +230,7 @@
   "ledger": {
     "protocol_version": 21,
     "sequence_number": 0,
-    "timestamp": 5000,
+    "timestamp": 1000,
     "network_id": "0000000000000000000000000000000000000000000000000000000000000000",
     "base_reserve": 0,
     "min_persistent_entry_ttl": 4096,
@@ -541,7 +540,7 @@
                         "symbol": "deadline"
                       },
                       "val": {
-                        "u64": 10000
+                        "u64": 5000
                       }
                     },
                     {
@@ -559,7 +558,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 100000
+                          "lo": 50000
                         }
                       }
                     },
@@ -570,7 +569,7 @@
                       "val": {
                         "vec": [
                           {
-                            "symbol": "Funded"
+                            "symbol": "Active"
                           }
                         ]
                       }
@@ -582,7 +581,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 100000
+                          "lo": 500000
                         }
                       }
                     },
@@ -591,7 +590,7 @@
                         "symbol": "title"
                       },
                       "val": {
-                        "string": "Medical Aid"
+                        "string": "Relief"
                       }
                     }
                   ]
@@ -648,7 +647,7 @@
                         {
                           "i128": {
                             "hi": 0,
-                            "lo": 100000
+                            "lo": 50000
                           }
                         }
                       ]
@@ -820,7 +819,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 900000
+                          "lo": 950000
                         }
                       }
                     },
@@ -893,7 +892,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 100000
+                          "lo": 50000
                         }
                       }
                     },
@@ -1394,16 +1393,16 @@
                   ]
                 },
                 {
-                  "string": "Medical Aid"
+                  "string": "Relief"
                 },
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 100000
+                    "lo": 500000
                   }
                 },
                 {
-                  "u64": 10000
+                  "u64": 5000
                 },
                 {
                   "address": "CDLDVFKHEZ2RVB3NG4UQA4VPD3TSHV6XMHXMHP2BSGCJ2IIWVTOHGDSG"
@@ -1499,7 +1498,7 @@
                   "val": {
                     "i128": {
                       "hi": 0,
-                      "lo": 100000
+                      "lo": 500000
                     }
                   }
                 }
@@ -1562,7 +1561,7 @@
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 40000
+                    "lo": 20000
                   }
                 }
               ]
@@ -1601,7 +1600,7 @@
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 40000
+                    "lo": 20000
                   }
                 }
               ]
@@ -1635,7 +1634,7 @@
             "data": {
               "i128": {
                 "hi": 0,
-                "lo": 40000
+                "lo": 20000
               }
             }
           }
@@ -1690,13 +1689,13 @@
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 40000
+                    "lo": 20000
                   }
                 },
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 40000
+                    "lo": 20000
                   }
                 },
                 {
@@ -1745,149 +1744,6 @@
                 "bytes": "0000000000000000000000000000000000000000000000000000000000000006"
               },
               {
-                "symbol": "get_campaign"
-              }
-            ],
-            "data": {
-              "u64": 1
-            }
-          }
-        }
-      },
-      "failed_call": false
-    },
-    {
-      "event": {
-        "ext": "v0",
-        "contract_id": "0000000000000000000000000000000000000000000000000000000000000006",
-        "type_": "diagnostic",
-        "body": {
-          "v0": {
-            "topics": [
-              {
-                "symbol": "fn_return"
-              },
-              {
-                "symbol": "get_campaign"
-              }
-            ],
-            "data": {
-              "map": [
-                {
-                  "key": {
-                    "symbol": "accepted_token"
-                  },
-                  "val": {
-                    "address": "CDLDVFKHEZ2RVB3NG4UQA4VPD3TSHV6XMHXMHP2BSGCJ2IIWVTOHGDSG"
-                  }
-                },
-                {
-                  "key": {
-                    "symbol": "beneficiaries"
-                  },
-                  "val": {
-                    "vec": [
-                      {
-                        "vec": [
-                          {
-                            "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
-                          },
-                          {
-                            "u32": 10000
-                          }
-                        ]
-                      }
-                    ]
-                  }
-                },
-                {
-                  "key": {
-                    "symbol": "creator"
-                  },
-                  "val": {
-                    "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM"
-                  }
-                },
-                {
-                  "key": {
-                    "symbol": "deadline"
-                  },
-                  "val": {
-                    "u64": 10000
-                  }
-                },
-                {
-                  "key": {
-                    "symbol": "id"
-                  },
-                  "val": {
-                    "u64": 1
-                  }
-                },
-                {
-                  "key": {
-                    "symbol": "raised_amount"
-                  },
-                  "val": {
-                    "i128": {
-                      "hi": 0,
-                      "lo": 40000
-                    }
-                  }
-                },
-                {
-                  "key": {
-                    "symbol": "status"
-                  },
-                  "val": {
-                    "vec": [
-                      {
-                        "symbol": "Active"
-                      }
-                    ]
-                  }
-                },
-                {
-                  "key": {
-                    "symbol": "target_amount"
-                  },
-                  "val": {
-                    "i128": {
-                      "hi": 0,
-                      "lo": 100000
-                    }
-                  }
-                },
-                {
-                  "key": {
-                    "symbol": "title"
-                  },
-                  "val": {
-                    "string": "Medical Aid"
-                  }
-                }
-              ]
-            }
-          }
-        }
-      },
-      "failed_call": false
-    },
-    {
-      "event": {
-        "ext": "v0",
-        "contract_id": null,
-        "type_": "diagnostic",
-        "body": {
-          "v0": {
-            "topics": [
-              {
-                "symbol": "fn_call"
-              },
-              {
-                "bytes": "0000000000000000000000000000000000000000000000000000000000000006"
-              },
-              {
                 "symbol": "donate"
               }
             ],
@@ -1902,7 +1758,7 @@
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 60000
+                    "lo": 30000
                   }
                 }
               ]
@@ -1941,7 +1797,7 @@
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 60000
+                    "lo": 30000
                   }
                 }
               ]
@@ -1975,7 +1831,7 @@
             "data": {
               "i128": {
                 "hi": 0,
-                "lo": 60000
+                "lo": 30000
               }
             }
           }
@@ -2030,13 +1886,13 @@
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 60000
+                    "lo": 30000
                   }
                 },
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 100000
+                    "lo": 50000
                   }
                 },
                 {
@@ -2085,7 +1941,7 @@
                 "bytes": "0000000000000000000000000000000000000000000000000000000000000006"
               },
               {
-                "symbol": "get_campaign"
+                "symbol": "get_top_donors"
               }
             ],
             "data": {
@@ -2108,103 +1964,23 @@
                 "symbol": "fn_return"
               },
               {
-                "symbol": "get_campaign"
+                "symbol": "get_top_donors"
               }
             ],
             "data": {
-              "map": [
+              "vec": [
                 {
-                  "key": {
-                    "symbol": "accepted_token"
-                  },
-                  "val": {
-                    "address": "CDLDVFKHEZ2RVB3NG4UQA4VPD3TSHV6XMHXMHP2BSGCJ2IIWVTOHGDSG"
-                  }
-                },
-                {
-                  "key": {
-                    "symbol": "beneficiaries"
-                  },
-                  "val": {
-                    "vec": [
-                      {
-                        "vec": [
-                          {
-                            "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
-                          },
-                          {
-                            "u32": 10000
-                          }
-                        ]
+                  "vec": [
+                    {
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                    },
+                    {
+                      "i128": {
+                        "hi": 0,
+                        "lo": 50000
                       }
-                    ]
-                  }
-                },
-                {
-                  "key": {
-                    "symbol": "creator"
-                  },
-                  "val": {
-                    "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM"
-                  }
-                },
-                {
-                  "key": {
-                    "symbol": "deadline"
-                  },
-                  "val": {
-                    "u64": 10000
-                  }
-                },
-                {
-                  "key": {
-                    "symbol": "id"
-                  },
-                  "val": {
-                    "u64": 1
-                  }
-                },
-                {
-                  "key": {
-                    "symbol": "raised_amount"
-                  },
-                  "val": {
-                    "i128": {
-                      "hi": 0,
-                      "lo": 100000
                     }
-                  }
-                },
-                {
-                  "key": {
-                    "symbol": "status"
-                  },
-                  "val": {
-                    "vec": [
-                      {
-                        "symbol": "Funded"
-                      }
-                    ]
-                  }
-                },
-                {
-                  "key": {
-                    "symbol": "target_amount"
-                  },
-                  "val": {
-                    "i128": {
-                      "hi": 0,
-                      "lo": 100000
-                    }
-                  }
-                },
-                {
-                  "key": {
-                    "symbol": "title"
-                  },
-                  "val": {
-                    "string": "Medical Aid"
-                  }
+                  ]
                 }
               ]
             }
