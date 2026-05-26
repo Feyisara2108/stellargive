@@ -1,42 +1,29 @@
-# Security Policy
+# Security Policy & Audit Guide
 
-stellarGive handles user funds and must be treated as a high-assurance system.
+This document outlines the security mitigations, threat models, assumptions, and pre-audit checklists for the `stellarGive` smart contract.
 
-## 1. Threat Model
+## 1. Security Mitigations Table
 
-### A. Authorization/Auth Bypass
-- **Risk:** Unauthorized callers create, claim, or alter campaign state.
-- **Controls:**
-  - Enforce `require_auth` for all state-changing identities.
-  - Validate beneficiary/creator caller roles on claim/update paths.
-  - Reject zero/invalid identity values.
+| Vulnerability | Mitigation | Location |
+| :--- | :--- | :--- |
+| **Reentrancy** | Implement `enter_lock` and `exit_lock` guards on all state-mutating functions to prevent nested contract call exploits within the same execution context. | [lib.rs:L204](file:///home/jhay/Desktop/stellargive/contracts/stellar-give/src/lib.rs#L204), [lib.rs:L244](file:///home/jhay/Desktop/stellargive/contracts/stellar-give/src/lib.rs#L244) (in `donate`); [lib.rs:L270](file:///home/jhay/Desktop/stellargive/contracts/stellar-give/src/lib.rs#L270), [lib.rs:L292](file:///home/jhay/Desktop/stellargive/contracts/stellar-give/src/lib.rs#L292) (in `claim_funds`) |
+| **Integer Overflow** | Enforce safe arithmetic utilizing `checked_add` and `checked_sub` for all operations altering campaign funding amounts and identifiers. | [lib.rs:L162](file:///home/jhay/Desktop/stellargive/contracts/stellar-give/src/lib.rs#L162) (incrementing next ID), [lib.rs:L221-222](file:///home/jhay/Desktop/stellargive/contracts/stellar-give/src/lib.rs#L221-222) (adding donation amounts) |
+| **Unauthorized Access** | Mandate strict address verification and require cryptographically valid signatures by enforcing `require_auth()` on admin, creator, and beneficiary endpoints. | [lib.rs:L148](file:///home/jhay/Desktop/stellargive/contracts/stellar-give/src/lib.rs#L148) (creator), [lib.rs:L199](file:///home/jhay/Desktop/stellargive/contracts/stellar-give/src/lib.rs#L199) (donor), [lib.rs:L259](file:///home/jhay/Desktop/stellargive/contracts/stellar-give/src/lib.rs#L259) (claim caller) |
+| **Storage Exhaustion** | Avoid unbounded collections and full loops by storing and accessing campaign entities individually via unique, direct persistent keys (`campaign_key(id)`). | [lib.rs:L59](file:///home/jhay/Desktop/stellargive/contracts/stellar-give/src/lib.rs#L59), [lib.rs:L74-85](file:///home/jhay/Desktop/stellargive/contracts/stellar-give/src/lib.rs#L74-L85) (individual getter/setter logic), [lib.rs:L177](file:///home/jhay/Desktop/stellargive/contracts/stellar-give/src/lib.rs#L177), [lib.rs:L206](file:///home/jhay/Desktop/stellargive/contracts/stellar-give/src/lib.rs#L206), [lib.rs:L249](file:///home/jhay/Desktop/stellargive/contracts/stellar-give/src/lib.rs#L249) |
 
-### B. Reentrancy / State Re-entry
-- **Risk:** Nested calls re-enter mutable paths and double-claim or bypass checks.
-- **Controls:**
-  - Use temporary-storage lock guards before mutable operations.
-  - Clear lock deterministically on all successful/failed branches.
+## 2. Known Limitations & Assumptions
 
-### C. Deadline / Time-window Exploits
-- **Risk:** Donations/claims processed outside campaign lifecycle windows.
-- **Controls:**
-  - Validate ledger timestamp in contract (not frontend only).
-  - Ensure deadline checks are strict and tested at boundaries (`==`, `<`, `>`).
+* **Token Contract Validation**: Token verification is limited to verifying interface compliance (e.g. calling `decimals()` via SEP-41). The contract does not verify the economic invariants, internal logic, or solvency of the target token contract.
+* **Campaign Descriptions**: The contract stores campaign details (such as titles/strings) as-is and does not perform XSS payload stripping or content sanitization. Sanitization relies entirely on the frontend application layers prior to rendering.
+* **Standards & Runtime Assumed Compliance**: The security model assumes full compliance of referenced tokens with the Stellar Asset Contract (SAC) standard, and relies on the underlying invariants and safety guarantees provided by the Soroban virtual machine runtime.
 
-### D. Token Validation Failures
-- **Risk:** Donations routed through untrusted/incorrect token contracts.
-- **Controls:**
-  - Persist accepted token per campaign and enforce exact match.
-  - Validate token contract IDs and disallow unsupported assets.
-  - Check transfer result paths and error on partial failures.
+## 3. Pre-Audit Checklist
 
-### E. Frontend/RPC Mismatch
-- **Risk:** Users sign transactions on wrong network/contract.
-- **Controls:**
-  - Surface current network passphrase and contract ID in UI.
-  - Gate writes if runtime network config mismatches expected values.
+- [ ] Test coverage >90% (verify via `cargo tarpaulin`)
+- [ ] `cargo clippy -- -D warnings` passes with zero output
+- [ ] Manual review log signed by 2 core maintainers
 
-## 2. Security Audit Checklist
+## 4. Workflow & Maintenance Notes
 
 Run before every release:
 
@@ -52,7 +39,34 @@ Run before every release:
 10. Deployment runbook completed on testnet before mainnet promotion.
 11. **Final Mainnet Audit Checklist** ([`docs/MAINNET_AUDIT_CHECKLIST.md`](./MAINNET_AUDIT_CHECKLIST.md)) completed and signed off.
 
-## 3. Responsible Disclosure
+## 3. Dependency Audit Schedule
+
+Supply-chain attacks target dependencies. We audit on two tracks:
+
+| Track | Trigger | Tool |
+|-------|---------|------|
+| Automated CI | Every push / PR to `main` | `cargo audit --deny warnings` + `npm audit --audit-level=high` |
+| Scheduled monthly | 1st of each month at 06:00 UTC (GitHub Actions cron) | Same tools |
+| Pre-release manual | Before every production deployment | Human review of `cargo audit` + `npm audit` output |
+
+**Remediation policy:**
+- **Critical / High** — must be fixed or dependency removed before merge.
+- **Moderate** — fix within the next sprint; create a tracking issue immediately.
+- **Low** — address opportunistically; document in the issue tracker.
+
+To run audits locally:
+```bash
+# Rust
+cd contracts/stellar-give
+cargo install cargo-audit --locked
+cargo audit
+
+# Frontend
+cd frontend
+npm audit --audit-level=high
+```
+
+## 4. Responsible Disclosure
 
 If you discover a vulnerability:
 

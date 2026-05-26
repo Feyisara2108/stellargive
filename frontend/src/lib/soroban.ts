@@ -21,6 +21,14 @@ export const server = new rpc.Server(RPC_URL);
 
 export const STROOP_PRECISION = 7;
 
+/**
+ * Maximum resource fee (in stroops) we expect any single contract call to
+ * consume.  Transactions simulating above this threshold are flagged so the UI
+ * can warn the user before they sign.  The hard cap set here is deliberately
+ * generous (10 M CPU units worth of fee headroom); tighten per-call if needed.
+ */
+export const MAX_SIMULATION_FEE_STROOPS = 10_000_000;
+
 export function toStroops(amount: string | number): bigint {
   const parts = amount.toString().split(".");
   let stroops = BigInt(parts[0]) * BigInt(10 ** STROOP_PRECISION);
@@ -112,10 +120,16 @@ export async function getRecentCampaigns(limit = 10): Promise<Campaign[]> {
   return campaigns;
 }
 
+export interface SubmitOptions {
+  /** Called when simulation fee exceeds MAX_SIMULATION_FEE_STROOPS. */
+  onHighGasWarning?: (feeStroops: number) => void;
+}
+
 export async function submitTransaction(
   sender: string,
   func: string,
-  args: any[]
+  args: any[],
+  options: SubmitOptions = {}
 ) {
   const account = await server.getAccount(sender);
   const tx = new TransactionBuilder(account, {
@@ -131,6 +145,22 @@ export async function submitTransaction(
     )
     .setTimeout(30)
     .build();
+
+  // Simulate first to check resource fee before asking the user to sign.
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim)) {
+    console.error("[soroban] simulation failed:", sim.error);
+    throw new Error(`Simulation failed: ${sim.error}`);
+  }
+
+  const minFee = Number((sim as rpc.Api.SimulateTransactionSuccessResponse).minResourceFee ?? 0);
+  if (minFee > MAX_SIMULATION_FEE_STROOPS) {
+    const msg = `High gas: simulated fee ${minFee} stroops exceeds threshold ${MAX_SIMULATION_FEE_STROOPS}`;
+    console.warn(`[soroban] ⚠️ ${msg}`);
+    if (options.onHighGasWarning) {
+      options.onHighGasWarning(minFee);
+    }
+  }
 
   const preparedTx = await server.prepareTransaction(tx);
   const result = await signTransaction(preparedTx.toXDR(), {
