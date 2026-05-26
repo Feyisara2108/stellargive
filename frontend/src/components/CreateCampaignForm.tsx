@@ -26,24 +26,23 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { useState } from "react";
 import { Loader2, PlusCircle } from "lucide-react";
+import { TokenSelector, PREDEFINED_TOKENS } from "@/components/TokenSelector";
 
-const formSchema = z.z.object({
-  title: z.z.string().min(3).max(50),
-  beneficiary: z.z.string().regex(/^G[A-Z0-9]{55}$/, "Invalid Stellar address"),
-  targetAmount: z.z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, "Amount must be positive"),
-  deadlineDays: z.z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, "Days must be positive"),
-  acceptedToken: z.z.string().regex(/^C[A-Z0-9]{55}$|^G[A-Z0-9]{55}$/, "Invalid Token address"),
+const formSchema = z.object({
+  title: z.string().min(3).max(50),
+  beneficiary: z.string().regex(/^G[A-Z0-9]{55}$/, "Invalid Stellar address"),
+  targetAmount: z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, "Amount must be positive"),
+  deadlineDays: z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, "Days must be positive"),
+  acceptedToken: z.string().regex(/^C[A-Z0-9]{55}$|^G[A-Z0-9]{55}$/, "Invalid Token address"),
 });
 
-// For simplicity, we use native XLM (CDL... or dummy) but the contract requires a token address.
-// On Testnet, native XLM is CDLZS3ZCDY7SF3SIVR6Y7I6SN636O27T7G5MKSUIU22ZS76E55WJIPZ4
 const NATIVE_XLM = "CDLZS3ZCDY7SF3SIVR6Y7I6SN636O27T7G5MKSUIU22ZS76E55WJIPZ4";
 
 export function CreateCampaignForm() {
   const [isOpen, setIsOpen] = useState(false);
   const createCampaign = useCreateCampaign();
 
-  const form = useForm<z.z.infer<typeof formSchema>>({
+  const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       title: "",
@@ -54,7 +53,13 @@ export function CreateCampaignForm() {
     },
   });
 
-  async function onSubmit(values: z.z.infer<typeof formSchema>) {
+  const watchAcceptedToken = form.watch("acceptedToken");
+  const selectedTokenMeta = PREDEFINED_TOKENS.find(t => t.address === watchAcceptedToken);
+  const tokenSymbol = selectedTokenMeta ? selectedTokenMeta.symbol : "Tokens";
+
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    if (createCampaign.isPending) return; // Prevent duplicate submissions
+
     try {
       const deadline = Math.floor(Date.now() / 1000) + parseInt(values.deadlineDays) * 24 * 60 * 60;
       await createCampaign.mutateAsync({
@@ -64,22 +69,31 @@ export function CreateCampaignForm() {
         deadline,
         acceptedToken: values.acceptedToken,
       });
-      toast.success("Campaign created successfully!");
       setIsOpen(false);
       form.reset();
     } catch (e: any) {
-      toast.error(e.message || "Failed to create campaign");
+      // Errors are already handled/displayed by the sonner toast inside the useCreateCampaign hook mutation wrapper,
+      // but we catch it here to prevent uncaught promise rejections.
+      console.error(e);
     }
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      if (!createCampaign.isPending) {
+        setIsOpen(open);
+      }
+    }}>
       <DialogTrigger asChild>
         <Button className="gap-2">
           <PlusCircle className="w-4 h-4" /> Start a Campaign
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px]" onPointerDownOutside={(e) => {
+        if (createCampaign.isPending) e.preventDefault(); // lock UI until resolution
+      }} onEscapeKeyDown={(e) => {
+        if (createCampaign.isPending) e.preventDefault(); // lock UI until resolution
+      }}>
         <DialogHeader>
           <DialogTitle>Create Relief Campaign</DialogTitle>
           <DialogDescription>
@@ -95,7 +109,7 @@ export function CreateCampaignForm() {
                 <FormItem>
                   <FormLabel>Campaign Title</FormLabel>
                   <FormControl>
-                    <Input placeholder="Flood Relief 2024" {...field} />
+                    <Input placeholder="Flood Relief 2024" {...field} disabled={createCampaign.isPending} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -108,9 +122,24 @@ export function CreateCampaignForm() {
                 <FormItem>
                   <FormLabel>Beneficiary Address</FormLabel>
                   <FormControl>
-                    <Input placeholder="G..." {...field} />
+                    <Input placeholder="G..." {...field} disabled={createCampaign.isPending} />
                   </FormControl>
                   <FormDescription>Stellar public key of the receiver.</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="acceptedToken"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <TokenSelector
+                      value={field.value}
+                      onChange={(val) => field.onChange(val)}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -121,9 +150,9 @@ export function CreateCampaignForm() {
                 name="targetAmount"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Target (XLM)</FormLabel>
+                    <FormLabel>Target ({tokenSymbol})</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="1000" {...field} />
+                      <Input type="number" placeholder="1000" {...field} disabled={createCampaign.isPending} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -136,7 +165,7 @@ export function CreateCampaignForm() {
                   <FormItem>
                     <FormLabel>Duration (Days)</FormLabel>
                     <FormControl>
-                      <Input type="number" {...field} />
+                      <Input type="number" {...field} disabled={createCampaign.isPending} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -144,8 +173,14 @@ export function CreateCampaignForm() {
               />
             </div>
             <Button type="submit" className="w-full" disabled={createCampaign.isPending}>
-              {createCampaign.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Launch Campaign
+              {createCampaign.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating Campaign...
+                </>
+              ) : (
+                "Launch Campaign"
+              )}
             </Button>
           </form>
         </Form>

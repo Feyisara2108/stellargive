@@ -19,6 +19,8 @@ export function useRecentCampaigns() {
   });
 }
 
+import { toast } from "sonner";
+
 export function useCreateCampaign() {
   const { address } = useWallet();
   const queryClient = useQueryClient();
@@ -44,8 +46,24 @@ export function useCreateCampaign() {
 
       return submitTransaction(address, "create_campaign", args);
     },
-    onSuccess: () => {
+    onMutate: () => {
+      const toastId = toast.loading("Transaction submitted... waiting for ledger confirmation");
+      return { toastId };
+    },
+    onSuccess: (data, variables, context) => {
+      if (context?.toastId) {
+        toast.success("Campaign created successfully!", { id: context.toastId });
+      } else {
+        toast.success("Campaign created successfully!");
+      }
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+    },
+    onError: (error: any, variables, context) => {
+      if (context?.toastId) {
+        toast.error(error.message || "Failed to create campaign", { id: context.toastId });
+      } else {
+        toast.error(error.message || "Failed to create campaign");
+      }
     },
   });
 }
@@ -66,9 +84,25 @@ export function useDonate() {
 
       return submitTransaction(address, "donate", args);
     },
-    onSuccess: (_, variables) => {
+    onMutate: () => {
+      const toastId = toast.loading("Transaction submitted... waiting for ledger confirmation");
+      return { toastId };
+    },
+    onSuccess: (_, variables, context) => {
+      if (context?.toastId) {
+        toast.success("Thank you for your donation!", { id: context.toastId });
+      } else {
+        toast.success("Thank you for your donation!");
+      }
       queryClient.invalidateQueries({ queryKey: ["campaign", variables.campaignId.toString()] });
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+    },
+    onError: (error: any, variables, context) => {
+      if (context?.toastId) {
+        toast.error(error.message || "Failed to donate", { id: context.toastId });
+      } else {
+        toast.error(error.message || "Failed to donate");
+      }
     },
   });
 }

@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
 export function DonateModal({ campaign }: { campaign: Campaign }) {
@@ -24,8 +23,8 @@ export function DonateModal({ campaign }: { campaign: Campaign }) {
   const donate = useDonate();
 
   const handleDonate = async () => {
+    if (donate.isPending) return; // Lock duplicate submissions
     if (!amount || isNaN(Number(amount))) {
-      toast.error("Please enter a valid amount");
       return;
     }
 
@@ -34,45 +33,60 @@ export function DonateModal({ campaign }: { campaign: Campaign }) {
         campaignId: campaign.id,
         amount,
       });
-      toast.success("Thank you for your donation!");
       setIsOpen(false);
       setAmount("");
     } catch (e: any) {
-      toast.error(e.message || "Failed to donate");
+      // Errors are already handled by sonner inside useDonate mutation wrapper
+      console.error(e);
     }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      if (!donate.isPending) {
+        setIsOpen(open);
+      }
+    }}>
       <DialogTrigger asChild>
         <Button className="flex-1">Donate Now</Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent onPointerDownOutside={(e) => {
+        if (donate.isPending) e.preventDefault(); // lock UI until resolution
+      }} onEscapeKeyDown={(e) => {
+        if (donate.isPending) e.preventDefault(); // lock UI until resolution
+      }}>
         <DialogHeader>
           <DialogTitle>Donate to {campaign.title}</DialogTitle>
           <DialogDescription>
-            Enter the amount of XLM you wish to contribute to this relief campaign.
+            Enter the amount of tokens you wish to contribute to this relief campaign.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
-            <Label htmlFor="amount">Amount (XLM)</Label>
+            <Label htmlFor="amount">Amount</Label>
             <Input
               id="amount"
               type="number"
               placeholder="10.0"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
+              disabled={donate.isPending}
             />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setIsOpen(false)}>
+          <Button variant="outline" onClick={() => setIsOpen(false)} disabled={donate.isPending}>
             Cancel
           </Button>
           <Button onClick={handleDonate} disabled={donate.isPending}>
-            {donate.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Confirm Donation
+            {donate.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Donating...
+              </>
+            ) : (
+              "Confirm Donation"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>
