@@ -141,7 +141,7 @@ export async function submitTransaction(
         func,
         contractId: CONTRACT_ID,
         args,
-      })
+      } as any)
     )
     .setTimeout(30)
     .build();
@@ -176,7 +176,7 @@ export async function submitTransaction(
   );
 
   if (sendResponse.status === "ERROR") {
-    throw new Error(`Send failed: ${JSON.stringify(sendResponse.errorResultXdr)}`);
+    throw new Error(`Send failed: ${JSON.stringify((sendResponse as any).errorResultXdr || sendResponse.errorResult)}`);
   }
 
   let txResult = await server.getTransaction(sendResponse.hash);
@@ -217,4 +217,86 @@ export async function getEvents(limit = 20) {
       data: value,
     };
   });
+}
+
+export async function getSACBalance(contractId: string, userAddress: string): Promise<bigint> {
+  const tx = new TransactionBuilder(
+    new Account("GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF", "0"),
+    {
+      fee: "100",
+      networkPassphrase: NETWORK_PASSPHRASE,
+    }
+  )
+    .addOperation(
+      Operation.invokeHostFunction({
+        func: "balance",
+        contractId: contractId,
+        args: [new Address(userAddress).toScVal()],
+      } as any)
+    )
+    .setTimeout(30)
+    .build();
+
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim)) {
+    throw new Error(`Simulation failed: ${sim.error}`);
+  }
+  if (!sim.result) throw new Error("Failed to get balance: no result");
+  const result = scValToNative(sim.result.retval);
+  return BigInt(result);
+}
+
+export interface TokenMetadata {
+  symbol: string;
+  decimals: number;
+}
+
+export async function getTokenMetadata(contractId: string): Promise<TokenMetadata> {
+  const txSymbol = new TransactionBuilder(
+    new Account("GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF", "0"),
+    {
+      fee: "100",
+      networkPassphrase: NETWORK_PASSPHRASE,
+    }
+  )
+    .addOperation(
+      Operation.invokeHostFunction({
+        func: "symbol",
+        contractId,
+        args: [],
+      } as any)
+    )
+    .setTimeout(30)
+    .build();
+
+  const simSymbol = await server.simulateTransaction(txSymbol);
+  if (rpc.Api.isSimulationError(simSymbol) || !simSymbol.result) {
+    throw new Error("Failed to fetch symbol or not a valid SAC/Token contract");
+  }
+  const symbol = scValToNative(simSymbol.result.retval).toString();
+
+  const txDecimals = new TransactionBuilder(
+    new Account("GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF", "0"),
+    {
+      fee: "100",
+      networkPassphrase: NETWORK_PASSPHRASE,
+    }
+  )
+    .addOperation(
+      Operation.invokeHostFunction({
+        func: "decimals",
+        contractId,
+        args: [],
+      } as any)
+    )
+    .setTimeout(30)
+    .build();
+
+  const simDecimals = await server.simulateTransaction(txDecimals);
+  if (rpc.Api.isSimulationError(simDecimals) || !simDecimals.result) {
+    throw new Error("Failed to fetch decimals or not a valid SAC/Token contract");
+  }
+  const decimals = Number(scValToNative(simDecimals.result.retval));
+
+  return { symbol, decimals };
 }

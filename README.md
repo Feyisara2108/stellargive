@@ -1,12 +1,14 @@
-# stellarGive
+# StellarGive
 
-[![Contract CI](https://github.com/Feyisara2108/stellargive/actions/workflows/ci-contract.yml/badge.svg)](https://github.com/Feyisara2108/stellargive/actions/workflows/ci-contract.yml)
-[![Frontend CI](https://github.com/Feyisara2108/stellargive/actions/workflows/ci-frontend.yml/badge.svg)](https://github.com/Feyisara2108/stellargive/actions/workflows/ci-frontend.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](./docs/CONTRIBUTING.md)
-[![Network: Stellar Testnet](https://img.shields.io/badge/network-stellar%20testnet-0ea5e9)](https://soroban-testnet.stellar.org)
+[![Contract CI](https://github.com/Nursca/stellargive/actions/workflows/ci-contract.yml/badge.svg)](https://github.com/Nursca/stellargive/actions)
+[![codecov](https://codecov.io/gh/Nursca/stellargive/graph/badge.svg)](https://codecov.io/gh/Nursca/stellargive)
+![Soroban](https://img.shields.io/badge/Built%20on-Soroban-blue)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+<!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
+[![All Contributors](https://img.shields.io/badge/all_contributors-2-orange.svg?style=flat-square)](#contributors-)
+<!-- ALL-CONTRIBUTORS-BADGE:END -->
 
-A Stellar Soroban grant and donation platform with a Rust smart contract and Next.js 14 App Router frontend.
+Transparent crowdfunding on Stellar Soroban...
 
 ## Current Testnet Deployment
 
@@ -97,3 +99,24 @@ docs/                    Security, deployment, architecture, contributing docs
 - Deployment: [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md)
 - Contributing: [`docs/CONTRIBUTING.md`](./docs/CONTRIBUTING.md)
 - Video Transcript: [`docs/VIDEO_TRANSCRIPT.md`](./docs/VIDEO_TRANSCRIPT.md)
+
+## 👥 Contributors
+
+<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
+<!-- prettier-ignore-start -->
+<!-- markdownlint-disable -->
+<table>
+  <tbody>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://leetcode.com/u/Feyisara21/"><img src="https://avatars.githubusercontent.com/u/179263855?v=4?s=100" width="100px;" alt="Mutmahinat Feyisara"/><br /><sub><b>Mutmahinat Feyisara</b></sub></a><br /><a href="https://github.com/Nursca/stellargive/commits?author=Feyisara2108" title="Code">💻</a> <a href="https://github.com/Nursca/stellargive/commits?author=Feyisara2108" title="Documentation">📖</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Nursca"><img src="https://avatars.githubusercontent.com/u/193498127?v=4?s=100" width="100px;" alt="Nursca"/><br /><sub><b>Nursca</b></sub></a><br /><a href="https://github.com/Nursca/stellargive/commits?author=Nursca" title="Code">💻</a> <a href="https://github.com/Nursca/stellargive/commits?author=Nursca" title="Documentation">📖</a> <a href="#design-Nursca" title="Design">🎨</a> <a href="#ideas-Nursca" title="Ideas, Planning, & Feedback">🤔</a></td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- markdownlint-restore -->
+<!-- prettier-ignore-end -->
+
+<!-- ALL-CONTRIBUTORS-LIST:END -->
+
+This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!

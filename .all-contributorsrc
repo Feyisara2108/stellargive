@@ -1,0 +1,39 @@
+{
+  "projectName": "stellargive",
+  "projectOwner": "Nursca",
+  "repoType": "github",
+  "repoHost": "https://github.com",
+  "files": [
+    "README.md"
+  ],
+  "imageSize": 100,
+  "commit": false,
+  "contributors": [
+    {
+      "login": "Feyisara2108",
+      "name": "Mutmahinat Feyisara",
+      "avatar_url": "https://avatars.githubusercontent.com/u/179263855?v=4",
+      "profile": "https://leetcode.com/u/Feyisara21/",
+      "contributions": [
+        "code",
+        "doc"
+      ]
+    },
+    {
+      "login": "Nursca",
+      "name": "Nursca",
+      "avatar_url": "https://avatars.githubusercontent.com/u/193498127?v=4",
+      "profile": "https://github.com/Nursca",
+      "contributions": [
+        "code",
+        "doc",
+        "design",
+        "ideas"
+      ]
+    }
+  ],
+  "contributorsPerLine": 7,
+  "linkToSymbol": true,
+  "commitConvention": "angular",
+  "commitType": "docs"
+}

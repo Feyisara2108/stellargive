@@ -62,13 +62,18 @@ For full contract method and error reference documentation, see [`docs/CONTRACT_
 
 ## 4. Event Schema
 
-Recommended event topics + data:
+Authoritative event reference: [`EVENT_SCHEMA.md`](./EVENT_SCHEMA.md).
 
-| Topic | Data | Consumer |
+Summary of the events this contract publishes:
+
+| Topics | Data | Consumer |
 |---|---|---|
-| `("campaign", "created")` | `(campaign_id, creator, beneficiary, target_amount, deadline, accepted_token)` | Campaign feed |
-| `("donation", "received")` | `(campaign_id, donor, amount, token)` | Donation timeline / analytics |
-| `("funds", "claimed")` | `(campaign_id, caller, beneficiary, amount, token)` | Settlement and payout history |
+| `("created",)` | `CreatedEvent { id, creator, target_amount }` | Campaign feed |
+| `("donation", "received")` | `(campaign_id, donor, amount, raised_amount, accepted_token)` | Donation timeline / analytics |
+| `("funds", "claimed")` | `(campaign_id, caller, beneficiary, amount, accepted_token)` | Settlement and payout history |
+
+See [`EVENT_SCHEMA.md`](./EVENT_SCHEMA.md) for ScVal types, JSON/XDR
+payload examples, and per-event indexing notes.
 
 ## 5. RPC Polling Strategy
 

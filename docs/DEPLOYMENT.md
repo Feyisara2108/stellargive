@@ -119,6 +119,7 @@ If upgrades are not supported in current design, deploy immutable new contract I
 ## 9. Mainnet Migration Checklist
 
 - [ ] Security checklist in `docs/SECURITY.md` completed
+- [ ] Final Mainnet Audit Checklist in [`docs/MAINNET_AUDIT_CHECKLIST.md`](./MAINNET_AUDIT_CHECKLIST.md) completed
 - [ ] Independent review of auth, token validation, and deadlines
 - [ ] CI pipelines green on protected `main`
 - [ ] Mainnet network profile configured correctly

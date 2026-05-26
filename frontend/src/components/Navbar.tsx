@@ -2,6 +2,7 @@
 
 import { WalletConnect } from "@/components/WalletConnect";
 import { CreateCampaignForm } from "@/components/CreateCampaignForm";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { Heart } from "lucide-react";
 
 export function Navbar() {
@@ -18,6 +19,8 @@ export function Navbar() {
         </div>
         <div className="flex items-center gap-4">
           <CreateCampaignForm />
+          <div className="h-6 w-px bg-border mx-2" />
+          <ThemeToggle />
           <div className="h-6 w-px bg-border mx-2" />
           <WalletConnect />
         </div>

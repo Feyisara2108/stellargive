@@ -37,6 +37,7 @@ Run before every release:
 8. `.env` and deployment scripts reviewed for accidental secret exposure.
 9. Dependencies reviewed (`cargo audit` / `npm audit` in manual security review cadence).
 10. Deployment runbook completed on testnet before mainnet promotion.
+11. **Final Mainnet Audit Checklist** ([`docs/MAINNET_AUDIT_CHECKLIST.md`](./MAINNET_AUDIT_CHECKLIST.md)) completed and signed off.
 
 ## 3. Dependency Audit Schedule
 

@@ -117,6 +117,9 @@ its resource usage before merging.
 - [ ] npm run lint
 - [ ] npm run build
 
+## Mainnet Readiness (Required for Mainnet-targeting PRs)
+- [ ] [Final Mainnet Audit Checklist](../docs/MAINNET_AUDIT_CHECKLIST.md) completed and signed off.
+
 ## Security impact
 - [ ] No security impact
 - [ ] Security-sensitive (describe)
