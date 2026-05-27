@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getCampaign, getRecentCampaigns, submitTransaction, CONTRACT_ID, toStroops, getEvents } from "@/lib/soroban";
+import { getCampaign, getRecentCampaigns, getCampaignsPage, submitTransaction, CONTRACT_ID, toStroops, getEvents } from "@/lib/soroban";
 import { Address, nativeToScVal } from "@stellar/stellar-sdk";
 import { useWallet } from "@/lib/WalletProvider";
 
@@ -16,6 +16,14 @@ export function useRecentCampaigns() {
   return useQuery({
     queryKey: ["campaigns", "recent"],
     queryFn: () => getRecentCampaigns(),
+  });
+}
+
+export function useCampaignsPaged(limit: number) {
+  return useQuery({
+    queryKey: ["campaigns", "paged", limit],
+    queryFn: () => getCampaignsPage(limit),
+    placeholderData: (prev) => prev,
   });
 }
 

@@ -29,10 +29,22 @@ import { Loader2, PlusCircle } from "lucide-react";
 import { TokenSelector, PREDEFINED_TOKENS } from "@/components/TokenSelector";
 
 const formSchema = z.object({
-  title: z.string().min(3).max(50),
+  title: z
+    .string()
+    .min(5, "Title must be at least 5 characters")
+    .max(50, "Title cannot exceed 50 characters"),
   beneficiary: z.string().regex(/^G[A-Z0-9]{55}$/, "Invalid Stellar address"),
-  targetAmount: z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, "Amount must be positive"),
-  deadlineDays: z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, "Days must be positive"),
+  targetAmount: z.string().refine(
+    (val) => !isNaN(Number(val)) && Number(val) > 0,
+    "Target amount must be a positive number"
+  ),
+  deadlineDays: z.string().refine(
+    (val) => {
+      const n = Number(val);
+      return Number.isInteger(n) && n >= 1;
+    },
+    "Deadline must be at least 1 day (24 hours) in the future"
+  ),
   acceptedToken: z.string().regex(/^C[A-Z0-9]{55}$|^G[A-Z0-9]{55}$/, "Invalid Token address"),
 });
 

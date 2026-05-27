@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { WalletConnect } from "@/components/WalletConnect";
 import { CreateCampaignForm } from "@/components/CreateCampaignForm";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -18,6 +19,12 @@ export function Navbar() {
           </span>
         </div>
         <div className="flex items-center gap-4">
+          <Link
+            href="/explore"
+            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Explore
+          </Link>
           <CreateCampaignForm />
           <div className="h-6 w-px bg-border mx-2" />
           <ThemeToggle />

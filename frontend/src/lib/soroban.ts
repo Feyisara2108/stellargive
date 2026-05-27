@@ -114,10 +114,19 @@ export async function getRecentCampaigns(limit = 10): Promise<Campaign[]> {
       const c = await getCampaign(i);
       campaigns.push(c);
     } catch (e) {
-      break; 
+      break;
     }
   }
   return campaigns;
+}
+
+export async function getCampaignsPage(
+  limit: number
+): Promise<{ campaigns: Campaign[]; hasMore: boolean }> {
+  // Fetch one extra to detect whether more campaigns exist beyond `limit`.
+  const all = await getRecentCampaigns(limit + 1);
+  const hasMore = all.length > limit;
+  return { campaigns: all.slice(0, limit), hasMore };
 }
 
 export interface SubmitOptions {

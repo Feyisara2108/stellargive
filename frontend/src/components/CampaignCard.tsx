@@ -10,11 +10,21 @@ import { Calendar, Target, TrendingUp } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ShareButton } from "@/components/ShareButton";
 
+function calculateProgress(raised: bigint, target: bigint): number {
+  if (target === 0n) return 0;
+  // Scale by 10_000 before dividing to preserve two decimal places of precision
+  // without floating-point conversion until the very end.
+  const scaled = (raised * 10_000n) / target;
+  return Math.min(Number(scaled) / 100, 100);
+}
+
 export function CampaignCard({ campaign }: { campaign: Campaign }) {
   const raised = Number(fromStroops(campaign.raised_amount));
   const target = Number(fromStroops(campaign.target_amount));
-  const progress = Math.min((raised / target) * 100, 100);
-  
+  const progress = calculateProgress(campaign.raised_amount, campaign.target_amount);
+  const progressColor =
+    progress >= 100 ? "bg-green-500" : progress >= 50 ? "bg-yellow-500" : "bg-blue-500";
+
   const isExpired = campaign.status === "Expired";
   const isFunded = campaign.status === "Funded";
   const isClaimed = campaign.status === "Claimed";
@@ -44,7 +54,7 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
             </span>
             <span className="font-bold">{raised} XLM</span>
           </div>
-          <Progress value={progress} className="h-2" />
+          <Progress value={progress} className="h-2" indicatorClassName={progressColor} />
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>{progress.toFixed(1)}%</span>
             <span className="flex items-center gap-1">

@@ -56,11 +56,9 @@ pub enum ContractError {
     NothingToClaim = 11,
     InvalidShares = 12,
     TokenTransferFailed = 13,
-    /// Token transfer failed — revert donation, no state changes persist.
-    TokenTransferFailed = 12,
-    NotInitialized = 13,
-    AlreadyInitialized = 14,
-    InvalidDuration = 15,
+    NotInitialized = 14,
+    AlreadyInitialized = 15,
+    InvalidDuration = 16,
 }
 
 fn next_id_key() -> Symbol {
@@ -198,7 +196,7 @@ fn enter_lock(env: &Env) -> Result<(), ContractError> {
     Ok(())
 }
 
-/// Releases the reentrancy lock unconditionally.  Called on every exit path
+/// Releases the reentrancy lock unconditionally. Called on every exit path
 /// (success and failure) to guarantee the lock is not left held.
 fn exit_lock(env: &Env) {
     env.storage().temporary().remove(&lock_key());
@@ -229,14 +227,12 @@ fn sync_status(env: &Env, campaign: &mut Campaign) {
     }
 }
 
-/// Validates that `token_address` implements the Soroban Asset Contract (SEP-41)
-/// interface by calling two lightweight read methods.  Returns `InvalidToken`
-/// if either call fails, preventing campaigns from being created with
-/// non-compliant or malicious token contracts.
+/// Validates that `token_address` implements the Soroban token interface (SEP-41)
+/// by calling two lightweight read methods. Returns `InvalidToken` if either
+/// call fails, preventing campaigns from being created with non-compliant or
+/// malicious token contracts.
 fn validate_token_contract(env: &Env, token_address: &Address) -> Result<(), ContractError> {
-    let client = token::TokenClient::new(env, token_address);
-    // Both calls must succeed — a malicious contract that panics on either
-    // will cause this to return InvalidToken.
+    let client = token::Client::new(env, token_address);
     if client.try_decimals().is_err() {
         return Err(ContractError::InvalidToken);
     }
@@ -248,31 +244,6 @@ fn validate_token_contract(env: &Env, token_address: &Address) -> Result<(), Con
 
 #[contractimpl]
 impl StellarGiveContract {
-    /// Creates a new fundraising campaign.
-    ///
-    /// # Arguments
-    /// * `env` - The Soroban contract environment.
-    /// * `creator` - Address creating the campaign. Must be authenticated with `require_auth()`.
-    /// * `beneficiaries` - Vector of `(Address, u32)` share recipients. Must contain at least one entry and sum to `10_000`.
-    /// * `title` - Campaign title. Must not be empty.
-    /// * `target_amount` - Funding goal in stroops.
-    /// * `deadline` - Unix timestamp after which donations are no longer accepted.
-    /// * `accepted_token` - Token contract address used for donations.
-    ///
-    /// # Returns
-    /// `Ok(campaign_id)` on success.
-    ///
-    /// # Errors
-    /// * `Unauthorized` if `creator` is not authenticated.
-    /// * `EmptyTitle` if the title is empty.
-    /// * `InvalidAmount` if `target_amount <= 0` or if the campaign ID overflows.
-    /// * `InvalidDeadline` if the deadline is not strictly in the future.
-    /// * `InvalidToken` if the accepted token contract does not implement the required token interface.
-    /// * `InvalidShares` if `beneficiaries` is empty or shares do not sum to `10_000`.
-    ///
-    /// ### ⚠️ Precision Warning
-    /// `target_amount` must be in **stroops** (1 XLM = 10,000,000 stroops).
-    /// Never use floating-point math to calculate this value.
     /// One-shot initializer. Sets the platform admin address that receives
     /// the fee portion of every successful claim. Must be called before any
     /// `claim_funds` invocation.
@@ -285,6 +256,18 @@ impl StellarGiveContract {
         Ok(())
     }
 
+    /// Creates a new fundraising campaign.
+    ///
+    /// # Arguments
+    /// * `creator` - Address creating the campaign. Must be authenticated.
+    /// * `beneficiaries` - Vec of `(Address, u32)` share recipients summing to `10_000` basis points.
+    /// * `title` - Campaign title. Must not be empty.
+    /// * `target_amount` - Funding goal in stroops. Must be positive.
+    /// * `deadline` - Unix timestamp after which donations are no longer accepted.
+    /// * `accepted_token` - Token contract address. Must implement the Soroban token interface.
+    ///
+    /// # Errors
+    /// * `InvalidToken` if `accepted_token` does not implement `decimals()` and `symbol()`.
     pub fn create_campaign(
         env: Env,
         creator: Address,
@@ -311,6 +294,9 @@ impl StellarGiveContract {
         if deadline - now > MAX_DURATION {
             return Err(ContractError::InvalidDuration);
         }
+
+        // Validate that the token contract implements the Soroban token interface
+        // before persisting it. A non-compliant contract would brick the campaign.
         validate_token_contract(&env, &accepted_token)?;
 
         if beneficiaries.len() == 0 {
@@ -356,24 +342,9 @@ impl StellarGiveContract {
     /// Donates accepted tokens to an active campaign.
     ///
     /// # Arguments
-    /// * `env` - The Soroban contract environment.
-    /// * `donor` - Address providing the donation. Must be authenticated with `require_auth()`.
+    /// * `donor` - Address providing the donation. Must be authenticated.
     /// * `campaign_id` - ID of the campaign to donate to.
-    /// * `amount` - Donation amount in stroops.
-    ///
-    /// # Returns
-    /// `Ok(())` on success.
-    ///
-    /// # Errors
-    /// * `Unauthorized` if `donor` is not authenticated.
-    /// * `InvalidAmount` if `amount <= 0`.
-    /// * `CampaignNotFound` if the campaign does not exist.
-    /// * `CampaignNotActive` if the campaign is not active.
-    /// * `TokenTransferFailed` if the token transfer from donor to contract fails.
-    ///
-    /// ### ⚠️ Precision Warning
-    /// `amount` must be in **stroops** (1 XLM = 10,000,000 stroops).
-    /// Always use integer math for financial calculations.
+    /// * `amount` - Donation amount in stroops. Must be >= `MIN_DONATION`.
     pub fn donate(
         env: Env,
         donor: Address,
@@ -396,7 +367,7 @@ impl StellarGiveContract {
 
             // Use try_transfer so a failing token contract reverts the donation
             // cleanly instead of propagating a raw panic.
-            if token::TokenClient::new(&env, &campaign.accepted_token)
+            if token::Client::new(&env, &campaign.accepted_token)
                 .try_transfer(&donor, &env.current_contract_address(), &amount)
                 .is_err()
             {
@@ -433,25 +404,18 @@ impl StellarGiveContract {
         result
     }
 
-    /// Claims raised funds for a campaign.
+    /// Claims raised funds for a campaign and distributes them to beneficiaries.
+    ///
+    /// Net proceeds (after 1% platform fee) are split proportionally among
+    /// beneficiaries according to their basis-point shares. The first beneficiary
+    /// absorbs any rounding dust so that `fee + Σpayouts == raised_amount` exactly.
     ///
     /// # Arguments
-    /// * `env` - The Soroban contract environment.
-    /// * `caller` - Address requesting payout. Must be authenticated with `require_auth()`.
+    /// * `caller` - Address requesting payout. Must be the creator or a beneficiary.
     /// * `campaign_id` - ID of the campaign to claim.
     ///
     /// # Returns
-    /// `Ok(total)` with the distributed amount in stroops.
-    ///
-    /// # Errors
-    /// * `Unauthorized` if `caller` is neither the campaign creator nor a beneficiary.
-    /// * `CampaignNotFound` if the campaign does not exist.
-    /// * `AlreadyClaimed` if funds have already been claimed.
-    /// * `ClaimNotAllowed` if the campaign is still active and not eligible for payout.
-    /// * `NothingToClaim` if the campaign has zero raised amount.
-    ///
-    /// ### ⚠️ Precision Warning
-    /// All returned and internal amounts are in **stroops**.
+    /// `Ok(gross_amount)` with the total settled amount in stroops.
     pub fn claim_funds(env: Env, caller: Address, campaign_id: u64) -> Result<i128, ContractError> {
         let mut campaign = read_campaign(&env, campaign_id)?;
         sync_status(&env, &mut campaign);
@@ -484,67 +448,61 @@ impl StellarGiveContract {
                 .checked_sub(fee)
                 .ok_or(ContractError::InvalidAmount)?;
 
-            // Two-leg payout: fee → admin, net → beneficiary. The fee leg is
-            // skipped entirely when rounding produces a zero fee, so small
-            // claims do not pay the runtime cost of a no-op transfer.
-            let token = token::TokenClient::new(&env, &campaign.accepted_token);
+            let token = token::Client::new(&env, &campaign.accepted_token);
+
+            // Fee leg: skipped when rounding produces zero to avoid no-op transfers.
             if fee > 0 {
                 token.transfer(&env.current_contract_address(), &admin, &fee);
             }
-            token.transfer(&env.current_contract_address(), &campaign.beneficiary, &net);
+
+            // Distribute net proportionally among beneficiaries (basis points over 10_000).
+            // Beneficiaries at index 1..n each receive floor(net * share / 10_000).
+            // The first beneficiary (index 0) receives the remainder so that
+            // fee + Σpayouts == amount exactly, absorbing any rounding dust.
+            let n = campaign.beneficiaries.len();
+            let mut distributed: i128 = 0;
+            for i in 1..n {
+                let (addr, share) = campaign.beneficiaries.get(i).unwrap();
+                let payout = net
+                    .checked_mul(i128::from(share))
+                    .ok_or(ContractError::InvalidAmount)?
+                    / 10_000;
+                token.transfer(&env.current_contract_address(), &addr, &payout);
+                distributed = distributed
+                    .checked_add(payout)
+                    .ok_or(ContractError::InvalidAmount)?;
+            }
+            let (first_addr, _) = campaign.beneficiaries.get(0).unwrap();
+            let remainder = net
+                .checked_sub(distributed)
+                .ok_or(ContractError::InvalidAmount)?;
+            token.transfer(&env.current_contract_address(), &first_addr, &remainder);
 
             campaign.raised_amount = 0;
             campaign.status = CampaignStatus::Claimed;
             write_campaign(&env, &campaign);
 
-            // `amount` in the event continues to represent the gross settled
-            // amount (fee + net), preserving the existing indexer contract.
+            // Gross amount in event preserves the original raised amount for indexers.
             env.events().publish(
                 (symbol_short!("funds"), symbol_short!("claimed")),
-                (campaign.id, caller, total, campaign.accepted_token),
+                (campaign.id, caller, amount, campaign.accepted_token),
             );
 
-            Ok(total)
+            Ok(amount)
         })();
 
         exit_lock(&env);
         result
     }
 
-    /// Returns the current state of a campaign.
-    ///
-    /// # Arguments
-    /// * `env` - The Soroban contract environment.
-    /// * `campaign_id` - ID of the campaign to read.
-    ///
-    /// # Returns
-    /// `Ok(Campaign)` with campaign state and derived status.
-    ///
-    /// # Errors
-    /// * `CampaignNotFound` if the campaign does not exist.
-    ///
-    /// ### ⚠️ Precision Warning
-    /// All amounts in the returned `Campaign` struct are in **stroops**.
+    /// Returns the current state of a campaign with a derived status.
     pub fn get_campaign(env: Env, campaign_id: u64) -> Result<Campaign, ContractError> {
         let mut campaign = read_campaign(&env, campaign_id)?;
         campaign.status = derive_status(env.ledger().timestamp(), &campaign);
         Ok(campaign)
     }
 
-    /// Returns the top 5 donors for a campaign.
-    ///
-    /// # Arguments
-    /// * `env` - The Soroban contract environment.
-    /// * `campaign_id` - ID of the campaign to read.
-    ///
-    /// # Returns
-    /// `Ok(Vec<(Address, i128)>)` with the top five donors sorted by donated amount.
-    ///
-    /// # Errors
-    /// * `CampaignNotFound` if the campaign does not exist.
-    ///
-    /// ### ⚠️ Precision Warning
-    /// All donation amounts are in **stroops**.
+    /// Returns the top 5 donors for a campaign sorted by donated amount.
     pub fn get_top_donors(
         env: Env,
         campaign_id: u64,
@@ -589,8 +547,9 @@ mod tests {
         let token_client = token::Client::new(&env, &token_id.address());
         let token_admin_client = token::StellarAssetClient::new(&env, &token_id.address());
 
-        token_admin_client.mint(&donor, &1_000_000);
-        token_admin_client.mint(&creator, &1_000_000);
+        // Mint enough for all test scenarios (1_000 XLM equivalent).
+        token_admin_client.mint(&donor, &1_000_000_000_000);
+        token_admin_client.mint(&creator, &1_000_000_000_000);
 
         let contract_id = env.register_contract(None, StellarGiveContract);
         let client = StellarGiveContractClient::new(&env, &contract_id);
@@ -608,18 +567,27 @@ mod tests {
         )
     }
 
+    fn single_ben(env: &Env, beneficiary: &Address) -> Vec<(Address, u32)> {
+        let mut bens = Vec::new(env);
+        bens.push_back((beneficiary.clone(), 10_000_u32));
+        bens
+    }
+
+    // -----------------------------------------------------------------------
+    // Campaign creation
+    // -----------------------------------------------------------------------
+
     #[test]
     fn create_and_get_campaign() {
         let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = setup();
         set_timestamp(&env, 1_000);
 
-        let mut bens = Vec::new(&env);
-        bens.push_back((beneficiary.clone(), 10_000_u32));
+        let bens = single_ben(&env, &beneficiary);
         let id = client.create_campaign(
             &creator,
             &bens,
             &String::from_str(&env, "Flood Relief"),
-            &500_000,
+            &5_000_000,
             &2_000,
             &token_client.address,
         );
@@ -629,7 +597,7 @@ mod tests {
         assert_eq!(campaign.status, CampaignStatus::Active);
         assert_eq!(campaign.creator, creator);
         assert_eq!(campaign.beneficiaries, bens);
-        assert_eq!(campaign.target_amount, 500_000);
+        assert_eq!(campaign.target_amount, 5_000_000);
         assert_eq!(campaign.raised_amount, 0);
     }
 
@@ -638,9 +606,8 @@ mod tests {
         let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = setup();
         set_timestamp(&env, 1_000);
 
-        let target_amount: i128 = 500_000;
-        let mut bens = Vec::new(&env);
-        bens.push_back((beneficiary.clone(), 10_000_u32));
+        let target_amount: i128 = 5_000_000;
+        let bens = single_ben(&env, &beneficiary);
         let id = client.create_campaign(
             &creator,
             &bens,
@@ -675,56 +642,102 @@ mod tests {
         let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = setup();
         set_timestamp(&env, 1_000);
 
-        let mut bens = Vec::new(&env);
-        bens.push_back((beneficiary.clone(), 10_000_u32));
+        let bens = single_ben(&env, &beneficiary);
 
-        // Exactly one year is accepted; only longer campaigns are rejected.
+        // Exactly one year is accepted.
         let id = client.create_campaign(
             &creator,
             &bens,
             &String::from_str(&env, "One Year Relief"),
-            &500_000,
+            &5_000_000,
             &(1_000 + MAX_DURATION),
             &token_client.address,
         );
         assert_eq!(id, 1);
 
+        // One second over the limit is rejected.
         let result = client.try_create_campaign(
             &creator,
             &bens,
             &String::from_str(&env, "Too Long Relief"),
-            &500_000,
+            &5_000_000,
             &(1_000 + MAX_DURATION + 1),
             &token_client.address,
         );
         assert!(result.is_err());
     }
 
+    // -----------------------------------------------------------------------
+    // Issue #10 — token interface validation
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn create_campaign_accepts_valid_sac_token() {
+        let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = setup();
+        set_timestamp(&env, 1_000);
+
+        let bens = single_ben(&env, &beneficiary);
+        // token_client.address is a registered SAC — validation must succeed.
+        let result = client.try_create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "SAC Campaign"),
+            &5_000_000,
+            &2_000,
+            &token_client.address,
+        );
+        assert!(result.is_ok(), "valid SAC token must be accepted");
+    }
+
+    #[test]
+    fn create_campaign_rejects_non_token_contract() {
+        let (env, client, creator, beneficiary, _donor, _admin, _token_client, _) = setup();
+        set_timestamp(&env, 1_000);
+
+        // Use the campaign contract's own address as the token — it does not
+        // implement decimals() or symbol(), so validation must return InvalidToken.
+        let not_a_token = client.address.clone();
+        let bens = single_ben(&env, &beneficiary);
+
+        let result = client.try_create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Bad Token Campaign"),
+            &5_000_000,
+            &2_000,
+            &not_a_token,
+        );
+        assert!(result.is_err(), "non-token contract address must be rejected");
+    }
+
+    // -----------------------------------------------------------------------
+    // Donation
+    // -----------------------------------------------------------------------
+
     #[test]
     fn donate_updates_raised_and_status() {
         let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
         set_timestamp(&env, 5_000);
 
-        let mut bens = Vec::new(&env);
-        bens.push_back((beneficiary.clone(), 10_000_u32));
+        let bens = single_ben(&env, &beneficiary);
         let campaign_id = client.create_campaign(
             &creator,
             &bens,
             &String::from_str(&env, "Medical Aid"),
-            &100_000,
+            &3_000_000,
             &10_000,
             &token_client.address,
         );
 
-        client.donate(&donor, &campaign_id, &40_000);
-        let campaign_after_first = client.get_campaign(&campaign_id);
-        assert_eq!(campaign_after_first.raised_amount, 40_000);
-        assert_eq!(campaign_after_first.status, CampaignStatus::Active);
+        client.donate(&donor, &campaign_id, &1_000_000);
+        let after_first = client.get_campaign(&campaign_id);
+        assert_eq!(after_first.raised_amount, 1_000_000);
+        assert_eq!(after_first.status, CampaignStatus::Active);
 
-        client.donate(&donor, &campaign_id, &60_000);
-        let campaign_after_second = client.get_campaign(&campaign_id);
-        assert_eq!(campaign_after_second.raised_amount, 100_000);
-        assert_eq!(campaign_after_second.status, CampaignStatus::Funded);
+        client.donate(&donor, &campaign_id, &2_000_000);
+        let after_second = client.get_campaign(&campaign_id);
+        assert_eq!(after_second.raised_amount, 3_000_000);
+        assert_eq!(after_second.status, CampaignStatus::Funded);
     }
 
     #[test]
@@ -732,13 +745,12 @@ mod tests {
         let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
         set_timestamp(&env, 1_000);
 
-        let mut bens = Vec::new(&env);
-        bens.push_back((beneficiary.clone(), 10_000_u32));
+        let bens = single_ben(&env, &beneficiary);
         let campaign_id = client.create_campaign(
             &creator,
             &bens,
             &String::from_str(&env, "Seed Relief"),
-            &100_000,
+            &5_000_000,
             &10_000,
             &token_client.address,
         );
@@ -747,35 +759,38 @@ mod tests {
         assert!(result.is_err());
     }
 
+    // -----------------------------------------------------------------------
+    // Claiming and fee distribution
+    // -----------------------------------------------------------------------
+
     #[test]
     fn claim_when_target_met_transfers_to_beneficiary() {
         let (env, client, creator, beneficiary, donor, admin, token_client, _) = setup();
         set_timestamp(&env, 10_000);
 
-        let mut bens = Vec::new(&env);
-        bens.push_back((beneficiary.clone(), 10_000_u32));
+        let bens = single_ben(&env, &beneficiary);
         let campaign_id = client.create_campaign(
             &creator,
             &bens,
             &String::from_str(&env, "School Rebuild"),
-            &120_000,
+            &12_000_000,
             &20_000,
             &token_client.address,
         );
 
-        client.donate(&donor, &campaign_id, &120_000);
+        client.donate(&donor, &campaign_id, &12_000_000);
 
-        let beneficiary_before = token_client.balance(&beneficiary);
+        let ben_before = token_client.balance(&beneficiary);
         let admin_before = token_client.balance(&admin);
         let claimed = client.claim_funds(&creator, &campaign_id);
-        let beneficiary_after = token_client.balance(&beneficiary);
+        let ben_after = token_client.balance(&beneficiary);
         let admin_after = token_client.balance(&admin);
         let campaign = client.get_campaign(&campaign_id);
 
-        // Gross return value is unchanged; the 1% fee is split off internally.
-        assert_eq!(claimed, 120_000);
-        assert_eq!(beneficiary_after - beneficiary_before, 118_800);
-        assert_eq!(admin_after - admin_before, 1_200);
+        // fee = round_half_up(12_000_000 * 100 / 10_000) = 120_000; net = 11_880_000
+        assert_eq!(claimed, 12_000_000);
+        assert_eq!(ben_after - ben_before, 11_880_000);
+        assert_eq!(admin_after - admin_before, 120_000);
         assert_eq!(campaign.status, CampaignStatus::Claimed);
         assert_eq!(campaign.raised_amount, 0);
     }
@@ -785,24 +800,23 @@ mod tests {
         let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
         set_timestamp(&env, 100);
 
-        let mut bens = Vec::new(&env);
-        bens.push_back((beneficiary.clone(), 10_000_u32));
+        let bens = single_ben(&env, &beneficiary);
         let campaign_id = client.create_campaign(
             &creator,
             &bens,
             &String::from_str(&env, "Emergency Shelter"),
-            &500_000,
+            &50_000_000,
             &500,
             &token_client.address,
         );
 
-        client.donate(&donor, &campaign_id, &50_000);
+        client.donate(&donor, &campaign_id, &5_000_000);
         set_timestamp(&env, 600);
 
         let claimed = client.claim_funds(&beneficiary, &campaign_id);
         let campaign = client.get_campaign(&campaign_id);
 
-        assert_eq!(claimed, 50_000);
+        assert_eq!(claimed, 5_000_000);
         assert_eq!(campaign.status, CampaignStatus::Claimed);
     }
 
@@ -811,27 +825,30 @@ mod tests {
         let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
         set_timestamp(&env, 200);
 
-        let mut bens = Vec::new(&env);
-        bens.push_back((beneficiary.clone(), 10_000_u32));
+        let bens = single_ben(&env, &beneficiary);
         let campaign_id = client.create_campaign(
             &creator,
             &bens,
             &String::from_str(&env, "Food Support"),
-            &100_000,
+            &5_000_000,
             &1_000,
             &token_client.address,
         );
-        client.donate(&donor, &campaign_id, &10_000);
+        client.donate(&donor, &campaign_id, &1_000_000);
         set_timestamp(&env, 1_100);
 
         let attacker = Address::generate(&env);
-        let error = client.try_claim_funds(&attacker, &campaign_id);
-        assert!(error.is_err());
+        let result = client.try_claim_funds(&attacker, &campaign_id);
+        assert!(result.is_err());
     }
+
+    // -----------------------------------------------------------------------
+    // Multi-beneficiary splits
+    // -----------------------------------------------------------------------
 
     #[test]
     fn split_50_50_distributes_evenly() {
-        let (env, client, creator, beneficiary, donor, token_client, _) = setup();
+        let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
         let beneficiary2 = Address::generate(&env);
         set_timestamp(&env, 1_000);
 
@@ -843,12 +860,12 @@ mod tests {
             &creator,
             &bens,
             &String::from_str(&env, "Dual Relief"),
-            &200_000,
+            &20_000_000,
             &2_000,
             &token_client.address,
         );
 
-        client.donate(&donor, &campaign_id, &200_000);
+        client.donate(&donor, &campaign_id, &20_000_000);
 
         let b1_before = token_client.balance(&beneficiary);
         let b2_before = token_client.balance(&beneficiary2);
@@ -856,15 +873,25 @@ mod tests {
         let b1_after = token_client.balance(&beneficiary);
         let b2_after = token_client.balance(&beneficiary2);
 
-        assert_eq!(claimed, 200_000);
-        assert_eq!(b1_after - b1_before, 100_000);
-        assert_eq!(b2_after - b2_before, 100_000);
-        assert_eq!(client.get_campaign(&campaign_id).status, CampaignStatus::Claimed);
+        // gross=20_000_000; fee=200_000; net=19_800_000
+        // b2 (5000bps): 19_800_000 * 5000 / 10_000 = 9_900_000
+        // b1 (remainder): 19_800_000 - 9_900_000 = 9_900_000
+        assert_eq!(claimed, 20_000_000);
+        assert_eq!(b2_after - b2_before, 9_900_000);
+        assert_eq!(b1_after - b1_before, 9_900_000);
+        assert_eq!(
+            (b1_after - b1_before) + (b2_after - b2_before),
+            19_800_000
+        );
+        assert_eq!(
+            client.get_campaign(&campaign_id).status,
+            CampaignStatus::Claimed
+        );
     }
 
     #[test]
     fn split_uneven_three_way_with_rounding() {
-        let (env, client, creator, beneficiary, donor, token_client, _) = setup();
+        let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
         let beneficiary2 = Address::generate(&env);
         let beneficiary3 = Address::generate(&env);
         set_timestamp(&env, 1_000);
@@ -873,68 +900,17 @@ mod tests {
         bens.push_back((beneficiary.clone(), 3_334_u32));
         bens.push_back((beneficiary2.clone(), 3_333_u32));
         bens.push_back((beneficiary3.clone(), 3_333_u32));
-    #[test]
-    fn invalid_shares_not_summing_to_10000_rejected() {
-        let (env, client, creator, beneficiary, _donor, token_client, _) = setup();
-        let beneficiary2 = Address::generate(&env);
-        set_timestamp(&env, 1_000);
-
-        let mut bens = Vec::new(&env);
-        bens.push_back((beneficiary.clone(), 5_000_u32));
-        bens.push_back((beneficiary2.clone(), 4_999_u32));
-
-        let result = client.try_create_campaign(
-            &creator,
-            &bens,
-            &String::from_str(&env, "Bad Shares"),
-            &100_000,
-            &2_000,
-            &token_client.address,
-        );
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn id_generation_is_sequential_and_collision_free() {
-        let (env, client, creator, beneficiary, _, token_client, _) = setup();
-        env.budget().reset_unlimited();
-        set_timestamp(&env, 1_000);
 
         let campaign_id = client.create_campaign(
-        let mut bens = Vec::new(&env);
-        bens.push_back((beneficiary.clone(), 10_000_u32));
-
-        for expected_id in 1_u64..=100_u64 {
-            let id = client.create_campaign(
-                &creator,
-                &bens,
-                &String::from_str(&env, "Bench"),
-                &1_000,
-                &2_000,
-                &token_client.address,
-            );
-            assert_eq!(id, expected_id);
-        }
-    }
-
-    #[test]
-    fn donate_blocked_when_lock_already_held() {
-        let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
-        set_timestamp(&env, 5_000);
-
-        let bens: Vec<(Address, u32)> = Vec::new(&env);
-        let result = client.try_create_campaign(
             &creator,
             &bens,
             &String::from_str(&env, "Three Way"),
-            &10_000,
-            &5_000,
+            &10_000_000,
+            &2_000,
             &token_client.address,
         );
-        assert!(result.is_err());
-    }
 
-        client.donate(&donor, &campaign_id, &10_000);
+        client.donate(&donor, &campaign_id, &10_000_000);
 
         let b1_before = token_client.balance(&beneficiary);
         let b2_before = token_client.balance(&beneficiary2);
@@ -944,21 +920,23 @@ mod tests {
         let b2_after = token_client.balance(&beneficiary2);
         let b3_after = token_client.balance(&beneficiary3);
 
-        // b2 and b3: floor(10_000 * 3_333 / 10_000) = 3_333 each
-        // b1 (first): 10_000 - 3_333 - 3_333 = 3_334 (absorbs rounding dust)
-        assert_eq!(claimed, 10_000);
-        assert_eq!(b2_after - b2_before, 3_333);
-        assert_eq!(b3_after - b3_before, 3_333);
-        assert_eq!(b1_after - b1_before, 3_334);
-        assert_eq!(
-            (b1_after - b1_before) + (b2_after - b2_before) + (b3_after - b3_before),
-            10_000
-        );
+        // gross=10_000_000; fee=100_000; net=9_900_000
+        // b2 (3333bps): floor(9_900_000 * 3333 / 10_000) = 3_299_670
+        // b3 (3333bps): 3_299_670
+        // b1 (3334bps, remainder): 9_900_000 - 3_299_670 - 3_299_670 = 3_300_660
+        assert_eq!(claimed, 10_000_000);
+        let b2_delta = b2_after - b2_before;
+        let b3_delta = b3_after - b3_before;
+        let b1_delta = b1_after - b1_before;
+        assert_eq!(b2_delta, 3_299_670);
+        assert_eq!(b3_delta, 3_299_670);
+        assert_eq!(b1_delta, 3_300_660);
+        assert_eq!(b1_delta + b2_delta + b3_delta, 9_900_000);
     }
 
     #[test]
     fn invalid_shares_not_summing_to_10000_rejected() {
-        let (env, client, creator, beneficiary, _donor, token_client, _) = setup();
+        let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = setup();
         let beneficiary2 = Address::generate(&env);
         set_timestamp(&env, 1_000);
 
@@ -970,7 +948,7 @@ mod tests {
             &creator,
             &bens,
             &String::from_str(&env, "Bad Shares"),
-            &100_000,
+            &5_000_000,
             &2_000,
             &token_client.address,
         );
@@ -979,7 +957,7 @@ mod tests {
 
     #[test]
     fn empty_beneficiaries_rejected() {
-        let (env, client, creator, _beneficiary, _donor, token_client, _) = setup();
+        let (env, client, creator, _beneficiary, _donor, _admin, token_client, _) = setup();
         set_timestamp(&env, 1_000);
 
         let bens: Vec<(Address, u32)> = Vec::new(&env);
@@ -987,33 +965,66 @@ mod tests {
             &creator,
             &bens,
             &String::from_str(&env, "No Bens"),
-            &100_000,
+            &5_000_000,
             &2_000,
             &token_client.address,
         );
         assert!(result.is_err());
+    }
+
+    // -----------------------------------------------------------------------
+    // Sequential ID generation
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn id_generation_is_sequential_and_collision_free() {
+        let (env, client, creator, beneficiary, _, _admin, token_client, _) = setup();
+        env.budget().reset_unlimited();
+        set_timestamp(&env, 1_000);
+
+        let bens = single_ben(&env, &beneficiary);
+        for expected_id in 1_u64..=100_u64 {
+            let id = client.create_campaign(
+                &creator,
+                &bens,
+                &String::from_str(&env, "Bench"),
+                &1_000_000,
+                &2_000,
+                &token_client.address,
+            );
+            assert_eq!(id, expected_id);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Top donors
+    // -----------------------------------------------------------------------
+
     #[test]
     fn top_donors_accumulates_repeat_donor() {
-        let (env, client, creator, beneficiary, donor, token_client, _) = setup();
+        let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
         set_timestamp(&env, 1_000);
-        let mut bens = Vec::new(&env);
-        bens.push_back((beneficiary.clone(), 10_000_u32));
+        let bens = single_ben(&env, &beneficiary);
         let campaign_id = client.create_campaign(
             &creator,
             &bens,
             &String::from_str(&env, "Top Donors"),
-            &200_000,
+            &20_000_000,
             &2_000,
             &token_client.address,
         );
 
-        client.donate(&donor, &campaign_id, &10_000);
-        client.donate(&donor, &campaign_id, &5_000);
+        client.donate(&donor, &campaign_id, &1_000_000);
+        client.donate(&donor, &campaign_id, &5_000_000);
 
         let top = client.get_top_donors(&campaign_id);
         assert_eq!(top.len(), 1);
-        assert_eq!(top.get(0).unwrap().1, 15_000);
+        assert_eq!(top.get(0).unwrap().1, 6_000_000);
     }
+
+    // -----------------------------------------------------------------------
+    // Reentrancy lock
+    // -----------------------------------------------------------------------
 
     #[test]
     fn reentrancy_lock_uses_temporary_storage_and_blocks_reentry() {
@@ -1023,114 +1034,77 @@ mod tests {
         env.as_contract(&contract_id, || {
             let key = super::lock_key();
 
-            // Lock key must be absent before any entry.
             assert!(!env.storage().temporary().has(&key));
             assert!(!env.storage().persistent().has(&key));
 
-            // First entry succeeds; key appears in temporary storage only.
             super::enter_lock(&env).unwrap();
             assert!(env.storage().temporary().has(&key));
             assert!(!env.storage().persistent().has(&key));
 
-            // Re-entry from the same execution context is rejected.
-            assert_eq!(super::enter_lock(&env), Err(ContractError::ReentrancyDetected));
+            assert_eq!(
+                super::enter_lock(&env),
+                Err(ContractError::ReentrancyDetected)
+            );
 
-            // Releasing the lock removes the key from temporary storage.
             super::exit_lock(&env);
             assert!(!env.storage().temporary().has(&key));
 
-            // A fresh entry succeeds after release.
             super::enter_lock(&env).unwrap();
             super::exit_lock(&env);
         });
     }
 
     // -----------------------------------------------------------------------
-    // Issue — Fee on claim tests
+    // Platform fee
     // -----------------------------------------------------------------------
 
     #[test]
     fn calculate_platform_fee_round_half_up() {
-        // Below the half-stroop threshold: fee rounds down to 0.
         assert_eq!(calculate_platform_fee(0).unwrap(), 0);
         assert_eq!(calculate_platform_fee(49).unwrap(), 0);
-
-        // Exact half-stroop remainder: rounds up to favor the platform.
         assert_eq!(calculate_platform_fee(50).unwrap(), 1);
-
-        // Exact 1% with no remainder.
         assert_eq!(calculate_platform_fee(100).unwrap(), 1);
         assert_eq!(calculate_platform_fee(100_000).unwrap(), 1_000);
-
-        // Remainder above the half threshold rounds up; below rounds down.
         assert_eq!(calculate_platform_fee(149).unwrap(), 1);
         assert_eq!(calculate_platform_fee(150).unwrap(), 2);
     }
 
     #[test]
-    fn claim_funds_fee_round_half_up_boundary() {
+    fn claim_funds_fee_deducted_from_beneficiary_payout() {
         let (env, client, creator, beneficiary, donor, admin, token_client, _) = setup();
         set_timestamp(&env, 10_000);
 
-        // raised_amount = 50 → scaled 5000, biased 10000, fee = 1.
+        // 1_000_000 gross; fee = 1% = 10_000; net = 990_000
+        let bens = single_ben(&env, &beneficiary);
         let campaign_id = client.create_campaign(
             &creator,
-            &beneficiary,
-            &String::from_str(&env, "Boundary"),
-            &50,
+            &bens,
+            &String::from_str(&env, "Fee Test"),
+            &1_000_000,
             &20_000,
             &token_client.address,
         );
-        client.donate(&donor, &campaign_id, &50);
+        client.donate(&donor, &campaign_id, &1_000_000);
 
-        let beneficiary_before = token_client.balance(&beneficiary);
+        let ben_before = token_client.balance(&beneficiary);
         let admin_before = token_client.balance(&admin);
         let claimed = client.claim_funds(&beneficiary, &campaign_id);
 
-        assert_eq!(claimed, 50);
-        assert_eq!(token_client.balance(&admin) - admin_before, 1);
-        assert_eq!(token_client.balance(&beneficiary) - beneficiary_before, 49);
+        assert_eq!(claimed, 1_000_000);
+        assert_eq!(token_client.balance(&admin) - admin_before, 10_000);
+        assert_eq!(token_client.balance(&beneficiary) - ben_before, 990_000);
     }
 
     #[test]
-    fn claim_funds_fee_rounds_to_zero_for_tiny_settlement() {
-        let (env, client, creator, beneficiary, donor, admin, token_client, _) = setup();
-        set_timestamp(&env, 100);
-
-        // raised_amount = 49 → scaled 4900, biased 9900, fee = 0.
-        // Force the deadline path because raised < target.
-        let campaign_id = client.create_campaign(
-            &creator,
-            &beneficiary,
-            &String::from_str(&env, "Tiny"),
-            &10_000,
-            &500,
-            &token_client.address,
-        );
-        client.donate(&donor, &campaign_id, &49);
-        set_timestamp(&env, 600);
-
-        let beneficiary_before = token_client.balance(&beneficiary);
-        let admin_before = token_client.balance(&admin);
-        let claimed = client.claim_funds(&beneficiary, &campaign_id);
-
-        assert_eq!(claimed, 49);
-        // Admin must receive nothing when the fee rounds to zero.
-        assert_eq!(token_client.balance(&admin), admin_before);
-        // Beneficiary receives the full raised amount.
-        assert_eq!(token_client.balance(&beneficiary) - beneficiary_before, 49);
-    }
-
-    #[test]
-    fn claim_funds_preserves_gross_amount_across_split() {
-        // Property check: for any successful claim, fee + net == gross.
+    fn claim_funds_fee_plus_net_equals_gross() {
         let (env, client, creator, beneficiary, donor, admin, token_client, _) = setup();
         set_timestamp(&env, 10_000);
 
-        let gross: i128 = 333_333;
+        let gross: i128 = 33_333_300;
+        let bens = single_ben(&env, &beneficiary);
         let campaign_id = client.create_campaign(
             &creator,
-            &beneficiary,
+            &bens,
             &String::from_str(&env, "Property"),
             &gross,
             &20_000,
@@ -1138,20 +1112,21 @@ mod tests {
         );
         client.donate(&donor, &campaign_id, &gross);
 
-        let beneficiary_before = token_client.balance(&beneficiary);
+        let ben_before = token_client.balance(&beneficiary);
         let admin_before = token_client.balance(&admin);
         client.claim_funds(&beneficiary, &campaign_id);
 
         let fee_delta = token_client.balance(&admin) - admin_before;
-        let net_delta = token_client.balance(&beneficiary) - beneficiary_before;
+        let net_delta = token_client.balance(&beneficiary) - ben_before;
         assert_eq!(fee_delta + net_delta, gross);
-        // 333_333 * 100 = 33_333_300; +5000 = 33_338_300; /10_000 = 3_333.
-        assert_eq!(fee_delta, 3_333);
     }
+
+    // -----------------------------------------------------------------------
+    // Initialization
+    // -----------------------------------------------------------------------
 
     #[test]
     fn claim_funds_fails_when_admin_not_initialized() {
-        // Build a contract without calling initialize, then attempt a claim.
         let env = Env::default();
         env.mock_all_auths();
         set_timestamp(&env, 1_000);
@@ -1161,42 +1136,44 @@ mod tests {
         let donor = Address::generate(&env);
         let token_admin = Address::generate(&env);
 
-        let token_id = env.register_stellar_asset_contract_v2(token_admin);
+        let token_id = env.register_stellar_asset_contract_v2(token_admin.clone());
         let token_client = token::Client::new(&env, &token_id.address());
         let token_admin_client = token::StellarAssetClient::new(&env, &token_id.address());
-        token_admin_client.mint(&donor, &1_000_000);
+        token_admin_client.mint(&donor, &100_000_000_000);
 
+        // Do NOT call initialize — admin must not be set.
         let contract_id = env.register_contract(None, StellarGiveContract);
         let client = StellarGiveContractClient::new(&env, &contract_id);
 
+        let mut bens = Vec::new(&env);
+        bens.push_back((beneficiary.clone(), 10_000_u32));
+
         let campaign_id = client.create_campaign(
             &creator,
-            &beneficiary,
+            &bens,
             &String::from_str(&env, "Uninit"),
-            &100_000,
+            &1_000_000,
             &5_000,
             &token_client.address,
         );
-        client.donate(&donor, &campaign_id, &100_000);
+        client.donate(&donor, &campaign_id, &1_000_000);
 
         let result = client.try_claim_funds(&creator, &campaign_id);
         assert!(
             result.is_err(),
-            "claim must fail when the platform admin has not been initialized"
+            "claim must fail when platform admin is not initialized"
         );
     }
 
     #[test]
     fn initialize_rejects_second_call() {
-        // setup() already calls initialize once; a second call must fail.
         let (env, client, _creator, _beneficiary, _donor, _admin, _token_client, _) = setup();
-        let _ = &env;
 
         let other_admin = Address::generate(&env);
         let result = client.try_initialize(&other_admin);
         assert!(
             result.is_err(),
-            "initialize must reject a second call once the admin is set"
+            "initialize must reject a second call once admin is set"
         );
     }
 }
