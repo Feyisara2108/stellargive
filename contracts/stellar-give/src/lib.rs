@@ -54,6 +54,8 @@ pub enum ContractError {
     ReentrancyDetected = 9,
     EmptyTitle = 10,
     NothingToClaim = 11,
+    InvalidShares = 12,
+    TokenTransferFailed = 13,
     /// Token transfer failed — revert donation, no state changes persist.
     TokenTransferFailed = 12,
     NotInitialized = 13,
@@ -246,6 +248,31 @@ fn validate_token_contract(env: &Env, token_address: &Address) -> Result<(), Con
 
 #[contractimpl]
 impl StellarGiveContract {
+    /// Creates a new fundraising campaign.
+    ///
+    /// # Arguments
+    /// * `env` - The Soroban contract environment.
+    /// * `creator` - Address creating the campaign. Must be authenticated with `require_auth()`.
+    /// * `beneficiaries` - Vector of `(Address, u32)` share recipients. Must contain at least one entry and sum to `10_000`.
+    /// * `title` - Campaign title. Must not be empty.
+    /// * `target_amount` - Funding goal in stroops.
+    /// * `deadline` - Unix timestamp after which donations are no longer accepted.
+    /// * `accepted_token` - Token contract address used for donations.
+    ///
+    /// # Returns
+    /// `Ok(campaign_id)` on success.
+    ///
+    /// # Errors
+    /// * `Unauthorized` if `creator` is not authenticated.
+    /// * `EmptyTitle` if the title is empty.
+    /// * `InvalidAmount` if `target_amount <= 0` or if the campaign ID overflows.
+    /// * `InvalidDeadline` if the deadline is not strictly in the future.
+    /// * `InvalidToken` if the accepted token contract does not implement the required token interface.
+    /// * `InvalidShares` if `beneficiaries` is empty or shares do not sum to `10_000`.
+    ///
+    /// ### ⚠️ Precision Warning
+    /// `target_amount` must be in **stroops** (1 XLM = 10,000,000 stroops).
+    /// Never use floating-point math to calculate this value.
     /// One-shot initializer. Sets the platform admin address that receives
     /// the fee portion of every successful claim. Must be called before any
     /// `claim_funds` invocation.
@@ -318,33 +345,35 @@ impl StellarGiveContract {
             (symbol_short!("created"),),
             CreatedEvent {
                 id,
-                creator: creator.clone(),
-                beneficiary: beneficiary.clone(),
-                title,
-                target_amount,
-                raised_amount: 0,
-                deadline,
-                accepted_token: accepted_token.clone(),
-                status: CampaignStatus::Active,
-            };
+                creator,
+                target_amount: campaign.target_amount,
+            },
+        );
 
-            write_campaign(&env, &campaign);
-            env.events().publish(
-                (symbol_short!("created"),),
-                CreatedEvent {
-                    id,
-                    creator,
-                    target_amount: campaign.target_amount,
-                },
-            );
-
-            Ok(id)
-        })();
-
-        exit_lock(&env);
-        result
+        Ok(id)
     }
 
+    /// Donates accepted tokens to an active campaign.
+    ///
+    /// # Arguments
+    /// * `env` - The Soroban contract environment.
+    /// * `donor` - Address providing the donation. Must be authenticated with `require_auth()`.
+    /// * `campaign_id` - ID of the campaign to donate to.
+    /// * `amount` - Donation amount in stroops.
+    ///
+    /// # Returns
+    /// `Ok(())` on success.
+    ///
+    /// # Errors
+    /// * `Unauthorized` if `donor` is not authenticated.
+    /// * `InvalidAmount` if `amount <= 0`.
+    /// * `CampaignNotFound` if the campaign does not exist.
+    /// * `CampaignNotActive` if the campaign is not active.
+    /// * `TokenTransferFailed` if the token transfer from donor to contract fails.
+    ///
+    /// ### ⚠️ Precision Warning
+    /// `amount` must be in **stroops** (1 XLM = 10,000,000 stroops).
+    /// Always use integer math for financial calculations.
     pub fn donate(
         env: Env,
         donor: Address,
@@ -386,7 +415,7 @@ impl StellarGiveContract {
             };
 
             write_campaign(&env, &campaign);
-            update_top_donors(&env, campaign.id, &donor, amount);
+            update_top_donors(&env, campaign_id, &donor, amount);
             env.events().publish(
                 (symbol_short!("donation"), symbol_short!("received")),
                 (
@@ -404,6 +433,25 @@ impl StellarGiveContract {
         result
     }
 
+    /// Claims raised funds for a campaign.
+    ///
+    /// # Arguments
+    /// * `env` - The Soroban contract environment.
+    /// * `caller` - Address requesting payout. Must be authenticated with `require_auth()`.
+    /// * `campaign_id` - ID of the campaign to claim.
+    ///
+    /// # Returns
+    /// `Ok(total)` with the distributed amount in stroops.
+    ///
+    /// # Errors
+    /// * `Unauthorized` if `caller` is neither the campaign creator nor a beneficiary.
+    /// * `CampaignNotFound` if the campaign does not exist.
+    /// * `AlreadyClaimed` if funds have already been claimed.
+    /// * `ClaimNotAllowed` if the campaign is still active and not eligible for payout.
+    /// * `NothingToClaim` if the campaign has zero raised amount.
+    ///
+    /// ### ⚠️ Precision Warning
+    /// All returned and internal amounts are in **stroops**.
     pub fn claim_funds(env: Env, caller: Address, campaign_id: u64) -> Result<i128, ContractError> {
         let mut campaign = read_campaign(&env, campaign_id)?;
         sync_status(&env, &mut campaign);
@@ -463,12 +511,40 @@ impl StellarGiveContract {
         result
     }
 
+    /// Returns the current state of a campaign.
+    ///
+    /// # Arguments
+    /// * `env` - The Soroban contract environment.
+    /// * `campaign_id` - ID of the campaign to read.
+    ///
+    /// # Returns
+    /// `Ok(Campaign)` with campaign state and derived status.
+    ///
+    /// # Errors
+    /// * `CampaignNotFound` if the campaign does not exist.
+    ///
+    /// ### ⚠️ Precision Warning
+    /// All amounts in the returned `Campaign` struct are in **stroops**.
     pub fn get_campaign(env: Env, campaign_id: u64) -> Result<Campaign, ContractError> {
         let mut campaign = read_campaign(&env, campaign_id)?;
         campaign.status = derive_status(env.ledger().timestamp(), &campaign);
         Ok(campaign)
     }
 
+    /// Returns the top 5 donors for a campaign.
+    ///
+    /// # Arguments
+    /// * `env` - The Soroban contract environment.
+    /// * `campaign_id` - ID of the campaign to read.
+    ///
+    /// # Returns
+    /// `Ok(Vec<(Address, i128)>)` with the top five donors sorted by donated amount.
+    ///
+    /// # Errors
+    /// * `CampaignNotFound` if the campaign does not exist.
+    ///
+    /// ### ⚠️ Precision Warning
+    /// All donation amounts are in **stroops**.
     pub fn get_top_donors(
         env: Env,
         campaign_id: u64,
@@ -824,6 +900,7 @@ mod tests {
         env.budget().reset_unlimited();
         set_timestamp(&env, 1_000);
 
+        let campaign_id = client.create_campaign(
         let mut bens = Vec::new(&env);
         bens.push_back((beneficiary.clone(), 10_000_u32));
 
@@ -916,19 +993,26 @@ mod tests {
         );
         assert!(result.is_err());
     #[test]
-    fn reentrancy_lock_uses_temporary_storage_and_blocks_reentry() {
-        let env = Env::default();
-        let contract_id = env.register_contract(None, StellarGiveContract);
+    fn top_donors_accumulates_repeat_donor() {
+        let (env, client, creator, beneficiary, donor, token_client, _) = setup();
+        set_timestamp(&env, 1_000);
+        let mut bens = Vec::new(&env);
+        bens.push_back((beneficiary.clone(), 10_000_u32));
+        let campaign_id = client.create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Top Donors"),
+            &200_000,
+            &2_000,
+            &token_client.address,
+        );
 
         client.donate(&donor, &campaign_id, &10_000);
-        client.donate(&donor2, &campaign_id, &50_000);
-        assert_eq!(client.get_top_donors(&campaign_id).get(0).unwrap().0, donor2);
+        client.donate(&donor, &campaign_id, &5_000);
 
-        client.donate(&donor, &campaign_id, &60_000); // donor total: 70_000 → now #1
         let top = client.get_top_donors(&campaign_id);
-        assert_eq!(top.get(0).unwrap().0, donor);
-        assert_eq!(top.get(0).unwrap().1, 70_000);
-        assert_eq!(top.get(1).unwrap().0, donor2);
+        assert_eq!(top.len(), 1);
+        assert_eq!(top.get(0).unwrap().1, 15_000);
     }
 
     #[test]

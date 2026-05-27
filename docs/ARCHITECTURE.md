@@ -58,6 +58,8 @@ Expected campaign struct fields:
 - `accepted_token`
 - `claimed`
 
+For full contract method and error reference documentation, see [`docs/CONTRACT_API.md`](./docs/CONTRACT_API.md).
+
 ## 4. Event Schema
 
 Authoritative event reference: [`EVENT_SCHEMA.md`](./EVENT_SCHEMA.md).
@@ -86,3 +88,29 @@ payload examples, and per-event indexing notes.
 - Use simulation before submission to catch auth/footprint failures early.
 - Never trust client-side campaign deadline checks alone; enforce in contract.
 - Keep RPC URL + network passphrase aligned to prevent wrong-network signing.
+
+## 💰 Token Math and Stroop Handling
+
+Stellar tokens use 7 decimal places. All amounts in the contract are in **stroops** (1 stroop = 0.0000001 tokens).
+
+### Critical Rules
+1. **Never use floating-point math** for amounts. Use `i128` with `checked_add`, `checked_mul` in Rust, and `BigInt` in TypeScript.
+2. **Always convert at boundaries**: frontend displays tokens; contract stores stroops.
+3. **Round consistently**: prefer rounding toward platform on fee splits to avoid deficit.
+
+### Examples
+| Token Amount | Stroops |
+|--------------|---------|
+| 1.0 XLM | 10,000,000 |
+| 0.0000001 XLM | 1 |
+| 1,000,000.5 XLM | 10,000,000,500,000 |
+
+### Utilities
+- **Frontend**: 
+  - `src/lib/soroban.ts` provides `toStroops(amount: string | number): bigint` and `fromStroops(stroops: bigint | string | number): string`.
+  - `src/utils/format.ts` provides `formatStroop(stroop: bigint): string`.
+- **Contract**: All function arguments/returns use `i128` for stroop amounts.
+
+### Common Pitfalls
+❌ `let amount = 0.1 * 10_000_000; // 999999.9999999 due to float error`  
+✅ `let amount = 1_000_000n; // 0.1 XLM as bigint stroops`

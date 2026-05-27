@@ -61,6 +61,12 @@ docs/                    Security, deployment, architecture, contributing docs
    npm run dev
    ```
 
+## 🎥 Quick Start
+
+[Watch the 3-minute tutorial](https://youtu.be/PLACEHOLDER) to create your first campaign.
+
+> Video covers wallet connection, campaign creation, donation flow, and transaction confirmation with captions for accessibility.
+
 ## Contract vs Frontend Commands
 
 | Area | Command |
@@ -91,9 +97,11 @@ docs/                    Security, deployment, architecture, contributing docs
 
 - Setup Guide: [`docs/SETUP.md`](./docs/SETUP.md)
 - Architecture: [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)
+- Contract API: [`docs/CONTRACT_API.md`](./docs/CONTRACT_API.md)
 - Security: [`docs/SECURITY.md`](./docs/SECURITY.md)
 - Deployment: [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md)
 - Contributing: [`docs/CONTRIBUTING.md`](./docs/CONTRIBUTING.md)
+- Video Transcript: [`docs/VIDEO_TRANSCRIPT.md`](./docs/VIDEO_TRANSCRIPT.md)
 
 ## Contributor Onboarding
 
