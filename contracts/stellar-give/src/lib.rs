@@ -32,11 +32,13 @@ pub struct Campaign {
     pub creator: Address,
     pub beneficiaries: Vec<(Address, u32)>,
     pub title: String,
+    pub metadata_uri: String,
     pub target_amount: i128,
     pub raised_amount: i128,
     pub deadline: u64,
     pub accepted_token: Address,
     pub status: CampaignStatus,
+    pub max_per_donor: Option<i128>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -79,6 +81,8 @@ const FEE_BPS: i128 = 100;
 const FEE_DENOMINATOR: i128 = 10_000;
 /// Minimum permitted donation amount, in stroops (0.1 token with 7 decimals).
 const MIN_DONATION: i128 = 1_000_000;
+/// Minimum fundraising target, in stroops (1.0 token with 7 decimals).
+const MIN_TARGET: i128 = 10_000_000;
 /// Maximum campaign lifetime: one year. This keeps campaign state timely and
 /// avoids indefinite ledger growth from stale fundraising records.
 const MAX_DURATION: u64 = 31_536_000;
@@ -149,9 +153,24 @@ fn read_top_donors(env: &Env, id: u64) -> Vec<(Address, i128)> {
 }
 
 fn write_top_donors(env: &Env, id: u64, donors: &Vec<(Address, i128)>) {
+    env.storage().persistent().set(&top_donors_key(id), donors);
+}
+
+fn donor_contribution_key(campaign_id: u64, donor: &Address) -> (Symbol, u64, Address) {
+    (symbol_short!("DCON"), campaign_id, donor.clone())
+}
+
+fn read_donor_contribution(env: &Env, campaign_id: u64, donor: &Address) -> i128 {
     env.storage()
         .persistent()
-        .set(&top_donors_key(id), donors);
+        .get(&donor_contribution_key(campaign_id, donor))
+        .unwrap_or(0)
+}
+
+fn write_donor_contribution(env: &Env, campaign_id: u64, donor: &Address, amount: i128) {
+    env.storage()
+        .persistent()
+        .set(&donor_contribution_key(campaign_id, donor), &amount);
 }
 
 fn update_top_donors(env: &Env, campaign_id: u64, donor: &Address, amount: i128) {
@@ -189,7 +208,12 @@ fn update_top_donors(env: &Env, campaign_id: u64, donor: &Address, amount: i128)
 
 fn enter_lock(env: &Env) -> Result<(), ContractError> {
     let key = lock_key();
-    if env.storage().temporary().get::<_, bool>(&key).unwrap_or(false) {
+    if env
+        .storage()
+        .temporary()
+        .get::<_, bool>(&key)
+        .unwrap_or(false)
+    {
         return Err(ContractError::ReentrancyDetected);
     }
     env.storage().temporary().set(&key, &true);
@@ -273,18 +297,37 @@ impl StellarGiveContract {
         creator: Address,
         beneficiaries: Vec<(Address, u32)>,
         title: String,
+        metadata_uri: String,
         target_amount: i128,
         deadline: u64,
         accepted_token: Address,
+        max_per_donor: Option<i128>,
     ) -> Result<u64, ContractError> {
         creator.require_auth();
 
-        if title.len() == 0 {
+        if title.is_empty() {
             return Err(ContractError::EmptyTitle);
         }
-        if target_amount <= 0 {
-            return Err(ContractError::InvalidAmount);
+        if target_amount < MIN_TARGET {
+            return Err(ContractError::TargetTooLow);
         }
+        if metadata_uri.len() > 256 {
+            return Err(ContractError::MetadataUriTooLong);
+        }
+
+        let mut is_valid = false;
+        let len = metadata_uri.len() as usize;
+        let mut buffer = [0u8; 256];
+        metadata_uri.copy_into_slice(&mut buffer[..len]);
+
+        if (len >= 7 && &buffer[..7] == b"ipfs://") || (len >= 8 && &buffer[..8] == b"https://") {
+            is_valid = true;
+        }
+
+        if !is_valid {
+            return Err(ContractError::InvalidMetadataUri);
+        }
+
         let now = env.ledger().timestamp();
         if deadline <= now {
             return Err(ContractError::InvalidDeadline);
@@ -299,7 +342,7 @@ impl StellarGiveContract {
         // before persisting it. A non-compliant contract would brick the campaign.
         validate_token_contract(&env, &accepted_token)?;
 
-        if beneficiaries.len() == 0 {
+        if beneficiaries.is_empty() {
             return Err(ContractError::InvalidShares);
         }
         let mut total_bps: u64 = 0;
@@ -319,11 +362,13 @@ impl StellarGiveContract {
             creator: creator.clone(),
             beneficiaries: beneficiaries.clone(),
             title,
+            metadata_uri,
             target_amount,
             raised_amount: 0,
             deadline,
             accepted_token: accepted_token.clone(),
             status: CampaignStatus::Active,
+            max_per_donor,
         };
 
         write_campaign(&env, &campaign);
@@ -335,7 +380,6 @@ impl StellarGiveContract {
                 target_amount: campaign.target_amount,
             },
         );
-
         Ok(id)
     }
 
@@ -365,6 +409,17 @@ impl StellarGiveContract {
                 return Err(ContractError::CampaignNotActive);
             }
 
+            if let Some(cap) = campaign.max_per_donor {
+                let current_total = read_donor_contribution(&env, campaign_id, &donor);
+                if current_total
+                    .checked_add(amount)
+                    .ok_or(ContractError::InvalidAmount)?
+                    > cap
+                {
+                    return Err(ContractError::ExceedsDonorCap);
+                }
+            }
+
             // Use try_transfer so a failing token contract reverts the donation
             // cleanly instead of propagating a raw panic.
             if token::Client::new(&env, &campaign.accepted_token)
@@ -373,6 +428,11 @@ impl StellarGiveContract {
             {
                 return Err(ContractError::TokenTransferFailed);
             }
+
+            let new_donor_total = read_donor_contribution(&env, campaign_id, &donor)
+                .checked_add(amount)
+                .ok_or(ContractError::InvalidAmount)?;
+            write_donor_contribution(&env, campaign_id, &donor, new_donor_total);
 
             campaign.raised_amount = campaign
                 .raised_amount
@@ -424,7 +484,10 @@ impl StellarGiveContract {
             return Err(ContractError::AlreadyClaimed);
         }
 
-        let is_beneficiary = campaign.beneficiaries.iter().any(|(addr, _)| addr == caller);
+        let is_beneficiary = campaign
+            .beneficiaries
+            .iter()
+            .any(|(addr, _)| addr == caller);
         if caller != campaign.creator && !is_beneficiary {
             return Err(ContractError::Unauthorized);
         }
@@ -516,7 +579,7 @@ impl StellarGiveContract {
 mod tests {
     use super::*;
     use soroban_sdk::testutils::{Address as _, Events as _, Ledger};
-    use soroban_sdk::{token, Address, Env, String, TryFromVal, Vec};
+    use soroban_sdk::{token, Address, Env, String, Symbol, TryFromVal, Vec};
 
     fn set_timestamp(env: &Env, timestamp: u64) {
         let mut ledger = env.ledger().get();
@@ -590,6 +653,7 @@ mod tests {
             &5_000_000,
             &2_000,
             &token_client.address,
+            &None,
         );
 
         let campaign = client.get_campaign(&id);
@@ -599,6 +663,11 @@ mod tests {
         assert_eq!(campaign.beneficiaries, bens);
         assert_eq!(campaign.target_amount, 5_000_000);
         assert_eq!(campaign.raised_amount, 0);
+        assert_eq!(
+            campaign.metadata_uri,
+            String::from_str(&env, "https://example.com/meta")
+        );
+        assert_eq!(campaign.max_per_donor, None);
     }
 
     #[test]
@@ -612,9 +681,11 @@ mod tests {
             &creator,
             &bens,
             &String::from_str(&env, "Flood Relief"),
+            &String::from_str(&env, "https://example.com/meta"),
             &target_amount,
             &2_000,
             &token_client.address,
+            &None,
         );
 
         let event = env
@@ -652,6 +723,7 @@ mod tests {
             &5_000_000,
             &(1_000 + MAX_DURATION),
             &token_client.address,
+            &None,
         );
         assert_eq!(id, 1);
 
@@ -663,6 +735,7 @@ mod tests {
             &5_000_000,
             &(1_000 + MAX_DURATION + 1),
             &token_client.address,
+            &None,
         );
         assert!(result.is_err());
     }
@@ -727,6 +800,7 @@ mod tests {
             &3_000_000,
             &10_000,
             &token_client.address,
+            &None,
         );
 
         client.donate(&donor, &campaign_id, &1_000_000);
@@ -753,9 +827,10 @@ mod tests {
             &5_000_000,
             &10_000,
             &token_client.address,
+            &None,
         );
 
-        let result = client.try_donate(&donor, &campaign_id, &999_999);
+        let result = client.try_donate(&donor, &campaign_id, &(MIN_DONATION - 1));
         assert!(result.is_err());
     }
 
@@ -776,6 +851,7 @@ mod tests {
             &12_000_000,
             &20_000,
             &token_client.address,
+            &None,
         );
 
         client.donate(&donor, &campaign_id, &12_000_000);
@@ -808,6 +884,7 @@ mod tests {
             &50_000_000,
             &500,
             &token_client.address,
+            &None,
         );
 
         client.donate(&donor, &campaign_id, &5_000_000);
@@ -833,6 +910,7 @@ mod tests {
             &5_000_000,
             &1_000,
             &token_client.address,
+            &None,
         );
         client.donate(&donor, &campaign_id, &1_000_000);
         set_timestamp(&env, 1_100);
@@ -863,6 +941,7 @@ mod tests {
             &20_000_000,
             &2_000,
             &token_client.address,
+            &None,
         );
 
         client.donate(&donor, &campaign_id, &20_000_000);
@@ -901,6 +980,7 @@ mod tests {
         bens.push_back((beneficiary2.clone(), 3_333_u32));
         bens.push_back((beneficiary3.clone(), 3_333_u32));
 
+        let amount = 10_000_000; // use MIN_TARGET to be safe
         let campaign_id = client.create_campaign(
             &creator,
             &bens,
@@ -908,6 +988,7 @@ mod tests {
             &10_000_000,
             &2_000,
             &token_client.address,
+            &None,
         );
 
         client.donate(&donor, &campaign_id, &10_000_000);
@@ -951,6 +1032,7 @@ mod tests {
             &5_000_000,
             &2_000,
             &token_client.address,
+            &None,
         );
         assert!(result.is_err());
     }
@@ -968,6 +1050,7 @@ mod tests {
             &5_000_000,
             &2_000,
             &token_client.address,
+            &None,
         );
         assert!(result.is_err());
     }
@@ -1012,6 +1095,7 @@ mod tests {
             &20_000_000,
             &2_000,
             &token_client.address,
+            &None,
         );
 
         client.donate(&donor, &campaign_id, &1_000_000);
@@ -1083,6 +1167,7 @@ mod tests {
             &1_000_000,
             &20_000,
             &token_client.address,
+            &None,
         );
         client.donate(&donor, &campaign_id, &1_000_000);
 
@@ -1155,6 +1240,7 @@ mod tests {
             &1_000_000,
             &5_000,
             &token_client.address,
+            &None,
         );
         client.donate(&donor, &campaign_id, &1_000_000);
 
@@ -1175,5 +1261,15 @@ mod tests {
             result.is_err(),
             "initialize must reject a second call once admin is set"
         );
+
+        // First donation within cap
+        client.donate(&donor, &campaign_id, &30_000_000);
+
+        // Second donation exceeding cap
+        let result = client.try_donate(&donor, &campaign_id, &30_000_000);
+        assert_eq!(result, Err(Ok(ContractError::ExceedsDonorCap)));
+
+        // Second donation exactly at cap
+        client.donate(&donor, &campaign_id, &20_000_000);
     }
 }
