@@ -119,7 +119,7 @@
                   ]
                 },
                 {
-                  "string": "Seed Relief"
+                  "string": "Valid Links Campaign"
                 },
                 {
                   "string": "https://example.com/meta"
@@ -131,14 +131,18 @@
                   }
                 },
                 {
-                  "u64": 10000
+                  "u64": 2000
                 },
                 {
                   "address": "CACMVW2KK4H5FZDFF2AUCAKQTEJMZZWJUIZF23XMRVYQBSXYLHZ6BKWN"
                 },
                 "void",
-                "void",
-                "void"
+                {
+                  "string": "https://mywebsite.com"
+                },
+                {
+                  "string": "https://twitter.com/myhandle"
+                }
               ]
             }
           },
@@ -146,6 +150,7 @@
         }
       ]
     ],
+    [],
     []
   ],
   "ledger": {
@@ -459,7 +464,7 @@
                         "symbol": "deadline"
                       },
                       "val": {
-                        "u64": 10000
+                        "u64": 2000
                       }
                     },
                     {
@@ -523,20 +528,24 @@
                         "symbol": "title"
                       },
                       "val": {
-                        "string": "Seed Relief"
+                        "string": "Valid Links Campaign"
                       }
                     },
                     {
                       "key": {
                         "symbol": "twitter"
                       },
-                      "val": "void"
+                      "val": {
+                        "string": "https://twitter.com/myhandle"
+                      }
                     },
                     {
                       "key": {
                         "symbol": "website"
                       },
-                      "val": "void"
+                      "val": {
+                        "string": "https://mywebsite.com"
+                      }
                     }
                   ]
                 }
@@ -1253,7 +1262,7 @@
                   ]
                 },
                 {
-                  "string": "Seed Relief"
+                  "string": "Valid Links Campaign"
                 },
                 {
                   "string": "https://example.com/meta"
@@ -1265,14 +1274,18 @@
                   }
                 },
                 {
-                  "u64": 10000
+                  "u64": 2000
                 },
                 {
                   "address": "CACMVW2KK4H5FZDFF2AUCAKQTEJMZZWJUIZF23XMRVYQBSXYLHZ6BKWN"
                 },
                 "void",
-                "void",
-                "void"
+                {
+                  "string": "https://mywebsite.com"
+                },
+                {
+                  "string": "https://twitter.com/myhandle"
+                }
               ]
             }
           }
@@ -1460,26 +1473,51 @@
                 "bytes": "0000000000000000000000000000000000000000000000000000000000000007"
               },
               {
-                "symbol": "donate"
+                "symbol": "create_campaign"
               }
             ],
             "data": {
               "vec": [
                 {
-                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM"
                 },
                 {
-                  "u64": 1
+                  "vec": [
+                    {
+                      "vec": [
+                        {
+                          "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                        },
+                        {
+                          "u32": 10000
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "string": "Invalid Link Campaign"
+                },
+                {
+                  "string": "https://example.com/meta"
                 },
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 999999
+                    "lo": 10000000
                   }
                 },
                 {
-                  "bool": false
-                }
+                  "u64": 2000
+                },
+                {
+                  "address": "CACMVW2KK4H5FZDFF2AUCAKQTEJMZZWJUIZF23XMRVYQBSXYLHZ6BKWN"
+                },
+                "void",
+                {
+                  "string": "http://mywebsite.com"
+                },
+                "void"
               ]
             }
           }
@@ -1499,12 +1537,12 @@
                 "symbol": "fn_return"
               },
               {
-                "symbol": "donate"
+                "symbol": "create_campaign"
               }
             ],
             "data": {
               "error": {
-                "contract": 3
+                "contract": 21
               }
             }
           }
@@ -1525,7 +1563,7 @@
               },
               {
                 "error": {
-                  "contract": 3
+                  "contract": 21
                 }
               }
             ],
@@ -1550,7 +1588,7 @@
               },
               {
                 "error": {
-                  "contract": 3
+                  "contract": 21
                 }
               }
             ],
@@ -1560,24 +1598,242 @@
                   "string": "contract try_call failed"
                 },
                 {
-                  "symbol": "donate"
+                  "symbol": "create_campaign"
                 },
                 {
                   "vec": [
                     {
-                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM"
                     },
                     {
-                      "u64": 1
+                      "vec": [
+                        {
+                          "vec": [
+                            {
+                              "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                            },
+                            {
+                              "u32": 10000
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "string": "Invalid Link Campaign"
+                    },
+                    {
+                      "string": "https://example.com/meta"
                     },
                     {
                       "i128": {
                         "hi": 0,
-                        "lo": 999999
+                        "lo": 10000000
                       }
                     },
                     {
-                      "bool": false
+                      "u64": 2000
+                    },
+                    {
+                      "address": "CACMVW2KK4H5FZDFF2AUCAKQTEJMZZWJUIZF23XMRVYQBSXYLHZ6BKWN"
+                    },
+                    "void",
+                    {
+                      "string": "http://mywebsite.com"
+                    },
+                    "void"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "failed_call": false
+    },
+    {
+      "event": {
+        "ext": "v0",
+        "contract_id": null,
+        "type_": "diagnostic",
+        "body": {
+          "v0": {
+            "topics": [
+              {
+                "symbol": "fn_call"
+              },
+              {
+                "bytes": "0000000000000000000000000000000000000000000000000000000000000007"
+              },
+              {
+                "symbol": "create_campaign"
+              }
+            ],
+            "data": {
+              "vec": [
+                {
+                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM"
+                },
+                {
+                  "vec": [
+                    {
+                      "vec": [
+                        {
+                          "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                        },
+                        {
+                          "u32": 10000
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "string": "Invalid Link Campaign"
+                },
+                {
+                  "string": "https://example.com/meta"
+                },
+                {
+                  "i128": {
+                    "hi": 0,
+                    "lo": 10000000
+                  }
+                },
+                {
+                  "u64": 2000
+                },
+                {
+                  "address": "CACMVW2KK4H5FZDFF2AUCAKQTEJMZZWJUIZF23XMRVYQBSXYLHZ6BKWN"
+                },
+                "void",
+                "void",
+                {
+                  "string": "twitter.com/myhandle"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "failed_call": false
+    },
+    {
+      "event": {
+        "ext": "v0",
+        "contract_id": "0000000000000000000000000000000000000000000000000000000000000007",
+        "type_": "diagnostic",
+        "body": {
+          "v0": {
+            "topics": [
+              {
+                "symbol": "fn_return"
+              },
+              {
+                "symbol": "create_campaign"
+              }
+            ],
+            "data": {
+              "error": {
+                "contract": 21
+              }
+            }
+          }
+        }
+      },
+      "failed_call": true
+    },
+    {
+      "event": {
+        "ext": "v0",
+        "contract_id": "0000000000000000000000000000000000000000000000000000000000000007",
+        "type_": "diagnostic",
+        "body": {
+          "v0": {
+            "topics": [
+              {
+                "symbol": "error"
+              },
+              {
+                "error": {
+                  "contract": 21
+                }
+              }
+            ],
+            "data": {
+              "string": "escalating Ok(ScErrorType::Contract) frame-exit to Err"
+            }
+          }
+        }
+      },
+      "failed_call": true
+    },
+    {
+      "event": {
+        "ext": "v0",
+        "contract_id": null,
+        "type_": "diagnostic",
+        "body": {
+          "v0": {
+            "topics": [
+              {
+                "symbol": "error"
+              },
+              {
+                "error": {
+                  "contract": 21
+                }
+              }
+            ],
+            "data": {
+              "vec": [
+                {
+                  "string": "contract try_call failed"
+                },
+                {
+                  "symbol": "create_campaign"
+                },
+                {
+                  "vec": [
+                    {
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM"
+                    },
+                    {
+                      "vec": [
+                        {
+                          "vec": [
+                            {
+                              "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                            },
+                            {
+                              "u32": 10000
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "string": "Invalid Link Campaign"
+                    },
+                    {
+                      "string": "https://example.com/meta"
+                    },
+                    {
+                      "i128": {
+                        "hi": 0,
+                        "lo": 10000000
+                      }
+                    },
+                    {
+                      "u64": 2000
+                    },
+                    {
+                      "address": "CACMVW2KK4H5FZDFF2AUCAKQTEJMZZWJUIZF23XMRVYQBSXYLHZ6BKWN"
+                    },
+                    "void",
+                    "void",
+                    {
+                      "string": "twitter.com/myhandle"
                     }
                   ]
                 }

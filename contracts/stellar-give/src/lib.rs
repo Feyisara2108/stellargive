@@ -39,6 +39,8 @@ pub struct Campaign {
     pub accepted_token: Address,
     pub status: CampaignStatus,
     pub max_per_donor: Option<i128>,
+    pub website: Option<String>,
+    pub twitter: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -65,6 +67,7 @@ pub enum ContractError {
     ExceedsDonorCap = 18,
     InvalidMetadataUri = 19,
     MetadataUriTooLong = 20,
+    InvalidUrl = 21,
 }
 
 fn next_id_key() -> Symbol {
@@ -259,6 +262,20 @@ fn sync_status(env: &Env, campaign: &mut Campaign) {
 /// by calling two lightweight read methods. Returns `InvalidToken` if either
 /// call fails, preventing campaigns from being created with non-compliant or
 /// malicious token contracts.
+fn validate_url(url: &String) -> Result<(), ContractError> {
+    let len = url.len() as usize;
+    if len < 8 || len > 200 {
+        return Err(ContractError::InvalidUrl);
+    }
+    let mut buf = [0u8; 200];
+    let dest_slice = &mut buf[0..len];
+    url.copy_into_slice(dest_slice);
+    if &dest_slice[0..8] != b"https://" {
+        return Err(ContractError::InvalidUrl);
+    }
+    Ok(())
+}
+
 fn validate_token_contract(env: &Env, token_address: &Address) -> Result<(), ContractError> {
     let client = token::Client::new(env, token_address);
     if client.try_decimals().is_err() {
@@ -306,6 +323,8 @@ impl StellarGiveContract {
         deadline: u64,
         accepted_token: Address,
         max_per_donor: Option<i128>,
+        website: Option<String>,
+        twitter: Option<String>,
     ) -> Result<u64, ContractError> {
         creator.require_auth();
 
@@ -317,6 +336,13 @@ impl StellarGiveContract {
         }
         if metadata_uri.len() > 256 {
             return Err(ContractError::MetadataUriTooLong);
+        }
+
+        if let Some(ref url) = website {
+            validate_url(url)?;
+        }
+        if let Some(ref url) = twitter {
+            validate_url(url)?;
         }
 
         let mut is_valid = false;
@@ -373,6 +399,8 @@ impl StellarGiveContract {
             accepted_token: accepted_token.clone(),
             status: CampaignStatus::Active,
             max_per_donor,
+            website,
+            twitter,
         };
 
         write_campaign(&env, &campaign);
@@ -670,6 +698,8 @@ mod tests {
             &2_000,
             &token_client.address,
             &None,
+            &None,
+            &None,
         );
 
         let campaign = client.get_campaign(&id);
@@ -684,6 +714,8 @@ mod tests {
             String::from_str(&env, "https://example.com/meta")
         );
         assert_eq!(campaign.max_per_donor, None);
+        assert_eq!(campaign.website, None);
+        assert_eq!(campaign.twitter, None);
     }
 
     #[test]
@@ -701,6 +733,8 @@ mod tests {
             &target_amount,
             &2_000,
             &token_client.address,
+            &None,
+            &None,
             &None,
         );
 
@@ -741,6 +775,8 @@ mod tests {
             &(1_000 + MAX_DURATION),
             &token_client.address,
             &None,
+            &None,
+            &None,
         );
         assert_eq!(id, 1);
 
@@ -753,6 +789,8 @@ mod tests {
             &10_000_000,
             &(1_000 + MAX_DURATION + 1),
             &token_client.address,
+            &None,
+            &None,
             &None,
         );
         assert!(result.is_err());
@@ -824,6 +862,8 @@ mod tests {
             &10_000,
             &token_client.address,
             &None,
+            &None,
+            &None,
         );
 
         client.donate(&donor, &campaign_id, &3_000_000, &false);
@@ -852,6 +892,8 @@ mod tests {
             &10_000,
             &token_client.address,
             &None,
+            &None,
+            &None,
         );
 
         let result = client.try_donate(&donor, &campaign_id, &(MIN_DONATION - 1), &false);
@@ -876,6 +918,8 @@ mod tests {
             &12_000_000,
             &20_000,
             &token_client.address,
+            &None,
+            &None,
             &None,
         );
 
@@ -910,6 +954,8 @@ mod tests {
             &500,
             &token_client.address,
             &None,
+            &None,
+            &None,
         );
 
         client.donate(&donor, &campaign_id, &5_000_000, &false);
@@ -936,6 +982,8 @@ mod tests {
             &10_000_000,
             &1_000,
             &token_client.address,
+            &None,
+            &None,
             &None,
         );
         client.donate(&donor, &campaign_id, &1_000_000, &false);
@@ -968,6 +1016,8 @@ mod tests {
             &20_000_000,
             &2_000,
             &token_client.address,
+            &None,
+            &None,
             &None,
         );
 
@@ -1010,6 +1060,8 @@ mod tests {
             &2_000,
             &token_client.address,
             &None,
+            &None,
+            &None,
         );
 
         client.donate(&donor, &campaign_id, &10_000_000, &false);
@@ -1051,6 +1103,8 @@ mod tests {
             &2_000,
             &token_client.address,
             &None,
+            &None,
+            &None,
         );
         assert!(result.is_err());
     }
@@ -1069,6 +1123,8 @@ mod tests {
             &10_000_000,
             &2_000,
             &token_client.address,
+            &None,
+            &None,
             &None,
         );
         assert!(result.is_err());
@@ -1117,6 +1173,8 @@ mod tests {
             &20_000_000,
             &2_000,
             &token_client.address,
+            &None,
+            &None,
             &None,
         );
 
@@ -1189,6 +1247,8 @@ mod tests {
             &10_000_000,
             &20_000,
             &token_client.address,
+            &None,
+            &None,
             &None,
         );
         client.donate(&donor, &campaign_id, &10_000_000, &false);
@@ -1264,6 +1324,8 @@ mod tests {
             &10_000_000,
             &5_000,
             &token_client.address,
+            &None,
+            &None,
             &None,
         );
         client.donate(&donor, &campaign_id, &10_000_000, &false);

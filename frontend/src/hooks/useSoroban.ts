@@ -40,6 +40,8 @@ export function useCreateCampaign() {
       targetAmount: string;
       deadline: number;
       acceptedToken: string;
+      website?: string;
+      twitter?: string;
     }) => {
       if (!address) throw new Error("Wallet not connected");
 
@@ -50,6 +52,8 @@ export function useCreateCampaign() {
         nativeToScVal(toStroops(params.targetAmount), { type: "i128" }),
         nativeToScVal(BigInt(params.deadline), { type: "u64" }),
         new Address(params.acceptedToken).toScVal(),
+        nativeToScVal(params.website || null, { type: "string" }),
+        nativeToScVal(params.twitter || null, { type: "string" }),
       ];
 
       return submitTransaction(address, "create_campaign", args);

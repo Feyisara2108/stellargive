@@ -64,6 +64,8 @@ export interface Campaign {
   deadline: bigint;
   accepted_token: string;
   status: CampaignStatus;
+  website?: string;
+  twitter?: string;
 }
 
 function parseCampaign(native: any): Campaign {
@@ -77,6 +79,8 @@ function parseCampaign(native: any): Campaign {
     deadline: BigInt(native.deadline),
     accepted_token: native.accepted_token,
     status: Object.keys(native.status)[0] as CampaignStatus,
+    website: native.website?.toString(),
+    twitter: native.twitter?.toString(),
   };
 }
 

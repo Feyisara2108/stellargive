@@ -46,6 +46,14 @@ const formSchema = z.object({
     "Deadline must be at least 1 day (24 hours) in the future"
   ),
   acceptedToken: z.string().regex(/^C[A-Z0-9]{55}$|^G[A-Z0-9]{55}$/, "Invalid Token address"),
+  website: z
+    .string()
+    .optional()
+    .refine((val) => !val || val.trim() === "" || val.startsWith("https://"), "Website URL must start with https://"),
+  twitter: z
+    .string()
+    .optional()
+    .refine((val) => !val || val.trim() === "" || val.startsWith("https://"), "Twitter URL must start with https://"),
 });
 
 const NATIVE_XLM = "CDLZS3ZCDY7SF3SIVR6Y7I6SN636O27T7G5MKSUIU22ZS76E55WJIPZ4";
@@ -62,6 +70,8 @@ export function CreateCampaignForm() {
       targetAmount: "",
       deadlineDays: "30",
       acceptedToken: NATIVE_XLM,
+      website: "",
+      twitter: "",
     },
   });
 
@@ -80,6 +90,8 @@ export function CreateCampaignForm() {
         targetAmount: values.targetAmount,
         deadline,
         acceptedToken: values.acceptedToken,
+        website: values.website || undefined,
+        twitter: values.twitter || undefined,
       });
       setIsOpen(false);
       form.reset();
@@ -184,6 +196,32 @@ export function CreateCampaignForm() {
                 )}
               />
             </div>
+            <FormField
+              control={form.control}
+              name="website"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Website (Optional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="https://myrelief.org" {...field} disabled={createCampaign.isPending} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="twitter"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Twitter Link (Optional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="https://twitter.com/mycampaign" {...field} disabled={createCampaign.isPending} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <Button type="submit" className="w-full" disabled={createCampaign.isPending}>
               {createCampaign.isPending ? (
                 <>

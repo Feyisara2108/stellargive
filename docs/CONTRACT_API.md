@@ -27,6 +27,8 @@ pub fn create_campaign(
     target_amount: i128,
     deadline: u64,
     accepted_token: Address,
+    website: Option<String>,
+    twitter: Option<String>,
 ) -> Result<u64, ContractError>
 ```
 
@@ -39,6 +41,11 @@ Arguments
 - `target_amount` - Funding goal in stroops.
 - `deadline` - Unix timestamp after which new donations are no longer accepted.
 - `accepted_token` - Address of a Soroban token contract that must implement the token interface.
+- `website` - Optional website URL. If provided, must start with `https://`.
+- `twitter` - Optional Twitter link. If provided, must start with `https://`.
+
+> [!WARNING]
+> **No ownership verification:** The contract only validates that the URLs start with `https://` to encourage secure links. There is no on-chain cryptographic verification of ownership. These links are informational only.
 
 Returns
 

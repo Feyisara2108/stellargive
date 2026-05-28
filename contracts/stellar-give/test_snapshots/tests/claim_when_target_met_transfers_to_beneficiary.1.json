@@ -136,6 +136,8 @@
                 {
                   "address": "CACMVW2KK4H5FZDFF2AUCAKQTEJMZZWJUIZF23XMRVYQBSXYLHZ6BKWN"
                 },
+                "void",
+                "void",
                 "void"
               ]
             }
@@ -670,6 +672,18 @@
                       "val": {
                         "string": "School Rebuild"
                       }
+                    },
+                    {
+                      "key": {
+                        "symbol": "twitter"
+                      },
+                      "val": "void"
+                    },
+                    {
+                      "key": {
+                        "symbol": "website"
+                      },
+                      "val": "void"
                     }
                   ]
                 }
@@ -1735,6 +1749,8 @@
                 {
                   "address": "CACMVW2KK4H5FZDFF2AUCAKQTEJMZZWJUIZF23XMRVYQBSXYLHZ6BKWN"
                 },
+                "void",
+                "void",
                 "void"
               ]
             }
@@ -2747,6 +2763,18 @@
                   "val": {
                     "string": "School Rebuild"
                   }
+                },
+                {
+                  "key": {
+                    "symbol": "twitter"
+                  },
+                  "val": "void"
+                },
+                {
+                  "key": {
+                    "symbol": "website"
+                  },
+                  "val": "void"
                 }
               ]
             }

@@ -136,6 +136,8 @@
                 {
                   "address": "CACMVW2KK4H5FZDFF2AUCAKQTEJMZZWJUIZF23XMRVYQBSXYLHZ6BKWN"
                 },
+                "void",
+                "void",
                 "void"
               ]
             }
@@ -523,6 +525,18 @@
                       "val": {
                         "string": "Flood Relief"
                       }
+                    },
+                    {
+                      "key": {
+                        "symbol": "twitter"
+                      },
+                      "val": "void"
+                    },
+                    {
+                      "key": {
+                        "symbol": "website"
+                      },
+                      "val": "void"
                     }
                   ]
                 }
@@ -1256,6 +1270,8 @@
                 {
                   "address": "CACMVW2KK4H5FZDFF2AUCAKQTEJMZZWJUIZF23XMRVYQBSXYLHZ6BKWN"
                 },
+                "void",
+                "void",
                 "void"
               ]
             }
@@ -1578,6 +1594,18 @@
                   "val": {
                     "string": "Flood Relief"
                   }
+                },
+                {
+                  "key": {
+                    "symbol": "twitter"
+                  },
+                  "val": "void"
+                },
+                {
+                  "key": {
+                    "symbol": "website"
+                  },
+                  "val": "void"
                 }
               ]
             }
