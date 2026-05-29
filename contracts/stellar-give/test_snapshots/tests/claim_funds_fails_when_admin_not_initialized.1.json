@@ -81,6 +81,9 @@
                   "string": "https://example.com/meta"
                 },
                 {
+                  "symbol": "relief"
+                },
+                {
                   "i128": {
                     "hi": 0,
                     "lo": 10000000
@@ -92,8 +95,6 @@
                 {
                   "address": "CDLDVFKHEZ2RVB3NG4UQA4VPD3TSHV6XMHXMHP2BSGCJ2IIWVTOHGDSG"
                 },
-                "void",
-                "void",
                 "void"
               ]
             }
@@ -125,7 +126,8 @@
                 },
                 {
                   "bool": false
-                }
+                },
+                "void"
               ]
             }
           },
@@ -436,6 +438,14 @@
                             ]
                           }
                         ]
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "category"
+                      },
+                      "val": {
+                        "symbol": "relief"
                       }
                     },
                     {
@@ -1228,6 +1238,9 @@
                   "string": "https://example.com/meta"
                 },
                 {
+                  "symbol": "relief"
+                },
+                {
                   "i128": {
                     "hi": 0,
                     "lo": 10000000
@@ -1239,8 +1252,6 @@
                 {
                   "address": "CDLDVFKHEZ2RVB3NG4UQA4VPD3TSHV6XMHXMHP2BSGCJ2IIWVTOHGDSG"
                 },
-                "void",
-                "void",
                 "void"
               ]
             }
@@ -1448,7 +1459,8 @@
                 },
                 {
                   "bool": false
-                }
+                },
+                "void"
               ]
             }
           }
@@ -1604,27 +1616,58 @@
               }
             ],
             "data": {
-              "vec": [
+              "map": [
                 {
-                  "u64": 1
-                },
-                {
-                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
-                },
-                {
-                  "i128": {
-                    "hi": 0,
-                    "lo": 10000000
+                  "key": {
+                    "symbol": "accepted_token"
+                  },
+                  "val": {
+                    "address": "CDLDVFKHEZ2RVB3NG4UQA4VPD3TSHV6XMHXMHP2BSGCJ2IIWVTOHGDSG"
                   }
                 },
                 {
-                  "i128": {
-                    "hi": 0,
-                    "lo": 10000000
+                  "key": {
+                    "symbol": "amount"
+                  },
+                  "val": {
+                    "i128": {
+                      "hi": 0,
+                      "lo": 10000000
+                    }
                   }
                 },
                 {
-                  "address": "CDLDVFKHEZ2RVB3NG4UQA4VPD3TSHV6XMHXMHP2BSGCJ2IIWVTOHGDSG"
+                  "key": {
+                    "symbol": "campaign_id"
+                  },
+                  "val": {
+                    "u64": 1
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "comment"
+                  },
+                  "val": "void"
+                },
+                {
+                  "key": {
+                    "symbol": "donor"
+                  },
+                  "val": {
+                    "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "total_raised"
+                  },
+                  "val": {
+                    "i128": {
+                      "hi": 0,
+                      "lo": 10000000
+                    }
+                  }
                 }
               ]
             }
