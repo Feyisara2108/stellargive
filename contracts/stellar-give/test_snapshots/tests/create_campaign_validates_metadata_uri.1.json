@@ -318,7 +318,16 @@
                     "executable": {
                       "wasm": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
                     },
-                    "storage": null
+                    "storage": [
+                      {
+                        "key": {
+                          "symbol": "OWNER"
+                        },
+                        "val": {
+                          "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                        }
+                      }
+                    ]
                   }
                 }
               }
@@ -999,6 +1008,9 @@
                   "string": "ftp://example.com"
                 },
                 {
+                  "symbol": "relief"
+                },
+                {
                   "i128": {
                     "hi": 0,
                     "lo": 10000000
@@ -1010,8 +1022,6 @@
                 {
                   "address": "CACMVW2KK4H5FZDFF2AUCAKQTEJMZZWJUIZF23XMRVYQBSXYLHZ6BKWN"
                 },
-                "void",
-                "void",
                 "void"
               ]
             }
@@ -1121,6 +1131,9 @@
                       "string": "ftp://example.com"
                     },
                     {
+                      "symbol": "relief"
+                    },
+                    {
                       "i128": {
                         "hi": 0,
                         "lo": 10000000
@@ -1132,8 +1145,6 @@
                     {
                       "address": "CACMVW2KK4H5FZDFF2AUCAKQTEJMZZWJUIZF23XMRVYQBSXYLHZ6BKWN"
                     },
-                    "void",
-                    "void",
                     "void"
                   ]
                 }
@@ -1188,6 +1199,9 @@
                   "string": "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
                 },
                 {
+                  "symbol": "relief"
+                },
+                {
                   "i128": {
                     "hi": 0,
                     "lo": 10000000
@@ -1199,8 +1213,6 @@
                 {
                   "address": "CACMVW2KK4H5FZDFF2AUCAKQTEJMZZWJUIZF23XMRVYQBSXYLHZ6BKWN"
                 },
-                "void",
-                "void",
                 "void"
               ]
             }
@@ -1310,6 +1322,9 @@
                       "string": "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
                     },
                     {
+                      "symbol": "relief"
+                    },
+                    {
                       "i128": {
                         "hi": 0,
                         "lo": 10000000
@@ -1321,8 +1336,6 @@
                     {
                       "address": "CACMVW2KK4H5FZDFF2AUCAKQTEJMZZWJUIZF23XMRVYQBSXYLHZ6BKWN"
                     },
-                    "void",
-                    "void",
                     "void"
                   ]
                 }

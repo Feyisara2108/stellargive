@@ -81,6 +81,9 @@
                   "string": "https://example.com/meta"
                 },
                 {
+                  "symbol": "relief"
+                },
+                {
                   "i128": {
                     "hi": 0,
                     "lo": 10000000
@@ -92,8 +95,6 @@
                 {
                   "address": "CDLDVFKHEZ2RVB3NG4UQA4VPD3TSHV6XMHXMHP2BSGCJ2IIWVTOHGDSG"
                 },
-                "void",
-                "void",
                 "void"
               ]
             }
@@ -436,6 +437,14 @@
                             ]
                           }
                         ]
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "category"
+                      },
+                      "val": {
+                        "symbol": "relief"
                       }
                     },
                     {
@@ -1228,6 +1237,9 @@
                   "string": "https://example.com/meta"
                 },
                 {
+                  "symbol": "relief"
+                },
+                {
                   "i128": {
                     "hi": 0,
                     "lo": 10000000
@@ -1239,8 +1251,6 @@
                 {
                   "address": "CDLDVFKHEZ2RVB3NG4UQA4VPD3TSHV6XMHXMHP2BSGCJ2IIWVTOHGDSG"
                 },
-                "void",
-                "void",
                 "void"
               ]
             }

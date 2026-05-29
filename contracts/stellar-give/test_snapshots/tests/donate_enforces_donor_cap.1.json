@@ -125,6 +125,9 @@
                   "string": "https://example.com/meta"
                 },
                 {
+                  "symbol": "relief"
+                },
+                {
                   "i128": {
                     "hi": 0,
                     "lo": 100000000
@@ -141,9 +144,7 @@
                     "hi": 0,
                     "lo": 50000000
                   }
-                },
-                "void",
-                "void"
+                }
               ]
             }
           },
@@ -698,6 +699,14 @@
                     },
                     {
                       "key": {
+                        "symbol": "category"
+                      },
+                      "val": {
+                        "symbol": "relief"
+                      }
+                    },
+                    {
+                      "key": {
                         "symbol": "creator"
                       },
                       "val": {
@@ -944,6 +953,14 @@
                         },
                         "val": {
                           "u64": 2
+                        }
+                      },
+                      {
+                        "key": {
+                          "symbol": "OWNER"
+                        },
+                        "val": {
+                          "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
                         }
                       }
                     ]
@@ -1773,6 +1790,9 @@
                   "string": "https://example.com/meta"
                 },
                 {
+                  "symbol": "relief"
+                },
+                {
                   "i128": {
                     "hi": 0,
                     "lo": 100000000
@@ -1789,9 +1809,7 @@
                     "hi": 0,
                     "lo": 50000000
                   }
-                },
-                "void",
-                "void"
+                }
               ]
             }
           }
