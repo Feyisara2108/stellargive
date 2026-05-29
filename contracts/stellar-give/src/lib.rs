@@ -111,6 +111,10 @@ fn admin_key() -> Symbol {
     symbol_short!("ADMIN")
 }
 
+fn owner_key() -> Symbol {
+    symbol_short!("OWNER")
+}
+
 /// Platform fee, in basis points. 100 = 1.00%.
 const FEE_BPS: i128 = 100;
 /// Basis-point denominator (10_000 = 100%).
@@ -432,6 +436,7 @@ impl StellarGiveContract {
         }
         admin.require_auth();
         write_admin(&env, &admin);
+        env.storage().instance().set(&owner_key(), &admin);
         Ok(())
     }
 
@@ -798,6 +803,91 @@ impl StellarGiveContract {
 
         exit_lock(&env);
         result
+    }
+
+    pub fn upgrade(env: Env, new_wasm_hash: soroban_sdk::BytesN<32>) -> Result<(), ContractError> {
+        let owner: Address = env.storage().instance().get(&owner_key()).ok_or(ContractError::NotInitialized)?;
+        owner.require_auth();
+        env.deployer().update_current_contract_wasm(new_wasm_hash.clone());
+        env.events().publish((symbol_short!("Upgraded"),), new_wasm_hash);
+        Ok(())
+    }
+
+    pub fn get_owner(env: Env) -> Result<Address, ContractError> {
+        env.storage()
+            .instance()
+            .get(&owner_key())
+            .ok_or(ContractError::NotInitialized)
+    }
+
+    pub fn set_owner(env: Env, new_owner: Address) -> Result<(), ContractError> {
+        let owner: Address = env.storage().instance().get(&owner_key()).ok_or(ContractError::NotInitialized)?;
+        owner.require_auth();
+        env.storage().instance().set(&owner_key(), &new_owner);
+        env.events().publish((symbol_short!("OwnerSet"),), new_owner);
+        Ok(())
+    }
+
+    pub fn get_campaigns_by_creator(env: Env, creator: Address) -> Vec<Campaign> {
+        let mut result = Vec::new(&env);
+        let next_id = read_next_id(&env);
+        let now = env.ledger().timestamp();
+        for id in 1..next_id {
+            if let Ok(mut campaign) = read_campaign(&env, id) {
+                if campaign.creator == creator {
+                    campaign.status = derive_status(now, &campaign);
+                    result.push_back(campaign);
+                }
+            }
+        }
+        result
+    }
+
+    pub fn get_campaigns_paged(env: Env, offset: u64, mut limit: u32) -> Vec<Campaign> {
+        if limit > 20 {
+            limit = 20;
+        }
+        let mut result = Vec::new(&env);
+        let next_id = read_next_id(&env);
+        let start_id = offset + 1;
+        
+        let mut end_id = offset + (limit as u64);
+        if end_id >= next_id {
+            if next_id > 0 {
+                end_id = next_id - 1;
+            } else {
+                end_id = 0;
+            }
+        }
+        
+        let now = env.ledger().timestamp();
+        for id in start_id..=end_id {
+            if let Ok(mut campaign) = read_campaign(&env, id) {
+                campaign.status = derive_status(now, &campaign);
+                result.push_back(campaign);
+            }
+        }
+        result
+    }
+
+    pub fn get_campaigns(env: Env, ids: Vec<u64>) -> Result<Vec<Option<Campaign>>, ContractError> {
+        if ids.len() > 50 {
+            return Err(ContractError::LimitExceeded);
+        }
+        let mut result = Vec::new(&env);
+        let now = env.ledger().timestamp();
+        for id in ids.iter() {
+            match read_campaign(&env, id) {
+                Ok(mut campaign) => {
+                    campaign.status = derive_status(now, &campaign);
+                    result.push_back(Some(campaign));
+                }
+                Err(_) => {
+                    result.push_back(None);
+                }
+            }
+        }
+        Ok(result)
     }
 
     /// Returns the current state of a campaign with a derived status.
