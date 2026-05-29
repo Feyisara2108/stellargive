@@ -31,9 +31,24 @@ pub struct CreatedEvent {
 pub struct GoalReachedEvent {
     pub campaign_id: u64,
     pub total_raised: i128,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
 pub struct CancelledEvent {
     pub id: u64,
     pub creator: Address,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
+pub struct DonationEvent {
+    pub campaign_id: u64,
+    pub donor: Address,
+    pub amount: i128,
+    pub total_raised: i128,
+    pub accepted_token: Address,
+    pub comment: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -97,6 +112,7 @@ pub enum ContractError {
     TooManyUpdates = 27,
     InvalidBeneficiary = 28,
     InvalidCategory = 26,
+    CommentTooLong = 29,
 }
 
 fn next_id_key() -> Symbol {
@@ -132,6 +148,8 @@ const MAX_CAMPAIGNS_PER_CREATOR: u32 = 10;
 const MAX_TITLE_LEN: u32 = 50;
 /// Storage bloat guard: metadata URI length cap.
 const MAX_METADATA_URI_LEN: u32 = 256;
+/// Optional donor comment length cap.
+const MAX_COMMENT_LEN: u32 = 250;
 /// Fixed creation fee in stroops, sent to platform admin.
 const CREATION_FEE_STROOPS: i128 = 100_000;
 
@@ -594,10 +612,16 @@ impl StellarGiveContract {
         campaign_id: u64,
         amount: i128,
         is_anonymous: bool,
+        comment: Option<String>,
     ) -> Result<(), ContractError> {
         donor.require_auth();
         if amount < MIN_DONATION {
             return Err(ContractError::InvalidAmount);
+        }
+        if let Some(c) = &comment {
+            if c.len() > MAX_COMMENT_LEN {
+                return Err(ContractError::CommentTooLong);
+            }
         }
 
         enter_lock(&env)?;
@@ -673,13 +697,14 @@ impl StellarGiveContract {
             update_top_donors(&env, campaign_id, &event_donor, amount)?;
             env.events().publish(
                 (symbol_short!("donation"), symbol_short!("received")),
-                (
-                    campaign.id,
-                    event_donor,
+                DonationEvent {
+                    campaign_id: campaign.id,
+                    donor: event_donor,
                     amount,
-                    campaign.raised_amount,
-                    campaign.accepted_token.clone(),
-                ),
+                    total_raised: campaign.raised_amount,
+                    accepted_token: campaign.accepted_token.clone(),
+                    comment: comment.clone(),
+                },
             );
             Ok(())
         })();
@@ -1329,7 +1354,7 @@ mod tests {
             &token_client.address,
             &None,
         );
-        client.donate(&donor, &campaign_id, &MIN_DONATION, &false);
+        client.donate(&donor, &campaign_id, &MIN_DONATION, &false, &None);
 
         let result = client.try_cancel_campaign(&campaign_id);
         assert_eq!(result, Err(Ok(ContractError::CampaignNotActive)));
@@ -1410,12 +1435,12 @@ mod tests {
             &None,
         );
 
-        client.donate(&donor, &campaign_id, &3_000_000, &false);
+        client.donate(&donor, &campaign_id, &3_000_000, &false, &None);
         let after_first = client.get_campaign(&campaign_id);
         assert_eq!(after_first.raised_amount, 3_000_000);
         assert_eq!(after_first.status, CampaignStatus::Active);
 
-        client.donate(&donor, &campaign_id, &7_000_000, &false);
+        client.donate(&donor, &campaign_id, &7_000_000, &false, &None);
         let after_second = client.get_campaign(&campaign_id);
         assert_eq!(after_second.raised_amount, 10_000_000);
         assert_eq!(after_second.status, CampaignStatus::Funded);
@@ -1440,7 +1465,7 @@ mod tests {
             &None,
         );
 
-        client.donate(&donor, &campaign_id, &10_000_000, &false);
+        client.donate(&donor, &campaign_id, &10_000_000, &false, &None);
 
         let goal_event = env
             .events()
@@ -1484,7 +1509,7 @@ mod tests {
             &None,
         );
 
-        client.donate(&donor, &campaign_id, &11_000_000, &false);
+        client.donate(&donor, &campaign_id, &11_000_000, &false, &None);
 
         let goal_event_count = env
             .events()
@@ -1542,7 +1567,7 @@ mod tests {
             &None,
         );
 
-        let result = client.try_donate(&donor, &campaign_id, &(MIN_DONATION - 1), &false);
+        let result = client.try_donate(&donor, &campaign_id, &(MIN_DONATION - 1), &false, &None);
         assert!(result.is_err());
     }
 
@@ -1572,7 +1597,7 @@ mod tests {
             write_campaign(&env, &campaign);
         });
 
-        let result = client.try_donate(&donor, &campaign_id, &MIN_DONATION, &false);
+        let result = client.try_donate(&donor, &campaign_id, &MIN_DONATION, &false, &None);
         assert_eq!(result, Err(Ok(ContractError::ArithmeticError)));
     }
 
@@ -1598,7 +1623,7 @@ mod tests {
             &None,
         );
 
-        client.donate(&donor, &campaign_id, &12_000_000, &false);
+        client.donate(&donor, &campaign_id, &12_000_000, &false, &None);
 
         let ben_before = token_client.balance(&beneficiary);
         let admin_before = token_client.balance(&admin);
@@ -1632,7 +1657,7 @@ mod tests {
             &None,
         );
 
-        client.donate(&donor, &campaign_id, &5_000_000, &false);
+        client.donate(&donor, &campaign_id, &5_000_000, &false, &None);
         set_timestamp(&env, 600);
 
         let claimed = client.claim_funds(&beneficiary, &campaign_id);
@@ -1659,7 +1684,7 @@ mod tests {
             &token_client.address,
             &None,
         );
-        client.donate(&donor, &campaign_id, &1_000_000, &false);
+        client.donate(&donor, &campaign_id, &1_000_000, &false, &None);
         set_timestamp(&env, 1_100);
 
         let attacker = Address::generate(&env);
@@ -1693,7 +1718,7 @@ mod tests {
             &None,
         );
 
-        client.donate(&donor, &campaign_id, &20_000_000, &false);
+        client.donate(&donor, &campaign_id, &20_000_000, &false, &None);
 
         let b1_before = token_client.balance(&beneficiary);
         let b2_before = token_client.balance(&beneficiary2);
@@ -1735,7 +1760,7 @@ mod tests {
             &None,
         );
 
-        client.donate(&donor, &campaign_id, &10_000_000, &false);
+        client.donate(&donor, &campaign_id, &10_000_000, &false, &None);
 
         let b1_before = token_client.balance(&beneficiary);
         let b2_before = token_client.balance(&beneficiary2);
@@ -1847,8 +1872,8 @@ mod tests {
             &None,
         );
 
-        client.donate(&donor, &campaign_id, &1_000_000, &false);
-        client.donate(&donor, &campaign_id, &5_000_000, &false);
+        client.donate(&donor, &campaign_id, &1_000_000, &false, &None);
+        client.donate(&donor, &campaign_id, &5_000_000, &false, &None);
 
         let top = client.get_top_donors(&campaign_id);
         assert_eq!(top.len(), 1);
@@ -1919,7 +1944,7 @@ mod tests {
             &token_client.address,
             &None,
         );
-        client.donate(&donor, &campaign_id, &10_000_000, &false);
+        client.donate(&donor, &campaign_id, &10_000_000, &false, &None);
 
         let ben_before = token_client.balance(&beneficiary);
         let admin_before = token_client.balance(&admin);
@@ -1948,7 +1973,7 @@ mod tests {
             &token_client.address,
             &None,
         );
-        client.donate(&donor, &campaign_id, &gross, &false);
+        client.donate(&donor, &campaign_id, &gross, &false, &None);
 
         let ben_before = token_client.balance(&beneficiary);
         let admin_before = token_client.balance(&admin);
@@ -1996,7 +2021,7 @@ mod tests {
             &token_client.address,
             &None,
         );
-        client.donate(&donor, &campaign_id, &10_000_000, &false);
+        client.donate(&donor, &campaign_id, &10_000_000, &false, &None);
 
         let result = client.try_claim_funds(&creator, &campaign_id);
         assert!(
@@ -2191,14 +2216,14 @@ mod tests {
         );
 
         // First donation within cap
-        client.donate(&donor, &campaign_id, &30_000_000, &false);
+        client.donate(&donor, &campaign_id, &30_000_000, &false, &None);
 
         // Second donation exceeding cap
-        let result = client.try_donate(&donor, &campaign_id, &30_000_000, &false);
+        let result = client.try_donate(&donor, &campaign_id, &30_000_000, &false, &None);
         assert_eq!(result, Err(Ok(ContractError::ExceedsDonorCap)));
 
         // Second donation exactly at cap
-        client.donate(&donor, &campaign_id, &20_000_000, &false);
+        client.donate(&donor, &campaign_id, &20_000_000, &false, &None);
     }
 
     #[test]
@@ -2220,7 +2245,7 @@ mod tests {
         );
 
         let before_bal = token_client.balance(&donor);
-        client.donate(&donor, &campaign_id, &1_000_000, &true);
+        client.donate(&donor, &campaign_id, &1_000_000, &true, &None);
         let after_bal = token_client.balance(&donor);
 
         // Funds must be debited correctly from the donor's address.
@@ -2288,7 +2313,7 @@ mod tests {
             &None,
         );
 
-        client.donate(&donor, &campaign_id, &1_000_000, &false);
+        client.donate(&donor, &campaign_id, &1_000_000, &false, &None);
 
         let event = env
             .events()
@@ -2401,6 +2426,103 @@ mod tests {
         assert_eq!(id2, 2);
         env.as_contract(&client.address, || {
             assert_eq!(read_next_id(&env), 3);
+        });
+    }
+
+    #[test]
+    fn test_donation_with_comment_emits_event() {
+        let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
+        let bens = single_ben(&env, &beneficiary);
+        let campaign_id = client.create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Campaign"),
+            &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
+            &10_000_000,
+            &10_000,
+            &token_client.address,
+            &None,
+        );
+
+        let comment_str = String::from_str(&env, "Great project!");
+        client.donate(&donor, &campaign_id, &1_000_000, &false, &Some(comment_str.clone()));
+
+        let event = env
+            .events()
+            .all()
+            .iter()
+            .find(|e| e.1.contains(&symbol_short!("donation")))
+            .expect("Donation event was not emitted");
+
+        let payload = DonationEvent::try_from_val(&env, &event.2)
+            .expect("event data did not decode as DonationEvent");
+
+        assert_eq!(payload.campaign_id, campaign_id);
+        assert_eq!(payload.donor, donor);
+        assert_eq!(payload.amount, 1_000_000);
+        assert_eq!(payload.comment, Some(comment_str));
+    }
+
+    #[test]
+    fn test_donation_without_comment_emits_event() {
+        let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
+        let bens = single_ben(&env, &beneficiary);
+        let campaign_id = client.create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Campaign"),
+            &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
+            &10_000_000,
+            &10_000,
+            &token_client.address,
+            &None,
+        );
+
+        client.donate(&donor, &campaign_id, &1_000_000, &false, &None);
+
+        let event = env
+            .events()
+            .all()
+            .iter()
+            .find(|e| e.1.contains(&symbol_short!("donation")))
+            .expect("Donation event was not emitted");
+
+        let payload = DonationEvent::try_from_val(&env, &event.2)
+            .expect("event data did not decode as DonationEvent");
+
+        assert_eq!(payload.campaign_id, campaign_id);
+        assert_eq!(payload.donor, donor);
+        assert_eq!(payload.amount, 1_000_000);
+        assert_eq!(payload.comment, None);
+    }
+
+    #[test]
+    fn test_comment_not_stored_in_persistent_state() {
+        let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
+        let bens = single_ben(&env, &beneficiary);
+        let campaign_id = client.create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Campaign"),
+            &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
+            &10_000_000,
+            &10_000,
+            &token_client.address,
+            &None,
+        );
+
+        let comment_str = String::from_str(&env, "Great project!");
+        client.donate(&donor, &campaign_id, &1_000_000, &false, &Some(comment_str));
+
+        let campaign = client.get_campaign(&campaign_id);
+        assert_eq!(campaign.raised_amount, 1_000_000);
+        
+        env.as_contract(&client.address, || {
+            let contribution = read_donor_contribution(&env, campaign_id, &donor);
+            assert_eq!(contribution, 1_000_000);
         });
     }
 }
