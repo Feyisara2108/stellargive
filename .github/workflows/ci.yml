@@ -1,22 +1,14 @@
-name: Contract CI
+name: CI
 
 on:
   push:
-    paths:
-      - "contracts/stellar-give/**"
-      - ".github/workflows/ci.yml"
+    branches: [main]
   pull_request:
-    paths:
-      - "contracts/stellar-give/**"
-      - ".github/workflows/ci.yml"
+    branches: [main]
 
 jobs:
-  test-and-build:
+  rust-and-contract:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: contracts/stellar-give
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,8 +23,56 @@ jobs:
         with:
           workspaces: contracts/stellar-give
 
-      - name: Run tests
+      - name: Install cargo-tarpaulin
+        run: cargo install cargo-tarpaulin
+
+      - name: Install Soroban CLI
+        run: cargo install --locked soroban-cli
+
+      - name: Rust Build
+        working-directory: contracts/stellar-give
+        run: cargo build --locked --target wasm32-unknown-unknown --release
+
+      - name: Rust Test
+        working-directory: contracts/stellar-give
         run: cargo test --locked
 
-      - name: Build wasm
-        run: cargo build --locked --target wasm32-unknown-unknown --release
+      - name: Rust Coverage
+        working-directory: contracts/stellar-give
+        run: cargo tarpaulin --out Xml
+
+      - name: WASM Optimization Check
+        run: bash scripts/build-contract.sh
+
+      - name: Codecov Upload (Rust)
+        uses: codecov/codecov-action@v4
+        with:
+          files: contracts/stellar-give/cobertura.xml
+          flags: rust
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Frontend Test and Coverage
+        working-directory: frontend
+        run: npm run test -- --coverage
+
+      - name: Codecov Upload (Frontend)
+        uses: codecov/codecov-action@v4
+        with:
+          directory: frontend/coverage
+          flags: frontend
+          token: ${{ secrets.CODECOV_TOKEN }}

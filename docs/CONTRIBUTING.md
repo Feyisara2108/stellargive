@@ -178,3 +178,36 @@ and writes the bindings to `frontend/src/lib/bindings/`.
 > of the frontend don't have the Stellar CLI or the compiled WASM available, so
 > wiring it into `build` would break those pipelines. Run it locally (or in a
 > contract-aware CI job) whenever the contract interface changes.
+
+## DevOps & Infrastructure
+
+### Local Soroban Node
+
+We support local-first development using the Stellar Quickstart image. Start the local node with:
+`ash
+docker compose up -d stellar
+`
+This exposes the Soroban RPC on port 8000 and Horizon on port 8001. You can configure your frontend to use it by copying rontend/.env.local.example to rontend/.env.local.
+
+Friendbot is available at http://localhost:8000/friendbot?addr=<YOUR_PUBLIC_KEY>.
+
+### Coverage Reporting & Codecov Dashboard
+
+We track test coverage for both Rust contracts and the frontend:
+- **Rust Coverage:** Generated via cargo tarpaulin --out Xml
+- **Frontend Coverage:** Generated via 
+pm run test -- --coverage (using Vitest)
+
+Our CI workflow automatically uploads these reports to our Codecov dashboard to help maintain high code quality.
+
+### Automated WASM Optimization
+
+Contract builds are strictly validated in CI. We enforce a 64KB maximum limit on optimized .wasm files.
+You can run the optimization check locally using:
+`ash
+bash scripts/build-contract.sh
+`
+
+### Dependabot Maintenance
+
+We use Dependabot to keep our dependencies up-to-date. It runs on a weekly schedule for both Cargo and NPM, keeping a maximum of 5 open PRs each. Dependabot PRs will be prefixed with chore(deps/cargo) and chore(deps/npm).

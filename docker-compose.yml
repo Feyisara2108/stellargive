@@ -1,6 +1,13 @@
 version: "3.9"
 
 services:
+  stellar:
+    image: stellar/quickstart:testing
+    command: --standalone --enable-soroban --protocol-version 21
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+
   frontend:
     image: node:20-alpine
     working_dir: /app

@@ -1,7 +1,7 @@
 # StellarGive
 
-[![Contract CI](https://github.com/Nursca/stellargive/actions/workflows/ci-contract.yml/badge.svg)](https://github.com/Nursca/stellargive/actions)
-[![codecov](https://codecov.io/gh/Nursca/stellargive/graph/badge.svg)](https://codecov.io/gh/Nursca/stellargive)
+[![Contract CI](https://github.com/Feyisara2108/stellargive/actions/workflows/ci.yml/badge.svg)](https://github.com/Feyisara2108/stellargive/actions)
+[![codecov](https://codecov.io/gh/Feyisara2108/stellargive/graph/badge.svg)](https://codecov.io/gh/Feyisara2108/stellargive)
 ![Soroban](https://img.shields.io/badge/Built%20on-Soroban-blue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
@@ -103,6 +103,14 @@ docs/                    Security, deployment, architecture, contributing docs
 - Contributing: [`docs/CONTRIBUTING.md`](./docs/CONTRIBUTING.md)
 - Video Transcript: [`docs/VIDEO_TRANSCRIPT.md`](./docs/VIDEO_TRANSCRIPT.md)
 - Litepaper: [`docs/WHITEPAPER.md`](./docs/WHITEPAPER.md)
+
+## DevOps & Infrastructure
+
+- **Coverage reporting:** Tests for Rust (`cargo tarpaulin`) and Frontend (`vitest --coverage`) are run in CI.
+- **Codecov dashboard:** Test coverage metrics are automatically uploaded to Codecov for both frontend and contract.
+- **WASM optimization:** Contract builds are strictly validated to ensure optimized `.wasm` size remains under 64KB.
+- **Local Soroban node:** We support local-first Soroban development using `stellar/quickstart:testing`. Run `docker compose up` to start a standalone node (RPC on port 8000, Horizon on port 8001).
+- **Dependabot maintenance:** Weekly dependency updates are enabled for both Cargo (contracts) and NPM (frontend) dependencies.
 
 ## Roadmap
 
