@@ -35,6 +35,7 @@ const formSchema = z.object({
     .min(5, "Title must be at least 5 characters")
     .max(50, "Title cannot exceed 50 characters"),
   beneficiary: z.string().regex(/^G[A-Z0-9]{55}$/, "Invalid Stellar address"),
+  category: z.enum(["medical", "food", "shelter", "education", "relief", "other"]),
   targetAmount: z.string().refine(
     (val) => !isNaN(Number(val)) && Number(val) > 0,
     "Target amount must be a positive number"
@@ -76,6 +77,7 @@ export function CreateCampaignForm() {
     defaultValues: {
       title: "",
       beneficiary: "",
+      category: "relief",
       targetAmount: "",
       deadlineDays: "30",
       acceptedToken: NATIVE_XLM,
@@ -98,6 +100,7 @@ export function CreateCampaignForm() {
       await createCampaign.mutateAsync({
         title: values.title,
         beneficiary: values.beneficiary,
+        category: values.category,
         metadataUri: values.metadataUri || undefined,
         targetAmount: values.targetAmount,
         deadline,
@@ -251,6 +254,30 @@ export function CreateCampaignForm() {
                       value={field.value}
                       onChange={(val) => field.onChange(val)}
                     />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="category"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Category</FormLabel>
+                  <FormControl>
+                    <select
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      {...field}
+                      disabled={createCampaign.isPending}
+                    >
+                      <option value="medical">Medical</option>
+                      <option value="food">Food</option>
+                      <option value="shelter">Shelter</option>
+                      <option value="education">Education</option>
+                      <option value="relief">Relief</option>
+                      <option value="other">Other</option>
+                    </select>
                   </FormControl>
                   <FormMessage />
                 </FormItem>

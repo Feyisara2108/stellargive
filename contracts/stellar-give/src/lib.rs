@@ -15,6 +15,7 @@ pub enum CampaignStatus {
     Funded,
     Claimed,
     Expired,
+    Cancelled,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -27,12 +28,22 @@ pub struct CreatedEvent {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[contracttype]
+pub struct CancelledEvent {
+    pub id: u64,
+    pub creator: Address,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
 pub struct Campaign {
     pub id: u64,
     pub creator: Address,
     pub beneficiaries: Vec<(Address, u32)>,
     pub title: String,
     pub metadata_uri: String,
+    /// Browsing category for discoverability (e.g., `medical`, `food`, `shelter`, `education`, `relief`, `other`).
+    /// Best practice: use stable predefined symbols to allow for reliable frontend filtering.
+    pub category: Symbol,
     pub target_amount: i128,
     pub raised_amount: i128,
     pub deadline: u64,
@@ -79,6 +90,7 @@ pub enum ContractError {
     LimitExceeded = 23,
     InvalidTitle = 24,
     CreationFeeTransferFailed = 25,
+    InvalidCategory = 26,
 }
 
 fn next_id_key() -> Symbol {
@@ -112,6 +124,15 @@ const MAX_TITLE_LEN: u32 = 50;
 const MAX_METADATA_URI_LEN: u32 = 256;
 /// Fixed creation fee in stroops, sent to platform admin.
 const CREATION_FEE_STROOPS: i128 = 100_000;
+
+fn is_allowed_category(category: &Symbol) -> bool {
+    category == &symbol_short!("medical")
+        || category == &symbol_short!("food")
+        || category == &symbol_short!("shelter")
+        || category == &symbol_short!("education")
+        || category == &symbol_short!("relief")
+        || category == &symbol_short!("other")
+}
 
 fn read_admin(env: &Env) -> Result<Address, ContractError> {
     env.storage()
@@ -299,9 +320,9 @@ fn exit_lock(env: &Env) {
 }
 
 fn derive_status(now: u64, campaign: &Campaign) -> CampaignStatus {
-    // Claimed is terminal and must not be downgraded by timestamp checks.
-    if campaign.status == CampaignStatus::Claimed {
-        return CampaignStatus::Claimed;
+    // Terminal statuses must not be downgraded by timestamp checks.
+    if campaign.status == CampaignStatus::Claimed || campaign.status == CampaignStatus::Cancelled {
+        return campaign.status.clone();
     }
 
     if campaign.raised_amount >= campaign.target_amount {
@@ -373,8 +394,10 @@ impl StellarGiveContract {
     /// * `creator` - Address creating the campaign. Must be authenticated.
     /// * `beneficiaries` - Vec of `(Address, u32)` share recipients summing to `10_000` basis points.
     /// * `title` - Campaign title. Must not be empty.
+    /// * `category` - Lowercase browsing category. Prefer stable symbols like
+    ///   `medical`, `food`, `shelter`, `education`, `relief`, or `other`.
     /// * `target_amount` - Funding goal in stroops. Must be positive.
-    /// * `deadline` - Unix timestamp after which donations are no longer accepted.
+    /// * `deadline` - Unix timestamp after which donations are no longer accepted. Validated against the ledger time source (`env.ledger().timestamp()`).
     /// * `accepted_token` - Token contract address. Must implement the Soroban token interface.
     ///
     /// # Errors
@@ -386,12 +409,11 @@ impl StellarGiveContract {
         beneficiaries: Vec<(Address, u32)>,
         title: String,
         metadata_uri: String,
+        category: Symbol,
         target_amount: i128,
         deadline: u64,
         accepted_token: Address,
         max_per_donor: Option<i128>,
-        website: Option<String>,
-        twitter: Option<String>,
     ) -> Result<u64, ContractError> {
         creator.require_auth();
 
@@ -407,12 +429,8 @@ impl StellarGiveContract {
         if metadata_uri.len() > MAX_METADATA_URI_LEN {
             return Err(ContractError::MetadataUriTooLong);
         }
-
-        if let Some(ref url) = website {
-            validate_url(url)?;
-        }
-        if let Some(ref url) = twitter {
-            validate_url(url)?;
+        if !is_allowed_category(&category) {
+            return Err(ContractError::InvalidCategory);
         }
 
         let mut is_valid = false;
@@ -477,14 +495,15 @@ impl StellarGiveContract {
             beneficiaries: beneficiaries.clone(),
             title,
             metadata_uri,
+            category,
             target_amount,
             raised_amount: 0,
             deadline,
             accepted_token: accepted_token.clone(),
             status: CampaignStatus::Active,
             max_per_donor,
-            website,
-            twitter,
+            website: None,
+            twitter: None,
         };
 
         write_campaign(&env, &campaign);
@@ -593,6 +612,29 @@ impl StellarGiveContract {
 
         exit_lock(&env);
         result
+    }
+
+    /// Cancels a campaign before fundraising begins.
+    pub fn cancel_campaign(env: Env, id: u64) -> Result<(), ContractError> {
+        let mut campaign = read_campaign(&env, id)?;
+        campaign.creator.require_auth();
+
+        if campaign.raised_amount > 0 {
+            return Err(ContractError::CampaignNotActive);
+        }
+
+        campaign.status = CampaignStatus::Cancelled;
+        write_campaign(&env, &campaign);
+
+        env.events().publish(
+            (symbol_short!("cancel"),),
+            CancelledEvent {
+                id,
+                creator: campaign.creator,
+            },
+        );
+
+        Ok(())
     }
 
     /// Claims raised funds for a campaign and distributes them to beneficiaries.
@@ -748,9 +790,14 @@ impl StellarGiveContract {
 
 #[cfg(test)]
 mod tests {
+    extern crate std;
+
     use super::*;
-    use soroban_sdk::testutils::{Address as _, Events as _, Ledger};
-    use soroban_sdk::{token, Address, Env, String, Symbol, TryFromVal, Vec};
+    use soroban_sdk::testutils::{
+        Address as _, AuthorizedFunction, AuthorizedInvocation, Events as _, Ledger, MockAuth,
+        MockAuthInvoke,
+    };
+    use soroban_sdk::{token, Address, Env, IntoVal, String, Symbol, TryFromVal, Vec};
 
     fn set_timestamp(env: &Env, timestamp: u64) {
         let mut ledger = env.ledger().get();
@@ -801,6 +848,51 @@ mod tests {
         )
     }
 
+    fn setup_without_auth_mock() -> (
+        Env,
+        StellarGiveContractClient<'static>,
+        Address,
+        Address,
+        Address,
+        Address,
+        token::Client<'static>,
+        token::StellarAssetClient<'static>,
+    ) {
+        let env = Env::default();
+
+        let creator = Address::generate(&env);
+        let beneficiary = Address::generate(&env);
+        let donor = Address::generate(&env);
+        let platform_admin = Address::generate(&env);
+        let token_admin = Address::generate(&env);
+
+        let token_id = env.register_stellar_asset_contract_v2(token_admin.clone());
+        let token_client = token::Client::new(&env, &token_id.address());
+        let token_admin_client = token::StellarAssetClient::new(&env, &token_id.address());
+
+        token_admin_client
+            .mock_all_auths()
+            .mint(&donor, &1_000_000_000_000);
+        token_admin_client
+            .mock_all_auths()
+            .mint(&creator, &1_000_000_000_000);
+
+        let contract_id = env.register_contract(None, StellarGiveContract);
+        let client = StellarGiveContractClient::new(&env, &contract_id);
+        client.mock_all_auths().initialize(&platform_admin);
+
+        (
+            env,
+            client,
+            creator,
+            beneficiary,
+            donor,
+            platform_admin,
+            token_client,
+            token_admin_client,
+        )
+    }
+
     fn single_ben(env: &Env, beneficiary: &Address) -> Vec<(Address, u32)> {
         let mut bens = Vec::new(env);
         bens.push_back((beneficiary.clone(), 10_000_u32));
@@ -822,11 +914,10 @@ mod tests {
             &bens,
             &String::from_str(&env, "Flood Relief"),
             &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
             &10_000_000,
             &2_000,
             &token_client.address,
-            &None,
-            &None,
             &None,
         );
 
@@ -837,6 +928,7 @@ mod tests {
         assert_eq!(campaign.beneficiaries, bens);
         assert_eq!(campaign.target_amount, 10_000_000);
         assert_eq!(campaign.raised_amount, 0);
+        assert_eq!(campaign.category, symbol_short!("relief"));
         assert_eq!(
             campaign.metadata_uri,
             String::from_str(&env, "https://example.com/meta")
@@ -858,11 +950,10 @@ mod tests {
             &bens,
             &String::from_str(&env, "Flood Relief"),
             &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
             &target_amount,
             &2_000,
             &token_client.address,
-            &None,
-            &None,
             &None,
         );
 
@@ -899,11 +990,10 @@ mod tests {
             &bens,
             &String::from_str(&env, "One Year Relief"),
             &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
             &10_000_000,
             &(1_000 + MAX_DURATION),
             &token_client.address,
-            &None,
-            &None,
             &None,
         );
         assert_eq!(id, 1);
@@ -914,14 +1004,154 @@ mod tests {
             &bens,
             &String::from_str(&env, "Too Long Relief"),
             &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
             &10_000_000,
             &(1_000 + MAX_DURATION + 1),
             &token_client.address,
             &None,
-            &None,
-            &None,
         );
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn create_campaign_rejects_past_deadline() {
+        let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = setup();
+        set_timestamp(&env, 5_000); // Mock current ledger time
+
+        let bens = single_ben(&env, &beneficiary);
+
+        let result = client.try_create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Past Deadline"),
+            &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
+            &10_000_000,
+            &4_999, // Set deadline strictly in the past
+            &token_client.address,
+            &None,
+        );
+        assert_eq!(result, Err(Ok(ContractError::InvalidDeadline)));
+    }
+
+    #[test]
+    fn cancel_campaign_requires_creator_auth_and_emits_event() {
+        let (env, client, creator, beneficiary, _donor, _admin, token_client, _) =
+            setup_without_auth_mock();
+        set_timestamp(&env, 1_000);
+
+        let bens = single_ben(&env, &beneficiary);
+        let campaign_id = client.mock_all_auths().create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Cancelable Relief"),
+            &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
+            &10_000_000,
+            &2_000,
+            &token_client.address,
+            &None,
+        );
+
+        client.mock_all_auths().cancel_campaign(&campaign_id);
+
+        assert_eq!(
+            env.auths(),
+            std::vec![(
+                creator.clone(),
+                AuthorizedInvocation {
+                    function: AuthorizedFunction::Contract((
+                        client.address.clone(),
+                        Symbol::new(&env, "cancel_campaign"),
+                        (campaign_id,).into_val(&env)
+                    )),
+                    sub_invocations: std::vec![]
+                }
+            )]
+        );
+
+        let campaign = client.get_campaign(&campaign_id);
+        assert_eq!(campaign.status, CampaignStatus::Cancelled);
+
+        let event = env
+            .events()
+            .all()
+            .iter()
+            .find(|(addr, topics, _)| {
+                addr == &client.address
+                    && topics
+                        .get(0)
+                        .and_then(|t| Symbol::try_from_val(&env, &t).ok())
+                        == Some(symbol_short!("cancel"))
+            })
+            .expect("CancelledEvent was not emitted by cancel_campaign");
+
+        let payload = CancelledEvent::try_from_val(&env, &event.2)
+            .expect("event data did not decode as CancelledEvent");
+        assert_eq!(payload.id, campaign_id);
+        assert_eq!(payload.creator, creator);
+    }
+
+    #[test]
+    fn cancel_campaign_rejects_non_creator_auth() {
+        let (env, client, creator, beneficiary, _donor, _admin, token_client, _) =
+            setup_without_auth_mock();
+        set_timestamp(&env, 1_000);
+
+        let bens = single_ben(&env, &beneficiary);
+        let campaign_id = client.mock_all_auths().create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Creator Only"),
+            &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
+            &10_000_000,
+            &2_000,
+            &token_client.address,
+            &None,
+        );
+
+        let attacker = Address::generate(&env);
+        let invoke = MockAuthInvoke {
+            contract: &client.address,
+            fn_name: "cancel_campaign",
+            args: (campaign_id,).into_val(&env),
+            sub_invokes: &[],
+        };
+        let auths = [MockAuth {
+            address: &attacker,
+            invoke: &invoke,
+        }];
+
+        let result = client.mock_auths(&auths).try_cancel_campaign(&campaign_id);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn cancel_campaign_blocks_when_raised_amount_is_positive() {
+        let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
+        set_timestamp(&env, 1_000);
+
+        let bens = single_ben(&env, &beneficiary);
+        let campaign_id = client.create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Already Fundraising"),
+            &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
+            &10_000_000,
+            &2_000,
+            &token_client.address,
+            &None,
+        );
+        client.donate(&donor, &campaign_id, &MIN_DONATION, &false);
+
+        let result = client.try_cancel_campaign(&campaign_id);
+        assert_eq!(result, Err(Ok(ContractError::CampaignNotActive)));
+        assert_eq!(
+            client.get_campaign(&campaign_id).status,
+            CampaignStatus::Active
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -939,11 +1169,10 @@ mod tests {
             &bens,
             &String::from_str(&env, "SAC Campaign"),
             &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
             &10_000_000,
             &2_000,
             &token_client.address,
-            &None,
-            &None,
             &None,
         );
         assert!(result.is_ok(), "valid SAC token must be accepted");
@@ -962,11 +1191,10 @@ mod tests {
             &bens,
             &String::from_str(&env, "Bad Token Campaign"),
             &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
             &10_000_000,
             &2_000,
             &not_a_token,
-            &None,
-            &None,
             &None,
         );
         assert!(
@@ -990,11 +1218,10 @@ mod tests {
             &bens,
             &String::from_str(&env, "Medical Aid"),
             &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
             &10_000_000,
             &10_000,
             &token_client.address,
-            &None,
-            &None,
             &None,
         );
 
@@ -1020,11 +1247,10 @@ mod tests {
             &bens,
             &String::from_str(&env, "Seed Relief"),
             &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
             &10_000_000,
             &10_000,
             &token_client.address,
-            &None,
-            &None,
             &None,
         );
 
@@ -1043,11 +1269,10 @@ mod tests {
             &bens,
             &String::from_str(&env, "Overflow Guard"),
             &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
             &10_000_000,
             &10_000,
             &token_client.address,
-            &None,
-            &None,
             &None,
         );
 
@@ -1075,11 +1300,10 @@ mod tests {
             &bens,
             &String::from_str(&env, "School Rebuild"),
             &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
             &12_000_000,
             &20_000,
             &token_client.address,
-            &None,
-            &None,
             &None,
         );
 
@@ -1110,11 +1334,10 @@ mod tests {
             &bens,
             &String::from_str(&env, "Emergency Shelter"),
             &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
             &50_000_000,
             &500,
             &token_client.address,
-            &None,
-            &None,
             &None,
         );
 
@@ -1139,11 +1362,10 @@ mod tests {
             &bens,
             &String::from_str(&env, "Food Support"),
             &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
             &10_000_000,
             &1_000,
             &token_client.address,
-            &None,
-            &None,
             &None,
         );
         client.donate(&donor, &campaign_id, &1_000_000, &false);
@@ -1173,11 +1395,10 @@ mod tests {
             &bens,
             &String::from_str(&env, "Dual Relief"),
             &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
             &20_000_000,
             &2_000,
             &token_client.address,
-            &None,
-            &None,
             &None,
         );
 
@@ -1216,11 +1437,10 @@ mod tests {
             &bens,
             &String::from_str(&env, "Three Way"),
             &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
             &10_000_000,
             &2_000,
             &token_client.address,
-            &None,
-            &None,
             &None,
         );
 
@@ -1259,11 +1479,10 @@ mod tests {
             &bens,
             &String::from_str(&env, "Bad Shares"),
             &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
             &10_000_000,
             &2_000,
             &token_client.address,
-            &None,
-            &None,
             &None,
         );
         assert!(result.is_err());
@@ -1280,11 +1499,10 @@ mod tests {
             &bens,
             &String::from_str(&env, "No Bens"),
             &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
             &10_000_000,
             &2_000,
             &token_client.address,
-            &None,
-            &None,
             &None,
         );
         assert!(result.is_err());
@@ -1307,11 +1525,10 @@ mod tests {
                 &bens,
                 &String::from_str(&env, "Bench"),
                 &String::from_str(&env, "https://example.com/meta"),
+                &symbol_short!("relief"),
                 &10_000_000,
                 &2_000,
                 &token_client.address,
-                &None,
-                &None,
                 &None,
             );
             assert_eq!(id, expected_id);
@@ -1332,11 +1549,10 @@ mod tests {
             &bens,
             &String::from_str(&env, "Top Donors"),
             &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
             &20_000_000,
             &2_000,
             &token_client.address,
-            &None,
-            &None,
             &None,
         );
 
@@ -1406,11 +1622,10 @@ mod tests {
             &bens,
             &String::from_str(&env, "Fee Test"),
             &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
             &10_000_000,
             &20_000,
             &token_client.address,
-            &None,
-            &None,
             &None,
         );
         client.donate(&donor, &campaign_id, &10_000_000, &false);
@@ -1436,11 +1651,10 @@ mod tests {
             &bens,
             &String::from_str(&env, "Property"),
             &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
             &gross,
             &20_000,
             &token_client.address,
-            &None,
-            &None,
             &None,
         );
         client.donate(&donor, &campaign_id, &gross, &false);
@@ -1485,11 +1699,10 @@ mod tests {
             &bens,
             &String::from_str(&env, "Uninit"),
             &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
             &10_000_000,
             &5_000,
             &token_client.address,
-            &None,
-            &None,
             &None,
         );
         client.donate(&donor, &campaign_id, &10_000_000, &false);
@@ -1526,11 +1739,10 @@ mod tests {
             &bens,
             &String::from_str(&env, "Too Low"),
             &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
             &(MIN_TARGET - 1),
             &2_000,
             &token_client.address,
-            &None,
-            &None,
             &None,
         );
         assert_eq!(result, Err(Ok(ContractError::TargetTooLow)));
@@ -1549,11 +1761,10 @@ mod tests {
             &bens,
             &String::from_str(&env, "Invalid Prefix"),
             &String::from_str(&env, "ftp://example.com"),
+            &symbol_short!("relief"),
             &MIN_TARGET,
             &2_000,
             &token_client.address,
-            &None,
-            &None,
             &None,
         );
         assert_eq!(result, Err(Ok(ContractError::InvalidMetadataUri)));
@@ -1567,14 +1778,33 @@ mod tests {
             &bens,
             &String::from_str(&env, "Too Long"),
             &String::from_str(&env, long_uri_str),
+            &symbol_short!("relief"),
             &MIN_TARGET,
             &2_000,
             &token_client.address,
             &None,
-            &None,
-            &None,
         );
         assert_eq!(result, Err(Ok(ContractError::MetadataUriTooLong)));
+    }
+
+    #[test]
+    fn create_campaign_validates_category() {
+        let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = setup();
+        set_timestamp(&env, 1_000);
+        let bens = single_ben(&env, &beneficiary);
+
+        let result = client.try_create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Invalid Category"),
+            &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("sports"),
+            &MIN_TARGET,
+            &2_000,
+            &token_client.address,
+            &None,
+        );
+        assert_eq!(result, Err(Ok(ContractError::InvalidCategory)));
     }
 
     #[test]
@@ -1589,11 +1819,10 @@ mod tests {
             &bens,
             &valid_title,
             &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
             &MIN_TARGET,
             &2_000,
             &token_client.address,
-            &None,
-            &None,
             &None,
         );
         assert!(ok.is_ok(), "title of 50 chars should be accepted");
@@ -1605,11 +1834,10 @@ mod tests {
             &bens,
             &too_long_title,
             &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
             &MIN_TARGET,
             &2_000,
             &token_client.address,
-            &None,
-            &None,
             &None,
         );
         assert_eq!(err, Err(Ok(ContractError::InvalidTitle)));
@@ -1627,11 +1855,10 @@ mod tests {
                 &bens,
                 &String::from_str(&env, "Cap Test"),
                 &String::from_str(&env, "https://example.com/meta"),
+                &symbol_short!("relief"),
                 &MIN_TARGET,
                 &2_000,
                 &token_client.address,
-                &None,
-                &None,
                 &None,
             );
         }
@@ -1641,11 +1868,10 @@ mod tests {
             &bens,
             &String::from_str(&env, "Cap Test Overflow"),
             &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
             &MIN_TARGET,
             &2_000,
             &token_client.address,
-            &None,
-            &None,
             &None,
         );
         assert_eq!(result, Err(Ok(ContractError::LimitExceeded)));
@@ -1665,12 +1891,11 @@ mod tests {
             &bens,
             &String::from_str(&env, "Capped"),
             &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
             &100_000_000,
             &2_000,
             &token_client.address,
             &Some(cap),
-            &None,
-            &None,
         );
 
         // First donation within cap
@@ -1695,11 +1920,10 @@ mod tests {
             &bens,
             &String::from_str(&env, "Medical Aid"),
             &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
             &10_000_000,
             &10_000,
             &token_client.address,
-            &None,
-            &None,
             &None,
         );
 
@@ -1765,11 +1989,10 @@ mod tests {
             &bens,
             &String::from_str(&env, "Medical Aid"),
             &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
             &10_000_000,
             &10_000,
             &token_client.address,
-            &None,
-            &None,
             &None,
         );
 
@@ -1837,11 +2060,10 @@ mod tests {
             &bens,
             &String::from_str(&env, "Migrated Campaign"),
             &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
             &10_000_000,
             &10_000,
             &token_client.address,
-            &None,
-            &None,
             &None,
         );
         
@@ -1865,11 +2087,10 @@ mod tests {
             &bens,
             &String::from_str(&env, "Camp 1"),
             &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
             &10_000_000,
             &10_000,
             &token_client.address,
-            &None,
-            &None,
             &None,
         );
         let id2 = client.create_campaign(
@@ -1877,11 +2098,10 @@ mod tests {
             &bens,
             &String::from_str(&env, "Camp 2"),
             &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
             &10_000_000,
             &10_000,
             &token_client.address,
-            &None,
-            &None,
             &None,
         );
 

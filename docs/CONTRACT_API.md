@@ -6,7 +6,7 @@ This document describes the `stellar-give` Soroban contract public API, error va
 
 The contract exposes five public methods:
 
-- `create_campaign` – create a new campaign with a target, deadline, beneficiaries, and accepted token.
+- `create_campaign` – create a new campaign with a target, deadline, beneficiaries, accepted token, category, and metadata.
 - `donate` – transfer tokens from a donor to a campaign.
 - `claim_funds` – release raised funds to beneficiaries once the campaign is funded or expired.
 - `get_campaign` – read campaign state.
@@ -24,11 +24,12 @@ pub fn create_campaign(
     creator: Address,
     beneficiaries: Vec<(Address, u32)>,
     title: String,
+    metadata_uri: String,
+    category: Symbol,
     target_amount: i128,
     deadline: u64,
     accepted_token: Address,
-    website: Option<String>,
-    twitter: Option<String>,
+    max_per_donor: Option<i128>,
 ) -> Result<u64, ContractError>
 ```
 

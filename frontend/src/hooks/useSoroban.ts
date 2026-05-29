@@ -37,6 +37,7 @@ export function useCreateCampaign() {
     mutationFn: async (params: {
       beneficiary: string;
       title: string;
+      category?: string;
       metadataUri?: string;
       targetAmount: string;
       deadline: number;
@@ -51,11 +52,11 @@ export function useCreateCampaign() {
         new Address(params.beneficiary).toScVal(),
         nativeToScVal(params.title, { type: "string" }),
         nativeToScVal(params.metadataUri || "https://example.com", { type: "string" }),
+        nativeToScVal(params.category || "relief", { type: "symbol" }),
         nativeToScVal(toStroops(params.targetAmount), { type: "i128" }),
         nativeToScVal(BigInt(params.deadline), { type: "u64" }),
         new Address(params.acceptedToken).toScVal(),
-        nativeToScVal(params.website || null, { type: "string" }),
-        nativeToScVal(params.twitter || null, { type: "string" }),
+        nativeToScVal(null, { type: "i128" }),
       ];
 
       return submitTransaction(address, "create_campaign", args);
