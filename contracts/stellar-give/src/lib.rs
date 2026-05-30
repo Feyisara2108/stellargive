@@ -53,9 +53,9 @@ pub struct DonationEvent {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[contracttype]
-pub struct ClaimedEvent {
+pub struct AutoClaimedEvent {
     pub campaign_id: u64,
-    pub amount: i128,
+    pub total_raised: i128,
     pub beneficiary: Address,
 }
 
@@ -451,6 +451,55 @@ fn validate_beneficiaries(
     Ok(())
 }
 
+/// Distributes raised funds to beneficiaries after deducting the platform fee.
+/// 
+/// Net proceeds (after 1% platform fee) are split proportionally among
+/// beneficiaries according to their basis-point shares. The first beneficiary
+/// absorbs any rounding dust so that `fee + Σpayouts == amount` exactly.
+fn distribute_funds(
+    env: &Env,
+    admin: &Address,
+    campaign: &Campaign,
+    amount: i128,
+) -> Result<(), ContractError> {
+    let fee = calculate_platform_fee(amount)?;
+    let net = amount
+        .checked_sub(fee)
+        .ok_or(ContractError::InvalidAmount)?;
+
+    let token = token::Client::new(env, &campaign.accepted_token);
+
+    // Fee leg: skipped when rounding produces zero to avoid no-op transfers.
+    if fee > 0 {
+        token.transfer(&env.current_contract_address(), admin, &fee);
+    }
+
+    // Distribute net proportionally among beneficiaries (basis points over 10_000).
+    // Beneficiaries at index 1..n each receive floor(net * share / 10_000).
+    // The first beneficiary (index 0) receives the remainder so that
+    // fee + Σpayouts == amount exactly, absorbing any rounding dust.
+    let n = campaign.beneficiaries.len();
+    let mut distributed: i128 = 0;
+    for i in 1..n {
+        let (addr, share) = campaign.beneficiaries.get(i).unwrap();
+        let payout = net
+            .checked_mul(i128::from(share))
+            .ok_or(ContractError::InvalidAmount)?
+            / 10_000;
+        token.transfer(&env.current_contract_address(), &addr, &payout);
+        distributed = distributed
+            .checked_add(payout)
+            .ok_or(ContractError::InvalidAmount)?;
+    }
+    let (first_addr, _) = campaign.beneficiaries.get(0).unwrap();
+    let remainder = net
+        .checked_sub(distributed)
+        .ok_or(ContractError::InvalidAmount)?;
+    token.transfer(&env.current_contract_address(), &first_addr, &remainder);
+
+    Ok(())
+}
+
 #[contractimpl]
 impl StellarGiveContract {
     /// One-shot initializer. Sets the platform admin address that receives
@@ -691,6 +740,29 @@ impl StellarGiveContract {
                         total_raised: campaign.raised_amount,
                     },
                 );
+
+                // Auto-claim: immediately transfer funds to beneficiaries
+                let admin = read_admin(&env)?;
+                let total_raised = campaign.raised_amount;
+                
+                // Distribute funds to beneficiaries
+                distribute_funds(&env, &admin, &campaign, total_raised)?;
+
+                // Update campaign status and clear raised amount
+                campaign.raised_amount = 0;
+                campaign.status = CampaignStatus::Claimed;
+                write_campaign(&env, &campaign);
+
+                // Emit AutoClaimed event for the first beneficiary
+                let (first_beneficiary, _) = campaign.beneficiaries.get(0).unwrap();
+                env.events().publish(
+                    (symbol_short!("autoclaimed"),),
+                    AutoClaimedEvent {
+                        campaign_id: campaign.id,
+                        total_raised,
+                        beneficiary: first_beneficiary.clone(),
+                    },
+                );
             }
 
             let event_donor = if is_anonymous {
@@ -787,40 +859,9 @@ impl StellarGiveContract {
         let result = (|| {
             let admin = read_admin(&env)?;
             let amount = campaign.raised_amount;
-            let fee = calculate_platform_fee(amount)?;
-            let net = amount
-                .checked_sub(fee)
-                .ok_or(ContractError::InvalidAmount)?;
 
-            let token = token::Client::new(&env, &campaign.accepted_token);
-
-            // Fee leg: skipped when rounding produces zero to avoid no-op transfers.
-            if fee > 0 {
-                token.transfer(&env.current_contract_address(), &admin, &fee);
-            }
-
-            // Distribute net proportionally among beneficiaries (basis points over 10_000).
-            // Beneficiaries at index 1..n each receive floor(net * share / 10_000).
-            // The first beneficiary (index 0) receives the remainder so that
-            // fee + Σpayouts == amount exactly, absorbing any rounding dust.
-            let n = campaign.beneficiaries.len();
-            let mut distributed: i128 = 0;
-            for i in 1..n {
-                let (addr, share) = campaign.beneficiaries.get(i).unwrap();
-                let payout = net
-                    .checked_mul(i128::from(share))
-                    .ok_or(ContractError::InvalidAmount)?
-                    / 10_000;
-                token.transfer(&env.current_contract_address(), &addr, &payout);
-                distributed = distributed
-                    .checked_add(payout)
-                    .ok_or(ContractError::InvalidAmount)?;
-            }
-            let (first_addr, _) = campaign.beneficiaries.get(0).unwrap();
-            let remainder = net
-                .checked_sub(distributed)
-                .ok_or(ContractError::InvalidAmount)?;
-            token.transfer(&env.current_contract_address(), &first_addr, &remainder);
+            // Distribute funds to beneficiaries (including platform fee calculation)
+            distribute_funds(&env, &admin, &campaign, amount)?;
 
             campaign.raised_amount = 0;
             campaign.status = CampaignStatus::Claimed;
@@ -959,6 +1000,22 @@ impl StellarGiveContract {
     ) -> Result<Vec<(Address, i128)>, ContractError> {
         read_campaign(&env, campaign_id)?;
         Ok(read_top_donors(&env, campaign_id))
+    }
+
+    /// Returns the time remaining until the campaign deadline in seconds.
+    /// 
+    /// Returns 0 if the deadline has passed, otherwise returns the number of seconds
+    /// until the deadline. This is a read-only function that requires no authentication.
+    #[readonly]
+    pub fn get_time_left(env: Env, campaign_id: u64) -> Result<u64, ContractError> {
+        let campaign = read_campaign(&env, campaign_id)?;
+        let now = env.ledger().timestamp();
+        
+        if now >= campaign.deadline {
+            Ok(0)
+        } else {
+            Ok(campaign.deadline - now)
+        }
     }
 
     /// Adds an update to a campaign. Maximum 10 updates allowed.
@@ -3818,6 +3875,326 @@ mod tests {
             client.donate(&donor, &campaign_id, &10_000_000, &false, &None);
             let claimed = client.claim_funds(&creator, &campaign_id);
             assert_eq!(claimed, 10_000_000);
+        }
+
+        #[test]
+        fn donate_at_target_triggers_auto_claim() {
+            let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
+            set_timestamp(&env, 1_000);
+
+            let bens = single_ben(&env, &beneficiary);
+            let campaign_id = client.create_campaign(
+                &creator,
+                &bens,
+                &String::from_str(&env, "Auto Claim Test"),
+                &String::from_str(&env, "https://example.com/meta"),
+                &symbol_short!("relief"),
+                &10_000_000,
+                &10_000,
+                &token_client.address,
+                &None,
+            );
+
+            let beneficiary_balance_before = token_client.balance(&beneficiary);
+
+            // Donate exactly the target amount
+            client.donate(&donor, &campaign_id, &10_000_000, &false, &None);
+
+            // Check that campaign is now Claimed
+            let campaign = client.get_campaign(&campaign_id);
+            assert_eq!(campaign.status, CampaignStatus::Claimed);
+            assert_eq!(campaign.raised_amount, 0);
+
+            // Check that beneficiary received funds (net of 1% fee)
+            let beneficiary_balance_after = token_client.balance(&beneficiary);
+            let net_amount = 10_000_000 - calculate_platform_fee(10_000_000).unwrap();
+            assert_eq!(beneficiary_balance_after - beneficiary_balance_before, net_amount);
+        }
+
+        #[test]
+        fn donate_after_auto_claim_is_rejected() {
+            let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
+            set_timestamp(&env, 1_000);
+
+            let bens = single_ben(&env, &beneficiary);
+            let campaign_id = client.create_campaign(
+                &creator,
+                &bens,
+                &String::from_str(&env, "Auto Claim Reject Test"),
+                &String::from_str(&env, "https://example.com/meta"),
+                &symbol_short!("relief"),
+                &10_000_000,
+                &10_000,
+                &token_client.address,
+                &None,
+            );
+
+            // First donation hits the target and triggers auto-claim
+            client.donate(&donor, &campaign_id, &10_000_000, &false, &None);
+
+            // Verify campaign is Claimed
+            let campaign = client.get_campaign(&campaign_id);
+            assert_eq!(campaign.status, CampaignStatus::Claimed);
+
+            // Try to donate again - should fail because campaign is not Active
+            let second_donor = Address::generate(&env);
+            let result = client.try_donate(&second_donor, &campaign_id, &1_000_000, &false, &None);
+            assert!(result.is_err(), "donation after auto-claim must be rejected");
+            assert_eq!(result.unwrap_err().unwrap(), ContractError::CampaignNotActive);
+        }
+
+        #[test]
+        fn donate_auto_claim_emits_auto_claimed_event() {
+            let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
+            set_timestamp(&env, 1_000);
+
+            let bens = single_ben(&env, &beneficiary);
+            let campaign_id = client.create_campaign(
+                &creator,
+                &bens,
+                &String::from_str(&env, "Auto Claimed Event Test"),
+                &String::from_str(&env, "https://example.com/meta"),
+                &symbol_short!("relief"),
+                &10_000_000,
+                &10_000,
+                &token_client.address,
+                &None,
+            );
+
+            client.donate(&donor, &campaign_id, &10_000_000, &false, &None);
+
+            // Check for AutoClaimed event
+            let auto_claimed_event = env
+                .events()
+                .all()
+                .iter()
+                .find(|(addr, topics, _)| {
+                    addr == &client.address
+                        && topics
+                            .get(0)
+                            .and_then(|t| Symbol::try_from_val(&env, &t).ok())
+                            == Some(symbol_short!("autoclaimed"))
+                })
+                .expect("AutoClaimedEvent was not emitted");
+
+            let payload = AutoClaimedEvent::try_from_val(&env, &auto_claimed_event.2)
+                .expect("Failed to parse AutoClaimedEvent");
+            assert_eq!(payload.campaign_id, campaign_id);
+            assert_eq!(payload.total_raised, 10_000_000);
+            assert_eq!(payload.beneficiary, beneficiary);
+        }
+
+        #[test]
+        fn donate_over_target_triggers_auto_claim() {
+            let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
+            set_timestamp(&env, 1_000);
+
+            let bens = single_ben(&env, &beneficiary);
+            let campaign_id = client.create_campaign(
+                &creator,
+                &bens,
+                &String::from_str(&env, "Over Target Test"),
+                &String::from_str(&env, "https://example.com/meta"),
+                &symbol_short!("relief"),
+                &10_000_000,
+                &10_000,
+                &token_client.address,
+                &None,
+            );
+
+            let beneficiary_balance_before = token_client.balance(&beneficiary);
+
+            // Donate more than the target amount
+            client.donate(&donor, &campaign_id, &15_000_000, &false, &None);
+
+            // Check that campaign is now Claimed
+            let campaign = client.get_campaign(&campaign_id);
+            assert_eq!(campaign.status, CampaignStatus::Claimed);
+            assert_eq!(campaign.raised_amount, 0);
+
+            // Check that beneficiary received funds based on the total raised (15M, not the target 10M)
+            let beneficiary_balance_after = token_client.balance(&beneficiary);
+            let net_amount = 15_000_000 - calculate_platform_fee(15_000_000).unwrap();
+            assert_eq!(beneficiary_balance_after - beneficiary_balance_before, net_amount);
+        }
+
+        #[test]
+        fn auto_claim_with_multiple_beneficiaries() {
+            let (env, client, creator, _beneficiary, donor, _admin, token_client, _) = setup();
+            set_timestamp(&env, 1_000);
+
+            let ben1 = Address::generate(&env);
+            let ben2 = Address::generate(&env);
+            let ben3 = Address::generate(&env);
+
+            let mut bens = Vec::new(&env);
+            bens.push_back((ben1.clone(), 5_000_u32)); // 50%
+            bens.push_back((ben2.clone(), 3_000_u32)); // 30%
+            bens.push_back((ben3.clone(), 2_000_u32)); // 20%
+
+            let campaign_id = client.create_campaign(
+                &creator,
+                &bens,
+                &String::from_str(&env, "Multi Ben Test"),
+                &String::from_str(&env, "https://example.com/meta"),
+                &symbol_short!("relief"),
+                &10_000_000,
+                &10_000,
+                &token_client.address,
+                &None,
+            );
+
+            let ben1_before = token_client.balance(&ben1);
+            let ben2_before = token_client.balance(&ben2);
+            let ben3_before = token_client.balance(&ben3);
+
+            // Donate to hit target
+            client.donate(&donor, &campaign_id, &10_000_000, &false, &None);
+
+            let campaign = client.get_campaign(&campaign_id);
+            assert_eq!(campaign.status, CampaignStatus::Claimed);
+
+            // Calculate expected payouts (net of 1% fee)
+            let total_raised = 10_000_000;
+            let fee = calculate_platform_fee(total_raised).unwrap();
+            let net = total_raised - fee;
+
+            let ben1_payout = net * 5_000 / 10_000;
+            let ben2_payout = net * 3_000 / 10_000;
+            let ben3_payout = net - ben1_payout - ben2_payout; // Takes remainder
+
+            let ben1_after = token_client.balance(&ben1);
+            let ben2_after = token_client.balance(&ben2);
+            let ben3_after = token_client.balance(&ben3);
+
+            assert_eq!(ben1_after - ben1_before, ben1_payout);
+            assert_eq!(ben2_after - ben2_before, ben2_payout);
+            assert_eq!(ben3_after - ben3_before, ben3_payout);
+        }
+
+        #[test]
+        fn get_time_left_returns_zero_when_deadline_passed() {
+            let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = setup();
+            set_timestamp(&env, 1_000);
+
+            let bens = single_ben(&env, &beneficiary);
+            let campaign_id = client.create_campaign(
+                &creator,
+                &bens,
+                &String::from_str(&env, "Time Test"),
+                &String::from_str(&env, "https://example.com/meta"),
+                &symbol_short!("relief"),
+                &10_000_000,
+                &2_000,  // deadline at 2000
+                &token_client.address,
+                &None,
+            );
+
+            // Move time past deadline
+            set_timestamp(&env, 3_000);
+
+            let time_left = client.get_time_left(&campaign_id).unwrap();
+            assert_eq!(time_left, 0);
+        }
+
+        #[test]
+        fn get_time_left_returns_positive_delta_before_deadline() {
+            let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = setup();
+            set_timestamp(&env, 1_000);
+
+            let bens = single_ben(&env, &beneficiary);
+            let deadline = 5_000u64;
+            let campaign_id = client.create_campaign(
+                &creator,
+                &bens,
+                &String::from_str(&env, "Time Test Future"),
+                &String::from_str(&env, "https://example.com/meta"),
+                &symbol_short!("relief"),
+                &10_000_000,
+                &deadline,
+                &token_client.address,
+                &None,
+            );
+
+            let time_left = client.get_time_left(&campaign_id).unwrap();
+            assert_eq!(time_left, 4_000);  // 5000 - 1000
+        }
+
+        #[test]
+        fn get_time_left_at_exact_deadline_returns_zero() {
+            let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = setup();
+            set_timestamp(&env, 1_000);
+
+            let bens = single_ben(&env, &beneficiary);
+            let deadline = 5_000u64;
+            let campaign_id = client.create_campaign(
+                &creator,
+                &bens,
+                &String::from_str(&env, "Exact Deadline"),
+                &String::from_str(&env, "https://example.com/meta"),
+                &symbol_short!("relief"),
+                &10_000_000,
+                &deadline,
+                &token_client.address,
+                &None,
+            );
+
+            // Move to exact deadline
+            set_timestamp(&env, 5_000);
+
+            let time_left = client.get_time_left(&campaign_id).unwrap();
+            assert_eq!(time_left, 0);
+        }
+
+        #[test]
+        fn get_time_left_rejects_nonexistent_campaign() {
+            let (env, client, _creator, _beneficiary, _donor, _admin, _token_client, _) = setup();
+
+            let result = client.try_get_time_left(&9_999u64);
+            assert!(result.is_err(), "get_time_left must reject nonexistent campaigns");
+            assert_eq!(
+                result.unwrap_err().unwrap(),
+                ContractError::CampaignNotFound
+            );
+        }
+
+        #[test]
+        fn get_time_left_updates_as_time_progresses() {
+            let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = setup();
+            set_timestamp(&env, 1_000);
+
+            let bens = single_ben(&env, &beneficiary);
+            let deadline = 10_000u64;
+            let campaign_id = client.create_campaign(
+                &creator,
+                &bens,
+                &String::from_str(&env, "Progressive Time"),
+                &String::from_str(&env, "https://example.com/meta"),
+                &symbol_short!("relief"),
+                &10_000_000,
+                &deadline,
+                &token_client.address,
+                &None,
+            );
+
+            // Check time at start
+            let time_left_1 = client.get_time_left(&campaign_id).unwrap();
+            assert_eq!(time_left_1, 9_000);
+
+            // Move forward
+            set_timestamp(&env, 5_000);
+            let time_left_2 = client.get_time_left(&campaign_id).unwrap();
+            assert_eq!(time_left_2, 5_000);
+
+            // Move closer
+            set_timestamp(&env, 9_000);
+            let time_left_3 = client.get_time_left(&campaign_id).unwrap();
+            assert_eq!(time_left_3, 1_000);
+
+            // Pass deadline
+            set_timestamp(&env, 15_000);
+            let time_left_4 = client.get_time_left(&campaign_id).unwrap();
+            assert_eq!(time_left_4, 0);
         }
     }
 }
