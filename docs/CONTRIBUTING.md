@@ -179,6 +179,12 @@ and writes the bindings to `frontend/src/lib/bindings/`.
 > wiring it into `build` would break those pipelines. Run it locally (or in a
 > contract-aware CI job) whenever the contract interface changes.
 
+## 9. Frontend Input Sanitization & Security Guidelines
+
+To prevent Cross-Site Scripting (XSS) and injection attacks, adhere to the following rules:
+- **HTML Sanitization**: Never render user-controlled HTML string payloads directly with `dangerouslySetInnerHTML` unless they are first passed through `sanitizeHtml` from `@/lib/sanitize`. Prefer plain text or standard React element interpolation (which React escapes by default) whenever possible.
+- **URL Sanitization**: Always wrap URLs provided by users (such as website and Twitter links) in `sanitizeUrl` from `@/lib/sanitize` before placing them in the `href` attribute of an `<a>` anchor tag. This blocks malicious protocols like `javascript:`, `data:`, and `vbscript:`.
+
 ## DevOps & Infrastructure
 
 ### Local Soroban Node

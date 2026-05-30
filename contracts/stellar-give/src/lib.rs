@@ -53,6 +53,14 @@ pub struct DonationEvent {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[contracttype]
+pub struct ClaimedEvent {
+    pub campaign_id: u64,
+    pub amount: i128,
+    pub beneficiary: Address,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
 pub struct Campaign {
     pub id: u64,
     pub creator: Address,
@@ -748,7 +756,9 @@ impl StellarGiveContract {
     ///
     /// # Returns
     /// `Ok(gross_amount)` with the total settled amount in stroops.
-    pub fn claim_funds(env: Env, caller: Address, campaign_id: u64) -> Result<i128, ContractError> {
+    pub fn claim_funds(env: Env, beneficiary: Address, campaign_id: u64) -> Result<i128, ContractError> {
+        beneficiary.require_auth();
+
         let mut campaign = read_campaign(&env, campaign_id)?;
         sync_status(&env, &mut campaign);
 
@@ -759,11 +769,10 @@ impl StellarGiveContract {
         let is_beneficiary = campaign
             .beneficiaries
             .iter()
-            .any(|(addr, _)| addr == caller);
-        if caller != campaign.creator && !is_beneficiary {
+            .any(|(addr, _)| addr == beneficiary);
+        if beneficiary != campaign.creator && !is_beneficiary {
             return Err(ContractError::Unauthorized);
         }
-        caller.require_auth();
 
         let now = env.ledger().timestamp();
         let can_claim = campaign.raised_amount >= campaign.target_amount || now > campaign.deadline;
@@ -820,7 +829,16 @@ impl StellarGiveContract {
             // Gross amount in event preserves the original raised amount for indexers.
             env.events().publish(
                 (symbol_short!("funds"), symbol_short!("claimed")),
-                (campaign.id, caller, amount, campaign.accepted_token),
+                (campaign.id, beneficiary.clone(), amount, campaign.accepted_token.clone()),
+            );
+
+            env.events().publish(
+                (symbol_short!("claimed"), campaign.id),
+                ClaimedEvent {
+                    campaign_id: campaign.id,
+                    amount,
+                    beneficiary: beneficiary.clone(),
+                },
             );
 
             Ok(amount)
@@ -3706,6 +3724,36 @@ mod tests {
 
             let ben_after_second = token_client.balance(&beneficiary);
             assert_eq!(ben_after_second, ben_after_first);
+        }
+
+        #[test]
+        fn claim_funds_emits_audit_event_and_is_idempotent() {
+            let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
+            set_timestamp(&env, 1_000);
+
+            let bens = single_ben(&env, &beneficiary);
+            let campaign_id = client.create_campaign(
+                &creator,
+                &bens,
+                &String::from_str(&env, "Claimed Event Test"),
+                &String::from_str(&env, "https://example.com/meta"),
+                &symbol_short!("relief"),
+                &10_000_000,
+                &10_000,
+                &token_client.address,
+                &None,
+            );
+
+            client.donate(&donor, &campaign_id, &10_000_000, &false, &None);
+
+            let claimed = client.claim_funds(&creator, &campaign_id);
+            assert_eq!(claimed, 10_000_000);
+
+            let events = env.events().all();
+            let claimed_event_exists = events.iter().any(|event| {
+                event.topics.get(0).unwrap() == symbol_short!("claimed").into()
+            });
+            assert!(claimed_event_exists, "Audit event Claimed must be published");
         }
 
         #[test]

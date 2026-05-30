@@ -6,6 +6,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { RecentDonations } from "@/components/RecentDonations";
 import { AddressLink } from "@/components/AddressLink";
 
+import { sanitizeUrl } from "@/lib/sanitize";
+
 export function CampaignDetailsClient({ params }: { params: { id: string } }) {
   const { data: campaign, isLoading } = useCampaign(BigInt(params.id));
 
@@ -31,12 +33,12 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
                 <AddressLink address={campaign.beneficiary} className="text-xs" />
               </span>
               {campaign.website && (
-                <a href={campaign.website} target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors flex items-center gap-1 font-medium">
+                <a href={sanitizeUrl(campaign.website)} target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors flex items-center gap-1 font-medium">
                   🌐 Website
                 </a>
               )}
               {campaign.twitter && (
-                <a href={campaign.twitter} target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors flex items-center gap-1 font-medium">
+                <a href={sanitizeUrl(campaign.twitter)} target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors flex items-center gap-1 font-medium">
                   🐦 Twitter
                 </a>
               )}
