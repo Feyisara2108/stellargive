@@ -289,7 +289,7 @@ jobs:
       - name: Handle pre-flight detected empty PR (auto-close)
         if: steps.preflight.outputs.auto_fraud == 'true'
         env:
-          GH_TOKEN: ${{ secrets.OWNER_PAT }}
+          GH_TOKEN: ${{ secrets.OWNER_PAT || secrets.GITHUB_TOKEN }}
           PR_NUM: ${{ github.event.pull_request.number }}
           PR_AUTHOR: ${{ steps.ctx.outputs.author }}
         run: |
@@ -312,7 +312,7 @@ jobs:
         if: steps.preflight.outputs.auto_fraud != 'true'
         id: act
         env:
-          GH_TOKEN: ${{ secrets.OWNER_PAT }}
+          GH_TOKEN: ${{ secrets.OWNER_PAT || secrets.GITHUB_TOKEN }}
           PR_NUM: ${{ github.event.pull_request.number }}
           PR_AUTHOR: ${{ steps.ctx.outputs.author }}
           DECISION: ${{ steps.review.outputs.decision }}
@@ -372,6 +372,11 @@ jobs:
           PR_NUM: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ steps.ctx.outputs.title }}
         run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "OWNER_PAT is not configured — skipping auto-merge."
+            exit 0
+          fi
+
           COMMIT_BODY=$(gh pr view "$PR_NUM" --json commits \
             --jq '[.commits[].messageBody] | join("\n")' \
             | grep -viE 'co-authored-by:.*(claude|qwen|copilot|github-actions|bot|\[bot\]|gpt|openai|anthropic)' \
