@@ -1558,6 +1558,14 @@
                     },
                     {
                       "key": {
+                        "symbol": "is_private"
+                      },
+                      "val": {
+                        "bool": false
+                      }
+                    },
+                    {
+                      "key": {
                         "symbol": "max_per_donor"
                       },
                       "val": "void"
@@ -1727,6 +1735,14 @@
                       },
                       "val": {
                         "u64": 2
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "is_private"
+                      },
+                      "val": {
+                        "bool": false
                       }
                     },
                     {
@@ -1904,6 +1920,14 @@
                     },
                     {
                       "key": {
+                        "symbol": "is_private"
+                      },
+                      "val": {
+                        "bool": false
+                      }
+                    },
+                    {
+                      "key": {
                         "symbol": "max_per_donor"
                       },
                       "val": "void"
@@ -2073,6 +2097,14 @@
                       },
                       "val": {
                         "u64": 4
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "is_private"
+                      },
+                      "val": {
+                        "bool": false
                       }
                     },
                     {
@@ -2250,6 +2282,14 @@
                     },
                     {
                       "key": {
+                        "symbol": "is_private"
+                      },
+                      "val": {
+                        "bool": false
+                      }
+                    },
+                    {
+                      "key": {
                         "symbol": "max_per_donor"
                       },
                       "val": "void"
@@ -2419,6 +2459,14 @@
                       },
                       "val": {
                         "u64": 6
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "is_private"
+                      },
+                      "val": {
+                        "bool": false
                       }
                     },
                     {
@@ -2596,6 +2644,14 @@
                     },
                     {
                       "key": {
+                        "symbol": "is_private"
+                      },
+                      "val": {
+                        "bool": false
+                      }
+                    },
+                    {
+                      "key": {
                         "symbol": "max_per_donor"
                       },
                       "val": "void"
@@ -2765,6 +2821,14 @@
                       },
                       "val": {
                         "u64": 8
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "is_private"
+                      },
+                      "val": {
+                        "bool": false
                       }
                     },
                     {
@@ -2942,6 +3006,14 @@
                     },
                     {
                       "key": {
+                        "symbol": "is_private"
+                      },
+                      "val": {
+                        "bool": false
+                      }
+                    },
+                    {
+                      "key": {
                         "symbol": "max_per_donor"
                       },
                       "val": "void"
@@ -3111,6 +3183,14 @@
                       },
                       "val": {
                         "u64": 10
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "is_private"
+                      },
+                      "val": {
+                        "bool": false
                       }
                     },
                     {
