@@ -1,0 +1,24 @@
+name: RPC Health Monitor
+
+# Pings the Soroban RPC node every 5 minutes and fails (alerting) if it is
+# unreachable or unhealthy. Configure repo secrets to override defaults:
+#   SOROBAN_RPC_URL    – RPC endpoint to monitor (defaults to public testnet)
+#   SLACK_WEBHOOK_URL  – optional Slack incoming webhook for alerts
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Ping Soroban RPC
+        env:
+          SOROBAN_RPC_URL: ${{ secrets.SOROBAN_RPC_URL }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: node scripts/monitor-rpc.js

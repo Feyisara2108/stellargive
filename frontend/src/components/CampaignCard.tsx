@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { DonateModal } from "@/components/DonateModal";
 import { ClaimButton } from "@/components/ClaimButton";
 import { Calendar, Target, TrendingUp } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
 import { ShareButton } from "@/components/ShareButton";
+import { AddressLink } from "@/components/AddressLink";
+import { RelativeTime } from "@/components/RelativeTime";
 
 function calculateProgress(raised: bigint, target: bigint): number {
   if (target === 0n) return 0;
@@ -67,8 +68,18 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
           <Calendar className="w-3 h-3" />
           <span>
             {isExpired ? "Ended " : "Ends "}
-            {formatDistanceToNow(deadlineDate, { addSuffix: true })}
+            <RelativeTime date={deadlineDate} />
           </span>
+        </div>
+        <div className="space-y-1.5 pt-2 text-xs text-muted-foreground">
+          <div className="flex items-center justify-between gap-2">
+            <span>Creator</span>
+            <AddressLink address={campaign.creator} />
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <span>Beneficiary</span>
+            <AddressLink address={campaign.beneficiary} />
+          </div>
         </div>
       </CardContent>
       <CardFooter className="gap-2">

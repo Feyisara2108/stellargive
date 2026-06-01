@@ -11,7 +11,9 @@ import {
   Keypair,
   Operation,
 } from "@stellar/stellar-sdk";
-import { signTransaction } from "@stellar/freighter-api";
+// NOTE: @stellar/freighter-api is browser-only, so it is imported lazily inside
+// submitTransaction. This keeps the read-only helpers (getCampaign, getEvents…)
+// safe to import on the server — e.g. from a route's generateMetadata.
 
 export const CONTRACT_ID = process.env.NEXT_PUBLIC_CONTRACT_ID!;
 export const RPC_URL = process.env.NEXT_PUBLIC_SOROBAN_RPC_URL!;
@@ -59,11 +61,14 @@ export interface Campaign {
   creator: string;
   beneficiary: string;
   title: string;
+  category: string;
   target_amount: bigint;
   raised_amount: bigint;
   deadline: bigint;
   accepted_token: string;
   status: CampaignStatus;
+  website?: string;
+  twitter?: string;
 }
 
 function parseCampaign(native: any): Campaign {
@@ -72,11 +77,14 @@ function parseCampaign(native: any): Campaign {
     creator: native.creator,
     beneficiary: native.beneficiary,
     title: native.title.toString(),
+    category: native.category.toString(),
     target_amount: BigInt(native.target_amount),
     raised_amount: BigInt(native.raised_amount),
     deadline: BigInt(native.deadline),
     accepted_token: native.accepted_token,
     status: Object.keys(native.status)[0] as CampaignStatus,
+    website: native.website?.toString(),
+    twitter: native.twitter?.toString(),
   };
 }
 
@@ -172,6 +180,7 @@ export async function submitTransaction(
   }
 
   const preparedTx = await server.prepareTransaction(tx);
+  const { signTransaction } = await import("@stellar/freighter-api");
   const result = await signTransaction(preparedTx.toXDR(), {
     networkPassphrase: NETWORK_PASSPHRASE,
   });
@@ -198,6 +207,7 @@ export async function submitTransaction(
   }
 
   if (txResult.status === rpc.Api.GetTransactionStatus.SUCCESS) {
+    (txResult as any).hash = sendResponse.hash;
     return txResult;
   } else {
     throw new Error(`Transaction failed: ${txResult.status}`);

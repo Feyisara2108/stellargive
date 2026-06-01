@@ -29,15 +29,9 @@ A Soroban event has three components:
 | Event           | Topics (ScSymbol literals)        | Emitted by         | Data shape                 |
 | --------------- | --------------------------------- | ------------------ | -------------------------- |
 | Campaign created | `["created"]`                    | `create_campaign`  | `CreatedEvent` (ScMap)     |
+| Goal reached    | `["goal_reached"]`                | `donate`           | `GoalReachedEvent` (ScMap) |
 | Donation received | `["donation", "received"]`     | `donate`           | 5-element `ScVec`          |
 | Funds claimed   | `["funds", "claimed"]`            | `claim_funds`      | 5-element `ScVec`          |
-
-> Status note. There is **no** `goal_reached` event today. When a donation
-> brings `raised_amount >= target_amount` the contract sets the campaign
-> status to `Funded` in storage but does not emit a separate event. The
-> `Donation received` event with `raised_amount >= target_amount` is the
-> on-chain signal indexers should key off if they need a "goal reached"
-> trigger. Adding a dedicated event is tracked separately.
 
 ---
 
@@ -121,7 +115,7 @@ an envelope pulled from `getEvents` on Soroban RPC.
 | Index | Name             | Rust type | ScVal encoding                              | Notes                                          |
 | ----- | ---------------- | --------- | ------------------------------------------- | ---------------------------------------------- |
 | `0`   | `campaign_id`    | `u64`     | `ScVal::U64(u64)`                           | Matches `CreatedEvent.id`.                     |
-| `1`   | `donor`          | `Address` | `ScVal::Address(ScAddress)`                 | Account or contract that funded the donation.  |
+| `1`   | `donor`          | `Address` | `ScVal::Address(ScAddress)`                 | Account or contract that funded the donation. If `is_anonymous` was set to `true`, this is set to the zero address (`GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF`). |
 | `2`   | `amount`         | `i128`    | `ScVal::I128(Int128Parts)`                  | Token amount donated in this call.             |
 | `3`   | `raised_amount`  | `i128`    | `ScVal::I128(Int128Parts)`                  | New running total **after** this donation. Use this to detect "goal reached" when `raised_amount >= target_amount`. |
 | `4`   | `accepted_token` | `Address` | `ScVal::Address(ScAddress)`                 | SAC contract id of the donation token.         |
@@ -170,6 +164,32 @@ data:   ScVec([
 - Detect goal-reached transitions by comparing `data[3]` (`raised_amount`)
   against the campaign's `target_amount` from `get_campaign`. The first
   event where `raised_amount >= target_amount` is the funded transition.
+
+---
+
+## Event: Goal reached
+
+| Property         | Value                                      |
+| ---------------- | ------------------------------------------ |
+| Topics           | `(Symbol::new(env, "goal_reached"),)`      |
+| Data Rust type   | `GoalReachedEvent` (`#[contracttype]` struct) |
+| Emission point   | Immediately after a donation crosses from below target to target or above |
+
+### Data fields
+
+| Field          | Rust type | ScVal encoding            | Notes                                         |
+| -------------- | --------- | ------------------------- | --------------------------------------------- |
+| `campaign_id`  | `u64`     | `ScVal::U64(u64)`         | Campaign whose target was reached.            |
+| `total_raised` | `i128`    | `ScVal::I128(Int128Parts)` | New cumulative raised amount after donation.  |
+
+### Indexing notes
+
+- This event is emitted only once, on the threshold-crossing donation.
+- Soroban short symbols are limited to 9 characters, so the implementation
+  uses a regular `Symbol` with the text `goal_reached` rather than
+  `symbol_short!`.
+- Use it as the real-time trigger for notifications, then fetch campaign
+  state with `get_campaign` if you need the full canonical record.
 
 ---
 

@@ -6,7 +6,7 @@ This document describes the `stellar-give` Soroban contract public API, error va
 
 The contract exposes five public methods:
 
-- `create_campaign` – create a new campaign with a target, deadline, beneficiaries, and accepted token.
+- `create_campaign` – create a new campaign with a target, deadline, beneficiaries, accepted token, category, and metadata.
 - `donate` – transfer tokens from a donor to a campaign.
 - `claim_funds` – release raised funds to beneficiaries once the campaign is funded or expired.
 - `get_campaign` – read campaign state.
@@ -24,9 +24,12 @@ pub fn create_campaign(
     creator: Address,
     beneficiaries: Vec<(Address, u32)>,
     title: String,
+    metadata_uri: String,
+    category: Symbol,
     target_amount: i128,
     deadline: u64,
     accepted_token: Address,
+    max_per_donor: Option<i128>,
 ) -> Result<u64, ContractError>
 ```
 
@@ -39,6 +42,11 @@ Arguments
 - `target_amount` - Funding goal in stroops.
 - `deadline` - Unix timestamp after which new donations are no longer accepted.
 - `accepted_token` - Address of a Soroban token contract that must implement the token interface.
+- `website` - Optional website URL. If provided, must start with `https://`.
+- `twitter` - Optional Twitter link. If provided, must start with `https://`.
+
+> [!WARNING]
+> **No ownership verification:** The contract only validates that the URLs start with `https://` to encourage secure links. There is no on-chain cryptographic verification of ownership. These links are informational only.
 
 Returns
 
@@ -77,6 +85,7 @@ pub fn donate(
     donor: Address,
     campaign_id: u64,
     amount: i128,
+    is_anonymous: bool,
 ) -> Result<(), ContractError>
 ```
 
@@ -86,6 +95,10 @@ Arguments
 - `donor` - Authorized donor address. Must call `require_auth()`.
 - `campaign_id` - ID of the campaign to donate to.
 - `amount` - Donation amount in stroops.
+- `is_anonymous` - If `true`, masks the donor address in emitted events and top donor listings with the zero address (`GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF`).
+
+> [!NOTE]
+> **Privacy Trade-offs:** On-chain ledger transfers remain public. The underlying token contract still records a transfer originating from the donor's address. `is_anonymous` only masks application-level events and dashboard displays.
 
 Returns
 
@@ -225,6 +238,7 @@ Example JSON-RPC payload
 | `EmptyTitle` | Campaign title is empty on creation. |
 | `NothingToClaim` | Claim attempted but raised amount is zero. |
 | `InvalidShares` | Beneficiary shares missing or do not sum to `10_000`. |
+| `InvalidBeneficiary` | Campaign beneficiary matches the contract address and would lock funds. |
 | `TokenTransferFailed` | Token transfer failed during donate or claim. |
 
 ## Storage Key Patterns

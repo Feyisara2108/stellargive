@@ -37,19 +37,29 @@ export function useCreateCampaign() {
     mutationFn: async (params: {
       beneficiary: string;
       title: string;
+      category?: string;
+      metadataUri?: string;
       targetAmount: string;
       deadline: number;
       acceptedToken: string;
+      website?: string;
+      twitter?: string;
     }) => {
       if (!address) throw new Error("Wallet not connected");
+      if (params.beneficiary === CONTRACT_ID) {
+        throw new Error("Beneficiary cannot be the campaign contract address.");
+      }
 
       const args = [
         new Address(address).toScVal(),
         new Address(params.beneficiary).toScVal(),
         nativeToScVal(params.title, { type: "string" }),
+        nativeToScVal(params.metadataUri || "https://example.com", { type: "string" }),
+        nativeToScVal(params.category || "relief", { type: "symbol" }),
         nativeToScVal(toStroops(params.targetAmount), { type: "i128" }),
         nativeToScVal(BigInt(params.deadline), { type: "u64" }),
         new Address(params.acceptedToken).toScVal(),
+        nativeToScVal(null, { type: "i128" }),
       ];
 
       return submitTransaction(address, "create_campaign", args);
@@ -81,13 +91,14 @@ export function useDonate() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (params: { campaignId: bigint; amount: string }) => {
+    mutationFn: async (params: { campaignId: bigint; amount: string; isAnonymous: boolean }) => {
       if (!address) throw new Error("Wallet not connected");
 
       const args = [
         new Address(address).toScVal(),
         nativeToScVal(params.campaignId, { type: "u64" }),
         nativeToScVal(toStroops(params.amount), { type: "i128" }),
+        nativeToScVal(params.isAnonymous, { type: "bool" }),
       ];
 
       return submitTransaction(address, "donate", args);
@@ -137,10 +148,10 @@ export function useClaimFunds() {
   });
 }
 
-export function useEvents() {
+export function useEvents(limit = 20) {
   return useQuery({
-    queryKey: ["events"],
-    queryFn: () => getEvents(),
+    queryKey: ["events", limit],
+    queryFn: () => getEvents(limit),
     refetchInterval: 5000,
   });
 }

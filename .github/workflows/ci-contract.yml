@@ -1,56 +1,45 @@
-name: ci-contract
+name: Contract CI
 
 on:
   push:
     branches: [main]
-    paths:
-      - "contracts/**"
-      - ".github/workflows/ci-contract.yml"
   pull_request:
     branches: [main]
-    paths:
-      - "contracts/**"
-      - ".github/workflows/ci-contract.yml"
 
 jobs:
-  contract:
+  test:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: true
-      matrix:
-        rust: [stable]
-
-    defaults:
-      run:
-        shell: bash
-        working-directory: contracts/stellar-give
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Rust
+      - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: ${{ matrix.rust }}
+          components: clippy, rustfmt
           targets: wasm32-unknown-unknown
-          components: rustfmt, clippy
 
-      - name: Cache cargo registry and target
-        # Caches cargo registry + git index + target dir for reliable CI speedups.
+      - name: Cache cargo
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: contracts/stellar-give -> target
+          workspaces: contracts/stellar-give
 
-      - name: Format
+      - name: Format check
+        working-directory: contracts/stellar-give
         run: cargo fmt --check
 
-      - name: Lint
+      - name: Clippy
+        working-directory: contracts/stellar-give
         run: cargo clippy -- -D warnings
 
       - name: Test
-        run: cargo test
+        working-directory: contracts/stellar-give
+        run: cargo test --verbose
 
-      - name: Build optimized Wasm
-        # Release + wasm target mirrors deployment artifact characteristics.
-        run: cargo build --release --target wasm32-unknown-unknown
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-test-results
+          path: contracts/stellar-give/target/nextest/ci/junit.xml
+          retention-days: 7

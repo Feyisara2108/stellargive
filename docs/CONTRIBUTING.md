@@ -154,3 +154,98 @@ A hosted Storybook URL will be added here once the team picks a host
 ## Deployment notes
 - Any testnet/mainnet rollout steps
 ```
+
+## Regenerating TypeScript contract bindings
+
+The frontend talks to the Soroban contract through generated TypeScript bindings.
+**After any change to the contract's interface, regenerate them so the frontend
+types stay in sync** (this prevents silent drift between contract and UI).
+
+Prerequisites: the [Stellar CLI](https://developers.stellar.org/docs/tools/cli)
+installed and the contract built to WASM
+(`cargo build --target wasm32-unknown-unknown --release` in `contracts/stellar-give`).
+
+```bash
+cd frontend
+npm run generate:bindings
+```
+
+This runs `stellar contract bindings typescript` against
+`contracts/stellar-give/target/wasm32-unknown-unknown/release/stellar_give.wasm`
+and writes the bindings to `frontend/src/lib/bindings/`.
+
+> The step is intentionally **not** part of `npm run build`: production/CI builds
+> of the frontend don't have the Stellar CLI or the compiled WASM available, so
+> wiring it into `build` would break those pipelines. Run it locally (or in a
+> contract-aware CI job) whenever the contract interface changes.
+
+## 9. Frontend Input Sanitization & Security Guidelines
+
+To prevent Cross-Site Scripting (XSS) and injection attacks, adhere to the following rules:
+- **HTML Sanitization**: Never render user-controlled HTML string payloads directly with `dangerouslySetInnerHTML` unless they are first passed through `sanitizeHtml` from `@/lib/sanitize`. Prefer plain text or standard React element interpolation (which React escapes by default) whenever possible.
+- **URL Sanitization**: Always wrap URLs provided by users (such as website and Twitter links) in `sanitizeUrl` from `@/lib/sanitize` before placing them in the `href` attribute of an `<a>` anchor tag. This blocks malicious protocols like `javascript:`, `data:`, and `vbscript:`.
+
+## 10. Pre-commit Hooks (Recommended)
+
+To catch lint and formatting issues before they reach CI, set up Husky locally:
+
+```bash
+# Install Husky
+npx husky init
+
+# Create a pre-commit hook that runs linters
+cat > .husky/pre-commit << 'EOF'
+#!/usr/bin/env sh
+. "$(dirname "$0")/_/husky.sh"
+
+cd frontend && npm run lint && npx prettier --check .
+cd ../contracts/stellar-give && cargo fmt --check && cargo clippy -- -D warnings
+EOF
+
+chmod +x .husky/pre-commit
+```
+
+This runs the same checks as CI before every commit. If any check fails, the commit is aborted until the issue is fixed.
+
+Alternatively, run the checks manually before pushing:
+
+```bash
+# Contract checks
+cd contracts/stellar-give && cargo fmt --check && cargo clippy -- -D warnings
+
+# Frontend checks
+cd frontend && npm run lint && npx prettier --check .
+```
+
+## DevOps & Infrastructure
+
+### Local Soroban Node
+
+We support local-first development using the Stellar Quickstart image. Start the local node with:
+`ash
+docker compose up -d stellar
+`
+This exposes the Soroban RPC on port 8000 and Horizon on port 8001. You can configure your frontend to use it by copying rontend/.env.local.example to rontend/.env.local.
+
+Friendbot is available at http://localhost:8000/friendbot?addr=<YOUR_PUBLIC_KEY>.
+
+### Coverage Reporting & Codecov Dashboard
+
+We track test coverage for both Rust contracts and the frontend:
+- **Rust Coverage:** Generated via cargo tarpaulin --out Xml
+- **Frontend Coverage:** Generated via 
+pm run test -- --coverage (using Vitest)
+
+Our CI workflow automatically uploads these reports to our Codecov dashboard to help maintain high code quality.
+
+### Automated WASM Optimization
+
+Contract builds are strictly validated in CI. We enforce a 64KB maximum limit on optimized .wasm files.
+You can run the optimization check locally using:
+`ash
+bash scripts/build-contract.sh
+`
+
+### Dependabot Maintenance
+
+We use Dependabot to keep our dependencies up-to-date. It runs on a weekly schedule for both Cargo and NPM, keeping a maximum of 5 open PRs each. Dependabot PRs will be prefixed with chore(deps/cargo) and chore(deps/npm).

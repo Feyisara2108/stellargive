@@ -1,0 +1,5 @@
+# Generated TypeScript contract bindings live here.
+# Run `npm run generate:bindings` (from the frontend/ directory) after changing
+# the Soroban contract to regenerate them. This directory is tracked so the
+# output path exists; generated files themselves may be committed or gitignored
+# per project preference.

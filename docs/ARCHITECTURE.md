@@ -69,6 +69,7 @@ Summary of the events this contract publishes:
 | Topics | Data | Consumer |
 |---|---|---|
 | `("created",)` | `CreatedEvent { id, creator, target_amount }` | Campaign feed |
+| `("goal_reached",)` | `GoalReachedEvent { campaign_id, total_raised }` | Instant milestone notifications |
 | `("donation", "received")` | `(campaign_id, donor, amount, raised_amount, accepted_token)` | Donation timeline / analytics |
 | `("funds", "claimed")` | `(campaign_id, caller, beneficiary, amount, accepted_token)` | Settlement and payout history |
 

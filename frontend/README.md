@@ -39,5 +39,17 @@ The decentralized relief grant platform frontend built for the Stellar network.
    npm run dev
    ```
 
+## Docker
+
+- **Production image build** (from `frontend/`):
+  ```bash
+  docker build -t stellargive-frontend .
+  docker run -p 3000:3000 stellargive-frontend
+  ```
+- **Hot-reload development** (from repository root):
+  ```bash
+  docker compose up
+  ```
+
 ## Contributing
 Contributions are welcome! Please ensure all code passes ESLint and uses the project's design system.
