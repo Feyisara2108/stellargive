@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { WalletConnect } from "@/components/WalletConnect";
-import { CreateCampaignForm } from "@/components/CreateCampaignForm";
+import dynamic from "next/dynamic";
+const CreateCampaignForm = dynamic(() => import("@/components/CreateCampaignForm").then(mod => mod.CreateCampaignForm), { ssr: false });
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Heart, Menu, X } from "lucide-react";
 import { useState } from "react";

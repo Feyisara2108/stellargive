@@ -71,6 +71,16 @@ jobs:
         with:
           node-version: 20
 
+      - name: Cache Next.js and node_modules cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            frontend/.next/cache
+            frontend/node_modules/.cache
+          key: ${{ runner.os }}-next-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-next-
+
       - name: Install dependencies
         working-directory: frontend
         run: npm ci

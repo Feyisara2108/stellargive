@@ -1,6 +1,7 @@
 import { Navbar } from "@/components/Navbar";
 import { CampaignList } from "@/components/CampaignList";
-import { EventFeed } from "@/components/EventFeed";
+import dynamic from "next/dynamic";
+const EventFeed = dynamic(() => import("@/components/EventFeed").then(mod => mod.EventFeed), { ssr: false });
 import { HeroCTA } from "@/components/HeroCTA";
 import { Heart, ShieldCheck, Zap } from "lucide-react";
 

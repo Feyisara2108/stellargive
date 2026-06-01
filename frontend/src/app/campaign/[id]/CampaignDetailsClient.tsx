@@ -3,9 +3,10 @@
 import { useCampaign } from "@/hooks/useSoroban";
 import { ShareButton } from "@/components/ShareButton";
 import { Skeleton } from "@/components/ui/skeleton";
-import { RecentDonations } from "@/components/RecentDonations";
+import dynamic from "next/dynamic";
+const RecentDonations = dynamic(() => import("@/components/RecentDonations").then(mod => mod.RecentDonations), { ssr: false });
+const ProjectUpdates = dynamic(() => import("@/components/ProjectUpdates").then(mod => mod.ProjectUpdates), { ssr: false });
 import { AddressLink } from "@/components/AddressLink";
-import { ProjectUpdates } from "@/components/ProjectUpdates";
 import { sanitizeUrl } from "@/lib/sanitize";
 
 export function CampaignDetailsClient({ params }: { params: { id: string } }) {
