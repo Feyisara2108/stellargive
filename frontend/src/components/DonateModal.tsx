@@ -101,6 +101,8 @@ export function DonateModal({ campaign }: { campaign: Campaign }) {
                 inputMode="decimal"
                 autoComplete="off"
                 placeholder="10.0"
+                aria-invalid={errors.amount ? "true" : "false"}
+                aria-describedby={errors.amount ? "amount-error" : undefined}
                 {...register("amount", {
                   required: "Amount is required",
                   pattern: {
@@ -117,10 +119,14 @@ export function DonateModal({ campaign }: { campaign: Campaign }) {
                 disabled={donate.isPending}
               />
               {errors.amount && (
-                <span className="text-xs text-red-500 mt-1">{errors.amount.message}</span>
+                <span id="amount-error" className="text-xs text-red-500 mt-1" role="alert" aria-live="polite">
+                  {errors.amount.message}
+                </span>
               )}
               {!errors.amount && amount && Number(amount) > remaining && (
-                <span className="text-xs text-yellow-600 mt-1">This exceeds the remaining goal</span>
+                <span className="text-xs text-yellow-600 mt-1" role="status" aria-live="polite">
+                  This exceeds the remaining goal
+                </span>
               )}
             </div>
             <div className="grid gap-1">
