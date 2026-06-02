@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(git -C /home/sunny/0xmegie/stellargive diff --stat HEAD)",
-      "Bash(git -C /home/sunny/0xmegie/stellargive log --oneline -5)",
-      "Bash(git -C /home/sunny/0xmegie/stellargive reset HEAD~1)"
-    ]
-  }
-}
