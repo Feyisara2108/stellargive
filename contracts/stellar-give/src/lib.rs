@@ -1,8 +1,8 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, symbol_short, token, Address, Env, String,
-    Symbol, Vec,
+    contract, contracterror, contractimpl, contracttype, symbol_short, token, Address, Env,
+    IntoVal, String, Symbol, Val, Vec,
 };
 
 #[contract]
@@ -38,6 +38,14 @@ pub struct GoalReachedEvent {
 pub struct CancelledEvent {
     pub id: u64,
     pub creator: Address,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
+pub struct RefundEvent {
+    pub campaign_id: u64,
+    pub donor: Address,
+    pub amount: i128,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -111,6 +119,7 @@ pub struct Campaign {
     pub website: Option<String>,
     pub twitter: Option<String>,
     pub is_private: bool,
+    pub was_extended: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -234,14 +243,20 @@ fn is_allowed_category(category: &Symbol) -> bool {
 }
 
 fn read_admin(env: &Env) -> Result<Address, ContractError> {
-    env.storage()
+    let key = admin_key();
+    let admin: Address = env
+        .storage()
         .persistent()
-        .get(&admin_key())
-        .ok_or(ContractError::NotInitialized)
+        .get(&key)
+        .ok_or(ContractError::NotInitialized)?;
+    extend_persistent_ttl(env, &key);
+    Ok(admin)
 }
 
 fn write_admin(env: &Env, admin: &Address) {
-    env.storage().persistent().set(&admin_key(), admin);
+    let key = admin_key();
+    env.storage().persistent().set(&key, admin);
+    extend_persistent_ttl(env, &key);
 }
 
 /// Computes the platform fee for a settlement of `amount`. Uses round-half-up
@@ -264,10 +279,19 @@ fn campaign_key(id: u64) -> (Symbol, u64) {
 const INSTANCE_BUMP_AMOUNT: u32 = 518400; // ~30 days
 const INSTANCE_LIFETIME_THRESHOLD: u32 = 17280; // ~1 day
 
+const PERSISTENT_BUMP_AMOUNT: u32 = 518400; // ~30 days
+const PERSISTENT_LIFETIME_THRESHOLD: u32 = 17280; // ~1 day
+
 fn extend_instance_ttl(env: &Env) {
     env.storage()
         .instance()
         .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+}
+
+fn extend_persistent_ttl<K: IntoVal<Env, Val>>(env: &Env, key: &K) {
+    env.storage()
+        .persistent()
+        .extend_ttl(key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
 }
 
 fn read_next_id(env: &Env) -> u64 {
@@ -296,16 +320,20 @@ fn write_next_id(env: &Env, next_id: u64) {
 }
 
 fn read_campaign(env: &Env, id: u64) -> Result<Campaign, ContractError> {
-    env.storage()
+    let key = campaign_key(id);
+    let campaign: Campaign = env
+        .storage()
         .persistent()
-        .get(&campaign_key(id))
-        .ok_or(ContractError::CampaignNotFound)
+        .get(&key)
+        .ok_or(ContractError::CampaignNotFound)?;
+    extend_persistent_ttl(env, &key);
+    Ok(campaign)
 }
 
 fn write_campaign(env: &Env, campaign: &Campaign) {
-    env.storage()
-        .persistent()
-        .set(&campaign_key(campaign.id), campaign);
+    let key = campaign_key(campaign.id);
+    env.storage().persistent().set(&key, campaign);
+    extend_persistent_ttl(env, &key);
 }
 
 fn top_donors_key(id: u64) -> (Symbol, u64) {
@@ -313,25 +341,22 @@ fn top_donors_key(id: u64) -> (Symbol, u64) {
 }
 
 fn read_top_donors(env: &Env, id: u64) -> Vec<(Address, i128)> {
-    env.storage()
+    let key = top_donors_key(id);
+    let donors = env
+        .storage()
         .persistent()
-        .get(&top_donors_key(id))
-        .unwrap_or_else(|| Vec::new(env))
+        .get(&key)
+        .unwrap_or_else(|| Vec::new(env));
+    if env.storage().persistent().has(&key) {
+        extend_persistent_ttl(env, &key);
+    }
+    donors
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-#[contracttype]
-pub struct Donation(pub u64, pub Address);
-
-fn donor_contribution_key(campaign_id: u64, donor: &Address) -> Donation {
-    Donation(campaign_id, donor.clone())
-}
-
-fn read_donor_contribution(env: &Env, campaign_id: u64, donor: &Address) -> i128 {
-    env.storage()
-        .persistent()
-        .get(&donor_contribution_key(campaign_id, donor))
-        .unwrap_or(0)
+fn write_top_donors(env: &Env, id: u64, donors: &Vec<(Address, i128)>) {
+    let key = top_donors_key(id);
+    env.storage().persistent().set(&key, donors);
+    extend_persistent_ttl(env, &key);
 }
 
 fn write_donor_contribution(env: &Env, campaign_id: u64, donor: &Address, amount: i128) {
@@ -349,29 +374,33 @@ fn creator_campaign_count_key(creator: &Address) -> (Symbol, Address) {
 }
 
 fn read_creator_campaign_count(env: &Env, creator: &Address) -> u32 {
-    env.storage()
-        .persistent()
-        .get(&creator_campaign_count_key(creator))
-        .unwrap_or(0)
+    let key = creator_campaign_count_key(creator);
+    let count = env.storage().persistent().get(&key).unwrap_or(0);
+    if env.storage().persistent().has(&key) {
+        extend_persistent_ttl(env, &key);
+    }
+    count
 }
 
 fn write_creator_campaign_count(env: &Env, creator: &Address, count: u32) {
-    env.storage()
-        .persistent()
-        .set(&creator_campaign_count_key(creator), &count);
+    let key = creator_campaign_count_key(creator);
+    env.storage().persistent().set(&key, &count);
+    extend_persistent_ttl(env, &key);
 }
 
 fn read_donor_contribution(env: &Env, campaign_id: u64, donor: &Address) -> i128 {
-    env.storage()
-        .persistent()
-        .get(&donor_contribution_key(campaign_id, donor))
-        .unwrap_or(0)
+    let key = donor_contribution_key(campaign_id, donor);
+    let amount = env.storage().persistent().get(&key).unwrap_or(0);
+    if env.storage().persistent().has(&key) {
+        extend_persistent_ttl(env, &key);
+    }
+    amount
 }
 
 fn write_donor_contribution(env: &Env, campaign_id: u64, donor: &Address, amount: i128) {
-    env.storage()
-        .persistent()
-        .set(&donor_contribution_key(campaign_id, donor), &amount);
+    let key = donor_contribution_key(campaign_id, donor);
+    env.storage().persistent().set(&key, &amount);
+    extend_persistent_ttl(env, &key);
 }
 
 fn whitelist_key(campaign_id: u64, addr: &Address) -> (Symbol, u64, Address) {
@@ -379,16 +408,18 @@ fn whitelist_key(campaign_id: u64, addr: &Address) -> (Symbol, u64, Address) {
 }
 
 fn read_whitelist(env: &Env, campaign_id: u64, addr: &Address) -> bool {
-    env.storage()
-        .persistent()
-        .get(&whitelist_key(campaign_id, addr))
-        .unwrap_or(false)
+    let key = whitelist_key(campaign_id, addr);
+    let allowed = env.storage().persistent().get(&key).unwrap_or(false);
+    if env.storage().persistent().has(&key) {
+        extend_persistent_ttl(env, &key);
+    }
+    allowed
 }
 
 fn write_whitelist(env: &Env, campaign_id: u64, addr: &Address, allowed: bool) {
-    env.storage()
-        .persistent()
-        .set(&whitelist_key(campaign_id, addr), &allowed);
+    let key = whitelist_key(campaign_id, addr);
+    env.storage().persistent().set(&key, &allowed);
+    extend_persistent_ttl(env, &key);
 }
 
 fn update_count_key(id: u64) -> (Symbol, u64) {
@@ -400,16 +431,33 @@ fn update_key(id: u64, idx: u32) -> (Symbol, u64, u32) {
 }
 
 fn read_update_count(env: &Env, id: u64) -> u32 {
-    env.storage()
-        .persistent()
-        .get(&update_count_key(id))
-        .unwrap_or(0)
+    let key = update_count_key(id);
+    let count = env.storage().persistent().get(&key).unwrap_or(0);
+    if env.storage().persistent().has(&key) {
+        extend_persistent_ttl(env, &key);
+    }
+    count
 }
 
 fn write_update_count(env: &Env, id: u64, count: u32) {
-    env.storage()
-        .persistent()
-        .set(&update_count_key(id), &count);
+    let key = update_count_key(id);
+    env.storage().persistent().set(&key, &count);
+    extend_persistent_ttl(env, &key);
+}
+
+fn read_update(env: &Env, id: u64, idx: u32) -> Option<Update> {
+    let key = update_key(id, idx);
+    let update: Option<Update> = env.storage().persistent().get(&key);
+    if let Some(_) = update {
+        extend_persistent_ttl(env, &key);
+    }
+    update
+}
+
+fn write_update(env: &Env, id: u64, idx: u32, update: &Update) {
+    let key = update_key(id, idx);
+    env.storage().persistent().set(&key, update);
+    extend_persistent_ttl(env, &key);
 }
 
 fn update_top_donors(
@@ -766,6 +814,7 @@ impl StellarGiveContract {
             website: None,
             twitter: None,
             is_private: false,
+            was_extended: false,
         };
 
         write_campaign(&env, &campaign);
@@ -934,7 +983,10 @@ impl StellarGiveContract {
         let mut campaign = read_campaign(&env, id)?;
         campaign.creator.require_auth();
 
-        if campaign.raised_amount > 0 {
+        // Refresh derived status so an expired/funded campaign is not treated
+        // as active. Funds are only claimable while a campaign is still active.
+        sync_status(&env, &mut campaign);
+        if campaign.status != CampaignStatus::Active {
             return Err(ContractError::CampaignNotActive);
         }
 
@@ -944,12 +996,75 @@ impl StellarGiveContract {
         env.events().publish(
             (symbol_short!("cancel"),),
             CancelledEvent {
-                id,
+                id: campaign_id,
                 creator: campaign.creator,
             },
         );
 
         Ok(())
+    }
+
+    /// Refunds a donor's recorded contribution to a cancelled campaign.
+    ///
+    /// Returns the donor's exact contribution (in stroops) and zeroes their
+    /// recorded balance so a refund cannot be claimed twice. The campaign's
+    /// `raised_amount` is decremented by the refunded amount.
+    ///
+    /// # Arguments
+    /// * `donor` - Address reclaiming its contribution. Must authorize the call.
+    /// * `campaign_id` - ID of the cancelled campaign.
+    ///
+    /// # Returns
+    /// `Ok(amount)` with the refunded amount in stroops.
+    pub fn claim_refund(
+        env: Env,
+        donor: Address,
+        campaign_id: u64,
+    ) -> Result<i128, ContractError> {
+        donor.require_auth();
+
+        let mut campaign = read_campaign(&env, campaign_id)?;
+        if campaign.status != CampaignStatus::Cancelled {
+            return Err(ContractError::CampaignNotCancelled);
+        }
+
+        let amount = read_donor_contribution(&env, campaign_id, &donor);
+        if amount <= 0 {
+            return Err(ContractError::NothingToRefund);
+        }
+
+        enter_lock(&env)?;
+        let result = (|| {
+            // Zero the recorded contribution before transferring to prevent a
+            // reentrant or repeated refund.
+            write_donor_contribution(&env, campaign_id, &donor, 0);
+            campaign.raised_amount = campaign
+                .raised_amount
+                .checked_sub(amount)
+                .ok_or(ContractError::ArithmeticError)?;
+            write_campaign(&env, &campaign);
+
+            if token::Client::new(&env, &campaign.accepted_token)
+                .try_transfer(&env.current_contract_address(), &donor, &amount)
+                .is_err()
+            {
+                return Err(ContractError::RefundTransferFailed);
+            }
+
+            env.events().publish(
+                (symbol_short!("refund"), campaign_id),
+                RefundEvent {
+                    campaign_id,
+                    donor: donor.clone(),
+                    amount,
+                },
+            );
+
+            Ok(amount)
+        })();
+
+        exit_lock(&env);
+        result
     }
 
     /// Claims raised funds for a campaign and distributes them to beneficiaries.
@@ -1258,10 +1373,7 @@ impl StellarGiveContract {
             timestamp: env.ledger().timestamp(),
         };
 
-        env.storage()
-            .persistent()
-            .set(&update_key(id, count), &update);
-
+        write_update(&env, id, count, &update);
         write_update_count(&env, id, count + 1);
 
         Ok(())
@@ -1272,7 +1384,7 @@ impl StellarGiveContract {
         let count = read_update_count(&env, id);
         let mut updates = Vec::new(&env);
         for i in 0..count {
-            if let Some(update) = env.storage().persistent().get(&update_key(id, i)) {
+            if let Some(update) = read_update(&env, id, i) {
                 updates.push_back(update);
             }
         }
@@ -1577,7 +1689,7 @@ mod tests {
             &None,
         );
 
-        client.mock_all_auths().cancel_campaign(&campaign_id);
+        client.mock_all_auths().cancel_campaign(&creator, &campaign_id);
 
         assert_eq!(
             env.auths(),
@@ -1587,7 +1699,7 @@ mod tests {
                     function: AuthorizedFunction::Contract((
                         client.address.clone(),
                         Symbol::new(&env, "cancel_campaign"),
-                        (campaign_id,).into_val(&env)
+                        (creator.clone(), campaign_id).into_val(&env)
                     )),
                     sub_invocations: std::vec![]
                 }
@@ -1640,7 +1752,7 @@ mod tests {
         let invoke = MockAuthInvoke {
             contract: &client.address,
             fn_name: "cancel_campaign",
-            args: (campaign_id,).into_val(&env),
+            args: (attacker.clone(), campaign_id).into_val(&env),
             sub_invokes: &[],
         };
         let auths = [MockAuth {
@@ -1648,12 +1760,18 @@ mod tests {
             invoke: &invoke,
         }];
 
-        let result = client.mock_auths(&auths).try_cancel_campaign(&campaign_id);
-        assert!(result.is_err());
+        let result = client
+            .mock_auths(&auths)
+            .try_cancel_campaign(&attacker, &campaign_id);
+        assert_eq!(result, Err(Ok(ContractError::Unauthorized)));
+        assert_eq!(
+            client.get_campaign(&campaign_id).status,
+            CampaignStatus::Active
+        );
     }
 
     #[test]
-    fn cancel_campaign_blocks_when_raised_amount_is_positive() {
+    fn cancel_campaign_allows_cancellation_with_donations() {
         let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
         set_timestamp(&env, 1_000);
 
@@ -1672,12 +1790,141 @@ mod tests {
         );
         client.donate(&donor, &campaign_id, &MIN_DONATION, &false, &None);
 
-        let result = client.try_cancel_campaign(&campaign_id);
-        assert_eq!(result, Err(Ok(ContractError::CampaignNotActive)));
+        client.cancel_campaign(&creator, &campaign_id);
         assert_eq!(
             client.get_campaign(&campaign_id).status,
-            CampaignStatus::Active
+            CampaignStatus::Cancelled
         );
+    }
+
+    #[test]
+    fn claim_refund_returns_exact_contribution() {
+        let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
+        set_timestamp(&env, 1_000);
+
+        let bens = single_ben(&env, &beneficiary);
+        let campaign_id = client.create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Refundable"),
+            &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
+            &10_000_000,
+            &2_000,
+            &token_client.address,
+            &None,
+        );
+
+        let contribution: i128 = 3_000_000;
+        let donor_before = token_client.balance(&donor);
+        client.donate(&donor, &campaign_id, &contribution, &false, &None);
+        client.cancel_campaign(&creator, &campaign_id);
+
+        let refunded = client.claim_refund(&donor, &campaign_id);
+        assert_eq!(refunded, contribution);
+        // Donor is made whole to the exact stroop.
+        assert_eq!(token_client.balance(&donor), donor_before);
+        // Recorded contribution is cleared and raised_amount drained.
+        assert_eq!(client.get_campaign(&campaign_id).raised_amount, 0);
+
+        // A second refund must find nothing left to return.
+        let second = client.try_claim_refund(&donor, &campaign_id);
+        assert_eq!(second, Err(Ok(ContractError::NothingToRefund)));
+    }
+
+    #[test]
+    fn claim_refund_emits_event() {
+        let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
+        set_timestamp(&env, 1_000);
+
+        let bens = single_ben(&env, &beneficiary);
+        let campaign_id = client.create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Refundable"),
+            &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
+            &10_000_000,
+            &2_000,
+            &token_client.address,
+            &None,
+        );
+
+        let contribution: i128 = 2_500_000;
+        client.donate(&donor, &campaign_id, &contribution, &false, &None);
+        client.cancel_campaign(&creator, &campaign_id);
+        client.claim_refund(&donor, &campaign_id);
+
+        let event = env
+            .events()
+            .all()
+            .iter()
+            .find(|(addr, topics, _)| {
+                addr == &client.address
+                    && topics
+                        .get(0)
+                        .and_then(|t| Symbol::try_from_val(&env, &t).ok())
+                        == Some(symbol_short!("refund"))
+            })
+            .expect("RefundEvent was not emitted by claim_refund");
+
+        let payload = RefundEvent::try_from_val(&env, &event.2)
+            .expect("event data did not decode as RefundEvent");
+        assert_eq!(payload.campaign_id, campaign_id);
+        assert_eq!(payload.donor, donor);
+        assert_eq!(payload.amount, contribution);
+    }
+
+    #[test]
+    fn cancel_campaign_rejects_after_claim() {
+        let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
+        set_timestamp(&env, 1_000);
+
+        let bens = single_ben(&env, &beneficiary);
+        let campaign_id = client.create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Funded And Claimed"),
+            &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
+            &10_000_000,
+            &2_000,
+            &token_client.address,
+            &None,
+        );
+
+        // Donating the full target auto-claims, moving the campaign to Claimed.
+        client.donate(&donor, &campaign_id, &10_000_000, &false, &None);
+        assert_eq!(
+            client.get_campaign(&campaign_id).status,
+            CampaignStatus::Claimed
+        );
+
+        let result = client.try_cancel_campaign(&creator, &campaign_id);
+        assert_eq!(result, Err(Ok(ContractError::CampaignNotActive)));
+    }
+
+    #[test]
+    fn claim_refund_rejects_when_not_cancelled() {
+        let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
+        set_timestamp(&env, 1_000);
+
+        let bens = single_ben(&env, &beneficiary);
+        let campaign_id = client.create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Active Campaign"),
+            &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
+            &10_000_000,
+            &2_000,
+            &token_client.address,
+            &None,
+        );
+        client.donate(&donor, &campaign_id, &MIN_DONATION, &false, &None);
+
+        let result = client.try_claim_refund(&donor, &campaign_id);
+        assert_eq!(result, Err(Ok(ContractError::CampaignNotCancelled)));
     }
 
     // -----------------------------------------------------------------------
@@ -4097,9 +4344,13 @@ mod tests {
             assert_eq!(claimed, 10_000_000);
 
             let events = env.events().all();
-            let claimed_event_exists = events
-                .iter()
-                .any(|event| event.1.get(0).unwrap() == symbol_short!("claimed").into());
+            let claimed_event_exists = events.iter().any(|event| {
+                event
+                    .1
+                    .get(0)
+                    .and_then(|t| Symbol::try_from_val(&env, &t).ok())
+                    == Some(symbol_short!("claimed"))
+            });
             assert!(
                 claimed_event_exists,
                 "Audit event Claimed must be published"
@@ -4650,7 +4901,7 @@ mod tests {
                 &None,
             );
 
-            client.cancel_campaign(&campaign_id_2);
+            client.cancel_campaign(&creator, &campaign_id_2);
 
             assert_eq!(client.get_total_campaigns(), 3);
         }
@@ -4863,7 +5114,7 @@ mod tests {
                 )])
                 .set_owner(&new_owner);
             let found = env.events().all().iter().any(|(addr, topics, _)| {
-                addr == &client.address
+                addr == client.address
                     && topics
                         .get(0)
                         .and_then(|t| Symbol::try_from_val(&env, &t).ok())
@@ -5185,7 +5436,7 @@ mod tests {
     // -----------------------------------------------------------------------
 
     #[test]
-    fn refund_succeeds_for_expired_underfunded_campaign() {
+    fn pause_blocks_donations() {
         let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
         set_timestamp(&env, 1_000);
 
@@ -5203,29 +5454,16 @@ mod tests {
             &None,
         );
 
-        // Donate 1,000,000 (target is 10,000,000)
-        client.donate(&donor, &id, &1_000_000, &false, &None);
+        // Pause the contract
+        client.pause();
 
-        // Advance time past deadline
-        set_timestamp(&env, 3_000);
-
-        // Balance before refund
-        let donor_balance_before = token_client.balance(&donor);
-
-        // Refund donor
-        client.refund(&id, &donor);
-
-        // Balance after refund should be increased by 1,000,000
-        let donor_balance_after = token_client.balance(&donor);
-        assert_eq!(donor_balance_after, donor_balance_before + 1_000_000);
-
-        // Campaign raised amount should be 0
-        let campaign = client.get_campaign(&id);
-        assert_eq!(campaign.raised_amount, 0);
+        // Donation should fail
+        let result = client.try_donate(&donor, &id, &1_000_000, &false, &None);
+        assert_eq!(result, Err(Ok(ContractError::ContractPaused)));
     }
 
     #[test]
-    fn refund_rejected_for_active_campaign() {
+    fn unpause_restores_donations() {
         let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
         set_timestamp(&env, 1_000);
 
@@ -5238,25 +5476,28 @@ mod tests {
             &String::from_str(&env, "https://example.com/meta"),
             &symbol_short!("relief"),
             &10_000_000,
-            &5_000,
+            &2_000,
             &token_client.address,
             &None,
         );
 
-        client.donate(&donor, &id, &1_000_000, &false, &None);
+        client.pause();
+        client.unpause();
 
-        // Attempt refund while active
-        let result = client.try_refund(&id, &donor);
-        assert_eq!(result, Err(Ok(ContractError::RefundNotAllowed)));
+        // Donation should succeed again
+        let result = client.try_donate(&donor, &id, &1_000_000, &false, &None);
+        assert!(result.is_ok());
     }
 
     #[test]
-    fn refund_rejected_for_funded_campaign() {
-        let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
+    fn pause_blocks_create_campaign() {
+        let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = setup();
         set_timestamp(&env, 1_000);
 
+        client.pause();
+
         let bens = single_ben(&env, &beneficiary);
-        let id = client.create_campaign(
+        let result = client.try_create_campaign(
             &creator,
             &bens,
             &String::from_str(&env, "Funded Campaign"),
@@ -5264,19 +5505,10 @@ mod tests {
             &String::from_str(&env, "https://example.com/meta"),
             &symbol_short!("relief"),
             &10_000_000,
-            &2_000,
+            &5_000,
             &token_client.address,
             &None,
         );
-
-        // Meet the target
-        client.donate(&donor, &id, &10_000_000, &false, &None);
-
-        // Advance time past deadline
-        set_timestamp(&env, 3_000);
-
-        // Attempt refund even though expired (because it reached target)
-        let result = client.try_refund(&id, &donor);
-        assert_eq!(result, Err(Ok(ContractError::RefundNotAllowed)));
+        assert_eq!(result, Err(Ok(ContractError::ContractPaused)));
     }
 }

@@ -1,10 +1,12 @@
 "use client";
 
 import { useMemo } from "react";
+import Link from "next/link";
 import { Navbar } from "@/components/Navbar";
 import { CampaignCard } from "@/components/CampaignCard";
 import { WalletConnect } from "@/components/WalletConnect";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { useRecentCampaigns, useEvents } from "@/hooks/useSoroban";
 import { fromStroops, type Campaign } from "@/lib/soroban";
 import { useWallet } from "@/lib/WalletProvider";
@@ -121,11 +123,21 @@ export default function ProfilePage() {
               title="Campaigns I Created"
               emptyText="You haven't created any campaigns yet."
               campaigns={created}
+              action={
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/create">Create your first campaign</Link>
+                </Button>
+              }
             />
             <Section
               title="Campaigns I Supported"
               emptyText="You haven't donated to any campaigns yet."
               campaigns={supported}
+              action={
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/explore">Explore campaigns</Link>
+                </Button>
+              }
             />
           </>
         )}
@@ -160,17 +172,20 @@ function Section({
   title,
   emptyText,
   campaigns,
+  action,
 }: {
   title: string;
   emptyText: string;
   campaigns: Campaign[];
+  action?: React.ReactNode;
 }) {
   return (
     <section className="space-y-4">
       <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
       {campaigns.length === 0 ? (
-        <div className="text-sm text-muted-foreground rounded-lg border border-dashed py-10 text-center">
-          {emptyText}
+        <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground rounded-lg border border-dashed py-12 text-center">
+          <p>{emptyText}</p>
+          {action}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
