@@ -61,6 +61,14 @@ pub struct DonationEvent {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[contracttype]
+pub struct RefundEvent {
+    pub campaign_id: u64,
+    pub donor: Address,
+    pub amount: i128,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
 pub struct AutoClaimedEvent {
     pub campaign_id: u64,
     pub total_raised: i128,
@@ -73,6 +81,14 @@ pub struct ClaimedEvent {
     pub campaign_id: u64,
     pub amount: i128,
     pub beneficiary: Address,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
+pub struct DeadlineExtendedEvent {
+    pub campaign_id: u64,
+    pub old_deadline: u64,
+    pub new_deadline: u64,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -95,6 +111,7 @@ pub struct Campaign {
     pub website: Option<String>,
     pub twitter: Option<String>,
     pub is_private: bool,
+    pub was_extended: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -308,8 +325,10 @@ fn write_top_donors(env: &Env, id: u64, donors: &Vec<(Address, i128)>) {
     extend_persistent_ttl(env, &key);
 }
 
-fn donor_contribution_key(campaign_id: u64, donor: &Address) -> (Symbol, u64, Address) {
-    (symbol_short!("DCON"), campaign_id, donor.clone())
+fn write_donor_contribution(env: &Env, campaign_id: u64, donor: &Address, amount: i128) {
+    env.storage()
+        .persistent()
+        .set(&donor_contribution_key(campaign_id, donor), &amount);
 }
 
 fn goal_reached_topic(env: &Env) -> Symbol {
@@ -728,6 +747,7 @@ impl StellarGiveContract {
             website: None,
             twitter: None,
             is_private: false,
+            was_extended: false,
         };
 
         write_campaign(&env, &campaign);
@@ -1071,6 +1091,55 @@ impl StellarGiveContract {
             );
 
             Ok(amount)
+        })();
+
+        exit_lock(&env);
+        result
+    }
+
+    /// Refunds a donor's contribution when a campaign expires without meeting its target.
+    pub fn refund(env: Env, campaign_id: u64, donor: Address) -> Result<(), ContractError> {
+        donor.require_auth();
+
+        enter_lock(&env)?;
+        let result = (|| {
+            let mut campaign = read_campaign(&env, campaign_id)?;
+            sync_status(&env, &mut campaign);
+
+            // Only allow refunds for campaigns that expired without meeting their target.
+            if campaign.status != CampaignStatus::Expired
+                || campaign.raised_amount >= campaign.target_amount
+            {
+                return Err(ContractError::RefundNotAllowed);
+            }
+
+            let donated = read_donor_contribution(&env, campaign_id, &donor);
+            if donated <= 0 {
+                return Err(ContractError::NothingToClaim);
+            }
+
+            // Transfer exact donated amount back to the donor.
+            token::Client::new(&env, &campaign.accepted_token)
+                .transfer(&env.current_contract_address(), &donor, &donated);
+
+            // Reset donor contribution and update campaign total.
+            write_donor_contribution(&env, campaign_id, &donor, 0);
+            campaign.raised_amount = campaign
+                .raised_amount
+                .checked_sub(donated)
+                .ok_or(ContractError::ArithmeticError)?;
+            write_campaign(&env, &campaign);
+
+            env.events().publish(
+                (symbol_short!("refund"),),
+                RefundEvent {
+                    campaign_id,
+                    donor,
+                    amount: donated,
+                },
+            );
+
+            Ok(())
         })();
 
         exit_lock(&env);
@@ -5061,5 +5130,89 @@ mod tests {
                 .try_upgrade(&dummy);
             assert!(result_b.is_err(), "intermediate owner B must be rejected after transfer to C");
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // Deadline Extension
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn extend_deadline_succeeds_once_for_active_campaign() {
+        let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = setup();
+        set_timestamp(&env, 1_000);
+
+        let bens = single_ben(&env, &beneficiary);
+        let id = client.create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Extend Relief"),
+            &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
+            &10_000_000,
+            &5_000, // original deadline
+            &token_client.address,
+            &None,
+        );
+
+        // Valid extension: 5k -> 6k
+        client.extend_deadline(&id, &6_000);
+        let campaign = client.get_campaign(&id);
+        assert_eq!(campaign.deadline, 6_000);
+        assert!(campaign.was_extended);
+
+        // Second extension must fail
+        let result = client.try_extend_deadline(&id, &7_000);
+        assert_eq!(result, Err(Ok(ContractError::AlreadyExtended)));
+    }
+
+    #[test]
+    fn extend_deadline_rejected_for_expired_campaign() {
+        let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = setup();
+        set_timestamp(&env, 1_000);
+
+        let bens = single_ben(&env, &beneficiary);
+        let id = client.create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Expired Extend"),
+            &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
+            &10_000_000,
+            &2_000,
+            &token_client.address,
+            &None,
+        );
+
+        // Fast-forward to expire the campaign
+        set_timestamp(&env, 3_000);
+
+        let result = client.try_extend_deadline(&id, &4_000);
+        assert_eq!(result, Err(Ok(ContractError::CampaignNotActive)));
+    }
+
+    #[test]
+    fn extend_deadline_must_be_monotonic() {
+        let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = setup();
+        set_timestamp(&env, 1_000);
+
+        let bens = single_ben(&env, &beneficiary);
+        let id = client.create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Retro Relief"),
+            &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
+            &10_000_000,
+            &5_000,
+            &token_client.address,
+            &None,
+        );
+
+        // Cannot move deadline backwards or keep it same
+        let result = client.try_extend_deadline(&id, &5_000);
+        assert_eq!(result, Err(Ok(ContractError::InvalidDeadline)));
+
+        let result = client.try_extend_deadline(&id, &4_999);
+        assert_eq!(result, Err(Ok(ContractError::InvalidDeadline)));
     }
 }

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { CampaignList } from "./CampaignList";
 
@@ -48,7 +48,21 @@ vi.mock("@/hooks/useSoroban", () => ({
   useRecentCampaigns: vi.fn(),
 }));
 
+// Mock next/navigation. `replace` is captured so tests can assert URL sync.
+const replaceMock = vi.fn();
+let currentParams = new URLSearchParams();
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: replaceMock }),
+  usePathname: () => "/",
+  useSearchParams: () => currentParams,
+}));
+
 import { useRecentCampaigns } from "@/hooks/useSoroban";
+
+beforeEach(() => {
+  replaceMock.mockClear();
+  currentParams = new URLSearchParams();
+});
 
 describe("CampaignList - Empty States", () => {
   it("displays 'No campaigns found' and 'Create campaign' button when no campaigns exist", () => {
@@ -67,12 +81,13 @@ describe("CampaignList - Empty States", () => {
     expect(createButton).toHaveAttribute("href", "/create");
   });
 
-  it("displays 'No results found' when search filters out all campaigns", async () => {
+  it("displays 'No campaigns match your search' when search filters out all campaigns", async () => {
     vi.mocked(useRecentCampaigns).mockReturnValue({
       data: [
         {
           id: 1n,
           title: "Flood Relief",
+          category: "Disaster",
           creator: "GA...",
           beneficiary: "GB...",
           raised_amount: 0n,
@@ -92,11 +107,12 @@ describe("CampaignList - Empty States", () => {
 
     // Wait for debounced search (300ms)
     await waitFor(() => {
-      expect(screen.getByText(/No results found/i)).toBeInTheDocument();
+      expect(screen.getByText(/No campaigns match your search/i)).toBeInTheDocument();
     }, { timeout: 1000 });
 
-    expect(screen.getByText(/Clear your search or create a new campaign/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Clear search/i })).toBeInTheDocument();
+    expect(screen.getByText(/Try a different term or clear your search/i)).toBeInTheDocument();
+    // Both the inline "x" and the empty-state button can clear the search.
+    expect(screen.getAllByRole("button", { name: /Clear search/i }).length).toBeGreaterThan(0);
     expect(screen.getByRole("link", { name: /Create campaign/i })).toBeInTheDocument();
   });
 
@@ -106,6 +122,7 @@ describe("CampaignList - Empty States", () => {
         {
           id: 1n,
           title: "Flood Relief",
+          category: "Disaster",
           creator: "GA...",
           beneficiary: "GB...",
           raised_amount: 0n,
@@ -124,15 +141,120 @@ describe("CampaignList - Empty States", () => {
     fireEvent.change(searchInput, { target: { value: "Non-existent-campaign" } });
 
     await waitFor(() => {
-      expect(screen.getByText(/No results found/i)).toBeInTheDocument();
+      expect(screen.getByText(/No campaigns match your search/i)).toBeInTheDocument();
     });
 
-    const clearButton = screen.getByRole("button", { name: /Clear search/i });
-    fireEvent.click(clearButton);
+    const clearButtons = screen.getAllByRole("button", { name: /Clear search/i });
+    fireEvent.click(clearButtons[clearButtons.length - 1]);
 
     await waitFor(() => {
-      expect(screen.queryByText(/No results found/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/No campaigns match your search/i)).not.toBeInTheDocument();
       expect(screen.getByText(/Flood Relief/i)).toBeInTheDocument();
+    });
+  });
+});
+
+describe("CampaignList - Search & URL sync", () => {
+  const campaignFixtures = [
+    {
+      id: 1n,
+      title: "Flood Relief",
+      category: "Disaster",
+      creator: "GAAA",
+      beneficiary: "GBBB",
+      raised_amount: 0n,
+      target_amount: 100n,
+      deadline: 123n,
+      status: "Active",
+    },
+    {
+      id: 2n,
+      title: "School Supplies",
+      category: "Education",
+      creator: "GCCC",
+      beneficiary: "GDDD",
+      raised_amount: 0n,
+      target_amount: 100n,
+      deadline: 456n,
+      status: "Active",
+    },
+  ];
+
+  it("filters the grid by title as the user types", async () => {
+    vi.mocked(useRecentCampaigns).mockReturnValue({
+      data: campaignFixtures,
+      isLoading: false,
+      error: null,
+    } as any);
+
+    render(<CampaignList />);
+
+    expect(screen.getByText("Flood Relief")).toBeInTheDocument();
+    expect(screen.getByText("School Supplies")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText(/Search campaigns/i), {
+      target: { value: "flood" },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Flood Relief")).toBeInTheDocument();
+      expect(screen.queryByText("School Supplies")).not.toBeInTheDocument();
+    });
+  });
+
+  it("syncs the debounced query into the ?q= URL param", async () => {
+    vi.mocked(useRecentCampaigns).mockReturnValue({
+      data: campaignFixtures,
+      isLoading: false,
+      error: null,
+    } as any);
+
+    render(<CampaignList />);
+
+    fireEvent.change(screen.getByPlaceholderText(/Search campaigns/i), {
+      target: { value: "flood" },
+    });
+
+    await waitFor(() => {
+      expect(replaceMock).toHaveBeenCalledWith("/?q=flood", { scroll: false });
+    });
+  });
+
+  it("initializes the query from the ?q= URL param on load", () => {
+    currentParams = new URLSearchParams("q=school");
+    vi.mocked(useRecentCampaigns).mockReturnValue({
+      data: campaignFixtures,
+      isLoading: false,
+      error: null,
+    } as any);
+
+    render(<CampaignList />);
+
+    expect(screen.getByPlaceholderText(/Search campaigns/i)).toHaveValue("school");
+    expect(screen.getByText("School Supplies")).toBeInTheDocument();
+    expect(screen.queryByText("Flood Relief")).not.toBeInTheDocument();
+  });
+
+  it("shows an inline clear (x) button that resets the query", async () => {
+    vi.mocked(useRecentCampaigns).mockReturnValue({
+      data: campaignFixtures,
+      isLoading: false,
+      error: null,
+    } as any);
+
+    render(<CampaignList />);
+
+    const input = screen.getByPlaceholderText(/Search campaigns/i);
+    fireEvent.change(input, { target: { value: "flood" } });
+
+    const clearButton = screen.getByRole("button", { name: /Clear search/i });
+    expect(clearButton).toBeInTheDocument();
+
+    fireEvent.click(clearButton);
+
+    expect(input).toHaveValue("");
+    await waitFor(() => {
+      expect(screen.getByText("School Supplies")).toBeInTheDocument();
     });
   });
 });
