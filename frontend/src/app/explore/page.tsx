@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, Suspense } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Navbar } from "@/components/Navbar";
 import { CampaignCard } from "@/components/CampaignCard";
@@ -201,7 +202,21 @@ function ExploreContent() {
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-20 text-muted-foreground">{emptyMessage}</div>
+          <div className="flex flex-col items-center gap-4 py-20 text-center">
+            <div>
+              <p className="font-medium text-foreground">No campaigns found</p>
+              <p className="text-muted-foreground">{emptyMessage}</p>
+            </div>
+            {debouncedSearch ? (
+              <Button variant="outline" onClick={() => setSearchTerm("")}>
+                Clear search
+              </Button>
+            ) : (
+              <Button asChild>
+                <Link href="/create">Create the first one</Link>
+              </Button>
+            )}
+          </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filtered.map((campaign) => (

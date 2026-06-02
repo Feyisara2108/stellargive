@@ -56,7 +56,12 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
             </span>
             <span className="font-bold">{raised} XLM</span>
           </div>
-          <Progress value={progress} className="h-2" indicatorClassName={progressColor} />
+          <Progress 
+            value={progress} 
+            className="h-2" 
+            indicatorClassName={progressColor} 
+            aria-label={`Fundraising progress for ${campaign.title}`}
+          />
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>{progress.toFixed(1)}%</span>
             <span className="flex items-center gap-1">
