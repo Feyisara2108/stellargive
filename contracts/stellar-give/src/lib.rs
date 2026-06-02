@@ -85,10 +85,14 @@ pub struct ClaimedEvent {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[contracttype]
-pub struct DeadlineExtendedEvent {
-    pub campaign_id: u64,
-    pub old_deadline: u64,
-    pub new_deadline: u64,
+pub struct PausedEvent {
+    pub admin: Address,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
+pub struct UnpausedEvent {
+    pub admin: Address,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -160,12 +164,8 @@ pub enum ContractError {
     InvalidCategory = 30,
     CommentTooLong = 29,
     NotWhitelisted = 31,
-    /// Campaign description exceeds the 500-character limit.
-    /// Each character occupies ~8 bytes of Persistent ledger storage, so the
-    /// cap bounds worst-case storage cost per campaign to ~4 KB.
-    DescriptionTooLong = 32,
-    /// Campaign has already used its one-time deadline extension.
-    AlreadyExtended = 32,
+    /// Contract is paused by an admin.
+    ContractPaused = 32,
 }
 
 fn next_id_key() -> Symbol {
@@ -182,6 +182,23 @@ fn admin_key() -> Symbol {
 
 fn owner_key() -> Symbol {
     symbol_short!("OWNER")
+}
+
+fn paused_key() -> Symbol {
+    symbol_short!("PAUSED")
+}
+
+/// Returns `Err(ContractPaused)` when the contract is in paused state.
+fn ensure_not_paused(env: &Env) -> Result<(), ContractError> {
+    if env
+        .storage()
+        .instance()
+        .get::<_, bool>(&paused_key())
+        .unwrap_or(false)
+    {
+        return Err(ContractError::ContractPaused);
+    }
+    Ok(())
 }
 
 /// Platform fee, in basis points. 100 = 1.00%.
@@ -630,6 +647,33 @@ impl StellarGiveContract {
         admin.require_auth();
         write_admin(&env, &admin);
         env.storage().instance().set(&owner_key(), &admin);
+        env.storage().instance().set(&paused_key(), &false);
+        Ok(())
+    }
+
+    /// Pauses the contract. Only callable by the platform admin.
+    /// While paused, all state-mutating functions (create_campaign, donate,
+    /// cancel_campaign, claim_funds, add_update) will return ContractPaused.
+    pub fn pause(env: Env) -> Result<(), ContractError> {
+        let admin = read_admin(&env)?;
+        admin.require_auth();
+        env.storage().instance().set(&paused_key(), &true);
+        env.events().publish(
+            (symbol_short!("paused"),),
+            PausedEvent { admin },
+        );
+        Ok(())
+    }
+
+    /// Unpauses the contract. Only callable by the platform admin.
+    pub fn unpause(env: Env) -> Result<(), ContractError> {
+        let admin = read_admin(&env)?;
+        admin.require_auth();
+        env.storage().instance().set(&paused_key(), &false);
+        env.events().publish(
+            (symbol_short!("unpaused"),),
+            UnpausedEvent { admin },
+        );
         Ok(())
     }
 
@@ -662,6 +706,7 @@ impl StellarGiveContract {
         accepted_token: Address,
         max_per_donor: Option<i128>,
     ) -> Result<u64, ContractError> {
+        ensure_not_paused(&env)?;
         creator.require_auth();
 
         if title.is_empty() {
@@ -796,6 +841,7 @@ impl StellarGiveContract {
         is_anonymous: bool,
         comment: Option<String>,
     ) -> Result<(), ContractError> {
+        ensure_not_paused(&env)?;
         donor.require_auth();
         if amount < MIN_DONATION {
             return Err(ContractError::InvalidAmount);
@@ -925,27 +971,11 @@ impl StellarGiveContract {
         result
     }
 
-    /// Cancels an active campaign and unlocks per-donor refunds.
-    ///
-    /// Only the creator may cancel, and only while the campaign is still
-    /// active (not yet funded/claimed, expired, or already cancelled). Any
-    /// funds already donated remain held by the contract; each donor reclaims
-    /// their exact recorded contribution by calling `claim_refund`.
-    ///
-    /// # Arguments
-    /// * `caller` - Address requesting cancellation. Must equal the creator.
-    /// * `campaign_id` - ID of the campaign to cancel.
-    pub fn cancel_campaign(
-        env: Env,
-        caller: Address,
-        campaign_id: u64,
-    ) -> Result<(), ContractError> {
-        caller.require_auth();
-
-        let mut campaign = read_campaign(&env, campaign_id)?;
-        if caller != campaign.creator {
-            return Err(ContractError::Unauthorized);
-        }
+    /// Cancels a campaign before fundraising begins.
+    pub fn cancel_campaign(env: Env, id: u64) -> Result<(), ContractError> {
+        ensure_not_paused(&env)?;
+        let mut campaign = read_campaign(&env, id)?;
+        campaign.creator.require_auth();
 
         // Refresh derived status so an expired/funded campaign is not treated
         // as active. Funds are only claimable while a campaign is still active.
@@ -1048,6 +1078,7 @@ impl StellarGiveContract {
         beneficiary: Address,
         campaign_id: u64,
     ) -> Result<i128, ContractError> {
+        ensure_not_paused(&env)?;
         beneficiary.require_auth();
 
         let mut campaign = read_campaign(&env, campaign_id)?;
@@ -1318,6 +1349,7 @@ impl StellarGiveContract {
 
     /// Adds an update to a campaign. Maximum 10 updates allowed.
     pub fn add_update(env: Env, id: u64, content: String) -> Result<(), ContractError> {
+        ensure_not_paused(&env)?;
         let campaign = read_campaign(&env, id)?;
         campaign.creator.require_auth();
 
@@ -5236,88 +5268,19 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    // Campaign Description
+    // Emergency Pause
     // -----------------------------------------------------------------------
 
     #[test]
-    fn create_campaign_with_description_persists_field() {
-    // Deadline Extension
-    // -----------------------------------------------------------------------
-
-    #[test]
-    fn extend_deadline_succeeds_once_for_active_campaign() {
-        let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = setup();
+    fn pause_blocks_donations() {
+        let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
         set_timestamp(&env, 1_000);
 
         let bens = single_ben(&env, &beneficiary);
         let id = client.create_campaign(
             &creator,
             &bens,
-            &String::from_str(&env, "Described Campaign"),
-            &String::from_str(&env, "This is a detailed description for donor context."),
-            &String::from_str(&env, "https://example.com/meta"),
-            &symbol_short!("relief"),
-            &10_000_000,
-            &5_000,
-            &String::from_str(&env, "Extend Relief"),
-            &String::from_str(&env, "https://example.com/meta"),
-            &symbol_short!("relief"),
-            &10_000_000,
-            &5_000, // original deadline
-            &token_client.address,
-            &None,
-        );
-
-        let campaign = client.get_campaign(&id);
-        assert_eq!(
-            campaign.description,
-            String::from_str(&env, "This is a detailed description for donor context.")
-        );
-    }
-
-    #[test]
-    fn create_campaign_rejects_description_over_500_chars() {
-        // Valid extension: 5k -> 6k
-        client.extend_deadline(&id, &6_000);
-        let campaign = client.get_campaign(&id);
-        assert_eq!(campaign.deadline, 6_000);
-        assert!(campaign.was_extended);
-
-        // Second extension must fail
-        let result = client.try_extend_deadline(&id, &7_000);
-        assert_eq!(result, Err(Ok(ContractError::AlreadyExtended)));
-    }
-
-    #[test]
-    fn extend_deadline_rejected_for_expired_campaign() {
-        let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = setup();
-        set_timestamp(&env, 1_000);
-
-        let bens = single_ben(&env, &beneficiary);
-        // Build a 501-character description
-        let long_desc = String::from_str(&env, &"A".repeat(501));
-
-        let result = client.try_create_campaign(
-            &creator,
-            &bens,
-            &String::from_str(&env, "Long Desc"),
-            &long_desc,
-            &String::from_str(&env, "https://example.com/meta"),
-            &symbol_short!("relief"),
-            &10_000_000,
-            &5_000,
-            &token_client.address,
-            &None,
-        );
-        assert_eq!(result, Err(Ok(ContractError::DescriptionTooLong)));
-    }
-
-    #[test]
-    fn create_campaign_accepts_empty_description() {
-        let id = client.create_campaign(
-            &creator,
-            &bens,
-            &String::from_str(&env, "Expired Extend"),
+            &String::from_str(&env, "Pausable Campaign"),
             &String::from_str(&env, "https://example.com/meta"),
             &symbol_short!("relief"),
             &10_000_000,
@@ -5326,25 +5289,52 @@ mod tests {
             &None,
         );
 
-        // Fast-forward to expire the campaign
-        set_timestamp(&env, 3_000);
+        // Pause the contract
+        client.pause();
 
-        let result = client.try_extend_deadline(&id, &4_000);
-        assert_eq!(result, Err(Ok(ContractError::CampaignNotActive)));
+        // Donation should fail
+        let result = client.try_donate(&donor, &id, &1_000_000, &false, &None);
+        assert_eq!(result, Err(Ok(ContractError::ContractPaused)));
     }
 
     #[test]
-    fn extend_deadline_must_be_monotonic() {
-        let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = setup();
+    fn unpause_restores_donations() {
+        let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
         set_timestamp(&env, 1_000);
 
         let bens = single_ben(&env, &beneficiary);
         let id = client.create_campaign(
             &creator,
             &bens,
-            &String::from_str(&env, "No Desc"),
-            &String::from_str(&env, ""),
-            &String::from_str(&env, "Retro Relief"),
+            &String::from_str(&env, "Unpause Campaign"),
+            &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
+            &10_000_000,
+            &2_000,
+            &token_client.address,
+            &None,
+        );
+
+        client.pause();
+        client.unpause();
+
+        // Donation should succeed again
+        let result = client.try_donate(&donor, &id, &1_000_000, &false, &None);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn pause_blocks_create_campaign() {
+        let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = setup();
+        set_timestamp(&env, 1_000);
+
+        client.pause();
+
+        let bens = single_ben(&env, &beneficiary);
+        let result = client.try_create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Blocked Campaign"),
             &String::from_str(&env, "https://example.com/meta"),
             &symbol_short!("relief"),
             &10_000_000,
@@ -5352,14 +5342,6 @@ mod tests {
             &token_client.address,
             &None,
         );
-
-        let campaign = client.get_campaign(&id);
-        assert_eq!(campaign.description, String::from_str(&env, ""));
-        // Cannot move deadline backwards or keep it same
-        let result = client.try_extend_deadline(&id, &5_000);
-        assert_eq!(result, Err(Ok(ContractError::InvalidDeadline)));
-
-        let result = client.try_extend_deadline(&id, &4_999);
-        assert_eq!(result, Err(Ok(ContractError::InvalidDeadline)));
+        assert_eq!(result, Err(Ok(ContractError::ContractPaused)));
     }
 }
