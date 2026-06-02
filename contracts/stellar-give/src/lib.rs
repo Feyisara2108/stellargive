@@ -53,6 +53,14 @@ pub struct DonationEvent {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[contracttype]
+pub struct RefundEvent {
+    pub campaign_id: u64,
+    pub donor: Address,
+    pub amount: i128,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
 pub struct AutoClaimedEvent {
     pub campaign_id: u64,
     pub total_raised: i128,
@@ -131,6 +139,8 @@ pub enum ContractError {
     InvalidCategory = 30,
     CommentTooLong = 29,
     NotWhitelisted = 31,
+    /// Refund rejected because campaign is not expired or target was met.
+    RefundNotAllowed = 32,
 }
 
 fn next_id_key() -> Symbol {
@@ -266,12 +276,25 @@ fn read_top_donors(env: &Env, id: u64) -> Vec<(Address, i128)> {
         .unwrap_or_else(|| Vec::new(env))
 }
 
-fn write_top_donors(env: &Env, id: u64, donors: &Vec<(Address, i128)>) {
-    env.storage().persistent().set(&top_donors_key(id), donors);
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
+pub struct Donation(pub u64, pub Address);
+
+fn donor_contribution_key(campaign_id: u64, donor: &Address) -> Donation {
+    Donation(campaign_id, donor.clone())
 }
 
-fn donor_contribution_key(campaign_id: u64, donor: &Address) -> (Symbol, u64, Address) {
-    (symbol_short!("DCON"), campaign_id, donor.clone())
+fn read_donor_contribution(env: &Env, campaign_id: u64, donor: &Address) -> i128 {
+    env.storage()
+        .persistent()
+        .get(&donor_contribution_key(campaign_id, donor))
+        .unwrap_or(0)
+}
+
+fn write_donor_contribution(env: &Env, campaign_id: u64, donor: &Address, amount: i128) {
+    env.storage()
+        .persistent()
+        .set(&donor_contribution_key(campaign_id, donor), &amount);
 }
 
 fn goal_reached_topic(env: &Env) -> Symbol {
@@ -927,6 +950,55 @@ impl StellarGiveContract {
             );
 
             Ok(amount)
+        })();
+
+        exit_lock(&env);
+        result
+    }
+
+    /// Refunds a donor's contribution when a campaign expires without meeting its target.
+    pub fn refund(env: Env, campaign_id: u64, donor: Address) -> Result<(), ContractError> {
+        donor.require_auth();
+
+        enter_lock(&env)?;
+        let result = (|| {
+            let mut campaign = read_campaign(&env, campaign_id)?;
+            sync_status(&env, &mut campaign);
+
+            // Only allow refunds for campaigns that expired without meeting their target.
+            if campaign.status != CampaignStatus::Expired
+                || campaign.raised_amount >= campaign.target_amount
+            {
+                return Err(ContractError::RefundNotAllowed);
+            }
+
+            let donated = read_donor_contribution(&env, campaign_id, &donor);
+            if donated <= 0 {
+                return Err(ContractError::NothingToClaim);
+            }
+
+            // Transfer exact donated amount back to the donor.
+            token::Client::new(&env, &campaign.accepted_token)
+                .transfer(&env.current_contract_address(), &donor, &donated);
+
+            // Reset donor contribution and update campaign total.
+            write_donor_contribution(&env, campaign_id, &donor, 0);
+            campaign.raised_amount = campaign
+                .raised_amount
+                .checked_sub(donated)
+                .ok_or(ContractError::ArithmeticError)?;
+            write_campaign(&env, &campaign);
+
+            env.events().publish(
+                (symbol_short!("refund"),),
+                RefundEvent {
+                    campaign_id,
+                    donor,
+                    amount: donated,
+                },
+            );
+
+            Ok(())
         })();
 
         exit_lock(&env);
@@ -4781,5 +4853,102 @@ mod tests {
                 .try_upgrade(&dummy);
             assert!(result_b.is_err(), "intermediate owner B must be rejected after transfer to C");
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // Campaign Refunds
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn refund_succeeds_for_expired_underfunded_campaign() {
+        let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
+        set_timestamp(&env, 1_000);
+
+        let bens = single_ben(&env, &beneficiary);
+        let id = client.create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Refundable Campaign"),
+            &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
+            &10_000_000,
+            &2_000,
+            &token_client.address,
+            &None,
+        );
+
+        // Donate 1,000,000 (target is 10,000,000)
+        client.donate(&donor, &id, &1_000_000, &false, &None);
+
+        // Advance time past deadline
+        set_timestamp(&env, 3_000);
+
+        // Balance before refund
+        let donor_balance_before = token_client.balance(&donor);
+
+        // Refund donor
+        client.refund(&id, &donor);
+
+        // Balance after refund should be increased by 1,000,000
+        let donor_balance_after = token_client.balance(&donor);
+        assert_eq!(donor_balance_after, donor_balance_before + 1_000_000);
+
+        // Campaign raised amount should be 0
+        let campaign = client.get_campaign(&id);
+        assert_eq!(campaign.raised_amount, 0);
+    }
+
+    #[test]
+    fn refund_rejected_for_active_campaign() {
+        let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
+        set_timestamp(&env, 1_000);
+
+        let bens = single_ben(&env, &beneficiary);
+        let id = client.create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Active Campaign"),
+            &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
+            &10_000_000,
+            &5_000,
+            &token_client.address,
+            &None,
+        );
+
+        client.donate(&donor, &id, &1_000_000, &false, &None);
+
+        // Attempt refund while active
+        let result = client.try_refund(&id, &donor);
+        assert_eq!(result, Err(Ok(ContractError::RefundNotAllowed)));
+    }
+
+    #[test]
+    fn refund_rejected_for_funded_campaign() {
+        let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
+        set_timestamp(&env, 1_000);
+
+        let bens = single_ben(&env, &beneficiary);
+        let id = client.create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Funded Campaign"),
+            &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
+            &10_000_000,
+            &2_000,
+            &token_client.address,
+            &None,
+        );
+
+        // Meet the target
+        client.donate(&donor, &id, &10_000_000, &false, &None);
+
+        // Advance time past deadline
+        set_timestamp(&env, 3_000);
+
+        // Attempt refund even though expired (because it reached target)
+        let result = client.try_refund(&id, &donor);
+        assert_eq!(result, Err(Ok(ContractError::RefundNotAllowed)));
     }
 }
