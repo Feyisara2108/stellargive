@@ -32,9 +32,9 @@ export function ClaimButton({ campaign }: { campaign: Campaign }) {
   const handleClaim = async () => {
     try {
       await claim.mutateAsync(campaign.id);
-      toast.success("Funds claimed successfully!");
     } catch (e: any) {
-      toast.error(e.message || "Failed to claim funds");
+      // Errors are now handled internally by useClaimFunds toast lifecycle
+      console.error(e);
     }
   };
 
