@@ -69,6 +69,18 @@ pub struct ClaimedEvent {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[contracttype]
+pub struct PausedEvent {
+    pub admin: Address,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
+pub struct UnpausedEvent {
+    pub admin: Address,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
 pub struct Campaign {
     pub id: u64,
     pub creator: Address,
@@ -139,6 +151,8 @@ pub enum ContractError {
     /// Each character occupies ~8 bytes of Persistent ledger storage, so the
     /// cap bounds worst-case storage cost per campaign to ~4 KB.
     DescriptionTooLong = 32,
+    /// Contract is paused by an admin.
+    ContractPaused = 33,
 }
 
 fn next_id_key() -> Symbol {
@@ -155,6 +169,23 @@ fn admin_key() -> Symbol {
 
 fn owner_key() -> Symbol {
     symbol_short!("OWNER")
+}
+
+fn paused_key() -> Symbol {
+    symbol_short!("PAUSED")
+}
+
+/// Returns `Err(ContractPaused)` when the contract is in paused state.
+fn ensure_not_paused(env: &Env) -> Result<(), ContractError> {
+    if env
+        .storage()
+        .instance()
+        .get::<_, bool>(&paused_key())
+        .unwrap_or(false)
+    {
+        return Err(ContractError::ContractPaused);
+    }
+    Ok(())
 }
 
 /// Platform fee, in basis points. 100 = 1.00%.
@@ -551,6 +582,33 @@ impl StellarGiveContract {
         admin.require_auth();
         write_admin(&env, &admin);
         env.storage().instance().set(&owner_key(), &admin);
+        env.storage().instance().set(&paused_key(), &false);
+        Ok(())
+    }
+
+    /// Pauses the contract. Only callable by the platform admin.
+    /// While paused, all state-mutating functions (create_campaign, donate,
+    /// cancel_campaign, claim_funds, add_update) will return ContractPaused.
+    pub fn pause(env: Env) -> Result<(), ContractError> {
+        let admin = read_admin(&env)?;
+        admin.require_auth();
+        env.storage().instance().set(&paused_key(), &true);
+        env.events().publish(
+            (symbol_short!("paused"),),
+            PausedEvent { admin },
+        );
+        Ok(())
+    }
+
+    /// Unpauses the contract. Only callable by the platform admin.
+    pub fn unpause(env: Env) -> Result<(), ContractError> {
+        let admin = read_admin(&env)?;
+        admin.require_auth();
+        env.storage().instance().set(&paused_key(), &false);
+        env.events().publish(
+            (symbol_short!("unpaused"),),
+            UnpausedEvent { admin },
+        );
         Ok(())
     }
 
@@ -583,6 +641,7 @@ impl StellarGiveContract {
         accepted_token: Address,
         max_per_donor: Option<i128>,
     ) -> Result<u64, ContractError> {
+        ensure_not_paused(&env)?;
         creator.require_auth();
 
         if title.is_empty() {
@@ -716,6 +775,7 @@ impl StellarGiveContract {
         is_anonymous: bool,
         comment: Option<String>,
     ) -> Result<(), ContractError> {
+        ensure_not_paused(&env)?;
         donor.require_auth();
         if amount < MIN_DONATION {
             return Err(ContractError::InvalidAmount);
@@ -847,6 +907,7 @@ impl StellarGiveContract {
 
     /// Cancels a campaign before fundraising begins.
     pub fn cancel_campaign(env: Env, id: u64) -> Result<(), ContractError> {
+        ensure_not_paused(&env)?;
         let mut campaign = read_campaign(&env, id)?;
         campaign.creator.require_auth();
 
@@ -885,6 +946,7 @@ impl StellarGiveContract {
         beneficiary: Address,
         campaign_id: u64,
     ) -> Result<i128, ContractError> {
+        ensure_not_paused(&env)?;
         beneficiary.require_auth();
 
         let mut campaign = read_campaign(&env, campaign_id)?;
@@ -1106,6 +1168,7 @@ impl StellarGiveContract {
 
     /// Adds an update to a campaign. Maximum 10 updates allowed.
     pub fn add_update(env: Env, id: u64, content: String) -> Result<(), ContractError> {
+        ensure_not_paused(&env)?;
         let campaign = read_campaign(&env, id)?;
         campaign.creator.require_auth();
 
@@ -4962,5 +5025,86 @@ mod tests {
 
         let campaign = client.get_campaign(&id);
         assert_eq!(campaign.description, String::from_str(&env, ""));
+    }
+
+    // -----------------------------------------------------------------------
+    // Emergency Pause
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn pause_blocks_donations() {
+        let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
+        set_timestamp(&env, 1_000);
+
+        let bens = single_ben(&env, &beneficiary);
+        let id = client.create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Pausable Campaign"),
+            &String::from_str(&env, "A sample campaign description."),
+            &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
+            &10_000_000,
+            &2_000,
+            &token_client.address,
+            &None,
+        );
+
+        // Pause the contract
+        client.pause();
+
+        // Donation should fail
+        let result = client.try_donate(&donor, &id, &1_000_000, &false, &None);
+        assert_eq!(result, Err(Ok(ContractError::ContractPaused)));
+    }
+
+    #[test]
+    fn unpause_restores_donations() {
+        let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
+        set_timestamp(&env, 1_000);
+
+        let bens = single_ben(&env, &beneficiary);
+        let id = client.create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Unpause Campaign"),
+            &String::from_str(&env, "A sample campaign description."),
+            &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
+            &10_000_000,
+            &2_000,
+            &token_client.address,
+            &None,
+        );
+
+        client.pause();
+        client.unpause();
+
+        // Donation should succeed again
+        let result = client.try_donate(&donor, &id, &1_000_000, &false, &None);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn pause_blocks_create_campaign() {
+        let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = setup();
+        set_timestamp(&env, 1_000);
+
+        client.pause();
+
+        let bens = single_ben(&env, &beneficiary);
+        let result = client.try_create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Blocked Campaign"),
+            &String::from_str(&env, "A sample campaign description."),
+            &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
+            &10_000_000,
+            &5_000,
+            &token_client.address,
+            &None,
+        );
+        assert_eq!(result, Err(Ok(ContractError::ContractPaused)));
     }
 }
