@@ -43,6 +43,18 @@ test.describe("Landing page", () => {
   });
 });
 
+test.describe("Explore page", () => {
+  test("empty state matches snapshot", async ({ page }) => {
+    // Navigate with a search term that will return no results
+    await page.goto("/explore?search=non-existent-campaign-xyz-123");
+    await page.waitForSelector("text=No campaigns found", { timeout: 15_000 });
+    await expect(page).toHaveScreenshot("explore-empty-state.png", {
+      fullPage: true,
+      animations: "disabled",
+    });
+  });
+});
+
 test.describe("Create Campaign page", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/create");

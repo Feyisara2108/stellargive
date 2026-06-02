@@ -1,9 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { axe, toHaveNoViolations } from "jest-axe";
 import { CampaignCard } from "./CampaignCard";
 import type { Campaign } from "@/lib/soroban";
 
-// Mock the soroban module to avoid RPC_URL / env var issues in test environment
+expect.extend(toHaveNoViolations);
+
+// ... rest of mocks ...
 vi.mock("@/lib/soroban", () => ({
   fromStroops: (stroops: bigint | string | number): string => {
     const s = BigInt(stroops).toString().padStart(8, "0");
@@ -330,5 +333,15 @@ describe("CampaignCard", () => {
     render(<CampaignCard campaign={campaign2} />);
     expect(screen.getByText("School Rebuild")).toBeInTheDocument();
     expect(screen.getByText("750000 XLM")).toBeInTheDocument();
+  });
+
+  // ------------------------------------------------------------------
+  // Accessibility
+  // ------------------------------------------------------------------
+
+  it("should have no accessibility violations", async () => {
+    const { container } = render(<CampaignCard campaign={baseCampaign} />);
+    const results = await axe(container);
+    expect(results).toHaveNoViolations();
   });
 });

@@ -29,6 +29,20 @@ export function useCampaignsPaged(limit: number) {
 
 import { toast } from "sonner";
 
+function mapTransactionError(error: any): string {
+  const msg = error?.message || String(error);
+  if (msg.includes("User declined") || msg.includes("cancelled") || msg.includes("Wallet error") || msg.includes("User rejected")) {
+    return "Transaction was cancelled.";
+  }
+  if (msg.includes("Network Error") || msg.includes("Failed to fetch") || msg.includes("Send failed")) {
+    return "Network error. Please try again.";
+  }
+  if (msg.includes("Simulation failed") || msg.includes("Transaction failed")) {
+    return "Transaction failed on-chain.";
+  }
+  return "Something went wrong. Please try again.";
+}
+
 export function useCreateCampaign() {
   const { address } = useWallet();
   const queryClient = useQueryClient();
@@ -65,22 +79,28 @@ export function useCreateCampaign() {
       return submitTransaction(address, "create_campaign", args);
     },
     onMutate: () => {
-      const toastId = toast.loading("Transaction submitted... waiting for ledger confirmation");
+      const toastId = toast.loading("Submitting transaction...");
       return { toastId };
     },
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data: any, variables, context) => {
+      const action = data?.hash ? {
+        label: "View Explorer",
+        onClick: () => window.open(`https://stellar.expert/explorer/testnet/tx/${data.hash}`, "_blank"),
+      } : undefined;
+      const message = "Transaction confirmed";
       if (context?.toastId) {
-        toast.success("Campaign created successfully!", { id: context.toastId });
+        toast.success(message, { id: context.toastId, action });
       } else {
-        toast.success("Campaign created successfully!");
+        toast.success(message, { action });
       }
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
     },
     onError: (error: any, variables, context) => {
+      const mappedError = mapTransactionError(error);
       if (context?.toastId) {
-        toast.error(error.message || "Failed to create campaign", { id: context.toastId });
+        toast.error(mappedError, { id: context.toastId });
       } else {
-        toast.error(error.message || "Failed to create campaign");
+        toast.error(mappedError);
       }
     },
   });
@@ -104,23 +124,29 @@ export function useDonate() {
       return submitTransaction(address, "donate", args);
     },
     onMutate: () => {
-      const toastId = toast.loading("Transaction submitted... waiting for ledger confirmation");
+      const toastId = toast.loading("Submitting transaction...");
       return { toastId };
     },
-    onSuccess: (_, variables, context) => {
+    onSuccess: (data: any, variables, context) => {
+      const action = data?.hash ? {
+        label: "View Explorer",
+        onClick: () => window.open(`https://stellar.expert/explorer/testnet/tx/${data.hash}`, "_blank"),
+      } : undefined;
+      const message = "Transaction confirmed";
       if (context?.toastId) {
-        toast.success("Thank you for your donation!", { id: context.toastId });
+        toast.success(message, { id: context.toastId, action });
       } else {
-        toast.success("Thank you for your donation!");
+        toast.success(message, { action });
       }
       queryClient.invalidateQueries({ queryKey: ["campaign", variables.campaignId.toString()] });
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
     },
     onError: (error: any, variables, context) => {
+      const mappedError = mapTransactionError(error);
       if (context?.toastId) {
-        toast.error(error.message || "Failed to donate", { id: context.toastId });
+        toast.error(mappedError, { id: context.toastId });
       } else {
-        toast.error(error.message || "Failed to donate");
+        toast.error(mappedError);
       }
     },
   });
@@ -141,9 +167,31 @@ export function useClaimFunds() {
 
       return submitTransaction(address, "claim_funds", args);
     },
-    onSuccess: (_, campaignId) => {
+    onMutate: () => {
+      const toastId = toast.loading("Submitting transaction...");
+      return { toastId };
+    },
+    onSuccess: (data: any, campaignId, context) => {
+      const action = data?.hash ? {
+        label: "View Explorer",
+        onClick: () => window.open(`https://stellar.expert/explorer/testnet/tx/${data.hash}`, "_blank"),
+      } : undefined;
+      const message = "Transaction confirmed";
+      if (context?.toastId) {
+        toast.success(message, { id: context.toastId, action });
+      } else {
+        toast.success(message, { action });
+      }
       queryClient.invalidateQueries({ queryKey: ["campaign", campaignId.toString()] });
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+    },
+    onError: (error: any, variables, context) => {
+      const mappedError = mapTransactionError(error);
+      if (context?.toastId) {
+        toast.error(mappedError, { id: context.toastId });
+      } else {
+        toast.error(mappedError);
+      }
     },
   });
 }
