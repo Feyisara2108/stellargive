@@ -330,7 +330,7 @@ export function CreateCampaignForm() {
                   </FormDescription>
                   {isUploadingImage && (
                     <div className="space-y-1">
-                      <Progress value={uploadProgress} />
+                      <Progress value={uploadProgress} aria-label="Image upload progress" />
                       <p className="text-xs text-muted-foreground">Uploading... {uploadProgress}%</p>
                     </div>
                   )}
