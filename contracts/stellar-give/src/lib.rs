@@ -164,8 +164,14 @@ pub enum ContractError {
     InvalidCategory = 30,
     CommentTooLong = 29,
     NotWhitelisted = 31,
+    /// Campaign description exceeds the 500-character limit.
+    /// Each character occupies ~8 bytes of Persistent ledger storage, so the
+    /// cap bounds worst-case storage cost per campaign to ~4 KB.
+    DescriptionTooLong = 32,
     /// Contract is paused by an admin.
-    ContractPaused = 32,
+    ContractPaused = 33,
+    /// Refund rejected because campaign is not expired or target was met.
+    RefundNotAllowed = 34,
 }
 
 fn next_id_key() -> Symbol {
@@ -5268,6 +5274,83 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
+    // Campaign Description
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn create_campaign_with_description_persists_field() {
+        let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = setup();
+        set_timestamp(&env, 1_000);
+
+        let bens = single_ben(&env, &beneficiary);
+        let id = client.create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Described Campaign"),
+            &String::from_str(&env, "This is a detailed description for donor context."),
+            &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
+            &10_000_000,
+            &5_000,
+            &token_client.address,
+            &None,
+        );
+
+        let campaign = client.get_campaign(&id);
+        assert_eq!(
+            campaign.description,
+            String::from_str(&env, "This is a detailed description for donor context.")
+        );
+    }
+
+    #[test]
+    fn create_campaign_rejects_description_over_500_chars() {
+        let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = setup();
+        set_timestamp(&env, 1_000);
+
+        let bens = single_ben(&env, &beneficiary);
+        // Build a 501-character description
+        let long_desc = String::from_str(&env, &"A".repeat(501));
+
+        let result = client.try_create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Long Desc"),
+            &long_desc,
+            &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
+            &10_000_000,
+            &5_000,
+            &token_client.address,
+            &None,
+        );
+        assert_eq!(result, Err(Ok(ContractError::DescriptionTooLong)));
+    }
+
+    #[test]
+    fn create_campaign_accepts_empty_description() {
+        let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = setup();
+        set_timestamp(&env, 1_000);
+
+        let bens = single_ben(&env, &beneficiary);
+        let id = client.create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "No Desc"),
+            &String::from_str(&env, ""),
+            &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
+            &10_000_000,
+            &5_000,
+            &token_client.address,
+            &None,
+        );
+
+        let campaign = client.get_campaign(&id);
+        assert_eq!(campaign.description, String::from_str(&env, ""));
+    }
+
+    // -----------------------------------------------------------------------
     // Emergency Pause
     // -----------------------------------------------------------------------
 
@@ -5281,6 +5364,7 @@ mod tests {
             &creator,
             &bens,
             &String::from_str(&env, "Pausable Campaign"),
+            &String::from_str(&env, "A sample campaign description."),
             &String::from_str(&env, "https://example.com/meta"),
             &symbol_short!("relief"),
             &10_000_000,
@@ -5307,6 +5391,7 @@ mod tests {
             &creator,
             &bens,
             &String::from_str(&env, "Unpause Campaign"),
+            &String::from_str(&env, "A sample campaign description."),
             &String::from_str(&env, "https://example.com/meta"),
             &symbol_short!("relief"),
             &10_000_000,
@@ -5335,6 +5420,88 @@ mod tests {
             &creator,
             &bens,
             &String::from_str(&env, "Blocked Campaign"),
+            &String::from_str(&env, "A sample campaign description."),
+            &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
+            &10_000_000,
+            &5_000,
+            &token_client.address,
+            &None,
+        );
+        assert_eq!(result, Err(Ok(ContractError::ContractPaused)));
+    }
+
+    // -----------------------------------------------------------------------
+    // Campaign Refunds
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn pause_blocks_donations() {
+        let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
+        set_timestamp(&env, 1_000);
+
+        let bens = single_ben(&env, &beneficiary);
+        let id = client.create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Refundable Campaign"),
+            &String::from_str(&env, "A sample campaign description."),
+            &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
+            &10_000_000,
+            &2_000,
+            &token_client.address,
+            &None,
+        );
+
+        // Pause the contract
+        client.pause();
+
+        // Donation should fail
+        let result = client.try_donate(&donor, &id, &1_000_000, &false, &None);
+        assert_eq!(result, Err(Ok(ContractError::ContractPaused)));
+    }
+
+    #[test]
+    fn unpause_restores_donations() {
+        let (env, client, creator, beneficiary, donor, _admin, token_client, _) = setup();
+        set_timestamp(&env, 1_000);
+
+        let bens = single_ben(&env, &beneficiary);
+        let id = client.create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Active Campaign"),
+            &String::from_str(&env, "A sample campaign description."),
+            &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
+            &10_000_000,
+            &2_000,
+            &token_client.address,
+            &None,
+        );
+
+        client.pause();
+        client.unpause();
+
+        // Donation should succeed again
+        let result = client.try_donate(&donor, &id, &1_000_000, &false, &None);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn pause_blocks_create_campaign() {
+        let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = setup();
+        set_timestamp(&env, 1_000);
+
+        client.pause();
+
+        let bens = single_ben(&env, &beneficiary);
+        let result = client.try_create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Funded Campaign"),
+            &String::from_str(&env, "A sample campaign description."),
             &String::from_str(&env, "https://example.com/meta"),
             &symbol_short!("relief"),
             &10_000_000,
