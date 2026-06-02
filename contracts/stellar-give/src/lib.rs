@@ -53,6 +53,14 @@ pub struct DonationEvent {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[contracttype]
+pub struct RefundEvent {
+    pub campaign_id: u64,
+    pub donor: Address,
+    pub amount: i128,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
 pub struct AutoClaimedEvent {
     pub campaign_id: u64,
     pub total_raised: i128,
@@ -308,8 +316,10 @@ fn write_top_donors(env: &Env, id: u64, donors: &Vec<(Address, i128)>) {
     extend_persistent_ttl(env, &key);
 }
 
-fn donor_contribution_key(campaign_id: u64, donor: &Address) -> (Symbol, u64, Address) {
-    (symbol_short!("DCON"), campaign_id, donor.clone())
+fn write_donor_contribution(env: &Env, campaign_id: u64, donor: &Address, amount: i128) {
+    env.storage()
+        .persistent()
+        .set(&donor_contribution_key(campaign_id, donor), &amount);
 }
 
 fn goal_reached_topic(env: &Env) -> Symbol {
@@ -1031,6 +1041,55 @@ impl StellarGiveContract {
             );
 
             Ok(amount)
+        })();
+
+        exit_lock(&env);
+        result
+    }
+
+    /// Refunds a donor's contribution when a campaign expires without meeting its target.
+    pub fn refund(env: Env, campaign_id: u64, donor: Address) -> Result<(), ContractError> {
+        donor.require_auth();
+
+        enter_lock(&env)?;
+        let result = (|| {
+            let mut campaign = read_campaign(&env, campaign_id)?;
+            sync_status(&env, &mut campaign);
+
+            // Only allow refunds for campaigns that expired without meeting their target.
+            if campaign.status != CampaignStatus::Expired
+                || campaign.raised_amount >= campaign.target_amount
+            {
+                return Err(ContractError::RefundNotAllowed);
+            }
+
+            let donated = read_donor_contribution(&env, campaign_id, &donor);
+            if donated <= 0 {
+                return Err(ContractError::NothingToClaim);
+            }
+
+            // Transfer exact donated amount back to the donor.
+            token::Client::new(&env, &campaign.accepted_token)
+                .transfer(&env.current_contract_address(), &donor, &donated);
+
+            // Reset donor contribution and update campaign total.
+            write_donor_contribution(&env, campaign_id, &donor, 0);
+            campaign.raised_amount = campaign
+                .raised_amount
+                .checked_sub(donated)
+                .ok_or(ContractError::ArithmeticError)?;
+            write_campaign(&env, &campaign);
+
+            env.events().publish(
+                (symbol_short!("refund"),),
+                RefundEvent {
+                    campaign_id,
+                    donor,
+                    amount: donated,
+                },
+            );
+
+            Ok(())
         })();
 
         exit_lock(&env);
