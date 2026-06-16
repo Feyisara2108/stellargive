@@ -1,8 +1,8 @@
+use soroban_sdk::testutils::Address as _;
 use soroban_sdk::{symbol_short, String};
 
 mod helpers;
 use helpers::{register_and_setup, set_timestamp, single_ben};
-use stellar_give::CampaignStatus;
 
 fn to_stroops(amount: &str) -> i128 {
     let parts: Vec<&str> = amount.split('.').collect();
@@ -18,7 +18,7 @@ fn to_stroops(amount: &str) -> i128 {
 
 #[test]
 fn test_claim_single_donation_exact_amount() {
-    let (env, client, creator, beneficiary, donor, admin, token_client, token_admin_client) =
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _token_admin_client) =
         register_and_setup();
     set_timestamp(&env, 1_000);
 
@@ -30,6 +30,7 @@ fn test_claim_single_donation_exact_amount() {
         &creator,
         &bens,
         &String::from_str(&env, "Test Campaign"),
+        &String::from_str(&env, "A test campaign description."),
         &String::from_str(&env, "https://example.com/meta"),
         &symbol_short!("relief"),
         &to_stroops("5"),
@@ -48,10 +49,7 @@ fn test_claim_single_donation_exact_amount() {
         &None,
     );
 
-    set_timestamp(&env, 2_001);
-
-    client.claim_funds(&campaign_id);
-
+    // The donation exceeds the target, so funds auto-claim within donate().
     let final_beneficiary_balance = token_client.balance(&beneficiary);
     let balance_increase = final_beneficiary_balance - initial_beneficiary_balance;
 
@@ -66,7 +64,7 @@ fn test_claim_single_donation_exact_amount() {
 
 #[test]
 fn test_claim_multiple_donations_exact_total() {
-    let (env, client, creator, beneficiary, donor, admin, token_client, _token_admin_client) =
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _token_admin_client) =
         register_and_setup();
     set_timestamp(&env, 1_000);
 
@@ -76,6 +74,7 @@ fn test_claim_multiple_donations_exact_total() {
         &creator,
         &bens,
         &String::from_str(&env, "Multi Donation Campaign"),
+        &String::from_str(&env, "A test campaign description."),
         &String::from_str(&env, "https://example.com/meta"),
         &symbol_short!("relief"),
         &to_stroops("20"),
@@ -96,7 +95,7 @@ fn test_claim_multiple_donations_exact_total() {
 
     set_timestamp(&env, 2_001);
 
-    client.claim_funds(&campaign_id);
+    client.claim_funds(&beneficiary, &campaign_id);
 
     let final_beneficiary_balance = token_client.balance(&beneficiary);
     let balance_increase = final_beneficiary_balance - initial_beneficiary_balance;
@@ -127,6 +126,7 @@ fn test_claim_with_rounding_dust_handling() {
         &creator,
         &bens,
         &String::from_str(&env, "Rounding Test Campaign"),
+        &String::from_str(&env, "A test campaign description."),
         &String::from_str(&env, "https://example.com/meta"),
         &symbol_short!("relief"),
         &to_stroops("1"),
@@ -138,11 +138,8 @@ fn test_claim_with_rounding_dust_handling() {
     let initial_beneficiary_balance = token_client.balance(&beneficiary);
 
     let donation_amount = to_stroops("3.33");
+    // The donation exceeds the target, so funds auto-claim within donate().
     client.donate(&donor, &campaign_id, &donation_amount, &false, &None);
-
-    set_timestamp(&env, 2_001);
-
-    client.claim_funds(&campaign_id);
 
     let final_beneficiary_balance = token_client.balance(&beneficiary);
     let balance_increase = final_beneficiary_balance - initial_beneficiary_balance;
@@ -157,8 +154,11 @@ fn test_claim_with_rounding_dust_handling() {
 }
 
 #[test]
-fn test_claim_zero_fee_for_small_amounts() {
-    let (env, client, creator, beneficiary, donor, _admin, token_client, _token_admin_client) =
+fn test_claim_fee_accuracy_at_minimum_donation() {
+    // The smallest donation the contract accepts is MIN_DONATION (1 token).
+    // Sub-minimum "small amounts" are rejected outright, so this verifies the
+    // fee is computed exactly at that lower bound.
+    let (env, client, creator, beneficiary, donor, admin, token_client, _token_admin_client) =
         register_and_setup();
     set_timestamp(&env, 1_000);
 
@@ -167,32 +167,42 @@ fn test_claim_zero_fee_for_small_amounts() {
     let campaign_id = client.create_campaign(
         &creator,
         &bens,
-        &String::from_str(&env, "Small Amount Campaign"),
+        &String::from_str(&env, "Minimum Donation Campaign"),
+        &String::from_str(&env, "A test campaign description."),
         &String::from_str(&env, "https://example.com/meta"),
         &symbol_short!("relief"),
-        &to_stroops("0.01"),
+        &to_stroops("5"),
         &2_000_u64,
         &token_client.address,
         &None,
     );
 
     let initial_beneficiary_balance = token_client.balance(&beneficiary);
+    let initial_admin_balance = token_client.balance(&admin);
 
-    let small_donation = 100i128;
-    client.donate(&donor, &campaign_id, &small_donation, &false, &None);
+    // MIN_DONATION = 1 token, below the 5-token target so the campaign stays
+    // Active and is settled by an explicit claim after the deadline.
+    let min_donation = 1_000_000i128;
+    client.donate(&donor, &campaign_id, &min_donation, &false, &None);
 
     set_timestamp(&env, 2_001);
+    client.claim_funds(&beneficiary, &campaign_id);
 
-    client.claim_funds(&campaign_id);
+    let beneficiary_increase = token_client.balance(&beneficiary) - initial_beneficiary_balance;
+    let admin_increase = token_client.balance(&admin) - initial_admin_balance;
 
-    let final_beneficiary_balance = token_client.balance(&beneficiary);
-    let balance_increase = final_beneficiary_balance - initial_beneficiary_balance;
-
-    let fee = (small_donation * 100) / 10_000;
+    // Fee uses round-half-up: (amount * 100 + 5000) / 10_000.
+    let expected_fee = (min_donation * 100 + 5_000) / 10_000;
+    assert_eq!(admin_increase, expected_fee, "fee must match round-half-up");
     assert_eq!(
-        balance_increase,
-        small_donation - fee,
-        "Small amounts should still be distributed correctly"
+        beneficiary_increase,
+        min_donation - expected_fee,
+        "beneficiary receives the donation net of the exact fee"
+    );
+    assert_eq!(
+        beneficiary_increase + admin_increase,
+        min_donation,
+        "no stroops are lost: net + fee equals gross"
     );
 }
 
@@ -212,6 +222,7 @@ fn test_claim_with_multiple_beneficiaries_exact_split() {
         &creator,
         &bens,
         &String::from_str(&env, "Multi Beneficiary Campaign"),
+        &String::from_str(&env, "A test campaign description."),
         &String::from_str(&env, "https://example.com/meta"),
         &symbol_short!("relief"),
         &to_stroops("10"),
@@ -224,11 +235,8 @@ fn test_claim_with_multiple_beneficiaries_exact_split() {
     let initial_b2_balance = token_client.balance(&beneficiary2);
 
     let donation_amount = to_stroops("20");
+    // The donation exceeds the target, so funds auto-claim within donate().
     client.donate(&donor, &campaign_id, &donation_amount, &false, &None);
-
-    set_timestamp(&env, 2_001);
-
-    client.claim_funds(&campaign_id);
 
     let final_b1_balance = token_client.balance(&beneficiary1);
     let final_b2_balance = token_client.balance(&beneficiary2);
@@ -258,8 +266,12 @@ fn test_claim_with_multiple_beneficiaries_exact_split() {
 }
 
 #[test]
-fn test_claim_stroop_level_precision() {
-    let (env, client, creator, beneficiary, donor, _admin, token_client, _token_admin_client) =
+fn test_claim_preserves_every_stroop_across_fee() {
+    // The 1-stroop scenario this once exercised is impossible now (MIN_DONATION
+    // and MIN_TARGET forbid sub-minimum values), so this instead verifies that
+    // an awkward, valid amount is split between beneficiary and fee with no
+    // stroop lost to rounding.
+    let (env, client, creator, beneficiary, donor, admin, token_client, _token_admin_client) =
         register_and_setup();
     set_timestamp(&env, 1_000);
 
@@ -269,31 +281,31 @@ fn test_claim_stroop_level_precision() {
         &creator,
         &bens,
         &String::from_str(&env, "Precision Test Campaign"),
+        &String::from_str(&env, "A test campaign description."),
         &String::from_str(&env, "https://example.com/meta"),
         &symbol_short!("relief"),
-        &1i128,
+        &to_stroops("5"),
         &2_000_u64,
         &token_client.address,
         &None,
     );
 
     let initial_beneficiary_balance = token_client.balance(&beneficiary);
+    let initial_admin_balance = token_client.balance(&admin);
 
-    let single_stroop = 1i128;
-    client.donate(&donor, &campaign_id, &single_stroop, &false, &None);
+    // An amount that does not divide evenly by the fee basis, kept below target.
+    let donation = 1_234_567i128;
+    client.donate(&donor, &campaign_id, &donation, &false, &None);
 
     set_timestamp(&env, 2_001);
+    client.claim_funds(&beneficiary, &campaign_id);
 
-    client.claim_funds(&campaign_id);
-
-    let final_beneficiary_balance = token_client.balance(&beneficiary);
-    let balance_increase = final_beneficiary_balance - initial_beneficiary_balance;
-
-    let fee = (single_stroop * 100) / 10_000;
-    let expected = single_stroop - fee;
+    let beneficiary_increase = token_client.balance(&beneficiary) - initial_beneficiary_balance;
+    let admin_increase = token_client.balance(&admin) - initial_admin_balance;
 
     assert_eq!(
-        balance_increase, expected,
-        "Single stroop donation should not be lost to rounding"
+        beneficiary_increase + admin_increase,
+        donation,
+        "every stroop is accounted for: net + fee equals gross"
     );
 }
