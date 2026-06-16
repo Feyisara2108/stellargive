@@ -119,13 +119,13 @@
                   ]
                 },
                 {
-                  "string": "IPFS Campaign"
+                  "string": "No Desc"
                 },
                 {
-                  "string": "A sample campaign description."
+                  "string": ""
                 },
                 {
-                  "string": "ipfs://QmYwAPJzv5CZsnN625s3XfREM3zN1Bv2e7v6b1ALg"
+                  "string": "https://example.com/meta"
                 },
                 {
                   "symbol": "relief"
@@ -137,7 +137,7 @@
                   }
                 },
                 {
-                  "u64": 2000
+                  "u64": 5000
                 },
                 {
                   "address": "CACMVW2KK4H5FZDFF2AUCAKQTEJMZZWJUIZF23XMRVYQBSXYLHZ6BKWN"
@@ -540,7 +540,7 @@
                         "symbol": "deadline"
                       },
                       "val": {
-                        "u64": 2000
+                        "u64": 5000
                       }
                     },
                     {
@@ -548,7 +548,7 @@
                         "symbol": "description"
                       },
                       "val": {
-                        "string": "A sample campaign description."
+                        "string": ""
                       }
                     },
                     {
@@ -578,7 +578,7 @@
                         "symbol": "metadata_uri"
                       },
                       "val": {
-                        "string": "ipfs://QmYwAPJzv5CZsnN625s3XfREM3zN1Bv2e7v6b1ALg"
+                        "string": "https://example.com/meta"
                       }
                     },
                     {
@@ -620,7 +620,7 @@
                         "symbol": "title"
                       },
                       "val": {
-                        "string": "IPFS Campaign"
+                        "string": "No Desc"
                       }
                     },
                     {
@@ -1447,13 +1447,13 @@
                   ]
                 },
                 {
-                  "string": "IPFS Campaign"
+                  "string": "No Desc"
                 },
                 {
-                  "string": "A sample campaign description."
+                  "string": ""
                 },
                 {
-                  "string": "ipfs://QmYwAPJzv5CZsnN625s3XfREM3zN1Bv2e7v6b1ALg"
+                  "string": "https://example.com/meta"
                 },
                 {
                   "symbol": "relief"
@@ -1465,7 +1465,7 @@
                   }
                 },
                 {
-                  "u64": 2000
+                  "u64": 5000
                 },
                 {
                   "address": "CACMVW2KK4H5FZDFF2AUCAKQTEJMZZWJUIZF23XMRVYQBSXYLHZ6BKWN"
@@ -1826,7 +1826,7 @@
                     "symbol": "deadline"
                   },
                   "val": {
-                    "u64": 2000
+                    "u64": 5000
                   }
                 },
                 {
@@ -1834,7 +1834,7 @@
                     "symbol": "description"
                   },
                   "val": {
-                    "string": "A sample campaign description."
+                    "string": ""
                   }
                 },
                 {
@@ -1864,7 +1864,7 @@
                     "symbol": "metadata_uri"
                   },
                   "val": {
-                    "string": "ipfs://QmYwAPJzv5CZsnN625s3XfREM3zN1Bv2e7v6b1ALg"
+                    "string": "https://example.com/meta"
                   }
                 },
                 {
@@ -1906,7 +1906,7 @@
                     "symbol": "title"
                   },
                   "val": {
-                    "string": "IPFS Campaign"
+                    "string": "No Desc"
                   }
                 },
                 {

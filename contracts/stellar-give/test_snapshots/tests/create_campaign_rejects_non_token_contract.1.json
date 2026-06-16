@@ -292,7 +292,7 @@
             },
             "ext": "v0"
           },
-          4095
+          518400
         ]
       ],
       [
@@ -324,6 +324,14 @@
                         },
                         "val": {
                           "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                        }
+                      },
+                      {
+                        "key": {
+                          "symbol": "PAUSED"
+                        },
+                        "val": {
+                          "bool": false
                         }
                       }
                     ]
@@ -1004,6 +1012,9 @@
                   "string": "Bad Token Campaign"
                 },
                 {
+                  "string": "A sample campaign description."
+                },
+                {
                   "string": "https://example.com/meta"
                 },
                 {
@@ -1185,6 +1196,9 @@
                     },
                     {
                       "string": "Bad Token Campaign"
+                    },
+                    {
+                      "string": "A sample campaign description."
                     },
                     {
                       "string": "https://example.com/meta"

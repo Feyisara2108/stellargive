@@ -122,6 +122,9 @@
                   "string": "Social Campaign"
                 },
                 {
+                  "string": "A sample campaign description."
+                },
+                {
                   "string": "https://example.com/meta"
                 },
                 {
@@ -404,7 +407,7 @@
             },
             "ext": "v0"
           },
-          4095
+          518400
         ]
       ],
       [
@@ -449,7 +452,7 @@
             },
             "ext": "v0"
           },
-          4095
+          518400
         ]
       ],
       [
@@ -542,10 +545,26 @@
                     },
                     {
                       "key": {
+                        "symbol": "description"
+                      },
+                      "val": {
+                        "string": "A sample campaign description."
+                      }
+                    },
+                    {
+                      "key": {
                         "symbol": "id"
                       },
                       "val": {
                         "u64": 1
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "is_private"
+                      },
+                      "val": {
+                        "bool": false
                       }
                     },
                     {
@@ -612,6 +631,14 @@
                     },
                     {
                       "key": {
+                        "symbol": "was_extended"
+                      },
+                      "val": {
+                        "bool": false
+                      }
+                    },
+                    {
+                      "key": {
                         "symbol": "website"
                       },
                       "val": "void"
@@ -622,7 +649,7 @@
             },
             "ext": "v0"
           },
-          4095
+          518400
         ]
       ],
       [
@@ -662,6 +689,14 @@
                         },
                         "val": {
                           "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                        }
+                      },
+                      {
+                        "key": {
+                          "symbol": "PAUSED"
+                        },
+                        "val": {
+                          "bool": false
                         }
                       }
                     ]
@@ -1415,6 +1450,9 @@
                   "string": "Social Campaign"
                 },
                 {
+                  "string": "A sample campaign description."
+                },
+                {
                   "string": "https://example.com/meta"
                 },
                 {
@@ -1793,10 +1831,26 @@
                 },
                 {
                   "key": {
+                    "symbol": "description"
+                  },
+                  "val": {
+                    "string": "A sample campaign description."
+                  }
+                },
+                {
+                  "key": {
                     "symbol": "id"
                   },
                   "val": {
                     "u64": 1
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "is_private"
+                  },
+                  "val": {
+                    "bool": false
                   }
                 },
                 {
@@ -1860,6 +1914,14 @@
                     "symbol": "twitter"
                   },
                   "val": "void"
+                },
+                {
+                  "key": {
+                    "symbol": "was_extended"
+                  },
+                  "val": {
+                    "bool": false
+                  }
                 },
                 {
                   "key": {
