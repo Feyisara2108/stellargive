@@ -12,16 +12,13 @@ import React, { createContext, useContext, useState, useCallback } from "react";
  */
 
 // Default predictable test address (valid Stellar G-address format)
-const DEFAULT_MOCK_ADDRESS =
-  "GTEST7SRIEMJXLK3LXKLS5RQ7JLDUZQUDVFNLWIM6DEDCZM5WLPSERV";
+const DEFAULT_MOCK_ADDRESS = "GTEST7SRIEMJXLK3LXKLS5RQ7JLDUZQUDVFNLWIM6DEDCZM5WLPSERV";
 
 // A fake signed-transaction XDR returned by mock signTransaction.
-const DEFAULT_MOCK_SIGNED_TX_XDR =
-  "AAAAAgAAAABNMOCKTXaaaaaaaaaaaaaAAAAAAAAAAAAAAAAAAAA";
+const DEFAULT_MOCK_SIGNED_TX_XDR = "AAAAAgAAAABNMOCKTXaaaaaaaaaaaaaAAAAAAAAAAAAAAAAAAAA";
 
 // A deterministic mock transaction hash for success dialogs.
-export const MOCK_TX_HASH =
-  "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2";
+export const MOCK_TX_HASH = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2";
 
 interface MockWalletContextType {
   address: string | null;
@@ -36,18 +33,13 @@ interface MockWalletContextType {
   mockSignedTxXdr: string;
 }
 
-const MockWalletContext = createContext<MockWalletContextType | undefined>(
-  undefined
-);
+const MockWalletContext = createContext<MockWalletContextType | undefined>(undefined);
 
 /**
  * Installs global mock overrides for `@stellar/freighter-api` functions so
  * that any code importing them at runtime gets deterministic responses.
  */
-function installFreighterMocks(
-  address: string,
-  signedTxXdr: string
-) {
+function installFreighterMocks(address: string, signedTxXdr: string) {
   if (typeof window !== "undefined") {
     // Patch window.__mockWallet so Playwright tests can read/set state
     (window as any).__mockWallet = {
@@ -58,17 +50,11 @@ function installFreighterMocks(
   }
 }
 
-export function MockWalletProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function MockWalletProvider({ children }: { children: React.ReactNode }) {
   const [address, setAddress] = useState<string | null>(DEFAULT_MOCK_ADDRESS);
   const [isConnected, setIsConnected] = useState(true); // auto-connect for E2E
   const [mockBalance, setMockBalance] = useState("1000.0000000");
-  const [mockSignedTxXdr, setMockSignedTxXdr] = useState(
-    DEFAULT_MOCK_SIGNED_TX_XDR
-  );
+  const [mockSignedTxXdr, setMockSignedTxXdr] = useState(DEFAULT_MOCK_SIGNED_TX_XDR);
 
   // Install global mocks on mount
   React.useEffect(() => {

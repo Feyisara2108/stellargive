@@ -23,6 +23,6 @@ export default withBundleAnalyzer(
       transpileClientSDK: true,
       hideSourceMaps: true,
       disableLogger: true,
-    }
-  )
+    },
+  ),
 );

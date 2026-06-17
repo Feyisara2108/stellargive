@@ -74,19 +74,25 @@ export function DonateModal({ campaign }: { campaign: Campaign }) {
 
   return (
     <>
-      <Dialog open={isOpen} onOpenChange={(open) => {
-        if (!donate.isPending) {
-          setIsOpen(open);
-        }
-      }}>
+      <Dialog
+        open={isOpen}
+        onOpenChange={(open) => {
+          if (!donate.isPending) {
+            setIsOpen(open);
+          }
+        }}
+      >
         <DialogTrigger asChild>
           <Button className="flex-1">Donate Now</Button>
         </DialogTrigger>
-        <DialogContent onPointerDownOutside={(e) => {
-          if (donate.isPending) e.preventDefault(); // lock UI until resolution
-        }} onEscapeKeyDown={(e) => {
-          if (donate.isPending) e.preventDefault(); // lock UI until resolution
-        }}>
+        <DialogContent
+          onPointerDownOutside={(e) => {
+            if (donate.isPending) e.preventDefault(); // lock UI until resolution
+          }}
+          onEscapeKeyDown={(e) => {
+            if (donate.isPending) e.preventDefault(); // lock UI until resolution
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Donate to {campaign.title}</DialogTitle>
             <DialogDescription>
@@ -119,7 +125,12 @@ export function DonateModal({ campaign }: { campaign: Campaign }) {
                 disabled={donate.isPending}
               />
               {errors.amount && (
-                <span id="amount-error" className="text-xs text-red-500 mt-1" role="alert" aria-live="polite">
+                <span
+                  id="amount-error"
+                  className="text-xs text-red-500 mt-1"
+                  role="alert"
+                  aria-live="polite"
+                >
                   {errors.amount.message}
                 </span>
               )}
@@ -139,12 +150,16 @@ export function DonateModal({ campaign }: { campaign: Campaign }) {
                   disabled={donate.isPending}
                   className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary accent-primary cursor-pointer"
                 />
-                <Label htmlFor="anonymous" className="cursor-pointer select-none text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                <Label
+                  htmlFor="anonymous"
+                  className="cursor-pointer select-none text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
                   Donate anonymously
                 </Label>
               </div>
               <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                Hides your address in the public event feed and leaderboard. Ledger records will still show the transfer.
+                Hides your address in the public event feed and leaderboard. Ledger records will
+                still show the transfer.
               </p>
             </div>
           </div>
@@ -152,10 +167,7 @@ export function DonateModal({ campaign }: { campaign: Campaign }) {
             <Button variant="outline" onClick={() => setIsOpen(false)} disabled={donate.isPending}>
               Cancel
             </Button>
-            <Button
-              onClick={handleSubmit(onSubmit)}
-              disabled={donate.isPending || !isValid}
-            >
+            <Button onClick={handleSubmit(onSubmit)} disabled={donate.isPending || !isValid}>
               {donate.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -177,7 +189,8 @@ export function DonateModal({ campaign }: { campaign: Campaign }) {
             </div>
             <DialogTitle className="text-2xl font-bold">Donation Successful!</DialogTitle>
             <DialogDescription className="text-center mt-2 text-slate-500 dark:text-slate-400">
-              Thank you support for supporting <strong>{campaign.title}</strong>! Your contribution makes a big difference.
+              Thank you support for supporting <strong>{campaign.title}</strong>! Your contribution
+              makes a big difference.
             </DialogDescription>
           </DialogHeader>
 
@@ -204,11 +217,7 @@ export function DonateModal({ campaign }: { campaign: Campaign }) {
                 View on StellarExpert
               </a>
             </Button>
-            <Button
-              variant="outline"
-              onClick={() => setShowSuccess(false)}
-              className="w-full"
-            >
+            <Button variant="outline" onClick={() => setShowSuccess(false)} className="w-full">
               Close
             </Button>
           </DialogFooter>

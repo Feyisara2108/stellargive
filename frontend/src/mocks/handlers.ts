@@ -2,7 +2,7 @@ import { http, HttpResponse } from "msw";
 
 export const handlers = [
   http.post("/rpc", async ({ request }) => {
-    const body = await request.json() as any;
+    const body = (await request.json()) as any;
     const method = body.method;
 
     if (method === "simulateTransaction") {
@@ -95,14 +95,10 @@ export const handlers = [
               type: "contract",
               ledger: 123000,
               ledgerClosedAt: "2024-01-01T00:00:00Z",
-              contractId:
-                "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+              contractId: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
               id: "0-0",
               pagingToken: "0-0",
-              topic: [
-                "AAAADwAAAARoZWxsbw==",
-                "AAAAEQAAAADSuZLn4FkGFx3d5GhFE",
-              ],
+              topic: ["AAAADwAAAARoZWxsbw==", "AAAAEQAAAADSuZLn4FkGFx3d5GhFE"],
               value: {
                 type: "sym",
                 sym: "aGVsbG8=",
@@ -159,7 +155,7 @@ export const errorHandlers = {
 
   transactionFailed: [
     http.post("/rpc", async ({ request }) => {
-      const body = await request.json() as any;
+      const body = (await request.json()) as any;
       const method = body.method;
 
       if (method === "simulateTransaction") {

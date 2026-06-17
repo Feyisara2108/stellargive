@@ -17,7 +17,7 @@ describe("Soroban RPC Mock Integration", () => {
       }),
     });
 
-    const data = await response.json() as any;
+    const data = (await response.json()) as any;
     expect(data.jsonrpc).toBe("2.0");
     expect(data.result).toBeDefined();
     expect(data.result.transactionData).toBeDefined();
@@ -38,7 +38,7 @@ describe("Soroban RPC Mock Integration", () => {
       }),
     });
 
-    const data = await response.json() as any;
+    const data = (await response.json()) as any;
     expect(data.result).toBeDefined();
     expect(data.result.status).toBe("SUCCESS");
     expect(data.result.tx).toBeDefined();
@@ -64,7 +64,7 @@ describe("Soroban RPC Mock Integration", () => {
       }),
     });
 
-    const data = await response.json() as any;
+    const data = (await response.json()) as any;
     expect(data.result).toBeDefined();
     expect(data.result.events).toBeInstanceOf(Array);
   });
@@ -82,7 +82,7 @@ describe("Soroban RPC Mock Integration", () => {
       }),
     });
 
-    const data = await response.json() as any;
+    const data = (await response.json()) as any;
     expect(data.result).toBeDefined();
     expect(data.result.sequence).toBeDefined();
     expect(data.result.closedAt).toBeDefined();
@@ -101,7 +101,7 @@ describe("Soroban RPC Mock Integration", () => {
       }),
     });
 
-    const data = await response.json() as any;
+    const data = (await response.json()) as any;
     expect(data.error).toBeDefined();
     expect(data.error.code).toBe(-32601);
     expect(data.error.message).toBe("Method not found");
@@ -110,7 +110,7 @@ describe("Soroban RPC Mock Integration", () => {
   it("should handle transaction failure scenarios", async () => {
     server.use(
       http.post("/rpc", async ({ request }) => {
-        const body = await request.json() as any;
+        const body = (await request.json()) as any;
         if (body.method === "simulateTransaction") {
           return HttpResponse.json({
             id: body.id,
@@ -130,7 +130,7 @@ describe("Soroban RPC Mock Integration", () => {
             message: "Internal error",
           },
         });
-      })
+      }),
     );
 
     const response = await fetch("/rpc", {
@@ -146,7 +146,7 @@ describe("Soroban RPC Mock Integration", () => {
       }),
     });
 
-    const data = await response.json() as any;
+    const data = (await response.json()) as any;
     expect(data.error).toBeDefined();
     expect(data.error.message).toContain("error");
   });
@@ -155,7 +155,7 @@ describe("Soroban RPC Mock Integration", () => {
     server.use(
       http.post("/rpc", () => {
         return HttpResponse.error();
-      })
+      }),
     );
 
     try {
@@ -180,7 +180,7 @@ describe("Soroban RPC Mock Integration", () => {
   it("should handle failed transaction responses", async () => {
     server.use(
       http.post("/rpc", async ({ request }) => {
-        const body = await request.json() as any;
+        const body = (await request.json()) as any;
         if (body.method === "getTransaction") {
           return HttpResponse.json({
             id: body.id,
@@ -203,7 +203,7 @@ describe("Soroban RPC Mock Integration", () => {
             message: "Internal error",
           },
         });
-      })
+      }),
     );
 
     const response = await fetch("/rpc", {
@@ -219,7 +219,7 @@ describe("Soroban RPC Mock Integration", () => {
       }),
     });
 
-    const data = await response.json() as any;
+    const data = (await response.json()) as any;
     expect(data.result.status).toBe("FAILED");
   });
 });

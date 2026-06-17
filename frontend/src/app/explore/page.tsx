@@ -31,9 +31,7 @@ function sortCampaigns(campaigns: Campaign[], sortBy: SortKey): Campaign[] {
       return sorted.sort((a, b) => Number(a.deadline) - Number(b.deadline));
     case "near-goal": {
       const progress = (c: Campaign) =>
-        c.target_amount === 0n
-          ? 0
-          : Number((c.raised_amount * 10_000n) / c.target_amount);
+        c.target_amount === 0n ? 0 : Number((c.raised_amount * 10_000n) / c.target_amount);
       return sorted.sort((a, b) => progress(b) - progress(a));
     }
     case "most-raised":
@@ -93,9 +91,7 @@ function ExploreContent() {
     const searched = !term
       ? byStatus
       : byStatus.filter(
-          (c) =>
-            c.title.toLowerCase().includes(term) ||
-            c.creator.toLowerCase().includes(term)
+          (c) => c.title.toLowerCase().includes(term) || c.creator.toLowerCase().includes(term),
         );
 
     return sortCampaigns(searched, sortBy);

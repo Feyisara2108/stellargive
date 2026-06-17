@@ -66,7 +66,10 @@ export function ProjectUpdates({ campaignId }: { campaignId: bigint }) {
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={() => { setShowForm(false); setContent(""); }}
+                  onClick={() => {
+                    setShowForm(false);
+                    setContent("");
+                  }}
                 >
                   Cancel
                 </Button>
@@ -82,14 +85,10 @@ export function ProjectUpdates({ campaignId }: { campaignId: bigint }) {
           </div>
         )}
 
-        {isLoading && (
-          <p className="text-sm text-muted-foreground">Loading updates…</p>
-        )}
+        {isLoading && <p className="text-sm text-muted-foreground">Loading updates…</p>}
 
         {!isLoading && sorted.length === 0 && (
-          <p className="text-sm text-muted-foreground text-center py-4">
-            No updates yet.
-          </p>
+          <p className="text-sm text-muted-foreground text-center py-4">No updates yet.</p>
         )}
 
         {sorted.map((update, i) => (

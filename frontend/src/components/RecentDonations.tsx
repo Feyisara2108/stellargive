@@ -83,27 +83,36 @@ export function RecentDonations({ campaignId }: { campaignId: bigint }) {
             {donations.map((event: any) => {
               const donorAddress = normalizeDonorAddress(event.data[1]);
               return (
-              <div key={event.id} className="flex gap-3 items-center border-b last:border-0 pb-4 last:pb-0">
-                <div className="p-2 rounded-full bg-green-500/10 shrink-0">
-                  <ArrowUpRight className="w-4 h-4 text-green-500" />
+                <div
+                  key={event.id}
+                  className="flex gap-3 items-center border-b last:border-0 pb-4 last:pb-0"
+                >
+                  <div className="p-2 rounded-full bg-green-500/10 shrink-0">
+                    <ArrowUpRight className="w-4 h-4 text-green-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm truncate">
+                      <span className="font-bold">{fromStroops(event.data[2])} XLM</span> donated by{" "}
+                      {donorAddress ? (
+                        <AddressLink address={donorAddress} className="text-muted-foreground" />
+                      ) : (
+                        <span className="font-medium text-muted-foreground">Anonymous</span>
+                      )}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {event.createdAt ? (
+                        <RelativeTime
+                          date={new Date(event.createdAt)}
+                          fallback={`Ledger ${event.ledger}`}
+                        />
+                      ) : (
+                        `Ledger ${event.ledger}`
+                      )}
+                    </p>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm truncate">
-                    <span className="font-bold">{fromStroops(event.data[2])} XLM</span> donated by{" "}
-                    {donorAddress ? (
-                      <AddressLink address={donorAddress} className="text-muted-foreground" />
-                    ) : (
-                      <span className="font-medium text-muted-foreground">Anonymous</span>
-                    )}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {event.createdAt 
-                      ? <RelativeTime date={new Date(event.createdAt)} fallback={`Ledger ${event.ledger}`} />
-                      : `Ledger ${event.ledger}`}
-                  </p>
-                </div>
-              </div>
-            )})}
+              );
+            })}
           </div>
         ) : (
           <div className="text-center py-12 text-muted-foreground space-y-1 bg-muted/20 rounded-lg border border-dashed">

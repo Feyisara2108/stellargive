@@ -74,9 +74,9 @@ test.describe("Campaign Detail page", () => {
     // Navigate to campaign 1; page handles missing data gracefully with skeletons
     await page.goto("/campaign/1");
     // Wait for either the campaign title or a skeleton/error state
-    await page
-      .waitForSelector("h1", { timeout: 20_000 })
-      .catch(() => {/* page may show skeleton */});
+    await page.waitForSelector("h1", { timeout: 20_000 }).catch(() => {
+      /* page may show skeleton */
+    });
     // Allow network to settle or skeleton to stabilise
     await page.waitForTimeout(1500);
   });

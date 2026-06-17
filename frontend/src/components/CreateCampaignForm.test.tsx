@@ -32,11 +32,11 @@ describe("CreateCampaignForm", () => {
 
   it("should have no accessibility violations in open state", async () => {
     render(<CreateCampaignForm />);
-    
+
     // Open the dialog
     const trigger = screen.getByRole("button", { name: /Start a Campaign/i });
     fireEvent.click(trigger);
-    
+
     const dialog = await screen.findByRole("dialog");
     const results = await axe(dialog);
     expect(results).toHaveNoViolations();

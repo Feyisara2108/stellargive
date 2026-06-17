@@ -4,8 +4,14 @@ import { useCampaign } from "@/hooks/useSoroban";
 import { ShareButton } from "@/components/ShareButton";
 import { Skeleton } from "@/components/ui/skeleton";
 import dynamic from "next/dynamic";
-const RecentDonations = dynamic(() => import("@/components/RecentDonations").then(mod => mod.RecentDonations), { ssr: false });
-const ProjectUpdates = dynamic(() => import("@/components/ProjectUpdates").then(mod => mod.ProjectUpdates), { ssr: false });
+const RecentDonations = dynamic(
+  () => import("@/components/RecentDonations").then((mod) => mod.RecentDonations),
+  { ssr: false },
+);
+const ProjectUpdates = dynamic(
+  () => import("@/components/ProjectUpdates").then((mod) => mod.ProjectUpdates),
+  { ssr: false },
+);
 import { AddressLink } from "@/components/AddressLink";
 import { sanitizeUrl } from "@/lib/sanitize";
 
@@ -34,12 +40,22 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
                 <AddressLink address={campaign.beneficiary} className="text-xs" />
               </span>
               {campaign.website && (
-                <a href={sanitizeUrl(campaign.website)} target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors flex items-center gap-1 font-medium">
+                <a
+                  href={sanitizeUrl(campaign.website)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary transition-colors flex items-center gap-1 font-medium"
+                >
                   🌐 Website
                 </a>
               )}
               {campaign.twitter && (
-                <a href={sanitizeUrl(campaign.twitter)} target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors flex items-center gap-1 font-medium">
+                <a
+                  href={sanitizeUrl(campaign.twitter)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary transition-colors flex items-center gap-1 font-medium"
+                >
                   🐦 Twitter
                 </a>
               )}

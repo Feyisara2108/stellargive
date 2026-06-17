@@ -6,13 +6,13 @@ import * as Sentry from "@sentry/nextjs";
 const isExpectedError = (error: any): boolean => {
   if (!error) return false;
   const message = error?.message || error?.toString() || "";
-  
+
   const expectedKeywords = [
     "User declined",
     "Rejected",
     "cancelled",
     "user rejected",
-    "User rejected"
+    "User rejected",
   ];
 
   for (const keyword of expectedKeywords) {

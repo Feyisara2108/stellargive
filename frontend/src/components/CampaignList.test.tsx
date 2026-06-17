@@ -106,9 +106,12 @@ describe("CampaignList - Empty States", () => {
     fireEvent.change(searchInput, { target: { value: "Non-existent-campaign" } });
 
     // Wait for debounced search (300ms)
-    await waitFor(() => {
-      expect(screen.getByText(/No campaigns match your search/i)).toBeInTheDocument();
-    }, { timeout: 1000 });
+    await waitFor(
+      () => {
+        expect(screen.getByText(/No campaigns match your search/i)).toBeInTheDocument();
+      },
+      { timeout: 1000 },
+    );
 
     expect(screen.getByText(/Try a different term or clear your search/i)).toBeInTheDocument();
     // Both the inline "x" and the empty-state button can clear the search.

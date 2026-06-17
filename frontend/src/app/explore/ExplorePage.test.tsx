@@ -61,9 +61,16 @@ describe("ExplorePage - Empty States", () => {
     vi.mocked(useCampaignsPaged).mockReturnValue({
       data: {
         campaigns: [
-          { id: 1n, title: "Test", status: "Active", raised_amount: 0n, target_amount: 100n, creator: "GA" }
+          {
+            id: 1n,
+            title: "Test",
+            status: "Active",
+            raised_amount: 0n,
+            target_amount: 100n,
+            creator: "GA",
+          },
         ],
-        hasMore: false
+        hasMore: false,
       },
       isLoading: false,
     } as any);

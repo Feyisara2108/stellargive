@@ -19,7 +19,7 @@ describe("ThemeToggle", () => {
     const { container } = render(
       <ThemeProvider attribute="class" defaultTheme="light">
         <ThemeToggle />
-      </ThemeProvider>
+      </ThemeProvider>,
     );
     // Wait for mount
     await screen.findByRole("button", { name: /toggle theme/i });
@@ -31,11 +31,11 @@ describe("ThemeToggle", () => {
     render(
       <ThemeProvider attribute="class" defaultTheme="light">
         <ThemeToggle />
-      </ThemeProvider>
+      </ThemeProvider>,
     );
 
     const button = await screen.findByRole("button", { name: /toggle theme/i });
-    
+
     // Initially should be light
     expect(document.documentElement.classList.contains("dark")).toBe(false);
 
@@ -54,7 +54,7 @@ describe("ThemeToggle", () => {
     render(
       <ThemeProvider attribute="class" defaultTheme="light">
         <ThemeToggle />
-      </ThemeProvider>
+      </ThemeProvider>,
     );
 
     await waitFor(() => {
@@ -64,10 +64,10 @@ describe("ThemeToggle", () => {
 
   it("should respect system preference when set to system", async () => {
     // Mock window.matchMedia for dark mode
-    Object.defineProperty(window, 'matchMedia', {
+    Object.defineProperty(window, "matchMedia", {
       writable: true,
-      value: vi.fn().mockImplementation(query => ({
-        matches: query === '(prefers-color-scheme: dark)',
+      value: vi.fn().mockImplementation((query) => ({
+        matches: query === "(prefers-color-scheme: dark)",
         media: query,
         onchange: null,
         addListener: vi.fn(),
@@ -81,7 +81,7 @@ describe("ThemeToggle", () => {
     render(
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <ThemeToggle />
-      </ThemeProvider>
+      </ThemeProvider>,
     );
 
     await waitFor(() => {

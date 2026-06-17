@@ -18,7 +18,7 @@ export function EventFeed() {
     if (!events?.length) return;
 
     const newDonations = events.filter(
-      (e: any) => e.topic === "received" && !prevIdsRef.current.has(e.id)
+      (e: any) => e.topic === "received" && !prevIdsRef.current.has(e.id),
     );
 
     const currentIds = new Set<string>(events.map((e: any) => e.id as string));
@@ -29,7 +29,7 @@ export function EventFeed() {
         toast.info(
           newDonations.length === 1
             ? "New donation received!"
-            : `${newDonations.length} new donations received!`
+            : `${newDonations.length} new donations received!`,
         );
       }, 500);
     }
@@ -51,30 +51,37 @@ export function EventFeed() {
       <CardContent className="space-y-6">
         {events?.map((event: any) => (
           <div key={event.id} className="flex gap-4 items-start">
-            <div className={`mt-1 p-2 rounded-full ${
-              event.topic === 'received' ? 'bg-green-500/10' :
-              event.topic === 'created' ? 'bg-blue-500/10' :
-              'bg-purple-500/10'
-            }`}>
-              {event.topic === 'received' && <ArrowUpRight className="w-3 h-3 text-green-500" />}
-              {event.topic === 'created' && <Megaphone className="w-3 h-3 text-blue-500" />}
-              {event.topic === 'claimed' && <Trophy className="w-3 h-3 text-purple-500" />}
+            <div
+              className={`mt-1 p-2 rounded-full ${
+                event.topic === "received"
+                  ? "bg-green-500/10"
+                  : event.topic === "created"
+                    ? "bg-blue-500/10"
+                    : "bg-purple-500/10"
+              }`}
+            >
+              {event.topic === "received" && <ArrowUpRight className="w-3 h-3 text-green-500" />}
+              {event.topic === "created" && <Megaphone className="w-3 h-3 text-blue-500" />}
+              {event.topic === "claimed" && <Trophy className="w-3 h-3 text-purple-500" />}
             </div>
             <div className="flex-1 space-y-1">
               <p className="text-sm">
-                {event.topic === 'received' && (
+                {event.topic === "received" && (
                   <>
-                    <span className="font-bold">{fromStroops(event.data[2])} XLM</span> donated to Campaign #{event.data[0].toString()}
+                    <span className="font-bold">{fromStroops(event.data[2])} XLM</span> donated to
+                    Campaign #{event.data[0].toString()}
                   </>
                 )}
-                {event.topic === 'created' && (
+                {event.topic === "created" && (
                   <>
-                    New campaign created with a target of <span className="font-bold">{fromStroops(event.data[3])} XLM</span>
+                    New campaign created with a target of{" "}
+                    <span className="font-bold">{fromStroops(event.data[3])} XLM</span>
                   </>
                 )}
-                {event.topic === 'claimed' && (
+                {event.topic === "claimed" && (
                   <>
-                    <span className="font-bold">{fromStroops(event.data[3])} XLM</span> claimed by beneficiary
+                    <span className="font-bold">{fromStroops(event.data[3])} XLM</span> claimed by
+                    beneficiary
                   </>
                 )}
               </p>

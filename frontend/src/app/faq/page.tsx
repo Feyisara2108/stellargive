@@ -32,8 +32,8 @@ export default function FaqPage() {
 
             <AccordionItem question="What are Stroops?">
               <p>
-                A stroop is the smallest unit of a Stellar asset: 1 token = 10,000,000 stroops
-                (7 decimal places). Amounts are stored on-chain as integer stroops to avoid rounding
+                A stroop is the smallest unit of a Stellar asset: 1 token = 10,000,000 stroops (7
+                decimal places). Amounts are stored on-chain as integer stroops to avoid rounding
                 errors, and the UI converts them to human-readable values for display.
               </p>
             </AccordionItem>
@@ -99,8 +99,8 @@ export default function FaqPage() {
             <AccordionItem question="What are the fees?">
               <p>
                 Stellar network fees are tiny (a fraction of a cent), paid in XLM when you sign a
-                transaction. Before you sign, StellarGive simulates each transaction and warns you if
-                the estimated resource fee is unusually high.
+                transaction. Before you sign, StellarGive simulates each transaction and warns you
+                if the estimated resource fee is unusually high.
               </p>
             </AccordionItem>
 

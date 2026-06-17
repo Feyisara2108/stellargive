@@ -68,7 +68,7 @@ export function TokenSelector({ value, onChange }: TokenSelectorProps) {
   useEffect(() => {
     // Basic regex validation for Soroban Contract ID: starts with 'C' and has length 56
     const isContractId = /^C[A-Z0-9]{55}$/.test(customAddress);
-    
+
     if (!customAddress) return;
 
     if (!isContractId) {
@@ -88,7 +88,7 @@ export function TokenSelector({ value, onChange }: TokenSelectorProps) {
       setValidationError(null);
       try {
         const metadata = await getTokenMetadata(customAddress);
-        
+
         // Caching validated metadata
         tokenMetadataCache[customAddress] = metadata;
         setCustomTokenMeta(metadata);
@@ -201,7 +201,8 @@ export function TokenSelector({ value, onChange }: TokenSelectorProps) {
                   {customTokenMeta && (
                     <div className="flex items-center justify-between text-xs bg-primary/10 p-1.5 rounded">
                       <span>
-                        Symbol: <strong>{customTokenMeta.symbol}</strong> (Decimals: {customTokenMeta.decimals})
+                        Symbol: <strong>{customTokenMeta.symbol}</strong> (Decimals:{" "}
+                        {customTokenMeta.decimals})
                       </span>
                       <Button
                         type="button"

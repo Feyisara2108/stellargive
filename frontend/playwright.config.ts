@@ -29,8 +29,7 @@ export default defineConfig({
   ],
 
   webServer: {
-    command:
-      "NEXT_PUBLIC_USE_MOCK_WALLET=true npm run dev",
+    command: "NEXT_PUBLIC_USE_MOCK_WALLET=true npm run dev",
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

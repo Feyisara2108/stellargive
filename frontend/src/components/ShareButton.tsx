@@ -2,7 +2,13 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Share2, Twitter, Copy, Check } from "lucide-react";
 import { toast } from "sonner";
 
@@ -30,7 +36,7 @@ export function ShareButton({ campaign }: { campaign: ShareableCampaign }) {
       toast.error("Unable to determine URL");
       return;
     }
-    
+
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
@@ -45,7 +51,7 @@ export function ShareButton({ campaign }: { campaign: ShareableCampaign }) {
   const handleTwitterShare = () => {
     const url = getShareUrl();
     if (!url) return;
-    
+
     const text = `Check out "${campaign.title}" on StellarGive: ${url}`;
     const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
     window.open(twitterUrl, "_blank", "noopener,noreferrer");
@@ -80,16 +86,16 @@ export function ShareButton({ campaign }: { campaign: ShareableCampaign }) {
 
   return (
     <>
-      <Button 
-        variant="outline" 
-        size="icon" 
+      <Button
+        variant="outline"
+        size="icon"
         onClick={handleShareClick}
         aria-label="Share campaign"
         title="Share campaign"
       >
         <Share2 className="w-4 h-4" />
       </Button>
-      
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md" onClick={(e) => e.stopPropagation()}>
           <DialogHeader>
@@ -98,21 +104,21 @@ export function ShareButton({ campaign }: { campaign: ShareableCampaign }) {
               Help spread the word about &quot;{campaign.title}&quot;
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="flex flex-col gap-3 py-4">
-            <Button 
-              variant="outline" 
-              className="flex items-center justify-start gap-2 w-full" 
+            <Button
+              variant="outline"
+              className="flex items-center justify-start gap-2 w-full"
               onClick={handleCopy}
               aria-label="Copy campaign link"
             >
               {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
               {copied ? "Copied!" : "Copy Link"}
             </Button>
-            
-            <Button 
-              variant="outline" 
-              className="flex items-center justify-start gap-2 w-full" 
+
+            <Button
+              variant="outline"
+              className="flex items-center justify-start gap-2 w-full"
               onClick={handleTwitterShare}
               aria-label="Share on X"
             >

@@ -36,30 +36,38 @@ const formSchema = z.object({
     .max(50, "Title cannot exceed 50 characters"),
   beneficiary: z.string().regex(/^G[A-Z0-9]{55}$/, "Invalid Stellar address"),
   category: z.enum(["medical", "food", "shelter", "education", "relief", "other"]),
-  targetAmount: z.string().refine(
-    (val) => !isNaN(Number(val)) && Number(val) > 0,
-    "Target amount must be a positive number"
-  ),
-  deadlineDays: z.string().refine(
-    (val) => {
-      const n = Number(val);
-      return Number.isInteger(n) && n >= 1;
-    },
-    "Deadline must be at least 1 day (24 hours) in the future"
-  ),
+  targetAmount: z
+    .string()
+    .refine(
+      (val) => !isNaN(Number(val)) && Number(val) > 0,
+      "Target amount must be a positive number",
+    ),
+  deadlineDays: z.string().refine((val) => {
+    const n = Number(val);
+    return Number.isInteger(n) && n >= 1;
+  }, "Deadline must be at least 1 day (24 hours) in the future"),
   acceptedToken: z.string().regex(/^C[A-Z0-9]{55}$|^G[A-Z0-9]{55}$/, "Invalid Token address"),
   website: z
     .string()
     .optional()
-    .refine((val) => !val || val.trim() === "" || val.startsWith("https://"), "Website URL must start with https://"),
+    .refine(
+      (val) => !val || val.trim() === "" || val.startsWith("https://"),
+      "Website URL must start with https://",
+    ),
   twitter: z
     .string()
     .optional()
-    .refine((val) => !val || val.trim() === "" || val.startsWith("https://"), "Twitter URL must start with https://"),
+    .refine(
+      (val) => !val || val.trim() === "" || val.startsWith("https://"),
+      "Twitter URL must start with https://",
+    ),
   metadataUri: z
     .string()
     .optional()
-    .refine((val) => !val || val.startsWith("ipfs://") || val.startsWith("https://"), "Metadata URI must start with ipfs:// or https://"),
+    .refine(
+      (val) => !val || val.startsWith("ipfs://") || val.startsWith("https://"),
+      "Metadata URI must start with ipfs:// or https://",
+    ),
 });
 
 const NATIVE_XLM = "CDLZS3ZCDY7SF3SIVR6Y7I6SN636O27T7G5MKSUIU22ZS76E55WJIPZ4";
@@ -89,7 +97,7 @@ export function CreateCampaignForm() {
 
   const watchAcceptedToken = form.watch("acceptedToken");
   const metadataUri = form.watch("metadataUri");
-  const selectedTokenMeta = PREDEFINED_TOKENS.find(t => t.address === watchAcceptedToken);
+  const selectedTokenMeta = PREDEFINED_TOKENS.find((t) => t.address === watchAcceptedToken);
   const tokenSymbol = selectedTokenMeta ? selectedTokenMeta.symbol : "Tokens";
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
@@ -154,7 +162,10 @@ export function CreateCampaignForm() {
       xhr.send(data);
     });
 
-    form.setValue("metadataUri", response.metadata_uri, { shouldValidate: true, shouldDirty: true });
+    form.setValue("metadataUri", response.metadata_uri, {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
     setUploadProgress(100);
     setIsUploadingImage(false);
   }
@@ -166,7 +177,8 @@ export function CreateCampaignForm() {
       form.setValue("metadataUri", "");
       return;
     }
-    const isImage = file.type === "image/png" || file.type === "image/jpeg" || file.type === "image/jpg";
+    const isImage =
+      file.type === "image/png" || file.type === "image/jpeg" || file.type === "image/jpg";
     if (!isImage) {
       setUploadError("Only PNG or JPG images are allowed.");
       return;
@@ -188,27 +200,34 @@ export function CreateCampaignForm() {
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => {
-      if (!createCampaign.isPending) {
-        if (!open) {
-          setSelectedFileName("");
-          setUploadError("");
-          setUploadProgress(0);
-          setIsUploadingImage(false);
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!createCampaign.isPending) {
+          if (!open) {
+            setSelectedFileName("");
+            setUploadError("");
+            setUploadProgress(0);
+            setIsUploadingImage(false);
+          }
+          setIsOpen(open);
         }
-        setIsOpen(open);
-      }
-    }}>
+      }}
+    >
       <DialogTrigger asChild>
         <Button className="gap-2">
           <PlusCircle className="w-4 h-4" /> Start a Campaign
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]" onPointerDownOutside={(e) => {
-        if (createCampaign.isPending) e.preventDefault(); // lock UI until resolution
-      }} onEscapeKeyDown={(e) => {
-        if (createCampaign.isPending) e.preventDefault(); // lock UI until resolution
-      }}>
+      <DialogContent
+        className="sm:max-w-[425px]"
+        onPointerDownOutside={(e) => {
+          if (createCampaign.isPending) e.preventDefault(); // lock UI until resolution
+        }}
+        onEscapeKeyDown={(e) => {
+          if (createCampaign.isPending) e.preventDefault(); // lock UI until resolution
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Create Relief Campaign</DialogTitle>
           <DialogDescription>
@@ -224,7 +243,11 @@ export function CreateCampaignForm() {
                 <FormItem>
                   <FormLabel>Campaign Title</FormLabel>
                   <FormControl>
-                    <Input placeholder="Flood Relief 2024" {...field} disabled={createCampaign.isPending} />
+                    <Input
+                      placeholder="Flood Relief 2024"
+                      {...field}
+                      disabled={createCampaign.isPending}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -250,10 +273,7 @@ export function CreateCampaignForm() {
               render={({ field }) => (
                 <FormItem>
                   <FormControl>
-                    <TokenSelector
-                      value={field.value}
-                      onChange={(val) => field.onChange(val)}
-                    />
+                    <TokenSelector value={field.value} onChange={(val) => field.onChange(val)} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -291,7 +311,12 @@ export function CreateCampaignForm() {
                   <FormItem>
                     <FormLabel>Target ({tokenSymbol})</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="1000" {...field} disabled={createCampaign.isPending} />
+                      <Input
+                        type="number"
+                        placeholder="1000"
+                        {...field}
+                        disabled={createCampaign.isPending}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -331,7 +356,9 @@ export function CreateCampaignForm() {
                   {isUploadingImage && (
                     <div className="space-y-1">
                       <Progress value={uploadProgress} aria-label="Image upload progress" />
-                      <p className="text-xs text-muted-foreground">Uploading... {uploadProgress}%</p>
+                      <p className="text-xs text-muted-foreground">
+                        Uploading... {uploadProgress}%
+                      </p>
                     </div>
                   )}
                   {selectedFileName && !uploadError && (
@@ -352,7 +379,11 @@ export function CreateCampaignForm() {
                 <FormItem>
                   <FormLabel>Website (Optional)</FormLabel>
                   <FormControl>
-                    <Input placeholder="https://myrelief.org" {...field} disabled={createCampaign.isPending} />
+                    <Input
+                      placeholder="https://myrelief.org"
+                      {...field}
+                      disabled={createCampaign.isPending}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -365,13 +396,21 @@ export function CreateCampaignForm() {
                 <FormItem>
                   <FormLabel>Twitter Link (Optional)</FormLabel>
                   <FormControl>
-                    <Input placeholder="https://twitter.com/mycampaign" {...field} disabled={createCampaign.isPending} />
+                    <Input
+                      placeholder="https://twitter.com/mycampaign"
+                      {...field}
+                      disabled={createCampaign.isPending}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <Button type="submit" className="w-full" disabled={createCampaign.isPending || isUploadingImage}>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={createCampaign.isPending || isUploadingImage}
+            >
               {createCampaign.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

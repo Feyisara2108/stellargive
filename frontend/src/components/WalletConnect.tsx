@@ -88,14 +88,18 @@ export function WalletConnect() {
         >
           <Wallet className="h-4 w-4 text-primary" />
           <span className="font-mono text-sm">{formatAddress(address)}</span>
-          <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isDropdownOpen ? "rotate-180" : ""}`} />
+          <ChevronDown
+            className={`h-4 w-4 transition-transform duration-200 ${isDropdownOpen ? "rotate-180" : ""}`}
+          />
         </Button>
 
         {isDropdownOpen && (
           <div className="absolute right-0 mt-2 w-64 rounded-xl border border-border bg-popover p-4 shadow-xl z-50 animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="flex flex-col gap-3">
               <div className="border-b border-border pb-3">
-                <span className="text-xs text-muted-foreground font-semibold block mb-1">STRENGTH OF WALLET</span>
+                <span className="text-xs text-muted-foreground font-semibold block mb-1">
+                  STRENGTH OF WALLET
+                </span>
                 <span className="text-sm font-mono text-foreground break-all bg-muted/30 p-2 rounded block">
                   {address}
                 </span>
@@ -128,7 +132,9 @@ export function WalletConnect() {
                   </div>
                 ) : (
                   <span className="text-lg font-bold text-foreground">
-                    {balance ? `${Number(balance).toLocaleString(undefined, { maximumFractionDigits: 4 })} XLM` : "0 XLM"}
+                    {balance
+                      ? `${Number(balance).toLocaleString(undefined, { maximumFractionDigits: 4 })} XLM`
+                      : "0 XLM"}
                   </span>
                 )}
               </div>

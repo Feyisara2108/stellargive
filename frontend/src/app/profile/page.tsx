@@ -31,7 +31,7 @@ export default function ProfilePage() {
     const created = address ? all.filter((c) => c.creator === address) : [];
 
     const myDonations = (events ?? []).filter(
-      (e: any) => e.topic === "received" && normalizeAddress(e.data?.[1]) === address
+      (e: any) => e.topic === "received" && normalizeAddress(e.data?.[1]) === address,
     );
     const supportedIds = new Set(
       myDonations.map((e: any) => {
@@ -40,7 +40,7 @@ export default function ProfilePage() {
         } catch {
           return "";
         }
-      })
+      }),
     );
     const supported = all.filter((c) => supportedIds.has(c.id.toString()));
 
@@ -146,15 +146,7 @@ export default function ProfilePage() {
   );
 }
 
-function StatCard({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-}) {
+function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
     <Card>
       <CardContent className="p-4 space-y-1">

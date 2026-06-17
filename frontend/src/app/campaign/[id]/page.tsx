@@ -15,7 +15,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const campaign = await getCampaign(BigInt(params.id));
     const title = `${campaign.title} | StellarGive`;
     const description = `${campaign.title} — ${fromStroops(
-      campaign.raised_amount
+      campaign.raised_amount,
     )} of ${fromStroops(campaign.target_amount)} XLM raised. Support this campaign on StellarGive.`;
 
     return {

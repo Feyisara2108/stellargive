@@ -8,13 +8,7 @@ import { AddressLink } from "@/components/AddressLink";
 import { useEvents } from "@/hooks/useSoroban";
 import { fromStroops } from "@/lib/soroban";
 import { RelativeTime } from "@/components/RelativeTime";
-import {
-  Activity,
-  ArrowUpRight,
-  Loader2,
-  Megaphone,
-  Trophy,
-} from "lucide-react";
+import { Activity, ArrowUpRight, Loader2, Megaphone, Trophy } from "lucide-react";
 
 const HISTORY_LIMIT = 50;
 const ZERO_ADDRESS = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
@@ -49,16 +43,13 @@ export default function ActivityPage() {
   const [filter, setFilter] = useState<FilterKey>("all");
 
   const sorted = useMemo(
-    () =>
-      (events ?? [])
-        .slice()
-        .sort((a: any, b: any) => Number(b.ledger) - Number(a.ledger)),
-    [events]
+    () => (events ?? []).slice().sort((a: any, b: any) => Number(b.ledger) - Number(a.ledger)),
+    [events],
   );
 
   const visible = useMemo(
     () => (filter === "all" ? sorted : sorted.filter((e: any) => e.topic === filter)),
-    [sorted, filter]
+    [sorted, filter],
   );
 
   return (
@@ -116,9 +107,11 @@ export default function ActivityPage() {
 
 function ActivityRow({ event }: { event: any }) {
   const id = campaignId(event.data?.[0]);
-  const when = event.createdAt
-    ? <RelativeTime date={new Date(event.createdAt)} fallback={`Ledger ${event.ledger}`} />
-    : `Ledger ${event.ledger}`;
+  const when = event.createdAt ? (
+    <RelativeTime date={new Date(event.createdAt)} fallback={`Ledger ${event.ledger}`} />
+  ) : (
+    `Ledger ${event.ledger}`
+  );
 
   let icon = <Megaphone className="w-4 h-4 text-blue-500" />;
   let iconBg = "bg-blue-500/10";
@@ -135,10 +128,14 @@ function ActivityRow({ event }: { event: any }) {
         <span className="font-bold">{fromStroops(event.data[2])} XLM</span> donated
         {donor ? (
           <>
-            {" "}by <AddressLink address={donor} className="text-muted-foreground" />
+            {" "}
+            by <AddressLink address={donor} className="text-muted-foreground" />
           </>
         ) : (
-          <> by <span className="text-muted-foreground">Anonymous</span></>
+          <>
+            {" "}
+            by <span className="text-muted-foreground">Anonymous</span>
+          </>
         )}
         {id && <> to Campaign #{id}</>}
       </>
@@ -160,7 +157,10 @@ function ActivityRow({ event }: { event: any }) {
       <>
         <span className="font-bold">{fromStroops(event.data[3])} XLM</span> claimed
         {beneficiary ? (
-          <> by <AddressLink address={beneficiary} className="text-muted-foreground" /></>
+          <>
+            {" "}
+            by <AddressLink address={beneficiary} className="text-muted-foreground" />
+          </>
         ) : (
           <> by beneficiary</>
         )}

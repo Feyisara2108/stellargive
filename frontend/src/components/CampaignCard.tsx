@@ -5,7 +5,10 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import dynamic from "next/dynamic";
-const DonateModal = dynamic(() => import("@/components/DonateModal").then(mod => mod.DonateModal), { ssr: false });
+const DonateModal = dynamic(
+  () => import("@/components/DonateModal").then((mod) => mod.DonateModal),
+  { ssr: false },
+);
 import { ClaimButton } from "@/components/ClaimButton";
 import { Calendar, Target, TrendingUp } from "lucide-react";
 import { ShareButton } from "@/components/ShareButton";
@@ -36,11 +39,15 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
     <Card className="flex flex-col group hover:border-primary/50 transition-all duration-300">
       <CardHeader>
         <div className="flex justify-between items-start mb-2">
-          <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${
-            campaign.status === 'Active' ? 'bg-green-500/20 text-green-500' :
-            campaign.status === 'Funded' ? 'bg-blue-500/20 text-blue-500' :
-            'bg-muted text-muted-foreground'
-          }`}>
+          <div
+            className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${
+              campaign.status === "Active"
+                ? "bg-green-500/20 text-green-500"
+                : campaign.status === "Funded"
+                  ? "bg-blue-500/20 text-blue-500"
+                  : "bg-muted text-muted-foreground"
+            }`}
+          >
             {campaign.status}
           </div>
         </div>
@@ -56,10 +63,10 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
             </span>
             <span className="font-bold">{raised} XLM</span>
           </div>
-          <Progress 
-            value={progress} 
-            className="h-2" 
-            indicatorClassName={progressColor} 
+          <Progress
+            value={progress}
+            className="h-2"
+            indicatorClassName={progressColor}
             aria-label={`Fundraising progress for ${campaign.title}`}
           />
           <div className="flex justify-between text-xs text-muted-foreground">
@@ -89,9 +96,7 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
         </div>
       </CardContent>
       <CardFooter className="gap-2">
-        {campaign.status === "Active" && (
-          <DonateModal campaign={campaign} />
-        )}
+        {campaign.status === "Active" && <DonateModal campaign={campaign} />}
         <ClaimButton campaign={campaign} />
         <div className="ml-auto">
           <ShareButton campaign={campaign} />

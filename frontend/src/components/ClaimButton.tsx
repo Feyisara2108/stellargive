@@ -11,20 +11,18 @@ export function ClaimButton({ campaign }: { campaign: Campaign }) {
   const { address } = useWallet();
   const claim = useClaimFunds();
 
-  const isCreatorOrBeneficiary =
-    address === campaign.creator || address === campaign.beneficiary;
-  
-  const canClaim = 
-    (campaign.status === "Funded" || campaign.status === "Expired") &&
-    campaign.raised_amount > 0n;
+  const isCreatorOrBeneficiary = address === campaign.creator || address === campaign.beneficiary;
+
+  const canClaim =
+    (campaign.status === "Funded" || campaign.status === "Expired") && campaign.raised_amount > 0n;
 
   if (!isCreatorOrBeneficiary || campaign.status === "Claimed") {
     if (campaign.status === "Claimed") {
-        return (
-            <Button variant="ghost" disabled className="text-green-500 gap-2">
-                <CheckCircle2 className="w-4 h-4" /> Claimed
-            </Button>
-        );
+      return (
+        <Button variant="ghost" disabled className="text-green-500 gap-2">
+          <CheckCircle2 className="w-4 h-4" /> Claimed
+        </Button>
+      );
     }
     return null;
   }
@@ -39,9 +37,9 @@ export function ClaimButton({ campaign }: { campaign: Campaign }) {
   };
 
   return (
-    <Button 
-      variant="outline" 
-      onClick={handleClaim} 
+    <Button
+      variant="outline"
+      onClick={handleClaim}
       disabled={claim.isPending || !canClaim}
       className="border-primary text-primary hover:bg-primary/10"
     >

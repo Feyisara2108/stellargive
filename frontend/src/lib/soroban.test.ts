@@ -103,21 +103,15 @@ describe("toStroops", () => {
   });
 
   it("throws on negative values", () => {
-    expect(() => toStroops("-1")).toThrow(
-      "Invalid amount: negative values not allowed"
-    );
+    expect(() => toStroops("-1")).toThrow("Invalid amount: negative values not allowed");
   });
 
   it("throws on negative decimal values", () => {
-    expect(() => toStroops("-0.5")).toThrow(
-      "Invalid amount: negative values not allowed"
-    );
+    expect(() => toStroops("-0.5")).toThrow("Invalid amount: negative values not allowed");
   });
 
   it("throws on excessive decimals (more than 7 places)", () => {
-    expect(() => toStroops("1.12345678")).toThrow(
-      "Invalid amount: exceeds 7 decimal places"
-    );
+    expect(() => toStroops("1.12345678")).toThrow("Invalid amount: exceeds 7 decimal places");
   });
 
   it("throws on mixed non-numeric content", () => {

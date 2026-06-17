@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { WalletConnect } from "@/components/WalletConnect";
 import dynamic from "next/dynamic";
-const CreateCampaignForm = dynamic(() => import("@/components/CreateCampaignForm").then(mod => mod.CreateCampaignForm), { ssr: false });
+const CreateCampaignForm = dynamic(
+  () => import("@/components/CreateCampaignForm").then((mod) => mod.CreateCampaignForm),
+  { ssr: false },
+);
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Heart, Menu, X } from "lucide-react";
 import { useState } from "react";
@@ -72,10 +75,7 @@ export function Navbar() {
         >
           <div className="flex items-center justify-between p-4 border-b">
             <span className="text-lg font-semibold">Menu</span>
-            <button
-              onClick={() => setMobileMenuOpen(false)}
-              aria-label="Close menu"
-            >
+            <button onClick={() => setMobileMenuOpen(false)} aria-label="Close menu">
               <X size={24} />
             </button>
           </div>

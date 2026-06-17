@@ -26,14 +26,12 @@ export function GasWarning({ feeStroops, onDismiss }: GasWarningProps) {
           <p className="font-semibold">High transaction cost detected</p>
           <p className="mt-1">
             This transaction is estimated to use{" "}
-            <span className="font-mono font-bold">{feeStroops.toLocaleString()}</span>{" "}
-            stroops — {ratio}× the expected maximum. Unusually high fees may
-            indicate a misconfigured transaction or an attempt to exhaust
-            resources.
+            <span className="font-mono font-bold">{feeStroops.toLocaleString()}</span> stroops —{" "}
+            {ratio}× the expected maximum. Unusually high fees may indicate a misconfigured
+            transaction or an attempt to exhaust resources.
           </p>
           <p className="mt-2 text-xs text-yellow-700">
-            You can still proceed, but review the transaction details carefully
-            before signing.
+            You can still proceed, but review the transaction details carefully before signing.
           </p>
         </div>
         {onDismiss && (

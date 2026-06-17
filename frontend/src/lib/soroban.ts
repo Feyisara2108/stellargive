@@ -46,9 +46,7 @@ export function toStroops(amount: string | number): bigint {
 
   // Reject excessive decimal places (more than 7)
   if (parts.length > 1 && parts[1].length > STROOP_PRECISION) {
-    throw new Error(
-      `Invalid amount: exceeds ${STROOP_PRECISION} decimal places`
-    );
+    throw new Error(`Invalid amount: exceeds ${STROOP_PRECISION} decimal places`);
   }
 
   let stroops = BigInt(parts[0]) * BigInt(10 ** STROOP_PRECISION);
@@ -107,14 +105,14 @@ export async function getCampaign(id: bigint): Promise<Campaign> {
     {
       fee: "100",
       networkPassphrase: NETWORK_PASSPHRASE,
-    }
+    },
   )
     .addOperation(
       Operation.invokeHostFunction({
         func: "get_campaign",
         contractId: CONTRACT_ID,
         args: [nativeToScVal(id, { type: "u64" })],
-      } as any)
+      } as any),
     )
     .setTimeout(30)
     .build();
@@ -142,7 +140,7 @@ export async function getRecentCampaigns(limit = 10): Promise<Campaign[]> {
 }
 
 export async function getCampaignsPage(
-  limit: number
+  limit: number,
 ): Promise<{ campaigns: Campaign[]; hasMore: boolean }> {
   // Fetch one extra to detect whether more campaigns exist beyond `limit`.
   const all = await getRecentCampaigns(limit + 1);
@@ -159,7 +157,7 @@ export async function submitTransaction(
   sender: string,
   func: string,
   args: any[],
-  options: SubmitOptions = {}
+  options: SubmitOptions = {},
 ) {
   const account = await server.getAccount(sender);
   const tx = new TransactionBuilder(account, {
@@ -171,7 +169,7 @@ export async function submitTransaction(
         func,
         contractId: CONTRACT_ID,
         args,
-      } as any)
+      } as any),
     )
     .setTimeout(30)
     .build();
@@ -203,11 +201,13 @@ export async function submitTransaction(
   }
 
   const sendResponse = await server.sendTransaction(
-    TransactionBuilder.fromXDR(result.signedTxXdr, NETWORK_PASSPHRASE) as any
+    TransactionBuilder.fromXDR(result.signedTxXdr, NETWORK_PASSPHRASE) as any,
   );
 
   if (sendResponse.status === "ERROR") {
-    throw new Error(`Send failed: ${JSON.stringify((sendResponse as any).errorResultXdr || sendResponse.errorResult)}`);
+    throw new Error(
+      `Send failed: ${JSON.stringify((sendResponse as any).errorResultXdr || sendResponse.errorResult)}`,
+    );
   }
 
   let txResult = await server.getTransaction(sendResponse.hash);
@@ -263,14 +263,14 @@ export async function getUpdates(campaignId: bigint): Promise<CampaignUpdate[]> 
     {
       fee: "100",
       networkPassphrase: NETWORK_PASSPHRASE,
-    }
+    },
   )
     .addOperation(
       Operation.invokeHostFunction({
         func: "get_updates",
         contractId: CONTRACT_ID,
         args: [nativeToScVal(campaignId, { type: "u64" })],
-      } as any)
+      } as any),
     )
     .setTimeout(30)
     .build();
@@ -293,14 +293,14 @@ export async function getSACBalance(contractId: string, userAddress: string): Pr
     {
       fee: "100",
       networkPassphrase: NETWORK_PASSPHRASE,
-    }
+    },
   )
     .addOperation(
       Operation.invokeHostFunction({
         func: "balance",
         contractId: contractId,
         args: [new Address(userAddress).toScVal()],
-      } as any)
+      } as any),
     )
     .setTimeout(30)
     .build();
@@ -325,14 +325,14 @@ export async function getTokenMetadata(contractId: string): Promise<TokenMetadat
     {
       fee: "100",
       networkPassphrase: NETWORK_PASSPHRASE,
-    }
+    },
   )
     .addOperation(
       Operation.invokeHostFunction({
         func: "symbol",
         contractId,
         args: [],
-      } as any)
+      } as any),
     )
     .setTimeout(30)
     .build();
@@ -348,14 +348,14 @@ export async function getTokenMetadata(contractId: string): Promise<TokenMetadat
     {
       fee: "100",
       networkPassphrase: NETWORK_PASSPHRASE,
-    }
+    },
   )
     .addOperation(
       Operation.invokeHostFunction({
         func: "decimals",
         contractId,
         args: [],
-      } as any)
+      } as any),
     )
     .setTimeout(30)
     .build();

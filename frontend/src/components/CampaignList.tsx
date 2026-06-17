@@ -30,9 +30,7 @@ function sortCampaigns(campaigns: Campaign[], sortBy: SortKey): Campaign[] {
       return sorted.sort((a, b) => Number(a.deadline) - Number(b.deadline));
     case "near-goal": {
       const progress = (c: Campaign) =>
-        c.target_amount === 0n
-          ? 0
-          : Number((c.raised_amount * 10_000n) / c.target_amount);
+        c.target_amount === 0n ? 0 : Number((c.raised_amount * 10_000n) / c.target_amount);
       return sorted.sort((a, b) => progress(b) - progress(a));
     }
     case "most-raised":
@@ -76,7 +74,7 @@ function CampaignListContent() {
             campaign.title.toLowerCase().includes(term) ||
             campaign.category.toLowerCase().includes(term) ||
             campaign.creator.toLowerCase().includes(term) ||
-            campaign.beneficiary.toLowerCase().includes(term)
+            campaign.beneficiary.toLowerCase().includes(term),
         );
 
     return sortCampaigns(filtered, sortBy);
@@ -163,9 +161,7 @@ function CampaignListContent() {
           <div className="col-span-full flex flex-col items-center gap-4 py-12 text-center">
             <div>
               <p className="font-medium text-foreground">No campaigns found</p>
-              <p className="text-sm text-muted-foreground">
-                Why not create the first one?
-              </p>
+              <p className="text-sm text-muted-foreground">Why not create the first one?</p>
             </div>
             <Button asChild>
               <Link href="/create">Create campaign</Link>

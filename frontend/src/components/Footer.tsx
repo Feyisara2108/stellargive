@@ -46,7 +46,7 @@ function ContractIdDisplay() {
         aria-label="Copy contract ID"
         className={cn(
           "inline-flex items-center justify-center rounded-md p-1 transition-colors hover:bg-muted hover:text-foreground",
-          copied && "text-green-500"
+          copied && "text-green-500",
         )}
       >
         {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}

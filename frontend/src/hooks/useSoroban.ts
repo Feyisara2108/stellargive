@@ -1,7 +1,16 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getCampaign, getRecentCampaigns, getCampaignsPage, submitTransaction, CONTRACT_ID, toStroops, getEvents, getUpdates } from "@/lib/soroban";
+import {
+  getCampaign,
+  getRecentCampaigns,
+  getCampaignsPage,
+  submitTransaction,
+  CONTRACT_ID,
+  toStroops,
+  getEvents,
+  getUpdates,
+} from "@/lib/soroban";
 import { Address, nativeToScVal } from "@stellar/stellar-sdk";
 import { useWallet } from "@/lib/WalletProvider";
 
@@ -31,10 +40,19 @@ import { toast } from "sonner";
 
 function mapTransactionError(error: any): string {
   const msg = error?.message || String(error);
-  if (msg.includes("User declined") || msg.includes("cancelled") || msg.includes("Wallet error") || msg.includes("User rejected")) {
+  if (
+    msg.includes("User declined") ||
+    msg.includes("cancelled") ||
+    msg.includes("Wallet error") ||
+    msg.includes("User rejected")
+  ) {
     return "Transaction was cancelled.";
   }
-  if (msg.includes("Network Error") || msg.includes("Failed to fetch") || msg.includes("Send failed")) {
+  if (
+    msg.includes("Network Error") ||
+    msg.includes("Failed to fetch") ||
+    msg.includes("Send failed")
+  ) {
     return "Network error. Please try again.";
   }
   if (msg.includes("Simulation failed") || msg.includes("Transaction failed")) {
@@ -83,10 +101,13 @@ export function useCreateCampaign() {
       return { toastId };
     },
     onSuccess: (data: any, variables, context) => {
-      const action = data?.hash ? {
-        label: "View Explorer",
-        onClick: () => window.open(`https://stellar.expert/explorer/testnet/tx/${data.hash}`, "_blank"),
-      } : undefined;
+      const action = data?.hash
+        ? {
+            label: "View Explorer",
+            onClick: () =>
+              window.open(`https://stellar.expert/explorer/testnet/tx/${data.hash}`, "_blank"),
+          }
+        : undefined;
       const message = "Transaction confirmed";
       if (context?.toastId) {
         toast.success(message, { id: context.toastId, action });
@@ -128,10 +149,13 @@ export function useDonate() {
       return { toastId };
     },
     onSuccess: (data: any, variables, context) => {
-      const action = data?.hash ? {
-        label: "View Explorer",
-        onClick: () => window.open(`https://stellar.expert/explorer/testnet/tx/${data.hash}`, "_blank"),
-      } : undefined;
+      const action = data?.hash
+        ? {
+            label: "View Explorer",
+            onClick: () =>
+              window.open(`https://stellar.expert/explorer/testnet/tx/${data.hash}`, "_blank"),
+          }
+        : undefined;
       const message = "Transaction confirmed";
       if (context?.toastId) {
         toast.success(message, { id: context.toastId, action });
@@ -160,10 +184,7 @@ export function useClaimFunds() {
     mutationFn: async (campaignId: bigint) => {
       if (!address) throw new Error("Wallet not connected");
 
-      const args = [
-        new Address(address).toScVal(),
-        nativeToScVal(campaignId, { type: "u64" }),
-      ];
+      const args = [new Address(address).toScVal(), nativeToScVal(campaignId, { type: "u64" })];
 
       return submitTransaction(address, "claim_funds", args);
     },
@@ -172,10 +193,13 @@ export function useClaimFunds() {
       return { toastId };
     },
     onSuccess: (data: any, campaignId, context) => {
-      const action = data?.hash ? {
-        label: "View Explorer",
-        onClick: () => window.open(`https://stellar.expert/explorer/testnet/tx/${data.hash}`, "_blank"),
-      } : undefined;
+      const action = data?.hash
+        ? {
+            label: "View Explorer",
+            onClick: () =>
+              window.open(`https://stellar.expert/explorer/testnet/tx/${data.hash}`, "_blank"),
+          }
+        : undefined;
       const message = "Transaction confirmed";
       if (context?.toastId) {
         toast.success(message, { id: context.toastId, action });
