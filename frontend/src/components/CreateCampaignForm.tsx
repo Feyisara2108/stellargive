@@ -25,27 +25,35 @@ import {
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2, PlusCircle } from "lucide-react";
 import { TokenSelector, PREDEFINED_TOKENS } from "@/components/TokenSelector";
+import { cn } from "@/lib/utils";
+
+// Contract-enforced bounds — keep in sync with
+// contracts/stellar-give/src/lib.rs constants. Surfacing them at the form
+// layer prevents users from spending gas on a simulation that the chain
+// will reject for a value we could have rejected locally.
+const MAX_TITLE_LEN = 50; // MAX_TITLE_LEN
+const MIN_TARGET_TOKEN = 1; // MIN_TARGET = 10_000_000 stroops = 1.0 token
+const MAX_DURATION_DAYS = 365; // MAX_DURATION = 31_536_000 sec
+const MAX_METADATA_URI_LEN = 256; // MAX_METADATA_URI_LEN
 
 const formSchema = z.object({
   title: z
     .string()
     .min(5, "Title must be at least 5 characters")
-    .max(50, "Title cannot exceed 50 characters"),
+    .max(MAX_TITLE_LEN, `Title cannot exceed ${MAX_TITLE_LEN} characters`),
   beneficiary: z.string().regex(/^G[A-Z0-9]{55}$/, "Invalid Stellar address"),
   category: z.enum(["medical", "food", "shelter", "education", "relief", "other"]),
-  targetAmount: z
-    .string()
-    .refine(
-      (val) => !isNaN(Number(val)) && Number(val) > 0,
-      "Target amount must be a positive number",
-    ),
+  targetAmount: z.string().refine((val) => {
+    const n = Number(val);
+    return !isNaN(n) && n >= MIN_TARGET_TOKEN;
+  }, `Target must be at least ${MIN_TARGET_TOKEN.toFixed(1)} (the contract's minimum)`),
   deadlineDays: z.string().refine((val) => {
     const n = Number(val);
-    return Number.isInteger(n) && n >= 1;
-  }, "Deadline must be at least 1 day (24 hours) in the future"),
+    return Number.isInteger(n) && n >= 1 && n <= MAX_DURATION_DAYS;
+  }, `Deadline must be between 1 and ${MAX_DURATION_DAYS} days`),
   acceptedToken: z.string().regex(/^C[A-Z0-9]{55}$|^G[A-Z0-9]{55}$/, "Invalid Token address"),
   website: z
     .string()
@@ -67,6 +75,10 @@ const formSchema = z.object({
     .refine(
       (val) => !val || val.startsWith("ipfs://") || val.startsWith("https://"),
       "Metadata URI must start with ipfs:// or https://",
+    )
+    .refine(
+      (val) => !val || val.length <= MAX_METADATA_URI_LEN,
+      `Metadata URI must be ${MAX_METADATA_URI_LEN} characters or fewer`,
     ),
 });
 
@@ -82,6 +94,10 @@ export function CreateCampaignForm() {
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
+    // Live validation so character counters, range errors, and the
+    // submit-disabled state all update on every keystroke instead of
+    // only after the user attempts to submit.
+    mode: "onChange",
     defaultValues: {
       title: "",
       beneficiary: "",
@@ -95,8 +111,21 @@ export function CreateCampaignForm() {
     },
   });
 
+  // Trigger validation once on mount so `formState.isValid` reflects the
+  // schema applied to the initial values (otherwise it stays optimistically
+  // `true` until the user edits any field, which would briefly render an
+  // enabled submit button on top of invalid defaults).
+  useEffect(() => {
+    void form.trigger();
+    // form is stable across renders for our purposes; we only want this once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const watchAcceptedToken = form.watch("acceptedToken");
-  const metadataUri = form.watch("metadataUri");
+  const metadataUri = form.watch("metadataUri") ?? "";
+  const watchedTitle = form.watch("title") ?? "";
+  const titleLen = watchedTitle.length;
+  const metadataUriLen = metadataUri.length;
   const selectedTokenMeta = PREDEFINED_TOKENS.find((t) => t.address === watchAcceptedToken);
   const tokenSymbol = selectedTokenMeta ? selectedTokenMeta.symbol : "Tokens";
 
@@ -241,10 +270,24 @@ export function CreateCampaignForm() {
               name="title"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Campaign Title</FormLabel>
+                  <div className="flex items-center justify-between">
+                    <FormLabel>Campaign Title</FormLabel>
+                    <span
+                      aria-live="polite"
+                      className={cn(
+                        "text-xs tabular-nums",
+                        titleLen > MAX_TITLE_LEN
+                          ? "text-destructive"
+                          : "text-muted-foreground",
+                      )}
+                    >
+                      {titleLen}/{MAX_TITLE_LEN}
+                    </span>
+                  </div>
                   <FormControl>
                     <Input
                       placeholder="Flood Relief 2024"
+                      maxLength={MAX_TITLE_LEN}
                       {...field}
                       disabled={createCampaign.isPending}
                     />
@@ -313,11 +356,16 @@ export function CreateCampaignForm() {
                     <FormControl>
                       <Input
                         type="number"
+                        min={MIN_TARGET_TOKEN}
+                        step="0.0000001"
                         placeholder="1000"
                         {...field}
                         disabled={createCampaign.isPending}
                       />
                     </FormControl>
+                    <FormDescription className="text-[11px]">
+                      Min {MIN_TARGET_TOKEN.toFixed(1)} {tokenSymbol}.
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -329,8 +377,17 @@ export function CreateCampaignForm() {
                   <FormItem>
                     <FormLabel>Duration (Days)</FormLabel>
                     <FormControl>
-                      <Input type="number" {...field} disabled={createCampaign.isPending} />
+                      <Input
+                        type="number"
+                        min={1}
+                        max={MAX_DURATION_DAYS}
+                        {...field}
+                        disabled={createCampaign.isPending}
+                      />
                     </FormControl>
+                    <FormDescription className="text-[11px]">
+                      1–{MAX_DURATION_DAYS} days.
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -365,7 +422,20 @@ export function CreateCampaignForm() {
                     <p className="text-xs text-muted-foreground">Selected: {selectedFileName}</p>
                   )}
                   {!!metadataUri && !uploadError && (
-                    <p className="text-xs text-muted-foreground break-all">CID: {metadataUri}</p>
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-xs text-muted-foreground break-all">CID: {metadataUri}</p>
+                      <span
+                        aria-live="polite"
+                        className={cn(
+                          "text-xs tabular-nums shrink-0",
+                          metadataUriLen > MAX_METADATA_URI_LEN
+                            ? "text-destructive"
+                            : "text-muted-foreground",
+                        )}
+                      >
+                        {metadataUriLen}/{MAX_METADATA_URI_LEN}
+                      </span>
+                    </div>
                   )}
                   {!!uploadError && <p className="text-xs text-destructive">{uploadError}</p>}
                   <FormMessage />
@@ -409,7 +479,11 @@ export function CreateCampaignForm() {
             <Button
               type="submit"
               className="w-full"
-              disabled={createCampaign.isPending || isUploadingImage}
+              disabled={
+                createCampaign.isPending ||
+                isUploadingImage ||
+                !form.formState.isValid
+              }
             >
               {createCampaign.isPending ? (
                 <>
