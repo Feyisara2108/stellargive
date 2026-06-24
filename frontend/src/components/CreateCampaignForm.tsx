@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useCreateCampaign } from "@/hooks/useSoroban";
+import { useWallet } from "@/lib/WalletProvider";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -85,6 +86,7 @@ const formSchema = z.object({
 const NATIVE_XLM = "CDLZS3ZCDY7SF3SIVR6Y7I6SN636O27T7G5MKSUIU22ZS76E55WJIPZ4";
 
 export function CreateCampaignForm() {
+  const { isWrongNetwork } = useWallet();
   const [isOpen, setIsOpen] = useState(false);
   const [selectedFileName, setSelectedFileName] = useState("");
   const [uploadError, setUploadError] = useState("");
@@ -244,12 +246,13 @@ export function CreateCampaignForm() {
       }}
     >
       <DialogTrigger asChild>
-        <Button className="gap-2">
+        <Button className="gap-2" disabled={isWrongNetwork} title={isWrongNetwork ? "Switch to the correct network to create a campaign" : undefined}>
           <PlusCircle className="w-4 h-4" /> Start a Campaign
         </Button>
       </DialogTrigger>
       <DialogContent
         className="sm:max-w-[425px]"
+        aria-labelledby="create-campaign-dialog-title"
         onPointerDownOutside={(e) => {
           if (createCampaign.isPending) e.preventDefault(); // lock UI until resolution
         }}
@@ -258,7 +261,7 @@ export function CreateCampaignForm() {
         }}
       >
         <DialogHeader>
-          <DialogTitle>Create Relief Campaign</DialogTitle>
+          <DialogTitle id="create-campaign-dialog-title">Create Relief Campaign</DialogTitle>
           <DialogDescription>
             Fill in the details for your relief grant. Ensure the beneficiary address is correct.
           </DialogDescription>

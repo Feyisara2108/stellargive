@@ -152,9 +152,10 @@ export function DonateModal({ campaign }: { campaign: Campaign }) {
         }}
       >
         <DialogTrigger asChild>
-          <Button className="flex-1">Donate Now</Button>
+          <Button className="flex-1" disabled={isWrongNetwork} title={isWrongNetwork ? "Switch to the correct network to donate" : undefined}>Donate Now</Button>
         </DialogTrigger>
         <DialogContent
+          aria-labelledby="donate-dialog-title"
           onPointerDownOutside={(e) => {
             if (donate.isPending) e.preventDefault(); // lock UI until resolution
           }}
@@ -163,7 +164,7 @@ export function DonateModal({ campaign }: { campaign: Campaign }) {
           }}
         >
           <DialogHeader>
-            <DialogTitle>Donate to {campaign.title}</DialogTitle>
+            <DialogTitle id="donate-dialog-title">Donate to {campaign.title}</DialogTitle>
             <DialogDescription>
               Enter the amount of tokens you wish to contribute to this relief campaign.
             </DialogDescription>
@@ -281,12 +282,12 @@ export function DonateModal({ campaign }: { campaign: Campaign }) {
       </Dialog>
 
       <Dialog open={showSuccess} onOpenChange={setShowSuccess}>
-        <DialogContent className="max-w-md text-center p-6 gap-6">
+        <DialogContent className="max-w-md text-center p-6 gap-6" aria-labelledby="donate-success-title">
           <DialogHeader className="items-center">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 mb-2">
               <Check className="h-6 w-6" />
             </div>
-            <DialogTitle className="text-2xl font-bold">Donation Successful!</DialogTitle>
+            <DialogTitle id="donate-success-title" className="text-2xl font-bold">Donation Successful!</DialogTitle>
             <DialogDescription className="text-center mt-2 text-slate-500 dark:text-slate-400">
               Thank you support for supporting <strong>{campaign.title}</strong>! Your contribution
               makes a big difference.
