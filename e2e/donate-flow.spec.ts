@@ -128,9 +128,9 @@ test.describe("Donation Flow (Mock Wallet)", () => {
 
     // The mock wallet auto-connects, so we should see the address in the navbar
     // The WalletConnect component shows a truncated address when connected
-    const walletButton = page.locator("button", {
-      hasText: /G[A-Z0-9]+/,
-    });
+    const walletButton = page
+      .locator("button", { hasText: /G[A-Z0-9]+/ })
+      .first();
 
     // Wait for the page to hydrate and the wallet to connect
     await expect(walletButton).toBeVisible({ timeout: 15_000 });
