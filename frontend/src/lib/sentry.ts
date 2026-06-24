@@ -56,3 +56,20 @@ export const captureUnexpectedError = (error: any, context?: Record<string, any>
     extra: context,
   });
 };
+
+/**
+ * Captures render-time errors caught by an App Router route-segment
+ * boundary (`app/error.tsx`). `context` should include the pathname and the
+ * Next.js error digest so the report can be cross-referenced with the
+ * server-side log.
+ */
+export const captureRouteError = (error: any, context?: Record<string, any>) => {
+  if (isExpectedError(error)) return;
+
+  Sentry.captureException(error, {
+    tags: {
+      feature: "route_render",
+    },
+    extra: context,
+  });
+};
