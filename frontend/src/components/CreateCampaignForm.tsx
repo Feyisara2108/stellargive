@@ -221,6 +221,7 @@ export function CreateCampaignForm() {
       </DialogTrigger>
       <DialogContent
         className="sm:max-w-[425px]"
+        aria-labelledby="create-campaign-dialog-title"
         onPointerDownOutside={(e) => {
           if (createCampaign.isPending) e.preventDefault(); // lock UI until resolution
         }}
@@ -229,7 +230,7 @@ export function CreateCampaignForm() {
         }}
       >
         <DialogHeader>
-          <DialogTitle>Create Relief Campaign</DialogTitle>
+          <DialogTitle id="create-campaign-dialog-title">Create Relief Campaign</DialogTitle>
           <DialogDescription>
             Fill in the details for your relief grant. Ensure the beneficiary address is correct.
           </DialogDescription>
