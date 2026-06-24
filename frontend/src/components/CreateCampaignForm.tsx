@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useCreateCampaign } from "@/hooks/useSoroban";
+import { useWallet } from "@/lib/WalletProvider";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -73,6 +74,7 @@ const formSchema = z.object({
 const NATIVE_XLM = "CDLZS3ZCDY7SF3SIVR6Y7I6SN636O27T7G5MKSUIU22ZS76E55WJIPZ4";
 
 export function CreateCampaignForm() {
+  const { isWrongNetwork } = useWallet();
   const [isOpen, setIsOpen] = useState(false);
   const [selectedFileName, setSelectedFileName] = useState("");
   const [uploadError, setUploadError] = useState("");
@@ -215,7 +217,7 @@ export function CreateCampaignForm() {
       }}
     >
       <DialogTrigger asChild>
-        <Button className="gap-2">
+        <Button className="gap-2" disabled={isWrongNetwork} title={isWrongNetwork ? "Switch to the correct network to create a campaign" : undefined}>
           <PlusCircle className="w-4 h-4" /> Start a Campaign
         </Button>
       </DialogTrigger>

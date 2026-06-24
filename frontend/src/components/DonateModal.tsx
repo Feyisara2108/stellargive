@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { useDonate } from "@/hooks/useSoroban";
 import { Campaign } from "@/lib/soroban";
+import { useWallet } from "@/lib/WalletProvider";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,6 +21,7 @@ import { Loader2, Check } from "lucide-react";
 import confetti from "canvas-confetti";
 
 export function DonateModal({ campaign }: { campaign: Campaign }) {
+  const { isWrongNetwork } = useWallet();
   const {
     register,
     handleSubmit,
@@ -83,7 +85,7 @@ export function DonateModal({ campaign }: { campaign: Campaign }) {
         }}
       >
         <DialogTrigger asChild>
-          <Button className="flex-1">Donate Now</Button>
+          <Button className="flex-1" disabled={isWrongNetwork} title={isWrongNetwork ? "Switch to the correct network to donate" : undefined}>Donate Now</Button>
         </DialogTrigger>
         <DialogContent
           onPointerDownOutside={(e) => {
