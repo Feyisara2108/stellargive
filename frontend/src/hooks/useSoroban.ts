@@ -6,11 +6,13 @@ import {
   getRecentCampaigns,
   getCampaignsPage,
   submitTransaction,
+  estimateFee,
   CONTRACT_ID,
   toStroops,
   getEvents,
   getUpdates,
 } from "@/lib/soroban";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { Address, nativeToScVal } from "@stellar/stellar-sdk";
 import { useWallet } from "@/lib/WalletProvider";
 
@@ -254,6 +256,85 @@ export function useAddUpdate() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["updates", variables.campaignId.toString()] });
+    },
+  });
+}
+
+export function useDonateFeeEstimate(params: {
+  campaignId: bigint;
+  amount: string;
+  address: string | null;
+}) {
+  const debouncedAmount = useDebouncedValue(params.amount, 600);
+
+  return useQuery({
+    queryKey: [
+      "fee-estimate",
+      "donate",
+      params.campaignId.toString(),
+      debouncedAmount,
+      params.address,
+    ],
+    queryFn: async () => {
+      if (!params.address || !debouncedAmount || Number(debouncedAmount) <= 0) return null;
+      try {
+        const args = [
+          new Address(params.address).toScVal(),
+          nativeToScVal(params.campaignId, { type: "u64" }),
+          nativeToScVal(toStroops(debouncedAmount), { type: "i128" }),
+          nativeToScVal(false, { type: "bool" }),
+        ];
+        return estimateFee(params.address, "donate", args);
+      } catch {
+        return null;
+      }
+    },
+    enabled: !!params.address && !!debouncedAmount && Number(debouncedAmount) > 0,
+    retry: false,
+    staleTime: 30_000,
+  });
+}
+
+export function useCancelCampaign() {
+  const { address } = useWallet();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (campaignId: bigint) => {
+      if (!address) throw new Error("Wallet not connected");
+
+      const args = [new Address(address).toScVal(), nativeToScVal(campaignId, { type: "u64" })];
+
+      return submitTransaction(address, "cancel_campaign", args);
+    },
+    onMutate: () => {
+      const toastId = toast.loading("Cancelling campaign...");
+      return { toastId };
+    },
+    onSuccess: (data: any, campaignId, context) => {
+      const action = data?.hash
+        ? {
+            label: "View Explorer",
+            onClick: () =>
+              window.open(`https://stellar.expert/explorer/testnet/tx/${data.hash}`, "_blank"),
+          }
+        : undefined;
+      const message = "Campaign cancelled";
+      if (context?.toastId) {
+        toast.success(message, { id: context.toastId, action });
+      } else {
+        toast.success(message, { action });
+      }
+      queryClient.invalidateQueries({ queryKey: ["campaign", campaignId.toString()] });
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+    },
+    onError: (error: any, _variables, context) => {
+      const mappedError = mapTransactionError(error);
+      if (context?.toastId) {
+        toast.error(mappedError, { id: context.toastId });
+      } else {
+        toast.error(mappedError);
+      }
     },
   });
 }

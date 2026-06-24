@@ -2,8 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { useDonate } from "@/hooks/useSoroban";
+import { useDonate, useDonateFeeEstimate } from "@/hooks/useSoroban";
 import { Campaign } from "@/lib/soroban";
+import { useWallet } from "@/lib/WalletProvider";
+import { formatXLM } from "@/utils/format";
+import { GasWarning } from "@/components/GasWarning";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -19,7 +22,10 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Check } from "lucide-react";
 import confetti from "canvas-confetti";
 
+const MIN_DONATION_XLM = 1e-7; // 1 stroop
+
 export function DonateModal({ campaign }: { campaign: Campaign }) {
+  const { address } = useWallet();
   const {
     register,
     handleSubmit,
@@ -37,12 +43,19 @@ export function DonateModal({ campaign }: { campaign: Campaign }) {
   const target = Number(campaign.target_amount) / 1e7;
   const raised = Number(campaign.raised_amount) / 1e7;
   const remaining = Math.max(target - raised, 0);
+  const liveRemaining = Math.max(remaining - (Number(amount) || 0), 0);
+  const canFundRest = remaining >= MIN_DONATION_XLM && (Number(amount) || 0) < remaining;
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [successTxHash, setSuccessTxHash] = useState("");
   const [successAmount, setSuccessAmount] = useState("");
   const donate = useDonate();
+  const feeEstimate = useDonateFeeEstimate({
+    campaignId: campaign.id,
+    amount,
+    address,
+  });
 
   useEffect(() => {
     if (donate.isSuccess) {
@@ -101,7 +114,23 @@ export function DonateModal({ campaign }: { campaign: Campaign }) {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="amount">Amount</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="amount">Amount</Label>
+                {canFundRest && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                    onClick={() =>
+                      setValue("amount", formatXLM(remaining), { shouldValidate: true })
+                    }
+                    disabled={donate.isPending}
+                  >
+                    Fund the rest
+                  </Button>
+                )}
+              </div>
               <Input
                 id="amount"
                 inputMode="decimal"
@@ -124,6 +153,17 @@ export function DonateModal({ campaign }: { campaign: Campaign }) {
                 })}
                 disabled={donate.isPending}
               />
+              <span
+                className="text-xs text-muted-foreground"
+                role="status"
+                aria-live="polite"
+              >
+                {liveRemaining > 0
+                  ? `${formatXLM(liveRemaining)} XLM left to reach the goal`
+                  : amount && Number(amount) > 0
+                    ? "This will fully fund the campaign!"
+                    : `${formatXLM(remaining)} XLM left to reach the goal`}
+              </span>
               {errors.amount && (
                 <span
                   id="amount-error"
@@ -163,6 +203,9 @@ export function DonateModal({ campaign }: { campaign: Campaign }) {
               </p>
             </div>
           </div>
+          {feeEstimate.data != null && (
+            <GasWarning estimatedFeeStroops={feeEstimate.data} />
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsOpen(false)} disabled={donate.isPending}>
               Cancel

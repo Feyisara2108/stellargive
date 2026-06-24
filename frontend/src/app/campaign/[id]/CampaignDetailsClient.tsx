@@ -1,8 +1,20 @@
 "use client";
 
-import { useCampaign } from "@/hooks/useSoroban";
+import { useState } from "react";
+import { useCampaign, useCancelCampaign } from "@/hooks/useSoroban";
+import { useWallet } from "@/lib/WalletProvider";
 import { ShareButton } from "@/components/ShareButton";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
 const RecentDonations = dynamic(
   () => import("@/components/RecentDonations").then((mod) => mod.RecentDonations),
@@ -16,7 +28,12 @@ import { AddressLink } from "@/components/AddressLink";
 import { sanitizeUrl } from "@/lib/sanitize";
 
 export function CampaignDetailsClient({ params }: { params: { id: string } }) {
+  const { address } = useWallet();
   const { data: campaign, isLoading } = useCampaign(BigInt(params.id));
+  const cancelCampaign = useCancelCampaign();
+  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
+
+  const isCreator = !!address && !!campaign && campaign.creator === address;
 
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-6">
@@ -78,6 +95,63 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
           <RecentDonations campaignId={BigInt(params.id)} />
         </div>
       </div>
+
+      {isCreator && campaign?.status === "Active" && (
+        <div className="border-t pt-6 flex justify-end">
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => setConfirmCancelOpen(true)}
+            disabled={cancelCampaign.isPending}
+          >
+            Cancel Campaign
+          </Button>
+        </div>
+      )}
+
+      <Dialog
+        open={confirmCancelOpen}
+        onOpenChange={(open) => {
+          if (!cancelCampaign.isPending) setConfirmCancelOpen(open);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel this campaign?</DialogTitle>
+            <DialogDescription>
+              This will permanently end the campaign and open refunds for all donors. This action
+              cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmCancelOpen(false)}
+              disabled={cancelCampaign.isPending}
+            >
+              Go Back
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={cancelCampaign.isPending}
+              onClick={async () => {
+                if (!campaign) return;
+                await cancelCampaign.mutateAsync(campaign.id);
+                setConfirmCancelOpen(false);
+              }}
+            >
+              {cancelCampaign.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Cancelling...
+                </>
+              ) : (
+                "Yes, Cancel Campaign"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
