@@ -57,6 +57,7 @@ jobs:
         run: bash scripts/build-contract.sh
 
       - name: Codecov Upload (Rust)
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         uses: codecov/codecov-action@v4
         with:
           files: contracts/stellar-give/cobertura.xml
@@ -101,6 +102,7 @@ jobs:
         run: npm run test -- --coverage
 
       - name: Codecov Upload (Frontend)
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         uses: codecov/codecov-action@v4
         with:
           directory: frontend/coverage
