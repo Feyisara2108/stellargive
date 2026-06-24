@@ -3,6 +3,7 @@
 import { useCampaign } from "@/hooks/useSoroban";
 import { ShareButton } from "@/components/ShareButton";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CampaignNotFound } from "@/components/CampaignNotFound";
 import dynamic from "next/dynamic";
 const RecentDonations = dynamic(
   () => import("@/components/RecentDonations").then((mod) => mod.RecentDonations),
@@ -16,7 +17,11 @@ import { AddressLink } from "@/components/AddressLink";
 import { sanitizeUrl } from "@/lib/sanitize";
 
 export function CampaignDetailsClient({ params }: { params: { id: string } }) {
-  const { data: campaign, isLoading } = useCampaign(BigInt(params.id));
+  const { data: campaign, isLoading, isError } = useCampaign(BigInt(params.id));
+
+  if (isError) {
+    return <CampaignNotFound />;
+  }
 
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-6">

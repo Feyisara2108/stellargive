@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { getCampaign, fromStroops } from "@/lib/soroban";
 import { CampaignDetailsClient } from "./CampaignDetailsClient";
 
@@ -34,12 +35,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       },
     };
   } catch {
-    // RPC unavailable or campaign not found — fall back to generic metadata
-    // rather than failing the request.
     return fallback;
   }
 }
 
-export default function CampaignPage({ params }: Props) {
+export default async function CampaignPage({ params }: Props) {
+  try {
+    await getCampaign(BigInt(params.id));
+  } catch {
+    notFound();
+  }
   return <CampaignDetailsClient params={params} />;
 }

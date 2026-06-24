@@ -148,6 +148,32 @@ export async function getCampaignsPage(
   return { campaigns: all.slice(0, limit), hasMore };
 }
 
+export async function getTotalCampaigns(): Promise<number> {
+  const tx = new TransactionBuilder(
+    new Account("GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF", "0"),
+    {
+      fee: "100",
+      networkPassphrase: NETWORK_PASSPHRASE,
+    },
+  )
+    .addOperation(
+      Operation.invokeHostFunction({
+        func: "get_total_campaigns",
+        contractId: CONTRACT_ID,
+        args: [],
+      } as any),
+    )
+    .setTimeout(30)
+    .build();
+
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim)) {
+    throw new Error(`Simulation failed: ${sim.error}`);
+  }
+  if (!sim.result) throw new Error("Failed to get total campaigns: no result");
+  return Number(scValToNative(sim.result.retval));
+}
+
 export interface SubmitOptions {
   /** Called when simulation fee exceeds MAX_SIMULATION_FEE_STROOPS. */
   onHighGasWarning?: (feeStroops: number) => void;

@@ -10,6 +10,7 @@ import {
   toStroops,
   getEvents,
   getUpdates,
+  getTotalCampaigns,
 } from "@/lib/soroban";
 import { Address, nativeToScVal } from "@stellar/stellar-sdk";
 import { useWallet } from "@/lib/WalletProvider";
@@ -217,6 +218,26 @@ export function useClaimFunds() {
         toast.error(mappedError);
       }
     },
+  });
+}
+
+export function usePlatformStats() {
+  return useQuery({
+    queryKey: ["platform-stats"],
+    queryFn: async () => {
+      const totalCampaigns = await getTotalCampaigns();
+      let totalRaised = BigInt(0);
+      let activeCampaigns = 0;
+      if (totalCampaigns > 0) {
+        const campaigns = await getRecentCampaigns(totalCampaigns);
+        for (const c of campaigns) {
+          totalRaised += c.raised_amount;
+          if (c.status === "Active") activeCampaigns++;
+        }
+      }
+      return { totalCampaigns, totalRaised: totalRaised.toString(), activeCampaigns };
+    },
+    staleTime: 60_000,
   });
 }
 
