@@ -1,0 +1,36 @@
+name: Bug Report
+description: Create a report to help us improve stellarGive
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a bug! Please fill out the form below to help us identify and fix the issue.
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Describe the context of the bug (e.g. what was happening, expected vs actual behavior).
+      placeholder: |
+        What were you doing? What was the expected behavior? What actually occurred?
+    validations:
+      required: true
+  - type: textarea
+    id: requirements
+    attributes:
+      label: Requirements
+      description: What are the requirements, reproduction steps, or details to fix this bug?
+      placeholder: |
+        Provide clear steps to reproduce the bug, any relevant configuration, or environment details.
+    validations:
+      required: false
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance Criteria
+      description: What defines a successful resolution/fix for this bug?
+      placeholder: |
+        Describe what the correct behavior should be after the fix.
+    validations:
+      required: false

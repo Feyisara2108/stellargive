@@ -1,0 +1,14 @@
+blank_issues_enabled: true
+contact_links:
+  - name: "Documentation & Setup Guide"
+    url: "https://github.com/Feyisara2108/stellargive/blob/main/docs/SETUP.md"
+    about: "Read our setup guide to configure your local development environment."
+  - name: "Contributing Guidelines"
+    url: "https://github.com/Feyisara2108/stellargive/blob/main/docs/CONTRIBUTING.md"
+    about: "Learn about our development workflow, branch strategy, and testing requirements."
+  - name: "Stellar Dev Discord"
+    url: "https://discord.gg/stellarorg"
+    about: "Join the official Stellar Developer Discord server for community support and discussions."
+  - name: "Soroban Documentation"
+    url: "https://developers.stellar.org/docs/smart-contracts"
+    about: "Official documentation for Stellar Soroban smart contract development."

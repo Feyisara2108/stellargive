@@ -1,0 +1,36 @@
+name: Feature Request
+description: Suggest an idea or feature for stellarGive
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please fill out this feature request form to suggest a new feature or improvement.
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Describe the context of the feature (e.g. why is it needed, what problem does it solve?).
+      placeholder: |
+        What is the current problem/need and the proposed solution?
+    validations:
+      required: true
+  - type: textarea
+    id: requirements
+    attributes:
+      label: Requirements
+      description: What are the requirements for this feature?
+      placeholder: |
+        Detailed functional or technical requirements.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance Criteria
+      description: What defines a successful implementation of this feature?
+      placeholder: |
+        What conditions must be met for this to be considered done?
+    validations:
+      required: true

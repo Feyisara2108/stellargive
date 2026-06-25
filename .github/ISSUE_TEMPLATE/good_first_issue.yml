@@ -1,0 +1,36 @@
+name: Good First Issue
+description: Create a task suitable for new contributors
+title: "[Good First Issue]: "
+labels: ["good first issue"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please use this template to document a straightforward task suitable for first-time contributors.
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Provide context for the issue (e.g. background, code locations, or documentation).
+      placeholder: |
+        Background details on the task and where in the codebase this is.
+    validations:
+      required: true
+  - type: textarea
+    id: requirements
+    attributes:
+      label: Requirements
+      description: What are the requirements for this task?
+      placeholder: |
+        Step-by-step requirements or what needs to be changed.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance Criteria
+      description: What defines a successful resolution of this task?
+      placeholder: |
+        What must be met for this issue to be closed?
+    validations:
+      required: true
