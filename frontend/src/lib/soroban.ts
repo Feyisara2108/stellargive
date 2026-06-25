@@ -288,6 +288,41 @@ export interface CampaignUpdate {
   timestamp: bigint;
 }
 
+export interface Donor {
+  address: string;
+  amount: bigint;
+}
+
+export async function getTopDonors(campaignId: bigint): Promise<Donor[]> {
+  const tx = new TransactionBuilder(
+    new Account("GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF", "0"),
+    {
+      fee: "100",
+      networkPassphrase: NETWORK_PASSPHRASE,
+    },
+  )
+    .addOperation(
+      Operation.invokeHostFunction({
+        func: "get_top_donors",
+        contractId: CONTRACT_ID,
+        args: [nativeToScVal(campaignId, { type: "u64" })],
+      } as any),
+    )
+    .setTimeout(30)
+    .build();
+
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim)) {
+    throw new Error(`Simulation failed: ${sim.error}`);
+  }
+  if (!sim.result) return [];
+  const result = scValToNative(sim.result.retval);
+  return (result as any[]).map((d) => ({
+    address: d[0].toString(),
+    amount: BigInt(d[1]),
+  }));
+}
+
 export async function getUpdates(campaignId: bigint): Promise<CampaignUpdate[]> {
   const tx = new TransactionBuilder(
     new Account("GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF", "0"),

@@ -12,6 +12,7 @@ import {
   getEvents,
   getUpdates,
   getTotalCampaigns,
+  getTopDonors,
 } from "@/lib/soroban";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { Address, nativeToScVal } from "@stellar/stellar-sdk";
@@ -286,6 +287,16 @@ export function useGetUpdates(campaignId: bigint) {
   return useQuery({
     queryKey: ["updates", campaignId.toString()],
     queryFn: () => getUpdates(campaignId),
+  });
+}
+
+export function useTopDonors(campaignId: bigint, limit = 10) {
+  return useQuery({
+    queryKey: ["top-donors", campaignId.toString(), limit],
+    queryFn: async () => {
+      const donors = await getTopDonors(campaignId);
+      return donors.slice(0, limit);
+    },
   });
 }
 

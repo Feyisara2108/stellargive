@@ -26,6 +26,7 @@ const ProjectUpdates = dynamic(
 );
 import { AddressLink } from "@/components/AddressLink";
 import { sanitizeUrl } from "@/lib/sanitize";
+import { TopDonors } from "@/components/TopDonors";
 
 export function CampaignDetailsClient({ params }: { params: { id: string } }) {
   const { address } = useWallet();
@@ -91,7 +92,8 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
           <ProjectUpdates campaignId={BigInt(params.id)} />
         </div>
 
-        <div className="lg:col-span-1">
+        <div className="lg:col-span-1 space-y-6">
+          <TopDonors campaignId={BigInt(params.id)} />
           <RecentDonations campaignId={BigInt(params.id)} />
         </div>
       </div>
