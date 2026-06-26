@@ -151,3 +151,72 @@ If upgrades are not supported in current design, deploy immutable new contract I
 - [ ] Mainnet funding source secured and access-controlled
 - [ ] Frontend env switched to mainnet RPC + contract ID
 - [ ] Rollback and incident response plan documented
+
+---
+
+## Idempotency, Verification, and Rollback
+
+### Idempotent re-runs
+
+`deploy-contract.sh` writes a deployment record to `scripts/deployments.json` after every
+successful deploy.  On subsequent runs the script reads that record and **skips the deploy**
+if an entry already exists for the target network.  Pass `--force` to override:
+
+```bash
+./scripts/deploy-contract.sh                   # no-op if already deployed
+./scripts/deploy-contract.sh --force           # redeploy unconditionally
+./scripts/deploy-contract.sh --network mainnet # separate record per network
+```
+
+### Verifying a deployment
+
+**1. Check the WASM hash**
+
+```bash
+stellar contract info --id <CONTRACT_ID> --network testnet
+```
+
+Compare the printed hash against `wasmHash` in `scripts/deployments.json`.
+
+**2. Invoke a read-only entry-point**
+
+```bash
+stellar contract invoke \
+  --id <CONTRACT_ID> \
+  --network testnet \
+  -- version
+```
+
+**3. Check the deployment log**
+
+```bash
+tail -50 scripts/deployments.log
+```
+
+### Rollback procedure
+
+Soroban contracts are immutable once deployed; "rollback" means re-pointing the frontend
+to a previously-deployed contract ID.
+
+**Step 1 — Restore the frontend env pointer**
+
+```bash
+# The script backs up .env.local automatically; restore it:
+cp frontend/.env.local.bak frontend/.env.local
+
+# Or edit manually:
+# NEXT_PUBLIC_CONTRACT_ID=<PREVIOUS_CONTRACT_ID>
+```
+
+**Step 2 — Update the deployment record**
+
+Edit `scripts/deployments.json` (or delete it) so the next deploy run picks it up correctly.
+
+**Step 3 — Verify the old contract is still live**
+
+```bash
+stellar contract invoke \
+  --id <PREVIOUS_CONTRACT_ID> \
+  --network testnet \
+  -- version
+```

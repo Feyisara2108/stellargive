@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ALIAS="sg-testnet-$(date +%s)"
+# Load env vars from root .env if present and not already set
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [ -f "$ROOT_DIR/.env" ]; then
+  # shellcheck disable=SC1090
+  set -a; source "$ROOT_DIR/.env"; set +a
+fi
+
+# Allow the deployer alias to come from env (DEPLOYER_ALIAS) or the flag below
+ALIAS="${DEPLOYER_ALIAS:-sg-testnet-$(date +%s)}"
 
 usage() {
   cat <<'USAGE'

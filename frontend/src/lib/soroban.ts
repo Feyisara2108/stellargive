@@ -148,6 +148,37 @@ export async function getCampaignsPage(
   return { campaigns: all.slice(0, limit), hasMore };
 }
 
+export async function estimateFee(
+  sender: string,
+  func: string,
+  args: any[],
+): Promise<number | null> {
+  try {
+    const account = await server.getAccount(sender);
+    const tx = new TransactionBuilder(account, {
+      fee: "1000",
+      networkPassphrase: NETWORK_PASSPHRASE,
+    })
+      .addOperation(
+        Operation.invokeHostFunction({
+          func,
+          contractId: CONTRACT_ID,
+          args,
+        } as any),
+      )
+      .setTimeout(30)
+      .build();
+
+    const sim = await server.simulateTransaction(tx);
+    if (rpc.Api.isSimulationError(sim)) return null;
+    return Number(
+      (sim as rpc.Api.SimulateTransactionSuccessResponse).minResourceFee ?? 0,
+    );
+  } catch {
+    return null;
+  }
+}
+
 export interface SubmitOptions {
   /** Called when simulation fee exceeds MAX_SIMULATION_FEE_STROOPS. */
   onHighGasWarning?: (feeStroops: number) => void;

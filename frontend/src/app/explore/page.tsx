@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, Suspense } from "react";
+import { useState, useMemo, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Navbar } from "@/components/Navbar";
@@ -8,7 +8,7 @@ import { CampaignCard } from "@/components/CampaignCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCampaignsPaged } from "@/hooks/useSoroban";
-import { Loader2, Search, Compass, ArrowUpDown } from "lucide-react";
+import { Search, Compass, ArrowUpDown } from "lucide-react";
 import type { Campaign } from "@/lib/soroban";
 
 const PAGE_SIZE = 9;
@@ -50,6 +50,7 @@ function ExploreContent() {
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "funded">("active");
   const [sortBy, setSortBy] = useState<SortKey>("newest");
 
+  const sentinelRef = useRef<HTMLDivElement>(null);
   const { data, isLoading, isFetching } = useCampaignsPaged(limit);
   const campaigns = data?.campaigns ?? [];
   const hasMore = data?.hasMore ?? false;
@@ -69,6 +70,21 @@ function ExploreContent() {
       setSortBy(sort as SortKey);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isFetching && !debouncedSearch) {
+          setLimit((prev) => prev + PAGE_SIZE);
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMore, isFetching, debouncedSearch]);
 
   useEffect(() => {
     const next = new URLSearchParams(searchParams.toString());
@@ -221,25 +237,15 @@ function ExploreContent() {
           </div>
         )}
 
-        {!isLoading && hasMore && !debouncedSearch && (
-          <div className="flex justify-center pt-4">
-            <Button
-              variant="outline"
-              onClick={() => setLimit((prev) => prev + PAGE_SIZE)}
-              disabled={isFetching}
-              className="min-w-[140px]"
-            >
-              {isFetching ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Loading...
-                </>
-              ) : (
-                "Load More"
-              )}
-            </Button>
+        {!isLoading && isFetching && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="h-[300px] rounded-xl bg-muted animate-pulse" />
+            ))}
           </div>
         )}
+
+        <div ref={sentinelRef} className="h-4" aria-hidden="true" />
       </main>
     </div>
   );

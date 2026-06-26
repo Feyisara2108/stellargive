@@ -5,6 +5,7 @@ import { useEvents } from "@/hooks/useSoroban";
 import { fromStroops } from "@/lib/soroban";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Activity, ArrowUpRight, Megaphone, Trophy } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
@@ -38,7 +39,26 @@ export function EventFeed() {
   }, [events]);
 
   if (isLoading) {
-    return <Activity className="animate-spin mx-auto my-8 text-muted-foreground" />;
+    return (
+      <Card className="h-full">
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Activity className="w-4 h-4 text-primary" /> Recent Activity
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6" aria-busy="true" aria-label="Loading recent activity">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex gap-4 items-start">
+              <Skeleton className="h-7 w-7 rounded-full shrink-0" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-3 w-2/3" />
+                <Skeleton className="h-2 w-1/4" />
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
@@ -94,8 +114,15 @@ export function EventFeed() {
           </div>
         ))}
         {!events?.length && (
-          <div className="text-center py-8 text-muted-foreground text-sm">
-            Waiting for on-chain events...
+          <div
+            role="status"
+            aria-live="polite"
+            className="text-center py-10 text-muted-foreground space-y-1 bg-muted/20 rounded-lg border border-dashed"
+          >
+            <p className="text-sm font-medium">No activity yet</p>
+            <p className="text-xs">
+              New donations, campaigns, and claims will appear here in real time.
+            </p>
           </div>
         )}
       </CardContent>
