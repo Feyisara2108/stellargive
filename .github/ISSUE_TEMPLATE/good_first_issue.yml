@@ -1,0 +1,94 @@
+name: 🌱 Good First Issue
+description: Tag a well-scoped task suitable for first-time contributors
+title: "[Good First Issue]: "
+labels: ["good first issue", "effort: S"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Welcome! This template is for scoping tasks that are approachable for newcomers to the StellarGive codebase. Please provide enough detail so a first-time contributor can pick this up and run with it.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What is the background for this task? Why does it need to be done?
+      placeholder: "e.g. Our README is missing setup instructions for Windows users, which causes confusion in the community..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Task Description
+      description: A clear and concise description of what needs to be done.
+      placeholder: "e.g. Add a Windows-specific setup section to the README with step-by-step instructions."
+    validations:
+      required: true
+
+  - type: textarea
+    id: requirements
+    attributes:
+      label: Requirements
+      description: What are the specific requirements or constraints for completing this task?
+      placeholder: |
+        - Must follow the existing documentation style
+        - Should include commands for both PowerShell and Command Prompt
+        - No new dependencies should be introduced
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance Criteria
+      description: How do we know this task is complete? List verifiable checkboxes.
+      placeholder: |
+        - [ ] README includes a Windows setup section
+        - [ ] Instructions are tested and working on Windows 10/11
+        - [ ] PR passes all CI checks
+    validations:
+      required: true
+
+  - type: textarea
+    id: files_to_touch
+    attributes:
+      label: Files to Touch
+      description: Which files will likely need to be created or modified?
+      placeholder: |
+        - README.md (update)
+        - docs/SETUP.md (update)
+    validations:
+      required: false
+
+  - type: dropdown
+    id: effort
+    attributes:
+      label: Estimated Effort
+      description: How much effort do you estimate this task requires?
+      options:
+        - "XS – less than 1 hour"
+        - "S – 1 to 3 hours"
+        - "M – half a day"
+        - "L – full day"
+    validations:
+      required: true
+
+  - type: textarea
+    id: mentor
+    attributes:
+      label: Mentorship / Help Available
+      description: Is there a maintainer available to help? Any hints or resources for the contributor?
+      placeholder: "e.g. Ping @rindicomfort on Discord for guidance. See docs/CONTRIBUTING.md for context."
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Information
+      description: Related issues, PRs, or any other relevant context.
+    validations:
+      required: false
