@@ -7,29 +7,24 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollText, Plus } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { PostUpdateForm } from "./PostUpdateForm";
 
 export function ProjectUpdates({ campaignId }: { campaignId: bigint }) {
   const { data: updates, isLoading } = useGetUpdates(campaignId);
   const { data: campaign } = useCampaign(campaignId);
   const { address } = useWallet();
   const addUpdate = useAddUpdate();
-  const [content, setContent] = useState("");
+  const queryClient = useQueryClient();
+
   const [showForm, setShowForm] = useState(false);
 
   const isCreator = !!address && campaign?.creator === address;
   const sorted = [...(updates ?? [])].sort((a, b) => Number(b.timestamp - a.timestamp));
 
-  const handleSubmit = async () => {
-    if (!content.trim()) return;
-    try {
-      await addUpdate.mutateAsync({ campaignId, content: content.trim() });
-      toast.success("Update posted!");
-      setContent("");
-      setShowForm(false);
-    } catch (e: any) {
-      toast.error(e.message || "Failed to post update");
-    }
+  const handleSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ["updates", campaignId.toString()] });
+    setShowForm(false);
   };
 
   return (
@@ -52,37 +47,11 @@ export function ProjectUpdates({ campaignId }: { campaignId: bigint }) {
 
       <CardContent className="space-y-4">
         {showForm && (
-          <div className="space-y-2 pb-4 border-b">
-            <textarea
-              placeholder="Share a campaign milestone or update… (max 500 chars)"
-              value={content}
-              onChange={(e) => setContent(e.target.value.slice(0, 500))}
-              rows={3}
-              className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">{content.length}/500</span>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setShowForm(false);
-                    setContent("");
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={handleSubmit}
-                  disabled={!content.trim() || addUpdate.isPending}
-                >
-                  {addUpdate.isPending ? "Posting…" : "Post"}
-                </Button>
-              </div>
-            </div>
-          </div>
+          <PostUpdateForm
+            campaignId={campaignId}
+            onSuccess={handleSuccess}
+            addUpdateMutation={addUpdate.mutateAsync}
+          />
         )}
 
         {isLoading && <p className="text-sm text-muted-foreground">Loading updates…</p>}
@@ -95,9 +64,7 @@ export function ProjectUpdates({ campaignId }: { campaignId: bigint }) {
           <div key={i} className="space-y-1 pb-4 border-b last:border-0 last:pb-0">
             <p className="text-sm whitespace-pre-wrap">{update.content}</p>
             <p className="text-xs text-muted-foreground">
-              {formatDistanceToNow(new Date(Number(update.timestamp) * 1000), {
-                addSuffix: true,
-              })}
+              {formatDistanceToNow(new Date(Number(update.timestamp) * 1000), { addSuffix: true })}
             </p>
           </div>
         ))}
