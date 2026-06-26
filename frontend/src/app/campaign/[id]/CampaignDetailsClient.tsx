@@ -24,16 +24,22 @@ const ProjectUpdates = dynamic(
   () => import("@/components/ProjectUpdates").then((mod) => mod.ProjectUpdates),
   { ssr: false },
 );
+const DonateModal = dynamic(
+  () => import("@/components/DonateModal").then((mod) => mod.DonateModal),
+  { ssr: false },
+);
 import { AddressLink } from "@/components/AddressLink";
 import { sanitizeUrl } from "@/lib/sanitize";
 import { RefundButton } from "@/components/RefundButton";
 import { TopDonors } from "@/components/TopDonors";
+import { StickyDonateBar } from "@/components/StickyDonateBar";
 
 export function CampaignDetailsClient({ params }: { params: { id: string } }) {
-  const { address } = useWallet();
+  const { address, isWrongNetwork } = useWallet();
   const { data: campaign, isLoading } = useCampaign(BigInt(params.id));
   const cancelCampaign = useCancelCampaign();
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
+  const [donateOpen, setDonateOpen] = useState(false);
 
   const isCreator = !!address && !!campaign && campaign.creator === address;
 
@@ -159,6 +165,14 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Donate modal (controlled) and sticky mobile CTA */}
+      {campaign?.status === "Active" && (
+        <>
+          <DonateModal campaign={campaign} open={donateOpen} onOpenChange={setDonateOpen} />
+          <StickyDonateBar onOpen={() => setDonateOpen(true)} disabled={isWrongNetwork} />
+        </>
+      )}
     </div>
   );
 }

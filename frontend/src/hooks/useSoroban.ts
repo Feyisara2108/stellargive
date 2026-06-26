@@ -12,6 +12,7 @@ import {
   getEvents,
   getUpdates,
   getTotalCampaigns,
+  resolveAddressName,
 } from "@/lib/soroban";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { Address, nativeToScVal } from "@stellar/stellar-sdk";
@@ -453,3 +454,20 @@ export function useCancelCampaign() {
     },
   });
 }
+
+/**
+ * Hook to resolve a Soroban Domain name for an address with caching.
+ * Returns the domain name if available, otherwise returns null.
+ * Never blocks render - resolution happens asynchronously.
+ */
+export function useResolvedName(address: string | null) {
+  return useQuery({
+    queryKey: ["resolved-name", address],
+    queryFn: () => (address ? resolveAddressName(address) : null),
+    enabled: !!address && address.length === 56,
+    staleTime: 1000 * 60 * 60, // Cache for 1 hour
+    gcTime: 1000 * 60 * 60 * 24, // Keep in cache for 24 hours
+    retry: false, // Don't retry on failure
+  });
+}
+

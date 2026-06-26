@@ -8,13 +8,20 @@ import { CampaignCard } from "@/components/CampaignCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCampaignsPaged } from "@/hooks/useSoroban";
-import { Search, Compass, ArrowUpDown } from "lucide-react";
+import { Search, Compass } from "lucide-react";
 import type { Campaign } from "@/lib/soroban";
 
 const PAGE_SIZE = 9;
 
 type SortKey = "newest" | "ending-soon" | "near-goal" | "most-raised";
 
+// Tabs for time-based curation (highest conversion drivers)
+const TIME_TABS: { key: SortKey; label: string }[] = [
+  { key: "newest", label: "Newest" },
+  { key: "ending-soon", label: "Ending Soon" },
+];
+
+// Full sort options (including advanced sorts)
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: "newest", label: "Newest" },
   { key: "ending-soon", label: "Ending Soon" },
@@ -160,26 +167,24 @@ function ExploreContent() {
               className="pl-9"
             />
           </div>
-          <div className="relative w-full sm:w-44">
-            <label htmlFor="explore-sort" className="sr-only">
-              Sort by
-            </label>
-            <ArrowUpDown className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <select
-              id="explore-sort"
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortKey)}
-              className="flex h-10 w-full rounded-lg border border-input bg-background pl-9 pr-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {SORT_OPTIONS.map((opt) => (
-                <option key={opt.key} value={opt.key}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
 
+        {/* Time-based curation tabs */}
+        <div className="flex flex-wrap gap-2" role="tablist" aria-label="Campaign curation">
+          {TIME_TABS.map((tab) => (
+            <Button
+              key={tab.key}
+              variant={sortBy === tab.key ? "default" : "outline"}
+              onClick={() => setSortBy(tab.key)}
+              role="tab"
+              aria-selected={sortBy === tab.key}
+            >
+              {tab.label}
+            </Button>
+          ))}
+        </div>
+
+        {/* Status filters */}
         <div className="flex flex-wrap gap-2" role="tablist" aria-label="Campaign status filters">
           <Button
             variant={statusFilter === "all" ? "default" : "outline"}

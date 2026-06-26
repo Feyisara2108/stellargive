@@ -399,3 +399,43 @@ export async function getTokenMetadata(contractId: string): Promise<TokenMetadat
 
   return { symbol, decimals };
 }
+
+/**
+ * Attempt to resolve a Soroban Domain name for the given address.
+ * Falls back to null if the address has no associated domain.
+ * Uses a simple HTTP API pattern; adapt as needed for your network.
+ */
+export async function resolveAddressName(address: string): Promise<string | null> {
+  if (!address || address.length < 56) return null;
+
+  try {
+    // Attempt to resolve via domain-resolver service
+    // This is a placeholder pattern - adapt to match your network's domain service
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+    try {
+      const response = await fetch(`https://domain-resolver.stellar.expert/resolve/${address}`, {
+        method: "GET",
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) return null;
+
+      const data = await response.json();
+      if (data?.name && typeof data.name === "string") {
+        return data.name;
+      }
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      // Network/timeout errors are silent failures
+    }
+
+    return null;
+  } catch {
+    // Silently fail for any other errors
+    return null;
+  }
+}

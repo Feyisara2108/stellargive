@@ -7,10 +7,11 @@ import { CampaignCard } from "@/components/CampaignCard";
 import { WalletConnect } from "@/components/WalletConnect";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useRecentCampaigns, useEvents } from "@/hooks/useSoroban";
 import { fromStroops, type Campaign } from "@/lib/soroban";
 import { useWallet } from "@/lib/WalletProvider";
-import { Loader2, UserCircle, Wallet, HandCoins, TrendingUp, Megaphone } from "lucide-react";
+import { Loader2, UserCircle, Wallet, HandCoins, TrendingUp, Megaphone, AlertCircle, RotateCw } from "lucide-react";
 
 const ZERO_ADDRESS = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
 
@@ -23,8 +24,8 @@ function normalizeAddress(value: unknown): string | null {
 
 export default function ProfilePage() {
   const { address, isConnected } = useWallet();
-  const { data: campaigns, isLoading: campaignsLoading } = useRecentCampaigns();
-  const { data: events, isLoading: eventsLoading } = useEvents(100);
+  const { data: campaigns, isLoading: campaignsLoading, isError: campaignsError, refetch: refetchCampaigns } = useRecentCampaigns();
+  const { data: events, isLoading: eventsLoading, isError: eventsError, refetch: refetchEvents } = useEvents(100);
 
   const { created, supported, totalRaised, totalDonated, activeCount } = useMemo(() => {
     const all: Campaign[] = campaigns ?? [];
@@ -81,6 +82,12 @@ export default function ProfilePage() {
   }
 
   const isLoading = campaignsLoading || eventsLoading;
+  const isError = campaignsError || eventsError;
+
+  const handleRetry = () => {
+    refetchCampaigns();
+    refetchEvents();
+  };
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -94,29 +101,59 @@ export default function ProfilePage() {
           <p className="text-muted-foreground font-mono text-sm break-all">{address}</p>
         </div>
 
+        {/* Error state */}
+        {isError && !isLoading && (
+          <div className="rounded-lg border border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/30 p-6 space-y-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+              <div className="space-y-2 flex-1">
+                <h3 className="font-semibold text-red-900 dark:text-red-200">Failed to load data</h3>
+                <p className="text-sm text-red-800 dark:text-red-300">
+                  We encountered an error while fetching your campaigns. Please check your connection and try again.
+                </p>
+              </div>
+            </div>
+            <Button onClick={handleRetry} variant="outline" size="sm" className="w-full sm:w-auto">
+              <RotateCw className="mr-2 h-4 w-4" />
+              Retry
+            </Button>
+          </div>
+        )}
+
         {/* Summary cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <StatCard
-            icon={<TrendingUp className="h-4 w-4 text-blue-500" />}
-            label="Total Raised (created)"
-            value={`${fromStroops(totalRaised)} XLM`}
-          />
-          <StatCard
-            icon={<HandCoins className="h-4 w-4 text-green-500" />}
-            label="Total Donated"
-            value={`${fromStroops(totalDonated)} XLM`}
-          />
-          <StatCard
-            icon={<Megaphone className="h-4 w-4 text-purple-500" />}
-            label="Active Campaigns"
-            value={activeCount.toString()}
-          />
+          {isLoading ? (
+            <>
+              <Skeleton className="h-24" />
+              <Skeleton className="h-24" />
+              <Skeleton className="h-24" />
+            </>
+          ) : (
+            <>
+              <StatCard
+                icon={<TrendingUp className="h-4 w-4 text-blue-500" />}
+                label="Total Raised (created)"
+                value={`${fromStroops(totalRaised)} XLM`}
+              />
+              <StatCard
+                icon={<HandCoins className="h-4 w-4 text-green-500" />}
+                label="Total Donated"
+                value={`${fromStroops(totalDonated)} XLM`}
+              />
+              <StatCard
+                icon={<Megaphone className="h-4 w-4 text-purple-500" />}
+                label="Active Campaigns"
+                value={activeCount.toString()}
+              />
+            </>
+          )}
         </div>
 
         {isLoading ? (
-          <div className="flex justify-center py-20">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
+          <>
+            <CampaignsSectionSkeleton />
+            <CampaignsSectionSkeleton />
+          </>
         ) : (
           <>
             <Section
@@ -189,3 +226,17 @@ function Section({
     </section>
   );
 }
+
+function CampaignsSectionSkeleton() {
+  return (
+    <section className="space-y-4">
+      <Skeleton className="h-7 w-40" />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <Skeleton className="h-80 rounded-lg" />
+        <Skeleton className="h-80 rounded-lg" />
+        <Skeleton className="h-80 rounded-lg" />
+      </div>
+    </section>
+  );
+}
+

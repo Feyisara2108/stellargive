@@ -46,9 +46,9 @@ const MILESTONE_COPY: Record<MilestonePercent, { title: string; description: str
   100: { title: "Fully funded!", description: "100% of the goal raised." },
 };
 
-export function DonateModal({ campaign }: { campaign: Campaign }) {
+export function DonateModal({ campaign, open: openProp, onOpenChange, }: { campaign: Campaign; open?: boolean; onOpenChange?: (open: boolean) => void; }) {
   const router = useRouter();
-  const { address } = useWallet();
+  const { address, isWrongNetwork } = useWallet();
   const {
     register,
     handleSubmit,
@@ -69,7 +69,13 @@ export function DonateModal({ campaign }: { campaign: Campaign }) {
   const liveRemaining = Math.max(remaining - (Number(amount) || 0), 0);
   const canFundRest = remaining >= MIN_DONATION_XLM && (Number(amount) || 0) < remaining;
   const [isAnonymous, setIsAnonymous] = useState(false);
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = openProp !== undefined;
+  const isOpen = isControlled ? !!openProp : internalOpen;
+  const setIsOpen = (open: boolean) => {
+    if (onOpenChange) onOpenChange(open);
+    else setInternalOpen(open);
+  };
   const [showSuccess, setShowSuccess] = useState(false);
   const [successTxHash, setSuccessTxHash] = useState("");
   const [successAmount, setSuccessAmount] = useState("");
