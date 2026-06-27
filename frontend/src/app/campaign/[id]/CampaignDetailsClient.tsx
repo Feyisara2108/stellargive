@@ -34,6 +34,7 @@ import { RefundButton } from "@/components/RefundButton";
 import { TopDonors } from "@/components/TopDonors";
 import { StickyDonateBar } from "@/components/StickyDonateBar";
 import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
+import { useCountdown } from "@/hooks/useCountdown";
 
 export function CampaignDetailsClient({ params }: { params: { id: string } }) {
   const { address, isWrongNetwork } = useWallet();
@@ -41,6 +42,7 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
   const cancelCampaign = useCancelCampaign();
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
   const [donateOpen, setDonateOpen] = useState(false);
+  const countdown = useCountdown(campaign?.deadline || 0n);
 
   const isCreator = !!address && !!campaign && campaign.creator === address;
 
@@ -89,6 +91,11 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
                 >
                   🐦 Twitter
                 </a>
+              )}
+              {campaign.status === "Active" && (
+                <span className="inline-flex items-center gap-1 font-medium text-orange-500">
+                  ⏱️ {countdown.isEnded ? "Ended" : `${countdown.days}d ${countdown.hours}h ${countdown.minutes}m left`}
+                </span>
               )}
             </div>
           )}
