@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useCreateCampaign } from "@/hooks/useSoroban";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useWallet } from "@/lib/WalletProvider";
 import { Button } from "@/components/ui/button";
 import {
@@ -118,15 +119,33 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
     },
   });
 
-  // Trigger validation once on mount so `formState.isValid` reflects the
-  // schema applied to the initial values (otherwise it stays optimistically
-  // `true` until the user edits any field, which would briefly render an
-  // enabled submit button on top of invalid defaults).
+  // Restore draft from sessionStorage and trigger validation once on mount
   useEffect(() => {
+    const saved = sessionStorage.getItem("create_campaign_draft");
+    if (saved) {
+      try {
+        const draft = JSON.parse(saved);
+        Object.entries(draft).forEach(([key, val]) => {
+          if (val !== undefined) {
+            form.setValue(key as any, val);
+          }
+        });
+      } catch (e) {
+        console.error("Failed to restore campaign draft", e);
+      }
+    }
     void form.trigger();
-    // form is stable across renders for our purposes; we only want this once.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Save form draft to sessionStorage as user types
+  const formValues = form.watch();
+  const debouncedValues = useDebouncedValue(formValues, 500);
+
+  useEffect(() => {
+    const { beneficiary, ...draftToSave } = debouncedValues;
+    sessionStorage.setItem("create_campaign_draft", JSON.stringify(draftToSave));
+  }, [debouncedValues]);
 
   const watchAcceptedToken = form.watch("acceptedToken");
   const metadataUri = form.watch("metadataUri") ?? "";
@@ -152,6 +171,7 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
         website: values.website || undefined,
         twitter: values.twitter || undefined,
       });
+      sessionStorage.removeItem("create_campaign_draft");
       setIsOpen(false);
       form.reset();
       setSelectedFileName("");
