@@ -10,10 +10,11 @@ const DonateModal = dynamic(
   { ssr: false },
 );
 import { ClaimButton } from "@/components/ClaimButton";
-import { Calendar, Target, TrendingUp } from "lucide-react";
+import { Calendar, Target, TrendingUp, Image as ImageIcon } from "lucide-react";
 import { ShareButton } from "@/components/ShareButton";
 import { AddressLink } from "@/components/AddressLink";
 import { RelativeTime } from "@/components/RelativeTime";
+import { useState } from "react";
 
 function calculateProgress(raised: bigint, target: bigint): number {
   if (target === 0n) return 0;
@@ -23,7 +24,19 @@ function calculateProgress(raised: bigint, target: bigint): number {
   return Math.min(Number(scaled) / 100, 100);
 }
 
+function getCampaignImageUrl(uri?: string) {
+  if (!uri) return null;
+  if (uri.startsWith("ipfs://")) {
+    return uri.replace("ipfs://", "https://ipfs.io/ipfs/");
+  }
+  if (uri.startsWith("https://")) {
+    return uri;
+  }
+  return null;
+}
+
 export function CampaignCard({ campaign }: { campaign: Campaign }) {
+  const [imgError, setImgError] = useState(false);
   const raised = Number(fromStroops(campaign.raised_amount));
   const target = Number(fromStroops(campaign.target_amount));
   const progress = calculateProgress(campaign.raised_amount, campaign.target_amount);
@@ -36,7 +49,23 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
   const deadlineDate = new Date(Number(campaign.deadline) * 1000);
 
   return (
-    <Card className="flex flex-col group hover:border-primary/50 transition-all duration-300">
+    <Card className="flex flex-col group hover:border-primary/50 transition-all duration-300 overflow-hidden">
+      <div className="relative aspect-video w-full bg-muted flex items-center justify-center overflow-hidden">
+        {getCampaignImageUrl(campaign.metadata_uri) && !imgError ? (
+          <img
+            src={getCampaignImageUrl(campaign.metadata_uri)}
+            alt={campaign.title}
+            loading="lazy"
+            className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-105"
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          <div className="flex flex-col items-center justify-center text-muted-foreground gap-2">
+            <ImageIcon className="w-8 h-8 opacity-20" />
+            <span className="text-[10px] uppercase tracking-widest opacity-40">No Image</span>
+          </div>
+        )}
+      </div>
       <CardHeader>
         <div className="flex justify-between items-start mb-2">
           <div
