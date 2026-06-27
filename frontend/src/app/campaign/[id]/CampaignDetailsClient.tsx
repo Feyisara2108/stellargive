@@ -33,8 +33,30 @@ import { sanitizeUrl } from "@/lib/sanitize";
 import { RefundButton } from "@/components/RefundButton";
 import { TopDonors } from "@/components/TopDonors";
 import { StickyDonateBar } from "@/components/StickyDonateBar";
+import { Progress } from "@/components/ui/progress";
+import { fromStroops } from "@/lib/soroban";
+import { useState } from "react";
+import { Image as ImageIcon } from "lucide-react";
+
+function calculateProgress(raised: bigint, target: bigint): number {
+  if (target === 0n) return 0;
+  const scaled = (raised * 10_000n) / target;
+  return Math.min(Number(scaled) / 100, 100);
+}
+
+function getCampaignImageUrl(uri?: string) {
+  if (!uri) return null;
+  if (uri.startsWith("ipfs://")) {
+    return uri.replace("ipfs://", "https://ipfs.io/ipfs/");
+  }
+  if (uri.startsWith("https://")) {
+    return uri;
+  }
+  return null;
+}
 
 export function CampaignDetailsClient({ params }: { params: { id: string } }) {
+  const [imgError, setImgError] = useState(false);
   const { address, isWrongNetwork } = useWallet();
   const { data: campaign, isLoading } = useCampaign(BigInt(params.id));
   const cancelCampaign = useCancelCampaign();
@@ -97,10 +119,69 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-4">
         <div className="lg:col-span-2 space-y-6">
-          {/* Main campaign info placeholder */}
-          <div className="h-64 bg-muted/20 rounded-xl border border-dashed flex items-center justify-center text-muted-foreground text-sm">
-            Campaign Content Area
-          </div>
+          {!isLoading && campaign && (
+            <div className="space-y-6">
+              <div className="relative aspect-video w-full bg-muted rounded-xl overflow-hidden border">
+                {getCampaignImageUrl(campaign.metadata_uri) && !imgError ? (
+                  <img
+                    src={getCampaignImageUrl(campaign.metadata_uri)}
+                    alt={campaign.title}
+                    className="object-cover w-full h-full"
+                    onError={() => setImgError(true)}
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
+                    <ImageIcon className="w-12 h-12 opacity-20" />
+                    <span className="text-sm opacity-40">No campaign image available</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`px-2 py-1 rounded text-xs font-bold uppercase tracking-wider ${
+                      campaign.status === "Active"
+                        ? "bg-green-500/20 text-green-500"
+                        : campaign.status === "Funded"
+                          ? "bg-blue-500/20 text-blue-500"
+                          : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {campaign.status}
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    Category: {campaign.category}
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between items-end">
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">Raised</p>
+                      <p className="text-2xl font-bold">{fromStroops(campaign.raised_amount)} XLM</p>
+                    </div>
+                    <div className="text-right space-y-1">
+                      <p className="text-sm text-muted-foreground">Target</p>
+                      <p className="text-lg font-medium">{fromStroops(campaign.target_amount)} XLM</p>
+                    </div>
+                  </div>
+                  <Progress
+                    value={calculateProgress(campaign.raised_amount, campaign.target_amount)}
+                    className="h-3"
+                    aria-label="Campaign progress"
+                  />
+                </div>
+
+                <div className="prose prose-sm dark:prose-invert max-w-none">
+                  <p className="text-foreground leading-relaxed whitespace-pre-wrap">
+                    {campaign.description || "No description provided for this campaign."}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          {isLoading && <Skeleton className="h-64 w-full rounded-xl" />}
           <ProjectUpdates campaignId={BigInt(params.id)} />
         </div>
 
