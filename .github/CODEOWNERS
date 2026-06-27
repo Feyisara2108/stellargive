@@ -1,0 +1,11 @@
+# Default owner for everything not matched below
+* @Nursca
+
+# Frontend
+frontend/** @Nursca
+
+# Smart contracts
+contracts/** @Nursca
+
+# GitHub Actions, workflows, and repo config
+.github/** @Nursca

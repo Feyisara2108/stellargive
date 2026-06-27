@@ -12,6 +12,10 @@ permissions:
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
     steps:
       - uses: googleapis/release-please-action@v4
         id: release
@@ -24,3 +28,57 @@ jobs:
           echo "Release was successfully created!"
           echo "Tag: ${{ steps.release.outputs.tag_name }}"
           echo "Version: ${{ steps.release.outputs.version }}"
+
+  sbom:
+    name: Generate SBOM
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Frontend SBOM (npm / CycloneDX) ──────────────────────────────────
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.nvmrc
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Generate frontend SBOM
+        working-directory: frontend
+        run: |
+          npx --yes @cyclonedx/cyclonedx-npm \
+            --output-format JSON \
+            --output-file ../sbom-frontend.cdx.json
+          echo "Frontend SBOM generated."
+
+      # ── Contract SBOM (cargo / CycloneDX) ────────────────────────────────
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-cyclonedx
+        run: cargo install cargo-cyclonedx
+
+      - name: Generate contract SBOM
+        working-directory: contracts/stellar-give
+        run: |
+          cargo cyclonedx --format json --output-cdx
+          mv bom.json ../../sbom-contracts.cdx.json
+          echo "Contract SBOM generated."
+
+      # ── Attach both SBOMs to the GitHub Release ───────────────────────────
+      - name: Upload SBOMs to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ needs.release-please.outputs.tag_name }} \
+            sbom-frontend.cdx.json \
+            sbom-contracts.cdx.json \
+            --clobber
