@@ -111,27 +111,50 @@ export default function ActivityPage() {
             events found yet.
           </div>
         ) : (
-          <div className="relative">
-            {showIndicator && (
-              <div className="absolute -top-12 left-1/2 -translate-x-1/2 z-10 bg-primary text-primary-foreground px-4 py-1.5 rounded-full text-sm font-medium shadow-md animate-in fade-in slide-in-from-top-4 duration-300">
-                New activity
-              </div>
-            )}
-            <Card>
-              <CardContent className="divide-y p-0">
-                {visible.map((event: any) => (
-                  <ActivityRow key={event.id} event={event} />
-                ))}
-              </CardContent>
-            </Card>
-          </div>
+          <>
+            <div className="relative hidden md:block overflow-x-auto">
+              {showIndicator && (
+                <div className="absolute -top-12 left-1/2 -translate-x-1/2 z-10 bg-primary text-primary-foreground px-4 py-1.5 rounded-full text-sm font-medium shadow-md animate-in fade-in slide-in-from-top-4 duration-300">
+                  New activity
+                </div>
+              )}
+              <Card>
+                <table className="w-full text-sm text-left">
+                  <thead className="text-xs text-muted-foreground uppercase bg-muted/20">
+                    <tr>
+                      <th className="px-4 py-3 rounded-tl-md">Status</th>
+                      <th className="px-4 py-3">Action</th>
+                      <th className="px-4 py-3">Time</th>
+                      <th className="px-4 py-3 rounded-tr-md text-right">Tx Hash</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {visible.map((event: any) => (
+                      <ActivityRowDesktop key={event.id} event={event} />
+                    ))}
+                  </tbody>
+                </table>
+              </Card>
+            </div>
+            
+            <div className="relative md:hidden space-y-4">
+              {showIndicator && (
+                <div className="absolute -top-12 left-1/2 -translate-x-1/2 z-10 bg-primary text-primary-foreground px-4 py-1.5 rounded-full text-sm font-medium shadow-md animate-in fade-in slide-in-from-top-4 duration-300">
+                  New activity
+                </div>
+              )}
+              {visible.map((event: any) => (
+                <ActivityRowMobile key={event.id} event={event} />
+              ))}
+            </div>
+          </>
         )}
       </main>
     </div>
   );
 }
 
-function ActivityRow({ event }: { event: any }) {
+function useActivityData(event: any) {
   const id = campaignId(event.data?.[0]);
   const when = event.createdAt ? (
     <RelativeTime date={new Date(event.createdAt)} fallback={`Ledger ${event.ledger}`} />
@@ -197,18 +220,74 @@ function ActivityRow({ event }: { event: any }) {
     body = <span className="text-muted-foreground">{event.topic}</span>;
   }
 
+  return { id, when, icon, iconBg, label, body, txHash: event.txHash };
+}
+
+function ActivityRowDesktop({ event }: { event: any }) {
+  const { icon, iconBg, label, body, when, txHash } = useActivityData(event);
+  
   return (
-    <div className="flex gap-4 items-start p-4">
-      <div className={`mt-0.5 p-2 rounded-full shrink-0 ${iconBg}`}>{icon}</div>
-      <div className="flex-1 min-w-0 space-y-1">
-        <p className="text-sm">{body}</p>
-        <div className="flex items-center gap-2 text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
-          <span>{label}</span>
-          <span>•</span>
-          <span>{when}</span>
-          <span>•</span>
-          <span>Ledger {event.ledger}</span>
+    <tr className="hover:bg-muted/10 transition-colors">
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-2">
+          <div className={`p-1.5 rounded-full shrink-0 ${iconBg}`}>{icon}</div>
+          <span className="uppercase text-[10px] font-bold tracking-wider text-muted-foreground">
+            {label}
+          </span>
         </div>
+      </td>
+      <td className="px-4 py-3 text-sm">{body}</td>
+      <td className="px-4 py-3 text-xs text-muted-foreground">
+        {when} <span className="hidden lg:inline-block"> • Ledger {event.ledger}</span>
+      </td>
+      <td className="px-4 py-3 text-right">
+        {txHash ? (
+          <a
+            href={`https://stellar.expert/explorer/testnet/tx/${txHash}`}
+            target="_blank"
+            rel="noreferrer"
+            className="font-mono text-xs text-primary hover:underline"
+          >
+            {txHash.substring(0, 8)}...{txHash.substring(txHash.length - 4)}
+          </a>
+        ) : (
+          <span className="text-muted-foreground text-xs">N/A</span>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+function ActivityRowMobile({ event }: { event: any }) {
+  const { icon, iconBg, label, body, when, txHash } = useActivityData(event);
+
+  return (
+    <div className="flex flex-col gap-3 p-4 border rounded-lg bg-card">
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          <div className={`p-1.5 rounded-full shrink-0 ${iconBg}`}>{icon}</div>
+          <span className="uppercase text-[10px] font-bold tracking-wider text-muted-foreground">
+            {label}
+          </span>
+        </div>
+        <span className="text-xs text-muted-foreground">{when}</span>
+      </div>
+      <p className="text-sm">{body}</p>
+      
+      <div className="pt-3 border-t flex justify-between items-center text-xs">
+        <span className="text-muted-foreground">Tx Hash</span>
+        {txHash ? (
+          <a
+            href={`https://stellar.expert/explorer/testnet/tx/${txHash}`}
+            target="_blank"
+            rel="noreferrer"
+            className="font-mono text-primary hover:underline"
+          >
+            {txHash.substring(0, 8)}...{txHash.substring(txHash.length - 4)}
+          </a>
+        ) : (
+          <span className="text-muted-foreground">N/A</span>
+        )}
       </div>
     </div>
   );
