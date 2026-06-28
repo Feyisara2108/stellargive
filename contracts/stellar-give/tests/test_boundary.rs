@@ -139,23 +139,38 @@ fn test_get_campaigns_paged_boundaries() {
     let page_1 = client.get_campaigns_paged(&0_u64, &2_u32);
     assert_eq!(page_1.len(), 2);
     assert_eq!(page_1.get(0).unwrap().id, 1);
-    assert_eq!(page_1.get(0).unwrap().title, String::from_str(&env, "Campaign 1"));
+    assert_eq!(
+        page_1.get(0).unwrap().title,
+        String::from_str(&env, "Campaign 1")
+    );
     assert_eq!(page_1.get(1).unwrap().id, 2);
-    assert_eq!(page_1.get(1).unwrap().title, String::from_str(&env, "Campaign 2"));
+    assert_eq!(
+        page_1.get(1).unwrap().title,
+        String::from_str(&env, "Campaign 2")
+    );
 
     // 2. Test in-range page (offset 2, limit 2)
     let page_2 = client.get_campaigns_paged(&2_u64, &2_u32);
     assert_eq!(page_2.len(), 2);
     assert_eq!(page_2.get(0).unwrap().id, 3);
-    assert_eq!(page_2.get(0).unwrap().title, String::from_str(&env, "Campaign 3"));
+    assert_eq!(
+        page_2.get(0).unwrap().title,
+        String::from_str(&env, "Campaign 3")
+    );
     assert_eq!(page_2.get(1).unwrap().id, 4);
-    assert_eq!(page_2.get(1).unwrap().title, String::from_str(&env, "Campaign 4"));
+    assert_eq!(
+        page_2.get(1).unwrap().title,
+        String::from_str(&env, "Campaign 4")
+    );
 
     // 3. Test partial final page (offset 4, limit 2)
     let page_3 = client.get_campaigns_paged(&4_u64, &2_u32);
     assert_eq!(page_3.len(), 1);
     assert_eq!(page_3.get(0).unwrap().id, 5);
-    assert_eq!(page_3.get(0).unwrap().title, String::from_str(&env, "Campaign 5"));
+    assert_eq!(
+        page_3.get(0).unwrap().title,
+        String::from_str(&env, "Campaign 5")
+    );
 
     // 4. Test offset past the end (offset 5, limit 2) -> empty result, not an error
     let page_past = client.get_campaigns_paged(&5_u64, &2_u32);
@@ -184,4 +199,3 @@ fn test_get_campaigns_paged_boundaries() {
         assert!(all_campaigns.get(i).unwrap().id < all_campaigns.get(i + 1).unwrap().id);
     }
 }
-

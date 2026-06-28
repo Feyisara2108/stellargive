@@ -6,8 +6,8 @@ on:
   pull_request:
     branches: [main]
   schedule:
-    # Monthly scan on the 1st at 06:00 UTC.
-    - cron: "0 6 1 * *"
+    # Weekly scan on Mondays at 06:00 UTC.
+    - cron: "0 6 * * 1"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
