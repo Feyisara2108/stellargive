@@ -3,7 +3,9 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { Campaign, fromStroops } from "@/lib/soroban";
+import { Campaign } from "@/lib/soroban";
+import { formatTokenAmount } from "@/utils/format";
+import { useTokenMetadata } from "@/hooks/useSoroban";
 import { calculateProgress, getCampaignImageUrl } from "@/lib/utils";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -21,8 +23,12 @@ import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
 
 export function CampaignCard({ campaign }: { campaign: Campaign }) {
   const [imgError, setImgError] = useState(false);
-  const raised = Number(fromStroops(campaign.raised_amount));
-  const target = Number(fromStroops(campaign.target_amount));
+  const { data: tokenMeta } = useTokenMetadata(campaign.accepted_token);
+  const decimals = tokenMeta?.decimals ?? 7;
+  const symbol = tokenMeta?.symbol ?? "XLM";
+  
+  const raised = formatTokenAmount(campaign.raised_amount, decimals);
+  const target = formatTokenAmount(campaign.target_amount, decimals);
   const progress = calculateProgress(campaign.raised_amount, campaign.target_amount);
   const progressColor =
     progress >= 100 ? "bg-green-500" : progress >= 50 ? "bg-yellow-500" : "bg-blue-500";
@@ -68,7 +74,7 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
             <span className="text-muted-foreground flex items-center gap-1">
               <TrendingUp className="w-3 h-3" /> Raised
             </span>
-            <span className="font-bold">{raised} XLM</span>
+            <span className="font-bold">{raised} {symbol}</span>
           </div>
           <Progress
             value={progress}
@@ -79,7 +85,7 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>{progress.toFixed(1)}%</span>
             <span className="flex items-center gap-1">
-              <Target className="w-3 h-3" /> Target: {target} XLM
+              <Target className="w-3 h-3" /> Target: {target} {symbol}
             </span>
           </div>
         </div>
