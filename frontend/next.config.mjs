@@ -19,7 +19,6 @@ export default withBundleAnalyzer(
     release: process.env.SENTRY_RELEASE,
     widenClientFileUpload: true,
     hideSourceMaps: true,
-    disableLogger: true,
     sourcemaps: {
       disable: !process.env.SENTRY_AUTH_TOKEN,
     },

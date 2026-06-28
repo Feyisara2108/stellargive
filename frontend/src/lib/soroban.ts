@@ -143,6 +143,33 @@ export async function getRecentCampaigns(limit = 10): Promise<Campaign[]> {
   return campaigns;
 }
 
+export async function getTotalCampaigns(): Promise<bigint> {
+  const tx = new TransactionBuilder(
+    new Account("GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF", "0"),
+    {
+      fee: "100",
+      networkPassphrase: NETWORK_PASSPHRASE,
+    },
+  )
+    .addOperation(
+      Operation.invokeHostFunction({
+        func: "get_total_campaigns",
+        contractId: CONTRACT_ID,
+        args: [],
+      } as any),
+    )
+    .setTimeout(30)
+    .build();
+
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim)) {
+    return 0n;
+  }
+  if (!sim.result) return 0n;
+  const result = scValToNative(sim.result.retval);
+  return BigInt(result);
+}
+
 export async function getCampaignsPage(
   limit: number,
 ): Promise<{ campaigns: Campaign[]; hasMore: boolean }> {

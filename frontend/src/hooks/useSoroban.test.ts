@@ -56,7 +56,7 @@ const WALLET = WALLET_ADDRESS;
 
 const mockCampaign = makeCampaign();
 
-const TX_SUCCESS = { status: "SUCCESS", hash: "abc123def456" };
+const TX_SUCCESS = { status: "SUCCESS", hash: "abc123def456" } as any;
 
 // ─── Wrapper factory ─────────────────────────────────────────────────────────
 
@@ -88,7 +88,7 @@ describe("useSoroban", () => {
       isConnected: true,
       connect: vi.fn(),
       disconnect: vi.fn(),
-    });
+    } as any);
   });
 
   // ── useCampaign ────────────────────────────────────────────────────────────

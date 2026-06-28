@@ -135,7 +135,7 @@ export function useCreateCampaign() {
       const toastId = toast.loading("Submitting transaction...");
       return { toastId };
     },
-    onSuccess: (data: any, variables, context) => {
+    onSuccess: (data: any, variables: any, context: any) => {
       const action = data?.hash
         ? {
             label: "View Explorer",
@@ -151,7 +151,7 @@ export function useCreateCampaign() {
       }
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
     },
-    onError: (error: any, variables, context) => {
+    onError: (error: any, variables: any, context: any) => {
       const mappedError = mapTransactionError(error);
       if (context?.toastId) {
         toast.error(mappedError, { id: context.toastId });
@@ -179,7 +179,7 @@ export function useDonate() {
 
       return submitTransaction(address, "donate", args);
     },
-    onMutate: async (variables) => {
+    onMutate: async (variables: any) => {
       await queryClient.cancelQueries({ queryKey: ["campaign", variables.campaignId.toString()] });
       await queryClient.cancelQueries({ queryKey: ["campaigns"] });
 
@@ -197,9 +197,9 @@ export function useDonate() {
       }
 
       // Update campaigns lists (recent, paged)
-      queryClient.setQueriesData<{ campaigns: Campaign[]; hasMore: boolean }>({ queryKey: ["campaigns"] }, (old) => {
+      queryClient.setQueriesData<{ campaigns: Campaign[]; hasMore: boolean }>({ queryKey: ["campaigns"] }, (old: any) => {
         if (!old) return old;
-        const newCampaigns = old.campaigns?.map((c) =>
+        const newCampaigns = old.campaigns?.map((c: any) =>
           c.id === variables.campaignId
             ? { ...c, raised_amount: c.raised_amount + amountStroops }
             : c
@@ -210,7 +210,7 @@ export function useDonate() {
       const toastId = toast.loading("Submitting transaction...");
       return { previousCampaign, previousCampaignsQueries, toastId };
     },
-    onSuccess: (data: any, variables, context) => {
+    onSuccess: (data: any, variables: any, context: any) => {
       const action = data?.hash
         ? {
             label: "View Explorer",
@@ -225,12 +225,12 @@ export function useDonate() {
         toast.success(message, { action });
       }
     },
-    onError: (error: any, variables, context) => {
+    onError: (error: any, variables: any, context: any) => {
       if (context?.previousCampaign) {
         queryClient.setQueryData(["campaign", variables.campaignId.toString()], context.previousCampaign);
       }
       if (context?.previousCampaignsQueries) {
-        context.previousCampaignsQueries.forEach(([queryKey, previousData]) => {
+        context.previousCampaignsQueries.forEach(([queryKey, previousData]: any) => {
           queryClient.setQueryData(queryKey, previousData);
         });
       }
@@ -241,7 +241,7 @@ export function useDonate() {
         toast.error(mappedError);
       }
     },
-    onSettled: (data, error, variables) => {
+    onSettled: (data: any, error: any, variables: any) => {
       queryClient.invalidateQueries({ queryKey: ["campaign", variables.campaignId.toString()] });
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
     },
@@ -264,7 +264,7 @@ export function useClaimFunds() {
       const toastId = toast.loading("Submitting transaction...");
       return { toastId };
     },
-    onSuccess: (data: any, campaignId, context) => {
+    onSuccess: (data: any, campaignId: any, context: any) => {
       const action = data?.hash
         ? {
             label: "View Explorer",
@@ -281,7 +281,7 @@ export function useClaimFunds() {
       queryClient.invalidateQueries({ queryKey: ["campaign", campaignId.toString()] });
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
     },
-    onError: (error: any, variables, context) => {
+    onError: (error: any, variables: any, context: any) => {
       const mappedError = mapTransactionError(error);
       if (context?.toastId) {
         toast.error(mappedError, { id: context.toastId });
@@ -308,7 +308,7 @@ export function useClaimRefund() {
       const toastId = toast.loading("Claiming refund...");
       return { toastId };
     },
-    onSuccess: (data: any, campaignId, context) => {
+    onSuccess: (data: any, campaignId: any, context: any) => {
       const action = data?.hash
         ? {
             label: "View Explorer",
@@ -325,7 +325,7 @@ export function useClaimRefund() {
       queryClient.invalidateQueries({ queryKey: ["campaign", campaignId.toString()] });
       queryClient.invalidateQueries({ queryKey: ["refund-eligibility", campaignId.toString()] });
     },
-    onError: (error: any, _variables, context) => {
+    onError: (error: any, _variables: any, context: any) => {
       if (context?.toastId) {
         toast.error("Unable to claim refund. Please try again.", { id: context.toastId });
       } else {
@@ -409,7 +409,7 @@ export function useAddUpdate() {
 
       return submitTransaction(address, "add_update", args);
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (_: any, variables: any) => {
       queryClient.invalidateQueries({ queryKey: ["updates", variables.campaignId.toString()] });
     },
   });
@@ -466,7 +466,7 @@ export function useCancelCampaign() {
       const toastId = toast.loading("Cancelling campaign...");
       return { toastId };
     },
-    onSuccess: (data: any, campaignId, context) => {
+    onSuccess: (data: any, campaignId: any, context: any) => {
       const action = data?.hash
         ? {
             label: "View Explorer",
@@ -483,7 +483,7 @@ export function useCancelCampaign() {
       queryClient.invalidateQueries({ queryKey: ["campaign", campaignId.toString()] });
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
     },
-    onError: (error: any, _variables, context) => {
+    onError: (error: any, _variables: any, context: any) => {
       const mappedError = mapTransactionError(error);
       if (context?.toastId) {
         toast.error(mappedError, { id: context.toastId });
