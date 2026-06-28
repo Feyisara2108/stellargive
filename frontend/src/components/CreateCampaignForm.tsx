@@ -28,7 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, PlusCircle } from "lucide-react";
 import { TokenSelector, PREDEFINED_TOKENS } from "@/components/TokenSelector";
 import { cn } from "@/lib/utils";
@@ -93,6 +93,7 @@ const NATIVE_XLM = "CDLZS3ZCDY7SF3SIVR6Y7I6SN636O27T7G5MKSUIU22ZS76E55WJIPZ4";
 export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
   const { isWrongNetwork } = useWallet();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isOpen, setIsOpen] = useState(false);
   const [selectedFileName, setSelectedFileName] = useState("");
   const [uploadError, setUploadError] = useState("");

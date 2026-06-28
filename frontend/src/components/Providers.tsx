@@ -6,7 +6,7 @@ import { WalletProvider } from "@/lib/WalletProvider";
 import { MockWalletProvider } from "@/components/MockWalletProvider";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "next-themes";
-import { NetworkBanner } from "@/components/NetworkBanner";
+import { NetworkMismatchBanner } from "@/components/NetworkMismatchBanner";
 
 const queryClient = new QueryClient();
 
@@ -25,7 +25,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <QueryClientProvider client={queryClient}>
         <ActiveWalletProvider>
-          <NetworkBanner />
+          <NetworkMismatchBanner />
           {children}
           <Toaster position="top-center" richColors />
         </ActiveWalletProvider>

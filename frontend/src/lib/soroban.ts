@@ -72,6 +72,7 @@ export interface Campaign {
   creator: string;
   beneficiary: string;
   title: string;
+  description: string;
   category: string;
   target_amount: bigint;
   raised_amount: bigint;
@@ -88,6 +89,7 @@ function parseCampaign(native: any): Campaign {
     creator: native.creator,
     beneficiary: native.beneficiary,
     title: native.title.toString(),
+    description: native.description.toString(),
     category: native.category.toString(),
     target_amount: BigInt(native.target_amount),
     raised_amount: BigInt(native.raised_amount),
