@@ -5,11 +5,32 @@ import { CampaignDetailsClient } from "./CampaignDetailsClient";
 
 type Props = { params: { id: string } };
 
+function getImageUrl(metadataUri?: string) {
+  if (!metadataUri) return undefined;
+  if (metadataUri.startsWith("ipfs://")) {
+    return metadataUri.replace("ipfs://", "https://ipfs.io/ipfs/");
+  }
+  return metadataUri;
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const defaultTitle = "StellarGive | Relief Grant Platform";
+  const defaultDescription = "A decentralized donation platform built on Stellar.";
+
   const fallback: Metadata = {
     title: `Campaign #${params.id} | StellarGive`,
-    description:
-      "Support relief campaigns on StellarGive, a decentralized donation platform built on Stellar.",
+    description: defaultDescription,
+    openGraph: {
+      title: `Campaign #${params.id} | StellarGive`,
+      description: defaultDescription,
+      type: "website",
+      siteName: "StellarGive",
+    },
+    twitter: {
+      card: "summary",
+      title: `Campaign #${params.id} | StellarGive`,
+      description: defaultDescription,
+    },
   };
 
   try {
@@ -19,6 +40,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       campaign.raised_amount,
     )} of ${fromStroops(campaign.target_amount)} XLM raised. Support this campaign on StellarGive.`;
 
+    const imageUrl = getImageUrl(campaign.metadata_uri);
+
     return {
       title,
       description,
@@ -27,11 +50,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         description,
         type: "website",
         siteName: "StellarGive",
+        ...(imageUrl && { images: [{ url: imageUrl }] }),
       },
       twitter: {
-        card: "summary",
+        card: imageUrl ? "summary_large_image" : "summary",
         title,
         description,
+        ...(imageUrl && { images: [imageUrl] }),
       },
     };
   } catch {
