@@ -18,18 +18,7 @@ const CAMPAIGN_ID = 1n;
 const ANONYMOUS_DONOR = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
 const REAL_DONOR = "GDONORAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVWXY";
 
-const makeDonationEvent = (
-  id: string,
-  donor: string | null,
-  amountStroops: bigint,
-  campaignId: bigint = CAMPAIGN_ID,
-  ledger = 100,
-) => ({
-  id,
-  topic: "received",
-  data: [campaignId, donor, amountStroops, 0n, "native"],
-  ledger,
-});
+import { makeDonationEvent } from "@/test/factories";
 
 beforeEach(() => {
   vi.mocked(useEvents).mockReset();

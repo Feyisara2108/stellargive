@@ -18,12 +18,7 @@ vi.mock("sonner", () => ({
 
 import { useEvents } from "@/hooks/useSoroban";
 
-const makeEvent = (
-  id: string,
-  topic: "received" | "created" | "claimed",
-  data: (bigint | string | number)[],
-  ledger = 100,
-) => ({ id, topic, data, ledger });
+import { makeEvent } from "@/test/factories";
 
 beforeEach(() => {
   vi.mocked(useEvents).mockReset();

@@ -119,11 +119,13 @@ export function DonateModal({ campaign, open: openProp, onOpenChange, }: { campa
     if (balanceXLM !== null && amount && Number(amount) > 0) {
       trigger("amount");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [balanceXLM, trigger]);
 
   // Clear inline submit error whenever the user edits the amount.
   useEffect(() => {
     if (submitError) setSubmitError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [amount]);
 
   useEffect(() => {

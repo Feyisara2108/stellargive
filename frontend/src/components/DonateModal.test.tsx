@@ -17,18 +17,11 @@ vi.mock("@/hooks/useSoroban", () => ({
   getCrossedMilestones: () => [],
 }));
 
-const baseCampaign: Campaign = {
-  id: 1n,
-  creator: "GA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVSGZ",
-  beneficiary: "GCDEMOBENEFICIARYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+import { makeCampaign } from "@/test/factories";
+
+const baseCampaign = makeCampaign({
   title: "Flood Relief — Lagos",
-  category: "relief",
-  target_amount: 1000000000n, // 100 XLM
-  raised_amount: 350000000n, // 35 XLM
-  deadline: BigInt(Math.floor(Date.now() / 1000) + 86400),
-  accepted_token: "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
-  status: "Active",
-};
+});
 
 describe("DonateModal", () => {
   it("should have no accessibility violations in trigger state", async () => {

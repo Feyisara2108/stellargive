@@ -48,24 +48,15 @@ import { useWallet } from "@/lib/WalletProvider";
 import { toast } from "sonner";
 import type { Campaign } from "@/lib/soroban";
 
+import { makeCampaign, WALLET_ADDRESS } from "@/test/factories";
+
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
-const WALLET = "GA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVSGZ";
+const WALLET = WALLET_ADDRESS;
 
-const mockCampaign: Campaign = {
-  id: 1n,
-  creator: WALLET,
-  beneficiary: WALLET,
-  title: "Test Campaign",
-  category: "relief",
-  target_amount: 1_000_000_000n,
-  raised_amount: 350_000_000n,
-  deadline: BigInt(Math.floor(Date.now() / 1000) + 86_400),
-  accepted_token: "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
-  status: "Active",
-};
+const mockCampaign = makeCampaign();
 
-const TX_SUCCESS = { status: "SUCCESS", hash: "abc123def456" };
+const TX_SUCCESS = { status: "SUCCESS", hash: "abc123def456" } as any;
 
 // ─── Wrapper factory ─────────────────────────────────────────────────────────
 
@@ -97,7 +88,7 @@ describe("useSoroban", () => {
       isConnected: true,
       connect: vi.fn(),
       disconnect: vi.fn(),
-    });
+    } as any);
   });
 
   // ── useCampaign ────────────────────────────────────────────────────────────
