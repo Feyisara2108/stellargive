@@ -49,6 +49,8 @@ function sortCampaigns(campaigns: Campaign[], sortBy: SortKey): Campaign[] {
   }
 }
 
+const EMPTY_CAMPAIGNS: Campaign[] = [];
+
 function ExploreContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -60,7 +62,7 @@ function ExploreContent() {
 
   const sentinelRef = useRef<HTMLDivElement>(null);
   const { data, isLoading, isFetching } = useCampaignsPaged(limit);
-  const campaigns = data?.campaigns ?? [];
+  const campaigns = data?.campaigns ?? EMPTY_CAMPAIGNS;
   const hasMore = data?.hasMore ?? false;
 
   useEffect(() => {
@@ -119,6 +121,7 @@ function ExploreContent() {
         );
 
     return sortCampaigns(searched, sortBy);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaigns, debouncedSearch, statusFilter, sortBy]);
 
   const emptyMessage = useMemo(() => {
