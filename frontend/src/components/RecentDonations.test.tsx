@@ -18,18 +18,7 @@ const CAMPAIGN_ID = 1n;
 const ANONYMOUS_DONOR = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
 const REAL_DONOR = "GDONORAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVWXY";
 
-const makeDonationEvent = (
-  id: string,
-  donor: string | null,
-  amountStroops: bigint,
-  campaignId: bigint = CAMPAIGN_ID,
-  ledger = 100,
-) => ({
-  id,
-  topic: "received",
-  data: [campaignId, donor, amountStroops, 0n, "native"],
-  ledger,
-});
+import { makeDonationEvent } from "@/test/factories";
 
 beforeEach(() => {
   vi.mocked(useEvents).mockReset();
@@ -37,19 +26,31 @@ beforeEach(() => {
 
 describe("RecentDonations — loading state", () => {
   it("renders skeleton placeholders while events are loading", () => {
-    vi.mocked(useEvents).mockReturnValue({ data: undefined, isLoading: true, isError: false } as any);
+    vi.mocked(useEvents).mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isError: false,
+    } as any);
     render(<RecentDonations campaignId={CAMPAIGN_ID} />);
     expect(screen.getByLabelText(/Loading recent donations/i)).toHaveAttribute("aria-busy", "true");
   });
 
   it("renders the card heading in the loading state", () => {
-    vi.mocked(useEvents).mockReturnValue({ data: undefined, isLoading: true, isError: false } as any);
+    vi.mocked(useEvents).mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isError: false,
+    } as any);
     render(<RecentDonations campaignId={CAMPAIGN_ID} />);
     expect(screen.getByText(/Recent Donations/i)).toBeInTheDocument();
   });
 
   it("does not render the empty-state copy in the loading state", () => {
-    vi.mocked(useEvents).mockReturnValue({ data: undefined, isLoading: true, isError: false } as any);
+    vi.mocked(useEvents).mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isError: false,
+    } as any);
     render(<RecentDonations campaignId={CAMPAIGN_ID} />);
     expect(screen.queryByText(/No donations yet/i)).not.toBeInTheDocument();
   });
@@ -170,7 +171,9 @@ describe("RecentDonations — address links", () => {
     } as any);
     render(<RecentDonations campaignId={CAMPAIGN_ID} />);
     // formatAddress("GDONOR...VWXY") -> "GDON...VWXY"
-    expect(screen.getByText(`${REAL_DONOR.slice(0, 4)}...${REAL_DONOR.slice(-4)}`)).toBeInTheDocument();
+    expect(
+      screen.getByText(`${REAL_DONOR.slice(0, 4)}...${REAL_DONOR.slice(-4)}`),
+    ).toBeInTheDocument();
   });
 
   it("shows 'Anonymous' instead of a link for the canonical zero address", () => {
@@ -198,7 +201,11 @@ describe("RecentDonations — address links", () => {
 
 describe("RecentDonations — error state", () => {
   it("shows an error message when the events query fails", () => {
-    vi.mocked(useEvents).mockReturnValue({ data: undefined, isLoading: false, isError: true } as any);
+    vi.mocked(useEvents).mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+    } as any);
     render(<RecentDonations campaignId={CAMPAIGN_ID} />);
     expect(screen.getByText(/Unable to load recent donations/i)).toBeInTheDocument();
   });

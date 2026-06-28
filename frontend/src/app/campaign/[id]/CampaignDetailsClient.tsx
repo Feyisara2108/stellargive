@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useState } from "react";
@@ -15,7 +16,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, Image as ImageIcon } from "lucide-react";
+import { Loader2, ImageIcon } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { calculateProgress, getCampaignImageUrl } from "@/lib/utils";
 import dynamic from "next/dynamic";
 const RecentDonations = dynamic(
   () => import("@/components/RecentDonations").then((mod) => mod.RecentDonations),
@@ -32,30 +35,11 @@ const DonateModal = dynamic(
 import { AddressLink } from "@/components/AddressLink";
 import { sanitizeUrl } from "@/lib/sanitize";
 import { RefundButton } from "@/components/RefundButton";
-import { TopDonors } from "@/components/TopDonors";
 import { StickyDonateBar } from "@/components/StickyDonateBar";
 import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
 import { useCountdown } from "@/hooks/useCountdown";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
-import { Progress } from "@/components/ui/progress";
 import { fromStroops } from "@/lib/soroban";
-
-function getCampaignImageUrl(uri?: string) {
-  if (!uri) return null;
-  if (uri.startsWith("ipfs://")) {
-    return uri.replace("ipfs://", "https://ipfs.io/ipfs/");
-  }
-  if (uri.startsWith("https://")) {
-    return uri;
-  }
-  return null;
-}
-
-function calculateProgress(raised: bigint, target: bigint): number {
-  if (target === 0n) return 0;
-  const scaled = (raised * 10_000n) / target;
-  return Math.min(Number(scaled) / 100, 100);
-}
 
 export function CampaignDetailsClient({ params }: { params: { id: string } }) {
   const [imgError, setImgError] = useState(false);
@@ -133,9 +117,6 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
           )}
         </div>
         <div className="flex items-center gap-3">
-          {campaign?.status === "Cancelled" && (
-            <RefundButton campaignId={campaign.id} isCancelled={true} />
-          )}
           {campaign && <ShareButton campaign={campaign} />}
         </div>
       </div>

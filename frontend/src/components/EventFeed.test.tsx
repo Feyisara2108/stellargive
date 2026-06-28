@@ -18,12 +18,7 @@ vi.mock("sonner", () => ({
 
 import { useEvents } from "@/hooks/useSoroban";
 
-const makeEvent = (
-  id: string,
-  topic: "received" | "created" | "claimed",
-  data: (bigint | string | number)[],
-  ledger = 100,
-) => ({ id, topic, data, ledger });
+import { makeEvent } from "@/test/factories";
 
 beforeEach(() => {
   vi.mocked(useEvents).mockReset();
@@ -42,10 +37,7 @@ describe("EventFeed — loading state", () => {
     vi.mocked(useEvents).mockReturnValue({ data: undefined, isLoading: true } as any);
     render(<EventFeed />);
     expect(screen.getByText(/Recent Activity/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Loading recent activity/i)).toHaveAttribute(
-      "aria-busy",
-      "true",
-    );
+    expect(screen.getByLabelText(/Loading recent activity/i)).toHaveAttribute("aria-busy", "true");
   });
 
   it("does not render the empty-state copy in the loading state", () => {

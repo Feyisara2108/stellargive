@@ -33,8 +33,7 @@ import confetti from "canvas-confetti";
 const MIN_DONATION_XLM = 1e-7; // 1 stroop
 
 const FIRED_MILESTONES = new Set<string>();
-const milestoneKey = (campaignId: bigint, m: MilestonePercent) =>
-  `${campaignId.toString()}:${m}`;
+const milestoneKey = (campaignId: bigint, m: MilestonePercent) => `${campaignId.toString()}:${m}`;
 
 const MILESTONE_COPY: Record<MilestonePercent, { title: string; description: string }> = {
   25: { title: "25% funded!", description: "First quarter milestone reached." },
@@ -45,23 +44,31 @@ const MILESTONE_COPY: Record<MilestonePercent, { title: string; description: str
 
 function mapOnChainError(error: any): string | null {
   const msg = (error?.message || String(error)).trim();
-  if (
-    msg.includes("User declined") ||
-    msg.includes("cancelled") ||
-    msg.includes("User rejected")
-  ) {
+  if (msg.includes("User declined") || msg.includes("cancelled") || msg.includes("User rejected")) {
     return null; // user-initiated, no inline error needed
   }
   if (msg.includes("Simulation failed") || msg.includes("Transaction failed")) {
     return "The transaction was rejected on-chain. Check the donation amount and try again.";
   }
-  if (msg.includes("Network Error") || msg.includes("Failed to fetch") || msg.includes("Send failed")) {
+  if (
+    msg.includes("Network Error") ||
+    msg.includes("Failed to fetch") ||
+    msg.includes("Send failed")
+  ) {
     return "Network error — please check your connection and try again.";
   }
   return "Something went wrong. Please try again.";
 }
 
-export function DonateModal({ campaign, open: openProp, onOpenChange, }: { campaign: Campaign; open?: boolean; onOpenChange?: (open: boolean) => void; }) {
+export function DonateModal({
+  campaign,
+  open: openProp,
+  onOpenChange,
+}: {
+  campaign: Campaign;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
   const router = useRouter();
   const { address, isWrongNetwork } = useWallet();
   const {
@@ -119,11 +126,13 @@ export function DonateModal({ campaign, open: openProp, onOpenChange, }: { campa
     if (balanceXLM !== null && amount && Number(amount) > 0) {
       trigger("amount");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [balanceXLM, trigger]);
 
   // Clear inline submit error whenever the user edits the amount.
   useEffect(() => {
     if (submitError) setSubmitError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [amount]);
 
   useEffect(() => {
@@ -196,7 +205,13 @@ export function DonateModal({ campaign, open: openProp, onOpenChange, }: { campa
         }}
       >
         <DialogTrigger asChild>
-          <Button className="flex-1" disabled={isWrongNetwork} title={isWrongNetwork ? "Switch to the correct network to donate" : undefined}>Donate Now</Button>
+          <Button
+            className="flex-1"
+            disabled={isWrongNetwork}
+            title={isWrongNetwork ? "Switch to the correct network to donate" : undefined}
+          >
+            Donate Now
+          </Button>
         </DialogTrigger>
         <DialogContent
           aria-labelledby="donate-dialog-title"
@@ -250,7 +265,8 @@ export function DonateModal({ campaign, open: openProp, onOpenChange, }: { campa
                     if (isNaN(num)) return "Enter a valid number";
                     const parts = value.split(".");
                     if (parts.length > 1 && parts[1].length > 7) return "Maximum 7 decimal places";
-                    if (num < MIN_DONATION_XLM) return "Minimum donation is 0.0000001 XLM (1 stroop)";
+                    if (num < MIN_DONATION_XLM)
+                      return "Minimum donation is 0.0000001 XLM (1 stroop)";
                     if (num > remaining) return "This exceeds the remaining goal";
                     if (balanceXLM !== null && num > balanceXLM)
                       return `Insufficient balance — you have ${formatXLM(balanceXLM)} XLM`;
@@ -312,9 +328,7 @@ export function DonateModal({ campaign, open: openProp, onOpenChange, }: { campa
               </p>
             </div>
           </div>
-          {feeEstimate.data != null && (
-            <GasWarning estimatedFeeStroops={feeEstimate.data} />
-          )}
+          {feeEstimate.data != null && <GasWarning estimatedFeeStroops={feeEstimate.data} />}
           {submitError && (
             <div
               role="alert"
@@ -343,12 +357,17 @@ export function DonateModal({ campaign, open: openProp, onOpenChange, }: { campa
       </Dialog>
 
       <Dialog open={showSuccess} onOpenChange={setShowSuccess}>
-        <DialogContent className="max-w-md text-center p-6 gap-6" aria-labelledby="donate-success-title">
+        <DialogContent
+          className="max-w-md text-center p-6 gap-6"
+          aria-labelledby="donate-success-title"
+        >
           <DialogHeader className="items-center">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 mb-2">
               <Check className="h-6 w-6" />
             </div>
-            <DialogTitle id="donate-success-title" className="text-2xl font-bold">Donation Successful!</DialogTitle>
+            <DialogTitle id="donate-success-title" className="text-2xl font-bold">
+              Donation Successful!
+            </DialogTitle>
             <DialogDescription className="text-center mt-2 text-slate-500 dark:text-slate-400">
               Thank you support for supporting <strong>{campaign.title}</strong>! Your contribution
               makes a big difference.

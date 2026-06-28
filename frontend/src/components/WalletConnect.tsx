@@ -41,6 +41,7 @@ export function WalletConnect() {
       setBalance(null);
       setBalanceError(null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConnected, address]);
 
   useEffect(() => {

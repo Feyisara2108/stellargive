@@ -8,6 +8,7 @@ const withBundleAnalyzer = bundleAnalyzer({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
+  swcMinify: false,
 };
 
 export default withBundleAnalyzer(
@@ -19,7 +20,6 @@ export default withBundleAnalyzer(
     release: process.env.SENTRY_RELEASE,
     widenClientFileUpload: true,
     hideSourceMaps: true,
-    disableLogger: true,
     sourcemaps: {
       disable: !process.env.SENTRY_AUTH_TOKEN,
     },

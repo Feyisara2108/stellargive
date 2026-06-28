@@ -1,11 +1,12 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useState } from "react";
 import Image from "next/image";
 import { Campaign, fromStroops } from "@/lib/soroban";
+import { calculateProgress, getCampaignImageUrl } from "@/lib/utils";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Button } from "@/components/ui/button";
 import dynamic from "next/dynamic";
 const DonateModal = dynamic(
   () => import("@/components/DonateModal").then((mod) => mod.DonateModal),
@@ -17,25 +18,6 @@ import { ShareButton } from "@/components/ShareButton";
 import { AddressLink } from "@/components/AddressLink";
 import { RelativeTime } from "@/components/RelativeTime";
 import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
-
-function calculateProgress(raised: bigint, target: bigint): number {
-  if (target === 0n) return 0;
-  // Scale by 10_000 before dividing to preserve two decimal places of precision
-  // without floating-point conversion until the very end.
-  const scaled = (raised * 10_000n) / target;
-  return Math.min(Number(scaled) / 100, 100);
-}
-
-function getCampaignImageUrl(uri?: string) {
-  if (!uri) return null;
-  if (uri.startsWith("ipfs://")) {
-    return uri.replace("ipfs://", "https://ipfs.io/ipfs/");
-  }
-  if (uri.startsWith("https://")) {
-    return uri;
-  }
-  return null;
-}
 
 export function CampaignCard({ campaign }: { campaign: Campaign }) {
   const [imgError, setImgError] = useState(false);

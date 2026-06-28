@@ -41,6 +41,7 @@ const baseCampaign: Campaign = {
   creator: CREATOR,
   beneficiary: BENEFICIARY,
   title: "Test Campaign",
+  description: "Test description",
   category: "relief",
   target_amount: 1_000_000_000n,
   raised_amount: 500_000_000n,
