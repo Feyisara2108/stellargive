@@ -33,9 +33,20 @@ vi.mock("./TokenSelector", () => ({
 describe("CreateCampaignForm", () => {
   it("should have no accessibility violations in trigger state", async () => {
     const { container } = render(
-      <WalletContext.Provider value={{ address: "GBX...", isConnected: true, connect: vi.fn(), disconnect: vi.fn(), isWrongNetwork: false, walletNetwork: "TESTNET" } as any}>
+      <WalletContext.Provider
+        value={
+          {
+            address: "GBX...",
+            isConnected: true,
+            connect: vi.fn(),
+            disconnect: vi.fn(),
+            isWrongNetwork: false,
+            walletNetwork: "TESTNET",
+          } as any
+        }
+      >
         <CreateCampaignForm />
-      </WalletContext.Provider>
+      </WalletContext.Provider>,
     );
     const results = await axe(container);
     expect(results).toHaveNoViolations();
@@ -43,9 +54,20 @@ describe("CreateCampaignForm", () => {
 
   it("should have no accessibility violations in open state", async () => {
     render(
-      <WalletContext.Provider value={{ address: "GBX...", isConnected: true, connect: vi.fn(), disconnect: vi.fn(), isWrongNetwork: false, walletNetwork: "TESTNET" } as any}>
+      <WalletContext.Provider
+        value={
+          {
+            address: "GBX...",
+            isConnected: true,
+            connect: vi.fn(),
+            disconnect: vi.fn(),
+            isWrongNetwork: false,
+            walletNetwork: "TESTNET",
+          } as any
+        }
+      >
         <CreateCampaignForm />
-      </WalletContext.Provider>
+      </WalletContext.Provider>,
     );
 
     // Open the dialog
