@@ -8,35 +8,37 @@ import { formatTokenAmount } from "@/utils/format";
 import { useTokenMetadata } from "@/hooks/useSoroban";
 import { calculateProgress, getCampaignImageUrl } from "@/lib/utils";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
+import { Progress, type ProgressVariant } from "@/components/ui/progress";
 import dynamic from "next/dynamic";
 const DonateModal = dynamic(
   () => import("@/components/DonateModal").then((mod) => mod.DonateModal),
   { ssr: false },
 );
 import { ClaimButton } from "@/components/ClaimButton";
-import { Calendar, Target, TrendingUp, Image as ImageIcon } from "lucide-react";
+import { Calendar, Target, TrendingUp, Image as ImageIcon, Zap } from "lucide-react";
 import { ShareButton } from "@/components/ShareButton";
 import { AddressLink } from "@/components/AddressLink";
 import { RelativeTime } from "@/components/RelativeTime";
 import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
+import { Badge } from "@/components/ui/badge";
 
 export function CampaignCard({ campaign }: { campaign: Campaign }) {
   const [imgError, setImgError] = useState(false);
-  const { data: tokenMeta } = useTokenMetadata(campaign.accepted_token);
-  const decimals = tokenMeta?.decimals ?? 7;
-  const symbol = tokenMeta?.symbol ?? "XLM";
-  
-  const raised = formatTokenAmount(campaign.raised_amount, decimals);
-  const target = formatTokenAmount(campaign.target_amount, decimals);
+  const [donateOpen, setDonateOpen] = useState(false);
+  const raised = Number(fromStroops(campaign.raised_amount));
+  const target = Number(fromStroops(campaign.target_amount));
   const progress = calculateProgress(campaign.raised_amount, campaign.target_amount);
-  const progressColor =
-    progress >= 100 ? "bg-green-500" : progress >= 50 ? "bg-yellow-500" : "bg-blue-500";
+  const progressVariant: ProgressVariant =
+    progress >= 100 ? "success" : progress >= 50 ? "warning" : "default";
 
   const isExpired = campaign.status === "Expired";
   const isFunded = campaign.status === "Funded";
   const isClaimed = campaign.status === "Claimed";
   const deadlineDate = new Date(Number(campaign.deadline) * 1000);
+
+  const gap = Math.max(0, target - raised);
+  const showFundTheGap =
+    campaign.status === "Active" && progress >= 90 && progress < 100 && gap > 0;
 
   return (
     <Card className="flex flex-col group hover:border-primary/50 transition-all duration-300 overflow-hidden">
@@ -61,8 +63,11 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
         )}
       </div>
       <CardHeader>
-        <div className="flex justify-between items-start mb-2">
+        <div className="flex justify-between items-center gap-2 mb-2">
           <CampaignStatusBadge status={campaign.status} deadline={campaign.deadline} />
+          <Badge variant="secondary" className="capitalize text-[10px] font-bold px-2 py-1">
+            {campaign.category && campaign.category !== "other" ? campaign.category : "Uncategorized"}
+          </Badge>
         </div>
         <CardTitle className="line-clamp-1 group-hover:text-primary transition-colors">
           {campaign.title}
@@ -79,7 +84,7 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
           <Progress
             value={progress}
             className="h-2"
-            indicatorClassName={progressColor}
+            variant={progressVariant}
             aria-label={`Fundraising progress for ${campaign.title}`}
           />
           <div className="flex justify-between text-xs text-muted-foreground">
@@ -108,8 +113,25 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
           </div>
         </div>
       </CardContent>
+      {showFundTheGap && (
+        <div className="mx-4 mb-3 flex items-center justify-between gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2">
+          <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+            <Zap className="h-3 w-3 shrink-0" />
+            <span>Only {gap.toFixed(2)} XLM left — fund the gap!</span>
+          </div>
+          <button
+            onClick={() => setDonateOpen(true)}
+            className="shrink-0 rounded-md bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white transition-colors hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600"
+            aria-label={`Quick donate to fund the remaining ${gap.toFixed(2)} XLM`}
+          >
+            Donate
+          </button>
+        </div>
+      )}
       <CardFooter className="gap-2">
-        {campaign.status === "Active" && <DonateModal campaign={campaign} />}
+        {campaign.status === "Active" && (
+          <DonateModal campaign={campaign} open={donateOpen} onOpenChange={setDonateOpen} />
+        )}
         <ClaimButton campaign={campaign} />
         <div className="ml-auto">
           <ShareButton campaign={campaign} />

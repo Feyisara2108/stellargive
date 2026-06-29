@@ -31,6 +31,16 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: "most-raised", label: "Most Raised" },
 ];
 
+const CATEGORIES = [
+  "all",
+  "medical",
+  "food",
+  "shelter",
+  "education",
+  "relief",
+  "uncategorized",
+] as const;
+
 function sortCampaigns(campaigns: Campaign[], sortBy: SortKey): Campaign[] {
   const sorted = [...campaigns];
   switch (sortBy) {
@@ -59,6 +69,7 @@ function ExploreContent() {
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "funded">("active");
+  const [categoryFilter, setCategoryFilter] = useState<typeof CATEGORIES[number]>("all");
   const [sortBy, setSortBy] = useState<SortKey>("newest");
   const [tokenFilter, setTokenFilter] = useState("");
 
@@ -248,6 +259,26 @@ function ExploreContent() {
               className={`text-sm px-4 py-1.5 transition-opacity ${statusFilter === "funded" ? "ring-2 ring-primary ring-offset-2 opacity-100" : "opacity-60 hover:opacity-100"}`}
             />
           </button>
+        </div>
+
+        {/* Category filters */}
+        <div className="space-y-2">
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Filter by Category</h2>
+          <div className="flex flex-wrap gap-2" role="tablist" aria-label="Campaign category filters">
+            {CATEGORIES.map((cat) => (
+              <Button
+                key={cat}
+                variant={categoryFilter === cat ? "default" : "outline"}
+                size="sm"
+                onClick={() => setCategoryFilter(cat)}
+                role="tab"
+                aria-selected={categoryFilter === cat}
+                className="capitalize"
+              >
+                {cat === "uncategorized" ? "Uncategorized" : cat}
+              </Button>
+            ))}
+          </div>
         </div>
 
         {isLoading ? (

@@ -17,3 +17,9 @@ export function getCampaignImageUrl(uri?: string) {
   if (uri.startsWith("ipfs://")) return `https://ipfs.io/ipfs/${uri.replace("ipfs://", "")}`;
   return undefined;
 }
+
+export function getStellarExpertTxUrl(txHash: string): string {
+  const passphrase = process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ?? "";
+  const network = passphrase.startsWith("Public Global") ? "mainnet" : "testnet";
+  return `https://stellar.expert/explorer/${network}/tx/${txHash}`;
+}
