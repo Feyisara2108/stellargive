@@ -3,7 +3,9 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { Campaign, fromStroops } from "@/lib/soroban";
+import { Campaign } from "@/lib/soroban";
+import { formatTokenAmount } from "@/utils/format";
+import { useTokenMetadata } from "@/hooks/useSoroban";
 import { calculateProgress, getCampaignImageUrl } from "@/lib/utils";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress, type ProgressVariant } from "@/components/ui/progress";
@@ -73,7 +75,7 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
             <span className="text-muted-foreground flex items-center gap-1">
               <TrendingUp className="w-3 h-3" /> Raised
             </span>
-            <span className="font-bold">{raised} XLM</span>
+            <span className="font-bold">{raised} {symbol}</span>
           </div>
           <Progress
             value={progress}
@@ -84,7 +86,7 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>{progress.toFixed(1)}%</span>
             <span className="flex items-center gap-1">
-              <Target className="w-3 h-3" /> Target: {target} XLM
+              <Target className="w-3 h-3" /> Target: {target} {symbol}
             </span>
           </div>
         </div>

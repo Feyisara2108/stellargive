@@ -7,6 +7,7 @@ import {
   getCampaignsPage,
   submitTransaction,
   estimateFee,
+  estimateFee,
   CONTRACT_ID,
   toStroops,
   getEvents,
@@ -19,6 +20,7 @@ import {
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { Address, nativeToScVal } from "@stellar/stellar-sdk";
 import { useWallet } from "@/lib/WalletProvider";
+import { toRawAmount } from "@/utils/format";
 
 export function useCampaign(id: bigint) {
   return useQuery({
@@ -167,13 +169,13 @@ export function useDonate() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (params: { campaignId: bigint; amount: string; isAnonymous: boolean }) => {
+    mutationFn: async (params: { campaignId: bigint; amount: string; isAnonymous: boolean; decimals: number }) => {
       if (!address) throw new Error("Wallet not connected");
 
       const args = [
         new Address(address).toScVal(),
         nativeToScVal(params.campaignId, { type: "u64" }),
-        nativeToScVal(toStroops(params.amount), { type: "i128" }),
+        nativeToScVal(toRawAmount(params.amount, params.decimals), { type: "i128" }),
         nativeToScVal(params.isAnonymous, { type: "bool" }),
       ];
 
@@ -192,13 +194,13 @@ export function useDonate() {
         hasMore: boolean;
       }>({ queryKey: ["campaigns"] });
 
-      const amountStroops = toStroops(variables.amount);
+      const amountRaw = toRawAmount(variables.amount, variables.decimals);
 
       // Update individual campaign cache
       if (previousCampaign) {
         queryClient.setQueryData<Campaign>(["campaign", variables.campaignId.toString()], {
           ...previousCampaign,
-          raised_amount: previousCampaign.raised_amount + amountStroops,
+          raised_amount: previousCampaign.raised_amount + amountRaw,
         });
       }
 
@@ -210,7 +212,7 @@ export function useDonate() {
           const newCampaigns =
             old.campaigns?.map((c: any) =>
               c.id === variables.campaignId
-                ? { ...c, raised_amount: c.raised_amount + amountStroops }
+                ? { ...c, raised_amount: c.raised_amount + amountRaw }
                 : c,
             ) || [];
           return { ...old, campaigns: newCampaigns };
@@ -391,7 +393,16 @@ export function useEvents(limit = 20) {
   return useQuery({
     queryKey: ["events", limit],
     queryFn: () => getEvents(limit),
-    refetchInterval: 10_000,
+    refetchInterval: (query) => {
+      if (typeof document !== "undefined" && document.hidden) {
+        return false;
+      }
+      if (query.state.status === "error") {
+        const failureCount = query.state.fetchFailureCount;
+        return Math.min(10000 * Math.pow(2, failureCount), 60000);
+      }
+      return 10000;
+    },
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
@@ -429,6 +440,7 @@ export function useDonateFeeEstimate(params: {
   campaignId: bigint;
   amount: string;
   address: string | null;
+  decimals: number;
 }) {
   const debouncedAmount = useDebouncedValue(params.amount, 600);
 
@@ -439,6 +451,7 @@ export function useDonateFeeEstimate(params: {
       params.campaignId.toString(),
       debouncedAmount,
       params.address,
+      params.decimals,
     ],
     queryFn: async () => {
       if (!params.address || !debouncedAmount || Number(debouncedAmount) <= 0) return null;
@@ -446,7 +459,7 @@ export function useDonateFeeEstimate(params: {
         const args = [
           new Address(params.address).toScVal(),
           nativeToScVal(params.campaignId, { type: "u64" }),
-          nativeToScVal(toStroops(debouncedAmount), { type: "i128" }),
+          nativeToScVal(toRawAmount(debouncedAmount, params.decimals), { type: "i128" }),
           nativeToScVal(false, { type: "bool" }),
         ];
         return estimateFee(params.address, "donate", args);
@@ -533,5 +546,19 @@ export function useResolvedName(address: string | null) {
     staleTime: 1000 * 60 * 60, // Cache for 1 hour
     gcTime: 1000 * 60 * 60 * 24, // Keep in cache for 24 hours
     retry: false, // Don't retry on failure
+  });
+}
+
+export function useTokenMetadata(contractId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["token-metadata", contractId],
+    queryFn: async () => {
+      if (!contractId) return null;
+      const { getTokenMetadata } = await import("@/lib/soroban");
+      return getTokenMetadata(contractId);
+    },
+    enabled: !!contractId,
+    staleTime: 1000 * 60 * 60 * 24, // cache for 24h since token metadata doesn't change
+    retry: 2,
   });
 }
