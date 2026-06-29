@@ -1,0 +1,70 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum KycTier {
+  UNVERIFIED
+  BASIC
+  FULL
+}
+
+enum TransactionType {
+  SEND
+  EXCHANGE
+  WITHDRAWAL
+}
+
+enum FeeType {
+  PERCENT
+  FLAT
+}
+
+model TransactionLimit {
+  id                String   @id @default(uuid())
+  kycTier           KycTier
+  transactionType   TransactionType
+  singleLimit       Decimal   @default(0)
+  dailyLimit        Decimal   @default(0)
+  monthlyLimit      Decimal   @default(0)
+  currency          String    @default("USD")
+  active            Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model FeeConfig {
+  id                String   @id @default(uuid())
+  transactionType   TransactionType
+  feeType           FeeType
+  feeValue          Decimal
+  minFee            Decimal   @default(0)
+  maxFee            Decimal?
+  currency          String    @default("USD")
+  active            Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model User {
+  id                String   @id @default(uuid())
+  email             String   @unique
+  emailVerified     Boolean  @default(false)
+  kycStatus         KycTier  @default(UNVERIFIED)
+  transactions      Transaction[]
+}
+
+model Transaction {
+  id                String   @id @default(uuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id])
+  amount            Decimal
+  currency          String
+  fee               Decimal
+  type              TransactionType
+  createdAt         DateTime @default(now())
+}
