@@ -18,6 +18,7 @@ import { ShareButton } from "@/components/ShareButton";
 import { AddressLink } from "@/components/AddressLink";
 import { RelativeTime } from "@/components/RelativeTime";
 import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
+import { Badge } from "@/components/ui/badge";
 
 export function CampaignCard({ campaign }: { campaign: Campaign }) {
   const [imgError, setImgError] = useState(false);
@@ -55,8 +56,11 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
         )}
       </div>
       <CardHeader>
-        <div className="flex justify-between items-start mb-2">
+        <div className="flex justify-between items-center gap-2 mb-2">
           <CampaignStatusBadge status={campaign.status} deadline={campaign.deadline} />
+          <Badge variant="secondary" className="capitalize text-[10px] font-bold px-2 py-1">
+            {campaign.category && campaign.category !== "other" ? campaign.category : "Uncategorized"}
+          </Badge>
         </div>
         <CardTitle className="line-clamp-1 group-hover:text-primary transition-colors">
           {campaign.title}
