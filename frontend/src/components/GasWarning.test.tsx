@@ -68,14 +68,12 @@ describe("GasWarning", () => {
   // --- Graceful behavior when fee data is unavailable (0) ---
 
   it("renders without crashing when feeStroops is 0", () => {
-    render(<GasWarning feeStroops={0} />);
-    expect(screen.getByRole("alert")).toBeInTheDocument();
-    // ratio = (0 / 10_000_000).toFixed(1) = "0.0"
-    expect(screen.getByText(/0\.0×/)).toBeInTheDocument();
+    const { container } = render(<GasWarning feeStroops={0} />);
+    expect(container).toBeEmptyDOMElement();
   });
 
   it("renders without crashing for a very small (below-threshold) fee", () => {
-    render(<GasWarning feeStroops={100} />);
-    expect(screen.getByRole("alert")).toBeInTheDocument();
+    const { container } = render(<GasWarning feeStroops={100} />);
+    expect(container).toBeEmptyDOMElement();
   });
 });

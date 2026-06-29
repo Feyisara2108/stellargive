@@ -12,6 +12,10 @@ vi.mock("@/lib/WalletProvider", () => ({
   useWallet: vi.fn(),
 }));
 
+vi.mock("@tanstack/react-query", () => ({
+  useQueryClient: vi.fn().mockReturnValue({ invalidateQueries: vi.fn() }),
+}));
+
 vi.mock("sonner", () => ({
   toast: {
     success: vi.fn(),

@@ -24,7 +24,7 @@ describe("RelativeTime", () => {
     render(<RelativeTime date={date} />);
 
     // date-fns natively outputs "less than a minute ago", so we support both common formats
-    expect(await screen.findByText(/less than a minute ago|just now/i)).toBeInTheDocument();
+    expect(screen.getByText(/less than a minute ago|just now/i)).toBeInTheDocument();
   });
 
   describe("Minute Range & Bound Check", () => {
@@ -33,7 +33,7 @@ describe("RelativeTime", () => {
       const date = new Date(SYSTEM_TIME.getTime() - 60 * 1000);
       render(<RelativeTime date={date} />);
 
-      expect(await screen.findByText(/1 minute ago/i)).toBeInTheDocument();
+      expect(screen.getByText(/1 minute ago/i)).toBeInTheDocument();
     });
 
     it("renders multiple minutes ago", async () => {
@@ -41,7 +41,7 @@ describe("RelativeTime", () => {
       const date = new Date(SYSTEM_TIME.getTime() - 15 * 60 * 1000);
       render(<RelativeTime date={date} />);
 
-      expect(await screen.findByText(/15 minutes ago/i)).toBeInTheDocument();
+      expect(screen.getByText(/15 minutes ago/i)).toBeInTheDocument();
     });
   });
 
@@ -52,7 +52,7 @@ describe("RelativeTime", () => {
       render(<RelativeTime date={date} />);
 
       // date-fns typically prefixes with "about" for hours
-      expect(await screen.findByText(/about 1 hour ago|1 hour ago/i)).toBeInTheDocument();
+      expect(screen.getByText(/about 1 hour ago|1 hour ago/i)).toBeInTheDocument();
     });
 
     it("renders multiple hours ago", async () => {
@@ -60,7 +60,7 @@ describe("RelativeTime", () => {
       const date = new Date(SYSTEM_TIME.getTime() - 5 * 60 * 60 * 1000);
       render(<RelativeTime date={date} />);
 
-      expect(await screen.findByText(/about 5 hours ago|5 hours ago/i)).toBeInTheDocument();
+      expect(screen.getByText(/about 5 hours ago|5 hours ago/i)).toBeInTheDocument();
     });
   });
 
@@ -70,7 +70,7 @@ describe("RelativeTime", () => {
       const date = new Date(SYSTEM_TIME.getTime() - 3 * 24 * 60 * 60 * 1000);
       render(<RelativeTime date={date} />);
 
-      expect(await screen.findByText(/3 days ago/i)).toBeInTheDocument();
+      expect(screen.getByText(/3 days ago/i)).toBeInTheDocument();
     });
   });
 
@@ -80,7 +80,7 @@ describe("RelativeTime", () => {
       const date = new Date(SYSTEM_TIME.getTime() + 10 * 60 * 1000);
       render(<RelativeTime date={date} />);
 
-      expect(await screen.findByText(/in 10 minutes/i)).toBeInTheDocument();
+      expect(screen.getByText(/in 10 minutes/i)).toBeInTheDocument();
     });
   });
 });

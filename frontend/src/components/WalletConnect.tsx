@@ -83,6 +83,7 @@ export function WalletConnect() {
     return (
       <div className="relative" ref={dropdownRef}>
         <Button
+          type="button"
           variant="outline"
           className="flex items-center gap-2 bg-secondary/50 border-border hover:bg-secondary transition-all"
           onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -141,6 +142,7 @@ export function WalletConnect() {
               </div>
 
               <Button
+                type="button"
                 variant="destructive"
                 size="sm"
                 className="w-full flex items-center justify-center gap-2 mt-2"
@@ -158,6 +160,7 @@ export function WalletConnect() {
 
   return (
     <Button
+      type="button"
       onClick={handleConnect}
       disabled={isConnecting}
       className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-6 transition-all"

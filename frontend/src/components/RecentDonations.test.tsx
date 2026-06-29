@@ -4,6 +4,7 @@ import { RecentDonations } from "./RecentDonations";
 
 vi.mock("@/hooks/useSoroban", () => ({
   useEvents: vi.fn(),
+  useResolvedName: vi.fn().mockReturnValue({ data: undefined }),
 }));
 
 vi.mock("@/lib/soroban", () => ({

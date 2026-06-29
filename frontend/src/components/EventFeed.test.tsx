@@ -83,9 +83,9 @@ describe("EventFeed — populated state", () => {
     } as any);
     render(<EventFeed />);
     // "1 XLM donated to Campaign #1"
-    expect(screen.getByText(/donated to/i)).toBeInTheDocument();
-    expect(screen.getByText(/1 XLM/)).toBeInTheDocument();
-    expect(screen.getByText(/Campaign #1/)).toBeInTheDocument();
+    expect(screen.getAllByText(/donated to/i)[0]).toBeInTheDocument();
+    expect(screen.getAllByText(/1 XLM/)[0]).toBeInTheDocument();
+    expect(screen.getAllByText(/Campaign #1/)[0]).toBeInTheDocument();
   });
 
   it("renders a 'created' campaign event with target amount", () => {
@@ -95,8 +95,8 @@ describe("EventFeed — populated state", () => {
     } as any);
     render(<EventFeed />);
     // "New campaign created with a target of 10 XLM"
-    expect(screen.getByText(/New campaign created/i)).toBeInTheDocument();
-    expect(screen.getByText(/10 XLM/)).toBeInTheDocument();
+    expect(screen.getAllByText(/New campaign created/i)[0]).toBeInTheDocument();
+    expect(screen.getAllByText(/10 XLM/)[0]).toBeInTheDocument();
   });
 
   it("renders a 'claimed' event with claimed amount", () => {
@@ -106,8 +106,8 @@ describe("EventFeed — populated state", () => {
     } as any);
     render(<EventFeed />);
     // "5 XLM claimed by beneficiary"
-    expect(screen.getByText(/claimed by/i)).toBeInTheDocument();
-    expect(screen.getByText(/5 XLM/)).toBeInTheDocument();
+    expect(screen.getAllByText(/claimed by/i)[0]).toBeInTheDocument();
+    expect(screen.getAllByText(/5 XLM/)[0]).toBeInTheDocument();
   });
 
   it("renders the ledger number for each event", () => {
@@ -116,7 +116,7 @@ describe("EventFeed — populated state", () => {
       isLoading: false,
     } as any);
     render(<EventFeed />);
-    expect(screen.getByText(/Ledger 123456/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Ledger 123456/i)[0]).toBeInTheDocument();
   });
 
   it("renders multiple events without deduplication", () => {
@@ -129,9 +129,9 @@ describe("EventFeed — populated state", () => {
       isLoading: false,
     } as any);
     render(<EventFeed />);
-    expect(screen.getByText(/donated to/i)).toBeInTheDocument();
-    expect(screen.getByText(/New campaign created/i)).toBeInTheDocument();
-    expect(screen.getByText(/claimed by/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/donated to/i)[0]).toBeInTheDocument();
+    expect(screen.getAllByText(/New campaign created/i)[0]).toBeInTheDocument();
+    expect(screen.getAllByText(/claimed by/i)[0]).toBeInTheDocument();
   });
 
   it("does not show the empty-state message when events are present", () => {

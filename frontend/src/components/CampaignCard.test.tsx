@@ -7,6 +7,10 @@ import type { Campaign } from "@/lib/soroban";
 expect.extend(toHaveNoViolations);
 
 // ... rest of mocks ...
+vi.mock("@/hooks/useSoroban", () => ({
+  useTokenMetadata: vi.fn().mockReturnValue({ data: undefined, isLoading: false }),
+}));
+
 vi.mock("@/lib/soroban", () => ({
   fromStroops: (stroops: bigint | string | number): string => {
     const s = BigInt(stroops).toString().padStart(8, "0");

@@ -6,6 +6,15 @@ import type { Campaign } from "@/lib/soroban";
 
 expect.extend(toHaveNoViolations);
 
+vi.mock("next/navigation", () => ({
+  useRouter: vi.fn().mockReturnValue({ push: vi.fn() }),
+  useSearchParams: vi.fn().mockReturnValue({ get: vi.fn() }),
+}));
+
+vi.mock("@/lib/WalletProvider", () => ({
+  useWallet: vi.fn().mockReturnValue({ address: "GABC...", isConnected: true }),
+}));
+
 vi.mock("@/hooks/useSoroban", () => ({
   useDonate: () => ({
     mutateAsync: vi.fn(),
@@ -15,6 +24,7 @@ vi.mock("@/hooks/useSoroban", () => ({
   useDonateFeeEstimate: () => ({ data: null }),
   useWalletBalance: () => ({ data: null, isLoading: false }),
   getCrossedMilestones: () => [],
+  useTokenMetadata: vi.fn().mockReturnValue({ data: { decimals: 7, symbol: "XLM" } }),
 }));
 
 import { makeCampaign } from "@/test/factories";

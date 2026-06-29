@@ -19,7 +19,7 @@ export const CONTRACT_ID = process.env.NEXT_PUBLIC_CONTRACT_ID!;
 export const RPC_URL = process.env.NEXT_PUBLIC_SOROBAN_RPC_URL!;
 export const NETWORK_PASSPHRASE = process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE!;
 
-export const server = new rpc.Server(RPC_URL);
+export const server = new rpc.Server(RPC_URL, { allowHttp: RPC_URL.startsWith("http:") });
 
 export const STROOP_PRECISION = 7;
 

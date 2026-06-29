@@ -3,8 +3,10 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { TokenSelector, PREDEFINED_TOKENS } from "./TokenSelector";
 import "@testing-library/jest-dom";
 
+import { vi } from "vitest";
+
 // Mock external dependencies
-jest.mock("lucide-react", () => ({
+vi.mock("lucide-react", () => ({
   Loader2: () => <div data-testid="loader2-icon" />,
   Plus: () => <div data-testid="plus-icon" />,
   Check: () => <div data-testid="check-icon" />,
@@ -12,22 +14,22 @@ jest.mock("lucide-react", () => ({
   Coins: () => <div data-testid="coins-icon" />,
 }));
 
-jest.mock("@/lib/soroban", () => ({
-  getTokenMetadata: jest.fn(),
+vi.mock("@/lib/soroban", () => ({
+  getTokenMetadata: vi.fn(),
 }));
 
-jest.mock("sonner", () => ({
+vi.mock("sonner", () => ({
   toast: {
-    success: jest.fn(),
-    error: jest.fn(),
+    success: vi.fn(),
+    error: vi.fn(),
   },
 }));
 
 describe("TokenSelector", () => {
-  const mockOnChange = jest.fn();
+  const mockOnChange = vi.fn();
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   test("Default & Selected State Assertion", () => {
@@ -73,18 +75,18 @@ describe("TokenSelector", () => {
     fireEvent.click(selectButton);
 
     // Simulate clicking a different token (e.g., USDC)
-    const usdcToken = PREDEFINED_TOKENS.find((t) => t.symbol === "USDC") || PREDEFINED_TOKENS[1];
+    const secondToken = PREDEFINED_TOKENS[1];
 
     // Find the option button for the new token by looking for its name content
-    const usdcOption = screen.getByText(usdcToken.name).closest("button");
-    expect(usdcOption).toBeInTheDocument();
+    const secondOption = screen.getByText(secondToken.name).closest("button");
+    expect(secondOption).toBeInTheDocument();
 
-    if (usdcOption) {
-      fireEvent.click(usdcOption);
+    if (secondOption) {
+      fireEvent.click(secondOption);
     }
 
     // Assert that onChange was called exactly once with the correct address
     expect(mockOnChange).toHaveBeenCalledTimes(1);
-    expect(mockOnChange).toHaveBeenCalledWith(usdcToken.address);
+    expect(mockOnChange).toHaveBeenCalledWith(secondToken.address);
   });
 });
