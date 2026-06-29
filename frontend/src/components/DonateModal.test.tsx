@@ -1,5 +1,6 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { axe, toHaveNoViolations } from "jest-axe";
 import { DonateModal } from "./DonateModal";
 import type { Campaign } from "@/lib/soroban";
@@ -91,6 +92,70 @@ describe("DonateModal", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/exceeds the remaining goal/i)).toBeInTheDocument();
+    });
+  });
+
+  describe("keyboard navigation", () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("traps focus within the open dialog", async () => {
+      const user = userEvent.setup();
+      render(<DonateModal campaign={baseCampaign} />);
+
+      const trigger = screen.getByRole("button", { name: /Donate Now/i });
+      await user.click(trigger);
+
+      const dialog = await screen.findByRole("dialog");
+      expect(dialog).toContainElement(document.activeElement);
+
+      // Cycle through all focusable elements — focus should never leave the dialog
+      const focusable = dialog.querySelectorAll<HTMLElement>(
+        'input:not([disabled]), button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+      );
+      for (let i = 0; i < focusable.length * 2; i++) {
+        await user.tab();
+        expect(dialog).toContainElement(document.activeElement);
+      }
+    });
+
+    it("closes the dialog and returns focus to the trigger on Escape", async () => {
+      const user = userEvent.setup();
+      render(<DonateModal campaign={baseCampaign} />);
+
+      const trigger = screen.getByRole("button", { name: /Donate Now/i });
+      trigger.focus();
+      await user.click(trigger);
+
+      const dialog = await screen.findByRole("dialog");
+      expect(dialog).toBeInTheDocument();
+
+      await user.keyboard("{Escape}");
+
+      await waitFor(() => {
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      });
+      expect(document.activeElement).toBe(trigger);
+    });
+
+    it("traps Shift+Tab cycling backwards within the dialog", async () => {
+      const user = userEvent.setup();
+      render(<DonateModal campaign={baseCampaign} />);
+
+      const trigger = screen.getByRole("button", { name: /Donate Now/i });
+      await user.click(trigger);
+
+      const dialog = await screen.findByRole("dialog");
+
+      // Shift+Tab through all focusable elements — focus should never leave the dialog
+      const focusable = dialog.querySelectorAll<HTMLElement>(
+        'input:not([disabled]), button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+      );
+      for (let i = 0; i < focusable.length * 2; i++) {
+        await user.tab({ shift: true });
+        expect(dialog).toContainElement(document.activeElement);
+      }
     });
   });
 });

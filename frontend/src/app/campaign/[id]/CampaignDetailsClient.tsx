@@ -39,7 +39,8 @@ import { StickyDonateBar } from "@/components/StickyDonateBar";
 import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
 import { useCountdown } from "@/hooks/useCountdown";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
-import { fromStroops } from "@/lib/soroban";
+import { fromStroops, type CampaignBeneficiary } from "@/lib/soroban";
+import { formatBasisPoints } from "@/utils/format";
 
 export function CampaignDetailsClient({ params }: { params: { id: string } }) {
   const [imgError, setImgError] = useState(false);
@@ -82,8 +83,23 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
                 <AddressLink address={campaign.creator} className="text-xs" />
               </span>
               <span className="inline-flex items-center gap-2">
-                Beneficiary:
-                <AddressLink address={campaign.beneficiary} className="text-xs" />
+                {campaign.beneficiaries && campaign.beneficiaries.length > 1
+                  ? "Beneficiaries:"
+                  : "Beneficiary:"}
+                {campaign.beneficiaries && campaign.beneficiaries.length > 1 ? (
+                  <span className="flex flex-col gap-1">
+                    {campaign.beneficiaries.map((b, i) => (
+                      <span key={b.address} className="inline-flex items-center gap-2 text-xs">
+                        <AddressLink address={b.address} className="text-xs" />
+                        <span className="font-medium tabular-nums text-foreground">
+                          {formatBasisPoints(b.share)}
+                        </span>
+                      </span>
+                    ))}
+                  </span>
+                ) : (
+                  <AddressLink address={campaign.beneficiary} className="text-xs" />
+                )}
               </span>
               {campaign.website && (
                 <a

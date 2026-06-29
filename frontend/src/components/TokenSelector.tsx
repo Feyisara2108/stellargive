@@ -36,9 +36,11 @@ const tokenMetadataCache: Record<string, TokenMetadata> = {};
 interface TokenSelectorProps {
   value: string;
   onChange: (value: string) => void;
+  label?: string;
+  allowCustom?: boolean;
 }
 
-export function TokenSelector({ value, onChange }: TokenSelectorProps) {
+export function TokenSelector({ value, onChange, label, allowCustom = true }: TokenSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [showCustom, setShowCustom] = useState(false);
   const [customAddress, setCustomAddress] = useState("");
@@ -118,7 +120,7 @@ export function TokenSelector({ value, onChange }: TokenSelectorProps) {
 
   return (
     <div className="space-y-2">
-      <Label>Accepted Token</Label>
+      <Label>{label ?? "Accepted Token"}</Label>
       <div className="relative">
         <Button
           type="button"
@@ -131,12 +133,16 @@ export function TokenSelector({ value, onChange }: TokenSelectorProps) {
             {selectedToken ? (
               <span className="font-medium text-foreground">
                 {selectedToken.symbol}{" "}
-                <span className="text-xs text-muted-foreground font-mono">
-                  ({selectedToken.address.slice(0, 6)}...{selectedToken.address.slice(-6)})
-                </span>
+                {selectedToken.address && (
+                  <span className="text-xs text-muted-foreground font-mono">
+                    ({selectedToken.address.slice(0, 6)}...{selectedToken.address.slice(-6)})
+                  </span>
+                )}
               </span>
             ) : (
-              <span className="text-muted-foreground">Select a token...</span>
+              <span className="text-muted-foreground">
+                {allowCustom ? "Select a token..." : "All Tokens"}
+              </span>
             )}
           </span>
           <ChevronDown className="h-4 w-4 opacity-50" />
@@ -145,6 +151,16 @@ export function TokenSelector({ value, onChange }: TokenSelectorProps) {
         {isOpen && (
           <div className="absolute left-0 mt-1 w-full rounded-md border border-border bg-popover text-popover-foreground shadow-md z-50 p-2">
             <div className="space-y-1">
+              {!allowCustom && (
+                <button
+                  type="button"
+                  onClick={() => handleSelect("")}
+                  className="w-full flex items-center justify-between px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+                >
+                  <span className="font-medium">All Tokens</span>
+                  {value === "" && <Check className="h-4 w-4 text-primary" />}
+                </button>
+              )}
               {PREDEFINED_TOKENS.map((token) => (
                 <button
                   key={token.address}
@@ -161,62 +177,64 @@ export function TokenSelector({ value, onChange }: TokenSelectorProps) {
               ))}
             </div>
 
-            <div className="border-t border-border mt-2 pt-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start text-xs text-primary"
-                onClick={() => {
-                  setShowCustom(!showCustom);
-                  setValidationError(null);
-                }}
-              >
-                <Plus className="h-3 w-3 mr-1" />
-                {showCustom ? "Hide Custom Token Option" : "Add Custom Token"}
-              </Button>
+            {allowCustom && (
+              <div className="border-t border-border mt-2 pt-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start text-xs text-primary"
+                  onClick={() => {
+                    setShowCustom(!showCustom);
+                    setValidationError(null);
+                  }}
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  {showCustom ? "Hide Custom Token Option" : "Add Custom Token"}
+                </Button>
 
-              {showCustom && (
-                <div className="p-2 space-y-2 bg-muted/40 rounded mt-1">
-                  <Input
-                    placeholder="Contract ID (C...)"
-                    value={customAddress}
-                    onChange={handleCustomAddressChange}
-                    className="h-8 text-xs font-mono"
-                  />
+                {showCustom && (
+                  <div className="p-2 space-y-2 bg-muted/40 rounded mt-1">
+                    <Input
+                      placeholder="Contract ID (C...)"
+                      value={customAddress}
+                      onChange={handleCustomAddressChange}
+                      className="h-8 text-xs font-mono"
+                    />
 
-                  {isValidating && (
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Loader2 className="h-3 w-3 animate-spin text-primary" />
-                      Validating SAC interface compliance...
-                    </div>
-                  )}
+                    {isValidating && (
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                        Validating SAC interface compliance...
+                      </div>
+                    )}
 
-                  {validationError && (
-                    <div className="text-xs text-destructive bg-destructive/10 p-1.5 rounded">
-                      {validationError}
-                    </div>
-                  )}
+                    {validationError && (
+                      <div className="text-xs text-destructive bg-destructive/10 p-1.5 rounded">
+                        {validationError}
+                      </div>
+                    )}
 
-                  {customTokenMeta && (
-                    <div className="flex items-center justify-between text-xs bg-primary/10 p-1.5 rounded">
-                      <span>
-                        Symbol: <strong>{customTokenMeta.symbol}</strong> (Decimals:{" "}
-                        {customTokenMeta.decimals})
-                      </span>
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="h-6 px-2 text-[10px]"
-                        onClick={handleAddCustom}
-                      >
-                        Add & Select
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+                    {customTokenMeta && (
+                      <div className="flex items-center justify-between text-xs bg-primary/10 p-1.5 rounded">
+                        <span>
+                          Symbol: <strong>{customTokenMeta.symbol}</strong> (Decimals:{" "}
+                          {customTokenMeta.decimals})
+                        </span>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-6 px-2 text-[10px]"
+                          onClick={handleAddCustom}
+                        >
+                          Add & Select
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

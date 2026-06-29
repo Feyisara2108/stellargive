@@ -9,6 +9,7 @@ import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCampaignsPaged } from "@/hooks/useSoroban";
+import { TokenSelector } from "@/components/TokenSelector";
 import { Search, Compass } from "lucide-react";
 import type { Campaign } from "@/lib/soroban";
 
@@ -70,6 +71,7 @@ function ExploreContent() {
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "funded">("active");
   const [categoryFilter, setCategoryFilter] = useState<typeof CATEGORIES[number]>("all");
   const [sortBy, setSortBy] = useState<SortKey>("newest");
+  const [tokenFilter, setTokenFilter] = useState("");
 
   const sentinelRef = useRef<HTMLDivElement>(null);
   const { data, isLoading, isFetching } = useCampaignsPaged(limit);
@@ -90,10 +92,8 @@ function ExploreContent() {
     if (SORT_OPTIONS.some((o) => o.key === sort)) {
       setSortBy(sort as SortKey);
     }
-    const cat = searchParams.get("category");
-    if (CATEGORIES.includes(cat as any)) {
-      setCategoryFilter(cat as any);
-    }
+    const token = searchParams.get("token") ?? "";
+    setTokenFilter(token);
   }, [searchParams]);
 
   useEffect(() => {
@@ -115,10 +115,14 @@ function ExploreContent() {
     const next = new URLSearchParams(searchParams.toString());
     next.set("status", statusFilter);
     next.set("sort", sortBy);
-    next.set("category", categoryFilter);
+    if (tokenFilter) {
+      next.set("token", tokenFilter);
+    } else {
+      next.delete("token");
+    }
     const query = next.toString();
     router.replace(query ? `/explore?${query}` : "/explore", { scroll: false });
-  }, [router, searchParams, statusFilter, sortBy, categoryFilter]);
+  }, [router, searchParams, statusFilter, sortBy, tokenFilter]);
 
   const filtered = useMemo(() => {
     const byStatus = campaigns.filter((campaign) => {
@@ -129,25 +133,20 @@ function ExploreContent() {
       return campaign.raised_amount >= campaign.target_amount || campaign.status === "Funded";
     });
 
-    const byCategory = byStatus.filter((campaign) => {
-      if (categoryFilter === "all") return true;
-      const campaignCat = (campaign.category || "").toLowerCase();
-      if (categoryFilter === "uncategorized") {
-        return !campaignCat || campaignCat === "other" || campaignCat === "uncategorized";
-      }
-      return campaignCat === categoryFilter;
-    });
+    const byToken = !tokenFilter
+      ? byStatus
+      : byStatus.filter((c) => c.accepted_token === tokenFilter);
 
     const term = debouncedSearch.trim().toLowerCase();
     const searched = !term
-      ? byCategory
-      : byCategory.filter(
+      ? byToken
+      : byToken.filter(
           (c) => c.title.toLowerCase().includes(term) || c.creator.toLowerCase().includes(term),
         );
 
     return sortCampaigns(searched, sortBy);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [campaigns, debouncedSearch, statusFilter, sortBy, categoryFilter]);
+  }, [campaigns, debouncedSearch, statusFilter, sortBy, tokenFilter]);
 
   const emptyMessage = useMemo(() => {
     if (debouncedSearch) {
@@ -177,7 +176,7 @@ function ExploreContent() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-end gap-3">
           <div className="relative flex-1 min-w-[200px] max-w-sm">
             <label htmlFor="explore-search" className="sr-only">
               Search campaigns
@@ -194,6 +193,14 @@ function ExploreContent() {
               placeholder="Search by title or creator"
               autoComplete="off"
               className="pl-9"
+            />
+          </div>
+          <div className="w-full sm:w-auto min-w-[220px]">
+            <TokenSelector
+              value={tokenFilter}
+              onChange={setTokenFilter}
+              label="Token"
+              allowCustom={false}
             />
           </div>
         </div>

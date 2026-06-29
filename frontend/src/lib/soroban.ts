@@ -67,10 +67,16 @@ export function fromStroops(stroops: bigint | string | number): string {
 
 export type CampaignStatus = "Active" | "Funded" | "Claimed" | "Expired";
 
+export interface CampaignBeneficiary {
+  address: string;
+  share: number; // basis points (10000 = 100%)
+}
+
 export interface Campaign {
   id: bigint;
   creator: string;
   beneficiary: string;
+  beneficiaries: CampaignBeneficiary[];
   title: string;
   description: string;
   category: string;
@@ -85,10 +91,15 @@ export interface Campaign {
 }
 
 function parseCampaign(native: any): Campaign {
+  const bens = (native.beneficiaries || []).map((b: any) => ({
+    address: String(b[0]),
+    share: Number(b[1]),
+  }));
   return {
     id: BigInt(native.id),
     creator: native.creator,
-    beneficiary: native.beneficiary,
+    beneficiary: bens[0]?.address || native.beneficiary || "",
+    beneficiaries: bens,
     title: native.title.toString(),
     description: native.description.toString(),
     category: native.category.toString(),
