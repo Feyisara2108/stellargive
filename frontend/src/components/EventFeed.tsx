@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useEvents } from "@/hooks/useSoroban";
 import { fromStroops } from "@/lib/soroban";
+import { getStellarExpertTxUrl } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -69,22 +70,104 @@ export function EventFeed() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        {events?.map((event: any) => (
-          <div key={event.id} className="flex gap-4 items-start">
-            <div
-              className={`mt-1 p-2 rounded-full ${
-                event.topic === "received"
-                  ? "bg-green-500/10"
-                  : event.topic === "created"
-                    ? "bg-blue-500/10"
-                    : "bg-purple-500/10"
-              }`}
-            >
-              {event.topic === "received" && <ArrowUpRight className="w-3 h-3 text-green-500" />}
-              {event.topic === "created" && <Megaphone className="w-3 h-3 text-blue-500" />}
-              {event.topic === "claimed" && <Trophy className="w-3 h-3 text-purple-500" />}
-            </div>
-            <div className="flex-1 space-y-1">
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="text-xs text-muted-foreground uppercase bg-muted/20">
+              <tr>
+                <th className="px-4 py-3 rounded-tl-md">Status</th>
+                <th className="px-4 py-3">Action</th>
+                <th className="px-4 py-3">Ledger</th>
+                <th className="px-4 py-3 rounded-tr-md text-right">Tx Hash</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {events?.map((event: any) => (
+                <tr key={event.id} className="hover:bg-muted/10 transition-colors">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={`p-1.5 rounded-full ${
+                          event.topic === "received"
+                            ? "bg-green-500/10 text-green-500"
+                            : event.topic === "created"
+                              ? "bg-blue-500/10 text-blue-500"
+                              : "bg-purple-500/10 text-purple-500"
+                        }`}
+                      >
+                        {event.topic === "received" && <ArrowUpRight className="w-3 h-3" />}
+                        {event.topic === "created" && <Megaphone className="w-3 h-3" />}
+                        {event.topic === "claimed" && <Trophy className="w-3 h-3" />}
+                      </div>
+                      <span className="uppercase text-[10px] font-bold tracking-wider">
+                        {event.topic}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    {event.topic === "received" && (
+                      <>
+                        <span className="font-bold">{fromStroops(event.data[2])} XLM</span> donated to
+                        Campaign #{event.data[0].toString()}
+                      </>
+                    )}
+                    {event.topic === "created" && (
+                      <>
+                        New campaign created with a target of{" "}
+                        <span className="font-bold">{fromStroops(event.data[3])} XLM</span>
+                      </>
+                    )}
+                    {event.topic === "claimed" && (
+                      <>
+                        <span className="font-bold">{fromStroops(event.data[3])} XLM</span> claimed by
+                        beneficiary
+                      </>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground">
+                    {event.ledger}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <a
+                      href={`https://stellar.expert/explorer/testnet/tx/${event.txHash}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-mono text-primary hover:underline"
+                    >
+                      {event.txHash.substring(0, 8)}...{event.txHash.substring(event.txHash.length - 4)}
+                    </a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Mobile View */}
+        <div className="md:hidden space-y-4">
+          {events?.map((event: any) => (
+            <div key={event.id} className="flex flex-col gap-3 p-4 border rounded-lg bg-card">
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <div
+                    className={`p-1.5 rounded-full ${
+                      event.topic === "received"
+                        ? "bg-green-500/10 text-green-500"
+                        : event.topic === "created"
+                          ? "bg-blue-500/10 text-blue-500"
+                          : "bg-purple-500/10 text-purple-500"
+                    }`}
+                  >
+                    {event.topic === "received" && <ArrowUpRight className="w-3 h-3" />}
+                    {event.topic === "created" && <Megaphone className="w-3 h-3" />}
+                    {event.topic === "claimed" && <Trophy className="w-3 h-3" />}
+                  </div>
+                  <span className="uppercase text-[10px] font-bold tracking-wider text-muted-foreground">
+                    {event.topic}
+                  </span>
+                </div>
+                <span className="text-xs text-muted-foreground">Ledger {event.ledger}</span>
+              </div>
+              
               <p className="text-sm">
                 {event.topic === "received" && (
                   <>
@@ -109,10 +192,24 @@ export function EventFeed() {
                 <span>{event.topic}</span>
                 <span>•</span>
                 <span>Ledger {event.ledger}</span>
+                {event.txHash && (
+                  <>
+                    <span>•</span>
+                    <a
+                      href={getStellarExpertTxUrl(event.txHash)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:text-primary transition-colors normal-case tracking-normal font-normal"
+                      aria-label="Verify transaction on StellarExpert"
+                    >
+                      Verify ↗
+                    </a>
+                  </>
+                )}
               </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
         {!events?.length && (
           <div
             role="status"

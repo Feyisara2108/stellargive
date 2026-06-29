@@ -8,11 +8,12 @@ import {
   useDonate,
   useDonateFeeEstimate,
   useWalletBalance,
+  useTokenMetadata,
   type MilestonePercent,
 } from "@/hooks/useSoroban";
-import { Campaign, toStroops } from "@/lib/soroban";
+import { Campaign } from "@/lib/soroban";
 import { useWallet } from "@/lib/WalletProvider";
-import { formatXLM } from "@/utils/format";
+import { formatTokenAmount, toRawAmount } from "@/utils/format";
 import { GasWarning } from "@/components/GasWarning";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,7 +31,6 @@ import { Loader2, Check, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
 
-const MIN_DONATION_XLM = 1e-7; // 1 stroop
 
 const FIRED_MILESTONES = new Set<string>();
 const milestoneKey = (campaignId: bigint, m: MilestonePercent) => `${campaignId.toString()}:${m}`;
@@ -94,11 +94,19 @@ export function DonateModal({
   }
   const displayCampaign = frozenCampaignRef.current;
 
-  const target = Number(displayCampaign.target_amount) / 1e7;
-  const raised = Number(displayCampaign.raised_amount) / 1e7;
+  const { data: tokenMeta } = useTokenMetadata(campaign.accepted_token);
+  const decimals = tokenMeta?.decimals ?? 7;
+  const symbol = tokenMeta?.symbol ?? "XLM";
+  const divisor = 10 ** decimals;
+  const minDonation = 1 / divisor;
+
+  const target = Number(displayCampaign.target_amount) / divisor;
+  const raised = Number(displayCampaign.raised_amount) / divisor;
   const remaining = Math.max(target - raised, 0);
   const liveRemaining = Math.max(remaining - (Number(amount) || 0), 0);
-  const canFundRest = remaining >= MIN_DONATION_XLM && (Number(amount) || 0) < remaining;
+  const canFundRest = remaining >= minDonation && (Number(amount) || 0) < remaining;
+  
+  const formatNum = (num: number) => num.toFixed(decimals).replace(/\.?0+$/, "") || "0";
 
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [internalOpen, setInternalOpen] = useState(false);
@@ -119,15 +127,15 @@ export function DonateModal({
     address,
   });
   const walletBalance = useWalletBalance(campaign.accepted_token, address);
-  const balanceXLM = walletBalance.data != null ? Number(walletBalance.data) / 1e7 : null;
+  const balanceTokens = walletBalance.data != null ? Number(walletBalance.data) / divisor : null;
 
   // Re-run validation when balance loads so the balance error appears immediately.
   useEffect(() => {
-    if (balanceXLM !== null && amount && Number(amount) > 0) {
+    if (balanceTokens !== null && amount && Number(amount) > 0) {
       trigger("amount");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [balanceXLM, trigger]);
+  }, [balanceTokens, trigger]);
 
   // Clear inline submit error whenever the user edits the amount.
   useEffect(() => {
@@ -149,10 +157,11 @@ export function DonateModal({
         campaignId: campaign.id,
         amount: data.amount,
         isAnonymous,
+        decimals,
       });
       try {
         const beforeStroops = campaign.raised_amount;
-        const afterStroops = beforeStroops + toStroops(data.amount);
+        const afterStroops = beforeStroops + toRawAmount(data.amount, decimals);
         for (const milestone of getCrossedMilestones(
           beforeStroops,
           afterStroops,
@@ -239,7 +248,7 @@ export function DonateModal({
                     size="sm"
                     className="h-6 px-2 text-xs"
                     onClick={() =>
-                      setValue("amount", formatXLM(remaining), { shouldValidate: true })
+                      setValue("amount", formatNum(remaining), { shouldValidate: true })
                     }
                     disabled={donate.isPending}
                   >
@@ -264,12 +273,12 @@ export function DonateModal({
                     const num = Number(value);
                     if (isNaN(num)) return "Enter a valid number";
                     const parts = value.split(".");
-                    if (parts.length > 1 && parts[1].length > 7) return "Maximum 7 decimal places";
-                    if (num < MIN_DONATION_XLM)
-                      return "Minimum donation is 0.0000001 XLM (1 stroop)";
+                    if (parts.length > 1 && parts[1].length > decimals) return `Maximum ${decimals} decimal places`;
+                    if (num < minDonation)
+                      return `Minimum donation is ${formatNum(minDonation)} ${symbol}`;
                     if (num > remaining) return "This exceeds the remaining goal";
-                    if (balanceXLM !== null && num > balanceXLM)
-                      return `Insufficient balance — you have ${formatXLM(balanceXLM)} XLM`;
+                    if (balanceTokens !== null && num > balanceTokens)
+                      return `Insufficient balance — you have ${formatNum(balanceTokens)} ${symbol}`;
                     return true;
                   },
                 })}
@@ -283,14 +292,14 @@ export function DonateModal({
                   aria-live="polite"
                 >
                   {liveRemaining > 0
-                    ? `${formatXLM(liveRemaining)} XLM left to reach the goal`
+                    ? `${formatNum(liveRemaining)} ${symbol} left to reach the goal`
                     : amount && Number(amount) > 0
                       ? "This will fully fund the campaign!"
-                      : `${formatXLM(remaining)} XLM left to reach the goal`}
+                      : `${formatNum(remaining)} ${symbol} left to reach the goal`}
                 </span>
-                {balanceXLM !== null && (
+                {balanceTokens !== null && (
                   <span className="text-xs text-muted-foreground">
-                    Balance: {formatXLM(balanceXLM)} XLM
+                    Balance: {formatNum(balanceTokens)} {symbol}
                   </span>
                 )}
               </div>
@@ -377,7 +386,7 @@ export function DonateModal({
           <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-4 my-2 border border-slate-100 dark:border-slate-800 text-left space-y-3">
             <div className="flex justify-between items-center text-sm">
               <span className="text-muted-foreground">Amount Donated</span>
-              <span className="font-semibold text-lg text-primary">{successAmount} XLM</span>
+              <span className="font-semibold text-lg text-primary">{successAmount} {symbol}</span>
             </div>
             <div className="border-t border-slate-100 dark:border-slate-800/80 pt-3">
               <span className="block text-xs text-muted-foreground mb-1">Transaction Hash</span>

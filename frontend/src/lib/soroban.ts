@@ -304,10 +304,12 @@ export async function getEvents(limit = 20) {
     const value = scValToNative(event.value);
     return {
       id: event.id,
+      txHash: (event as any).txHash || event.id,
       ledger: event.ledger,
       createdAt: event.ledgerClosedAt,
       topic: topics[1], // e.g., 'created', 'received', 'claimed'
       data: value,
+      txHash: (event as any).txHash as string | undefined,
     };
   });
 }

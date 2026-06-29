@@ -48,7 +48,10 @@ const formSchema = z.object({
     .min(5, "Title must be at least 5 characters")
     .max(MAX_TITLE_LEN, `Title cannot exceed ${MAX_TITLE_LEN} characters`),
   beneficiary: z.string().regex(/^G[A-Z0-9]{55}$/, "Invalid Stellar address"),
-  category: z.enum(["medical", "food", "shelter", "education", "relief", "other"]),
+  category: z
+    .enum(["medical", "food", "shelter", "education", "relief", "other"])
+    .optional()
+    .or(z.literal("")),
   targetAmount: z.string().refine(
     (val) => {
       const n = Number(val);
@@ -110,7 +113,7 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
     defaultValues: {
       title: "",
       beneficiary: "",
-      category: "relief",
+      category: "",
       targetAmount: "",
       deadlineDays: "30",
       acceptedToken: NATIVE_XLM,
@@ -164,7 +167,7 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
       const result = await createCampaign.mutateAsync({
         title: values.title,
         beneficiary: values.beneficiary,
-        category: values.category,
+        category: values.category || "other",
         metadataUri: values.metadataUri || undefined,
         targetAmount: values.targetAmount,
         deadline,
@@ -322,13 +325,14 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
           name="category"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Category</FormLabel>
+              <FormLabel>Category (Optional)</FormLabel>
               <FormControl>
                 <select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   {...field}
                   disabled={createCampaign.isPending}
                 >
+                  <option value="">Select Category</option>
                   <option value="medical">Medical</option>
                   <option value="food">Food</option>
                   <option value="shelter">Shelter</option>
