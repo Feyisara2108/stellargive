@@ -13,10 +13,8 @@ interface GasWarningProps {
  * a transaction's simulated resource fee exceeds MAX_SIMULATION_FEE_STROOPS.
  */
 export function GasWarning({ feeStroops, estimatedFeeStroops, onDismiss }: GasWarningProps) {
-  const isHighFee =
-    feeStroops != null && feeStroops > MAX_SIMULATION_FEE_STROOPS;
-  const showEstimate =
-    estimatedFeeStroops != null && !isHighFee;
+  const isHighFee = feeStroops != null && feeStroops > MAX_SIMULATION_FEE_STROOPS;
+  const showEstimate = estimatedFeeStroops != null && !isHighFee;
 
   if (!isHighFee && !showEstimate) return null;
 

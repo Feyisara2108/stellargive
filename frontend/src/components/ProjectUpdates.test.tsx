@@ -152,10 +152,7 @@ describe("ProjectUpdates — ordering", () => {
   });
 
   it("keeps newest-first ordering even when updates already arrive pre-sorted", () => {
-    mockUpdates([
-      makeUpdate("Newest update", 60),
-      makeUpdate("Older update", 3600),
-    ]);
+    mockUpdates([makeUpdate("Newest update", 60), makeUpdate("Older update", 3600)]);
     const { container } = render(<ProjectUpdates campaignId={CAMPAIGN_ID} />);
 
     expect(renderedContentInOrder(container)).toEqual(["Newest update", "Older update"]);

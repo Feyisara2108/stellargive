@@ -136,7 +136,7 @@ export default function ActivityPage() {
                 </table>
               </Card>
             </div>
-            
+
             <div className="relative md:hidden space-y-4">
               {showIndicator && (
                 <div className="absolute -top-12 left-1/2 -translate-x-1/2 z-10 bg-primary text-primary-foreground px-4 py-1.5 rounded-full text-sm font-medium shadow-md animate-in fade-in slide-in-from-top-4 duration-300">
@@ -225,7 +225,7 @@ function useActivityData(event: any) {
 
 function ActivityRowDesktop({ event }: { event: any }) {
   const { icon, iconBg, label, body, when, txHash } = useActivityData(event);
-  
+
   return (
     <tr className="hover:bg-muted/10 transition-colors">
       <td className="px-4 py-3">
@@ -273,7 +273,7 @@ function ActivityRowMobile({ event }: { event: any }) {
         <span className="text-xs text-muted-foreground">{when}</span>
       </div>
       <p className="text-sm">{body}</p>
-      
+
       <div className="pt-3 border-t flex justify-between items-center text-xs">
         <span className="text-muted-foreground">Tx Hash</span>
         {txHash ? (

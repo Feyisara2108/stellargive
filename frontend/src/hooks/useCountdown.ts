@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 
 function get_time_left(deadline: bigint | number) {
   const now = Math.floor(Date.now() / 1000);
@@ -17,7 +17,7 @@ export function useCountdown(deadline: bigint | number) {
     const timer = setInterval(() => {
       const remaining = get_time_left(deadline);
       setTimeLeft(remaining);
-      
+
       if (remaining <= 0) {
         clearInterval(timer);
       }

@@ -95,16 +95,19 @@ afterEach(() => {
 });
 
 describe("Navbar — primary nav links", () => {
-  it.each(PRIMARY_NAV_LINKS)("renders an '$name' link pointing to $href", async ({ name, href }) => {
-    await renderNavbarConnected();
-    // The same link appears twice: once in the desktop nav, once in the
-    // mobile drawer (always present in the DOM, just translated off-screen).
-    const links = screen.getAllByRole("link", { name });
-    expect(links.length).toBe(2);
-    for (const link of links) {
-      expect(link).toHaveAttribute("href", href);
-    }
-  });
+  it.each(PRIMARY_NAV_LINKS)(
+    "renders an '$name' link pointing to $href",
+    async ({ name, href }) => {
+      await renderNavbarConnected();
+      // The same link appears twice: once in the desktop nav, once in the
+      // mobile drawer (always present in the DOM, just translated off-screen).
+      const links = screen.getAllByRole("link", { name });
+      expect(links.length).toBe(2);
+      for (const link of links) {
+        expect(link).toHaveAttribute("href", href);
+      }
+    },
+  );
 
   it("renders all four primary nav links", async () => {
     await renderNavbarConnected();

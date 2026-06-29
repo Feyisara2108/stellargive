@@ -72,7 +72,7 @@ describe("WalletConnect Component", () => {
           }}
         >
           <WalletConnect />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       // Disconnect the wallet
@@ -99,7 +99,7 @@ describe("WalletConnect Component", () => {
           }}
         >
           <WalletConnect />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       // Disconnect the wallet
@@ -134,7 +134,7 @@ describe("WalletConnect Component", () => {
           }}
         >
           <WalletConnect />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       // Disconnect
@@ -161,7 +161,7 @@ describe("WalletConnect Component", () => {
           }}
         >
           <WalletConnect />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       // Disconnect
@@ -191,7 +191,7 @@ describe("WalletConnect Component", () => {
           }}
         >
           <WalletConnect />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       // Disconnect first
@@ -227,7 +227,7 @@ describe("WalletConnect Component", () => {
           }}
         >
           <WalletConnect />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       // Disconnect first
@@ -262,7 +262,7 @@ describe("WalletConnect Component", () => {
           }}
         >
           <WalletConnect />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       // Disconnect first
@@ -293,7 +293,7 @@ describe("WalletConnect Component", () => {
       render(
         <MockWalletProvider>
           <WalletConnect />
-        </MockWalletProvider>
+        </MockWalletProvider>,
       );
 
       // MockWalletProvider initializes as connected by default
@@ -308,7 +308,7 @@ describe("WalletConnect Component", () => {
       render(
         <MockWalletProvider>
           <WalletConnect />
-        </MockWalletProvider>
+        </MockWalletProvider>,
       );
 
       await waitFor(() => {
@@ -322,7 +322,7 @@ describe("WalletConnect Component", () => {
       render(
         <MockWalletProvider>
           <WalletConnect />
-        </MockWalletProvider>
+        </MockWalletProvider>,
       );
 
       await waitFor(() => {
@@ -338,7 +338,7 @@ describe("WalletConnect Component", () => {
       render(
         <MockWalletProvider>
           <WalletConnect />
-        </MockWalletProvider>
+        </MockWalletProvider>,
       );
 
       await waitFor(() => {
@@ -352,7 +352,7 @@ describe("WalletConnect Component", () => {
       render(
         <MockWalletProvider>
           <WalletConnect />
-        </MockWalletProvider>
+        </MockWalletProvider>,
       );
 
       await waitFor(() => {
@@ -366,7 +366,7 @@ describe("WalletConnect Component", () => {
       render(
         <MockWalletProvider>
           <WalletConnect />
-        </MockWalletProvider>
+        </MockWalletProvider>,
       );
 
       await waitFor(() => {
@@ -384,7 +384,7 @@ describe("WalletConnect Component", () => {
       render(
         <MockWalletProvider>
           <WalletConnect />
-        </MockWalletProvider>
+        </MockWalletProvider>,
       );
 
       await waitFor(() => {
@@ -423,7 +423,7 @@ describe("WalletConnect Component", () => {
       render(
         <MockWalletProvider>
           <WalletConnect />
-        </MockWalletProvider>
+        </MockWalletProvider>,
       );
 
       await waitFor(() => {
@@ -436,7 +436,9 @@ describe("WalletConnect Component", () => {
 
       // Full untruncated address should be shown in dropdown
       await waitFor(() => {
-        const fullAddress = screen.getByText(/GTEST7SRIEMJXLK3LXKLS5RQ7JLDUZQUDVFNLWIM6DEDCZM5WLPSERV/);
+        const fullAddress = screen.getByText(
+          /GTEST7SRIEMJXLK3LXKLS5RQ7JLDUZQUDVFNLWIM6DEDCZM5WLPSERV/,
+        );
         expect(fullAddress).toBeInTheDocument();
       });
     });
@@ -447,7 +449,7 @@ describe("WalletConnect Component", () => {
       render(
         <MockWalletProvider>
           <WalletConnect />
-        </MockWalletProvider>
+        </MockWalletProvider>,
       );
 
       await waitFor(() => {
@@ -473,7 +475,7 @@ describe("WalletConnect Component", () => {
             <WalletConnect />
             <div data-testid="outside-element">Outside</div>
           </div>
-        </MockWalletProvider>
+        </MockWalletProvider>,
       );
 
       await waitFor(() => {
@@ -507,7 +509,7 @@ describe("WalletConnect Component", () => {
       render(
         <MockWalletProvider>
           <WalletConnect />
-        </MockWalletProvider>
+        </MockWalletProvider>,
       );
 
       await waitFor(() => {
@@ -544,7 +546,7 @@ describe("WalletConnect Component", () => {
       render(
         <MockWalletProvider>
           <WalletConnect />
-        </MockWalletProvider>
+        </MockWalletProvider>,
       );
 
       // Open dropdown
@@ -577,7 +579,7 @@ describe("WalletConnect Component", () => {
       render(
         <MockWalletProvider>
           <WalletConnect />
-        </MockWalletProvider>
+        </MockWalletProvider>,
       );
 
       // Verify connected state
@@ -617,7 +619,7 @@ describe("WalletConnect Component", () => {
       render(
         <MockWalletProvider>
           <WalletConnect />
-        </MockWalletProvider>
+        </MockWalletProvider>,
       );
 
       // Open dropdown
@@ -652,7 +654,7 @@ describe("WalletConnect Component", () => {
       render(
         <MockWalletProvider>
           <WalletConnect />
-        </MockWalletProvider>
+        </MockWalletProvider>,
       );
 
       // Open dropdown
@@ -686,7 +688,7 @@ describe("WalletConnect Component", () => {
       render(
         <MockWalletProvider>
           <WalletConnect />
-        </MockWalletProvider>
+        </MockWalletProvider>,
       );
 
       await waitFor(() => {
@@ -716,7 +718,7 @@ describe("WalletConnect Component", () => {
           }}
         >
           <WalletConnect />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       // Start in connected state
@@ -768,7 +770,7 @@ describe("WalletConnect Component", () => {
           }}
         >
           <WalletConnect />
-        </TestWrapper>
+        </TestWrapper>,
       );
 
       // Cycle 1: Start connected, then disconnect
@@ -825,7 +827,7 @@ describe("WalletConnect Component", () => {
       render(
         <MockWalletProvider>
           <WalletConnect />
-        </MockWalletProvider>
+        </MockWalletProvider>,
       );
 
       await waitFor(() => {
@@ -841,7 +843,7 @@ describe("WalletConnect Component", () => {
       render(
         <MockWalletProvider>
           <WalletConnect />
-        </MockWalletProvider>
+        </MockWalletProvider>,
       );
 
       await waitFor(() => {

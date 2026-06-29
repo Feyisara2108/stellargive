@@ -18,9 +18,7 @@ import {
 // mirroring the patterns used in CreateCampaignForm and DonateModal.
 const testSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters"),
-  amount: z
-    .string()
-    .refine((v) => !isNaN(Number(v)) && Number(v) > 0, "Must be a positive number"),
+  amount: z.string().refine((v) => !isNaN(Number(v)) && Number(v) > 0, "Must be a positive number"),
 });
 
 type TestValues = z.infer<typeof testSchema>;
@@ -112,9 +110,7 @@ describe("Form (react-hook-form + zod)", () => {
 
     await fillAndSubmit({ username: "ab", amount: "10" });
 
-    expect(
-      await screen.findByText("Username must be at least 3 characters"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Username must be at least 3 characters")).toBeInTheDocument();
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
@@ -234,9 +230,7 @@ describe("Form (react-hook-form + zod)", () => {
     await user.click(screen.getByRole("button", { name: /submit/i }));
 
     await waitFor(() =>
-      expect(
-        screen.queryByText("Username must be at least 3 characters"),
-      ).not.toBeInTheDocument(),
+      expect(screen.queryByText("Username must be at least 3 characters")).not.toBeInTheDocument(),
     );
     expect(onSubmit).toHaveBeenCalledOnce();
   });

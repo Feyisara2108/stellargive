@@ -41,8 +41,8 @@ export default function RouteError({
       </div>
       <h2 className="text-2xl font-bold mb-2">Something went wrong on this page.</h2>
       <p className="text-muted-foreground max-w-md mb-6">
-        The error has been reported. You can try reloading this section, or
-        head back to the home page.
+        The error has been reported. You can try reloading this section, or head back to the home
+        page.
       </p>
       <div className="flex flex-wrap gap-3 justify-center">
         <Button onClick={() => reset()}>Try again</Button>

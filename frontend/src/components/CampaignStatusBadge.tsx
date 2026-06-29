@@ -6,7 +6,11 @@ interface CampaignStatusBadgeProps {
   className?: string;
 }
 
-export function CampaignStatusBadge({ status, deadline, className = "" }: CampaignStatusBadgeProps) {
+export function CampaignStatusBadge({
+  status,
+  deadline,
+  className = "",
+}: CampaignStatusBadgeProps) {
   let displayStatus = status;
 
   if (status === "Active" && deadline !== undefined) {
@@ -29,7 +33,8 @@ export function CampaignStatusBadge({ status, deadline, className = "" }: Campai
       customClasses = "bg-blue-500/20 text-blue-500 hover:bg-blue-500/30 border-transparent";
       break;
     case "Cancelled":
-      customClasses = "bg-destructive/20 text-destructive hover:bg-destructive/30 border-transparent";
+      customClasses =
+        "bg-destructive/20 text-destructive hover:bg-destructive/30 border-transparent";
       break;
     case "Expired":
     default:

@@ -26,7 +26,7 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
   const { data: tokenMeta } = useTokenMetadata(campaign.accepted_token);
   const decimals = tokenMeta?.decimals ?? 7;
   const symbol = tokenMeta?.symbol ?? "XLM";
-  
+
   const raised = formatTokenAmount(campaign.raised_amount, decimals);
   const target = formatTokenAmount(campaign.target_amount, decimals);
   const progress = calculateProgress(campaign.raised_amount, campaign.target_amount);
@@ -74,7 +74,9 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
             <span className="text-muted-foreground flex items-center gap-1">
               <TrendingUp className="w-3 h-3" /> Raised
             </span>
-            <span className="font-bold">{raised} {symbol}</span>
+            <span className="font-bold">
+              {raised} {symbol}
+            </span>
           </div>
           <Progress
             value={progress}

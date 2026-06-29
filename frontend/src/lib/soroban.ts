@@ -181,7 +181,7 @@ export async function getRecentCampaigns(limit = 20): Promise<Campaign[]> {
       break;
     }
   }
-  
+
   return campaigns;
 }
 

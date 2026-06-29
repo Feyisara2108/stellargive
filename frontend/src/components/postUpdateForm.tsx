@@ -1,6 +1,5 @@
 // frontend/src/components/PostUpdateForm.tsx
 
-
 interface PostUpdateFormProps {
   campaignId: string;
   onSuccess: () => void;
@@ -15,11 +14,10 @@ export const PostUpdateForm: React.FC<PostUpdateFormProps> = ({
   onSuccess,
   addUpdateMutation,
 }) => {
-  const [content, setContent] = useState('');
+  const [content, setContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [overLimitTimer, setOverLimitTimer] = useState<number>(0);
-
 
   const remainingCharacters = MAX_CHARACTER_LIMIT - content.length;
   const isOverLimit = remainingCharacters < 0;
@@ -43,13 +41,13 @@ export const PostUpdateForm: React.FC<PostUpdateFormProps> = ({
     setError(null);
     try {
       await addUpdateMutation(campaignId, content.trim());
-      setContent('');
+      setContent("");
       onSuccess();
       // Replace with your UI toast component if available
-      alert('Update posted successfully!');
+      alert("Update posted successfully!");
     } catch (err: any) {
-      console.error('Failed to submit update to Soroban:', err);
-      setError(err?.message || 'Transaction failed. Please try again.');
+      console.error("Failed to submit update to Soroban:", err);
+      setError(err?.message || "Transaction failed. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -69,7 +67,9 @@ export const PostUpdateForm: React.FC<PostUpdateFormProps> = ({
             disabled={isSubmitting}
           />
           <div className="flex justify-between items-center mt-1 text-sm">
-            <span className={isOverLimit ? 'text-destructive font-medium' : 'text-muted-foreground'}>
+            <span
+              className={isOverLimit ? "text-destructive font-medium" : "text-muted-foreground"}
+            >
               {remainingCharacters} characters remaining
             </span>
             {isOverLimit && overLimitTimer > 0 && (
@@ -85,7 +85,7 @@ export const PostUpdateForm: React.FC<PostUpdateFormProps> = ({
           className="px-4 py-2 bg-primary text-primary-foreground rounded-md font-medium disabled:opacity-50"
           disabled={isSubmitting || !content.trim() || isOverLimit}
         >
-          {isSubmitting ? 'Submitting to Soroban...' : 'Post Update'}
+          {isSubmitting ? "Submitting to Soroban..." : "Post Update"}
         </button>
       </form>
     </div>

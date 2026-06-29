@@ -15,21 +15,21 @@ export const formatTokenAmount = (raw: bigint | string | number, decimals: numbe
   const n = BigInt(raw);
   const divisor = BigInt(10 ** decimals);
   const intPart = (n / divisor).toString();
-  
+
   if (decimals === 0) return intPart;
 
   let decRaw = (n % divisor).toString();
   // Handle negative remainder
   if (decRaw.startsWith("-")) decRaw = decRaw.slice(1);
   decRaw = decRaw.padStart(decimals, "0");
-  
+
   const decPart = decRaw.replace(/0+$/, "");
-  
+
   // Handle negative zero for formatting (e.g. -0.5)
   if (n < 0n && intPart === "0") {
     return decPart.length > 0 ? `-0.${decPart}` : "0";
   }
-  
+
   return decPart.length > 0 ? `${intPart}.${decPart}` : intPart;
 };
 
@@ -54,6 +54,6 @@ export const toRawAmount = (amount: string | number, decimals: number = 7): bigi
     const fraction = parts[1].padEnd(decimals, "0");
     raw += BigInt(fraction);
   }
-  
+
   return isNegative ? -raw : raw;
 };

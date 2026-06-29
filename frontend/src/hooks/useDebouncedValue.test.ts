@@ -21,10 +21,9 @@ describe("useDebouncedValue", () => {
   // ── Delay enforcement ────────────────────────────────────────────────────
 
   it("does not update the value before the full delay has elapsed", () => {
-    const { result, rerender } = renderHook(
-      ({ v }: { v: string }) => useDebouncedValue(v, 300),
-      { initialProps: { v: "first" } },
-    );
+    const { result, rerender } = renderHook(({ v }: { v: string }) => useDebouncedValue(v, 300), {
+      initialProps: { v: "first" },
+    });
 
     rerender({ v: "second" });
 
@@ -36,10 +35,9 @@ describe("useDebouncedValue", () => {
   });
 
   it("updates the value exactly when the delay elapses", () => {
-    const { result, rerender } = renderHook(
-      ({ v }: { v: string }) => useDebouncedValue(v, 300),
-      { initialProps: { v: "first" } },
-    );
+    const { result, rerender } = renderHook(({ v }: { v: string }) => useDebouncedValue(v, 300), {
+      initialProps: { v: "first" },
+    });
 
     rerender({ v: "second" });
 
@@ -51,10 +49,9 @@ describe("useDebouncedValue", () => {
   });
 
   it("does not update between 0 ms and the delay boundary", () => {
-    const { result, rerender } = renderHook(
-      ({ v }: { v: string }) => useDebouncedValue(v, 500),
-      { initialProps: { v: "a" } },
-    );
+    const { result, rerender } = renderHook(({ v }: { v: string }) => useDebouncedValue(v, 500), {
+      initialProps: { v: "a" },
+    });
 
     rerender({ v: "b" });
 
@@ -74,37 +71,43 @@ describe("useDebouncedValue", () => {
   // ── Timer reset on rapid changes ─────────────────────────────────────────
 
   it("resets the timer when the value changes before the delay elapses", () => {
-    const { result, rerender } = renderHook(
-      ({ v }: { v: string }) => useDebouncedValue(v, 300),
-      { initialProps: { v: "a" } },
-    );
+    const { result, rerender } = renderHook(({ v }: { v: string }) => useDebouncedValue(v, 300), {
+      initialProps: { v: "a" },
+    });
 
     // First change starts a 300 ms timer
     rerender({ v: "b" });
-    act(() => { vi.advanceTimersByTime(200); }); // 200 ms — timer still pending
+    act(() => {
+      vi.advanceTimersByTime(200);
+    }); // 200 ms — timer still pending
 
     // Second change cancels the first timer and starts a new 300 ms one
     rerender({ v: "c" });
-    act(() => { vi.advanceTimersByTime(100); }); // only 100 ms since "c" was set
+    act(() => {
+      vi.advanceTimersByTime(100);
+    }); // only 100 ms since "c" was set
 
     expect(result.current).toBe("a"); // neither "b" nor "c" should have landed
 
-    act(() => { vi.advanceTimersByTime(200); }); // total 300 ms since "c"
+    act(() => {
+      vi.advanceTimersByTime(200);
+    }); // total 300 ms since "c"
     expect(result.current).toBe("c"); // "b" was cancelled; "c" wins
   });
 
   it("collapses rapid-fire changes to only the final value", () => {
-    const { result, rerender } = renderHook(
-      ({ v }: { v: string }) => useDebouncedValue(v, 300),
-      { initialProps: { v: "start" } },
-    );
+    const { result, rerender } = renderHook(({ v }: { v: string }) => useDebouncedValue(v, 300), {
+      initialProps: { v: "start" },
+    });
 
     // Simulate a user typing quickly — five changes in 250 ms total
     const keystrokes = ["s", "se", "sea", "sear", "search"];
     keystrokes.forEach((v, i) => {
       rerender({ v });
       if (i < keystrokes.length - 1) {
-        act(() => { vi.advanceTimersByTime(50); });
+        act(() => {
+          vi.advanceTimersByTime(50);
+        });
       }
     });
 
@@ -112,7 +115,9 @@ describe("useDebouncedValue", () => {
     expect(result.current).toBe("start");
 
     // Let the final timer fire
-    act(() => { vi.advanceTimersByTime(300); });
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
     expect(result.current).toBe("search");
   });
 
@@ -129,13 +134,19 @@ describe("useDebouncedValue", () => {
     );
 
     rerender({ v: "ab" });
-    act(() => { vi.advanceTimersByTime(100); });
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
 
     rerender({ v: "abc" });
-    act(() => { vi.advanceTimersByTime(100); });
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
 
     rerender({ v: "abcd" });
-    act(() => { vi.advanceTimersByTime(200); }); // timer for "abcd" fires
+    act(() => {
+      vi.advanceTimersByTime(200);
+    }); // timer for "abcd" fires
 
     // The debounced output should never have emitted "ab" or "abc"
     expect(observed).not.toContain("ab");
@@ -146,13 +157,14 @@ describe("useDebouncedValue", () => {
   // ── Different value types ────────────────────────────────────────────────
 
   it("works with number values", () => {
-    const { result, rerender } = renderHook(
-      ({ v }: { v: number }) => useDebouncedValue(v, 150),
-      { initialProps: { v: 0 } },
-    );
+    const { result, rerender } = renderHook(({ v }: { v: number }) => useDebouncedValue(v, 150), {
+      initialProps: { v: 0 },
+    });
 
     rerender({ v: 42 });
-    act(() => { vi.advanceTimersByTime(150); });
+    act(() => {
+      vi.advanceTimersByTime(150);
+    });
 
     expect(result.current).toBe(42);
   });
@@ -167,7 +179,9 @@ describe("useDebouncedValue", () => {
     );
 
     rerender({ v: obj2 });
-    act(() => { vi.advanceTimersByTime(100); });
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
 
     expect(result.current).toBe(obj2);
   });
@@ -175,25 +189,27 @@ describe("useDebouncedValue", () => {
   // ── Edge cases ───────────────────────────────────────────────────────────
 
   it("responds immediately when the delay is 0 ms", () => {
-    const { result, rerender } = renderHook(
-      ({ v }: { v: string }) => useDebouncedValue(v, 0),
-      { initialProps: { v: "a" } },
-    );
+    const { result, rerender } = renderHook(({ v }: { v: string }) => useDebouncedValue(v, 0), {
+      initialProps: { v: "a" },
+    });
 
     rerender({ v: "b" });
-    act(() => { vi.advanceTimersByTime(0); });
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
 
     expect(result.current).toBe("b");
   });
 
   it("does not update when the same value is rerendered", () => {
-    const { result, rerender } = renderHook(
-      ({ v }: { v: string }) => useDebouncedValue(v, 300),
-      { initialProps: { v: "same" } },
-    );
+    const { result, rerender } = renderHook(({ v }: { v: string }) => useDebouncedValue(v, 300), {
+      initialProps: { v: "same" },
+    });
 
     rerender({ v: "same" });
-    act(() => { vi.advanceTimersByTime(300); });
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
 
     expect(result.current).toBe("same");
   });
@@ -207,10 +223,14 @@ describe("useDebouncedValue", () => {
     // Switch to a longer delay and update the value at the same time
     rerender({ v: "b", delay: 600 });
 
-    act(() => { vi.advanceTimersByTime(300); }); // would have fired at old delay
+    act(() => {
+      vi.advanceTimersByTime(300);
+    }); // would have fired at old delay
     expect(result.current).toBe("a");
 
-    act(() => { vi.advanceTimersByTime(300); }); // full 600 ms elapsed
+    act(() => {
+      vi.advanceTimersByTime(300);
+    }); // full 600 ms elapsed
     expect(result.current).toBe("b");
   });
 });

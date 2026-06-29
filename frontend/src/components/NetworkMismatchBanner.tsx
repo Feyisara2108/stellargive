@@ -34,10 +34,8 @@ export function NetworkMismatchBanner() {
           <div className="flex-1 space-y-1">
             <p className="text-sm font-semibold">Network Mismatch Detected</p>
             <p className="text-xs opacity-90">
-              Your wallet is on <span className="font-mono font-bold">{walletNetwork}</span>.
-              {" "}
-              StellarGive needs <span className="font-mono font-bold">{expectedNetwork}</span>.
-              {" "}
+              Your wallet is on <span className="font-mono font-bold">{walletNetwork}</span>.{" "}
+              StellarGive needs <span className="font-mono font-bold">{expectedNetwork}</span>.{" "}
               Please switch networks in your Freighter wallet.
             </p>
           </div>
@@ -47,7 +45,7 @@ export function NetworkMismatchBanner() {
               size="sm"
               className="h-8 text-xs font-medium"
               onClick={() => {
-                // Freighter doesn't have a direct 'switch network' API, 
+                // Freighter doesn't have a direct 'switch network' API,
                 // but we can suggest the user open it.
                 window.open("https://freighter.app/", "_blank");
               }}

@@ -2,13 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe, toHaveNoViolations } from "jest-axe";
-import {
-  Dialog,
-  DialogTrigger,
-  DialogContent,
-  DialogTitle,
-  DialogDescription,
-} from "./dialog";
+import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription } from "./dialog";
 
 expect.extend(toHaveNoViolations);
 

@@ -11,7 +11,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useRecentCampaigns, useEvents } from "@/hooks/useSoroban";
 import { fromStroops, type Campaign } from "@/lib/soroban";
 import { useWallet } from "@/lib/WalletProvider";
-import { Loader2, UserCircle, Wallet, HandCoins, TrendingUp, Megaphone, AlertCircle, RotateCw } from "lucide-react";
+import {
+  Loader2,
+  UserCircle,
+  Wallet,
+  HandCoins,
+  TrendingUp,
+  Megaphone,
+  AlertCircle,
+  RotateCw,
+} from "lucide-react";
 
 const ZERO_ADDRESS = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
 
@@ -24,8 +33,18 @@ function normalizeAddress(value: unknown): string | null {
 
 export default function ProfilePage() {
   const { address, isConnected } = useWallet();
-  const { data: campaigns, isLoading: campaignsLoading, isError: campaignsError, refetch: refetchCampaigns } = useRecentCampaigns();
-  const { data: events, isLoading: eventsLoading, isError: eventsError, refetch: refetchEvents } = useEvents(100);
+  const {
+    data: campaigns,
+    isLoading: campaignsLoading,
+    isError: campaignsError,
+    refetch: refetchCampaigns,
+  } = useRecentCampaigns();
+  const {
+    data: events,
+    isLoading: eventsLoading,
+    isError: eventsError,
+    refetch: refetchEvents,
+  } = useEvents(100);
 
   const { created, supported, totalRaised, totalDonated, activeCount } = useMemo(() => {
     const all: Campaign[] = campaigns ?? [];
@@ -107,9 +126,12 @@ export default function ProfilePage() {
             <div className="flex items-start gap-3">
               <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
               <div className="space-y-2 flex-1">
-                <h3 className="font-semibold text-red-900 dark:text-red-200">Failed to load data</h3>
+                <h3 className="font-semibold text-red-900 dark:text-red-200">
+                  Failed to load data
+                </h3>
                 <p className="text-sm text-red-800 dark:text-red-300">
-                  We encountered an error while fetching your campaigns. Please check your connection and try again.
+                  We encountered an error while fetching your campaigns. Please check your
+                  connection and try again.
                 </p>
               </div>
             </div>
@@ -239,4 +261,3 @@ function CampaignsSectionSkeleton() {
     </section>
   );
 }
-
