@@ -5,6 +5,15 @@ import { GasWarning } from "./GasWarning";
 // vi.mock is hoisted, so use the literal value inside the factory
 vi.mock("@/lib/soroban", () => ({
   MAX_SIMULATION_FEE_STROOPS: 10_000_000,
+  fromStroops: (v: any) => (Number(v) / 1e7).toString(),
+}));
+
+vi.mock("@/lib/WalletProvider", () => ({
+  useWallet: () => ({ address: null, network: "testnet" }),
+}));
+
+vi.mock("@/hooks/useSoroban", () => ({
+  useWalletBalance: () => ({ data: null }),
 }));
 
 const MAX_SIMULATION_FEE_STROOPS = 10_000_000;

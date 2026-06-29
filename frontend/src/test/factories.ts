@@ -1,4 +1,4 @@
-import type { Campaign } from "@/lib/soroban";
+import type { Campaign, CampaignBeneficiary } from "@/lib/soroban";
 
 /**
  * Shared test factories for generating mock data in frontend unit/integration tests.
@@ -20,6 +20,7 @@ export const makeCampaign = (overrides?: Partial<Campaign>): Campaign => ({
   id: 1n,
   creator: WALLET_ADDRESS,
   beneficiary: WALLET_ADDRESS,
+  beneficiaries: [{ address: WALLET_ADDRESS, share: 10000 }],
   title: "Test Campaign",
   description: "Test description",
   category: "relief",

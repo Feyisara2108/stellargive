@@ -1,6 +1,7 @@
 import React, { ReactNode } from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Navbar } from "./Navbar";
 import { MockWalletProvider, useMockWallet } from "./MockWalletProvider";
 

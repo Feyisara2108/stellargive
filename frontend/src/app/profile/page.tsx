@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Navbar } from "@/components/Navbar";
 import { CampaignCard } from "@/components/CampaignCard";
@@ -46,36 +46,44 @@ export default function ProfilePage() {
     refetch: refetchEvents,
   } = useEvents(100);
 
-  const { created, supported, totalRaised, totalDonated, activeCount } = useMemo(() => {
-    const all: Campaign[] = campaigns ?? [];
-    const created = address ? all.filter((c) => c.creator === address) : [];
+  const { created, supported, totalRaised, totalDonated, activeCount, myDonationsEvents } =
+    useMemo(() => {
+      const all: Campaign[] = campaigns ?? [];
+      const created = address ? all.filter((c) => c.creator === address) : [];
 
-    const myDonations = (events ?? []).filter(
-      (e: any) => e.topic === "received" && normalizeAddress(e.data?.[1]) === address,
-    );
-    const supportedIds = new Set(
-      myDonations.map((e: any) => {
+      const myDonations = (events ?? []).filter(
+        (e: any) => e.topic === "received" && normalizeAddress(e.data?.[1]) === address,
+      );
+      const supportedIds = new Set(
+        myDonations.map((e: any) => {
+          try {
+            return BigInt(e.data[0]).toString();
+          } catch {
+            return "";
+          }
+        }),
+      );
+      const supported = all.filter((c) => supportedIds.has(c.id.toString()));
+
+      const totalRaised = created.reduce((acc, c) => acc + c.raised_amount, 0n);
+      const totalDonated = myDonations.reduce((acc: bigint, e: any) => {
         try {
-          return BigInt(e.data[0]).toString();
+          return acc + BigInt(e.data[2]);
         } catch {
-          return "";
+          return acc;
         }
-      }),
-    );
-    const supported = all.filter((c) => supportedIds.has(c.id.toString()));
+      }, 0n);
+      const activeCount = created.filter((c) => c.status === "Active").length;
 
-    const totalRaised = created.reduce((acc, c) => acc + c.raised_amount, 0n);
-    const totalDonated = myDonations.reduce((acc: bigint, e: any) => {
-      try {
-        return acc + BigInt(e.data[2]);
-      } catch {
-        return acc;
-      }
-    }, 0n);
-    const activeCount = created.filter((c) => c.status === "Active").length;
-
-    return { created, supported, totalRaised, totalDonated, activeCount };
-  }, [campaigns, events, address]);
+      return {
+        created,
+        supported,
+        totalRaised,
+        totalDonated,
+        activeCount,
+        myDonationsEvents: myDonations,
+      };
+    }, [campaigns, events, address]);
 
   // Auth guard — the dashboard is meaningless without a connected wallet.
   if (!isConnected || !address) {
@@ -171,12 +179,35 @@ export default function ProfilePage() {
           )}
         </div>
 
+        <div className="flex items-center gap-4 border-b border-border">
+          <button
+            onClick={() => setActiveTab("campaigns")}
+            className={`pb-3 text-sm font-medium transition-colors ${
+              activeTab === "campaigns"
+                ? "border-b-2 border-primary text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            My Campaigns
+          </button>
+          <button
+            onClick={() => setActiveTab("donations")}
+            className={`pb-3 text-sm font-medium transition-colors ${
+              activeTab === "donations"
+                ? "border-b-2 border-primary text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            My Donations
+          </button>
+        </div>
+
         {isLoading ? (
           <>
             <CampaignsSectionSkeleton />
             <CampaignsSectionSkeleton />
           </>
-        ) : (
+        ) : activeTab === "campaigns" ? (
           <>
             <Section
               title="Campaigns I Created"
@@ -199,9 +230,93 @@ export default function ProfilePage() {
               }
             />
           </>
+        ) : (
+          <DonationsSection
+            donations={myDonationsEvents}
+            campaigns={campaigns ?? []}
+            emptyText="You haven't made any donations yet."
+            action={
+              <Button asChild variant="outline" size="sm">
+                <Link href="/explore">Explore campaigns</Link>
+              </Button>
+            }
+          />
         )}
       </main>
     </div>
+  );
+}
+
+function DonationsSection({
+  donations,
+  campaigns,
+  emptyText,
+  action,
+}: {
+  donations: any[];
+  campaigns: Campaign[];
+  emptyText: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <section className="space-y-4">
+      {donations.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground rounded-lg border border-dashed py-12 text-center">
+          <p>{emptyText}</p>
+          {action}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {donations.map((event, idx) => {
+            let campaignId = "";
+            let amount = "";
+            try {
+              campaignId = BigInt(event.data[0]).toString();
+              amount = fromStroops(event.data[2]);
+            } catch {
+              // ignore
+            }
+            const campaign = campaigns.find((c) => c.id.toString() === campaignId);
+
+            return (
+              <Card key={`${event.id}-${idx}`}>
+                <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between p-4 gap-4">
+                  <div>
+                    <p className="font-semibold">{amount} XLM Donated</p>
+                    {campaign ? (
+                      <p className="text-sm text-muted-foreground mt-1">
+                        To campaign:{" "}
+                        <Link
+                          href={`/campaign/${campaignId}`}
+                          className="text-primary hover:underline"
+                        >
+                          {campaign.title}
+                        </Link>
+                      </p>
+                    ) : (
+                      <p className="text-sm text-muted-foreground mt-1">
+                        To campaign ID: <AddressLink address={campaignId} />
+                      </p>
+                    )}
+                  </div>
+                  {campaign && (
+                    <div className="flex items-center gap-4">
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">Status: </span>
+                        <span className="font-medium">{campaign.status}</span>
+                      </div>
+                      <Button asChild variant="outline" size="sm">
+                        <Link href={`/campaign/${campaignId}`}>View Campaign</Link>
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </section>
   );
 }
 

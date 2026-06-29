@@ -63,10 +63,13 @@ export function DonateModal({
   campaign,
   open: openProp,
   onOpenChange,
+  suggestedAmount,
 }: {
   campaign: Campaign;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /** Pre-fills the amount field when the modal opens (e.g. "Donate again"). */
+  suggestedAmount?: string;
 }) {
   const router = useRouter();
   const { address, isWrongNetwork } = useWallet();
@@ -141,6 +144,17 @@ export function DonateModal({
     if (submitError) setSubmitError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [amount]);
+
+  // Pre-fill a suggested amount when the modal opens (e.g. the "Donate again"
+  // shortcut passes the donor's previous amount). Only applied on the open
+  // transition so it never overwrites what the user is typing.
+  const prevOpenRef = React.useRef(false);
+  useEffect(() => {
+    if (isOpen && !prevOpenRef.current && suggestedAmount) {
+      setValue("amount", suggestedAmount, { shouldValidate: true });
+    }
+    prevOpenRef.current = isOpen;
+  }, [isOpen, suggestedAmount, setValue]);
 
   useEffect(() => {
     if (donate.isSuccess) {

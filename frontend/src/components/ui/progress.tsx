@@ -4,6 +4,14 @@ import * as React from "react";
 import * as ProgressPrimitive from "@radix-ui/react-progress";
 import { cn } from "@/lib/utils";
 
+type ProgressVariant = "default" | "success" | "warning";
+
+const indicatorVariants: Record<ProgressVariant, string> = {
+  default: "bg-primary",
+  success: "bg-emerald-600 dark:bg-emerald-400",
+  warning: "bg-amber-500 dark:bg-amber-400",
+};
+
 const Progress = React.forwardRef<
   React.ElementRef<typeof ProgressPrimitive.Root>,
   React.ComponentPropsWithoutRef<typeof ProgressPrimitive.Root> & {
@@ -40,3 +48,4 @@ const Progress = React.forwardRef<
 Progress.displayName = ProgressPrimitive.Root.displayName;
 
 export { Progress };
+export type { ProgressVariant };

@@ -59,3 +59,100 @@ export function CampaignSkeletonGrid({ count = 6 }: { count?: number }) {
     </div>
   );
 }
+
+/**
+ * Sidebar placeholder mirroring {@link RecentDonations}' own loading state so the
+ * donor column keeps its shape while the campaign detail loads.
+ */
+function RecentDonationsSkeleton() {
+  return (
+    <Card className="h-full">
+      <CardHeader>
+        {/* "Recent Donations" title */}
+        <Skeleton className="h-6 w-40" />
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="flex gap-3 items-center">
+            <Skeleton className="h-8 w-8 rounded-full shrink-0" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-3 w-3/4" />
+              <Skeleton className="h-2 w-1/4" />
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Full-page placeholder for the campaign detail route. It mirrors the layout of
+ * {@link CampaignDetailsClient} — breadcrumbs, header, hero image, progress, and
+ * the donor sidebar — using matching element dimensions so swapping in the real
+ * content causes no layout shift (#357).
+ */
+export function CampaignDetailSkeleton() {
+  return (
+    <div className="p-8 max-w-4xl mx-auto space-y-6" aria-busy="true" aria-label="Loading campaign">
+      {/* Breadcrumbs */}
+      <Skeleton className="h-4 w-64" />
+
+      {/* Header: title + status badge, then the meta row */}
+      <div className="flex justify-between items-start">
+        <div className="space-y-2">
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-9 w-64" />
+            <Skeleton className="h-6 w-20 rounded-full" />
+          </div>
+          <div className="flex flex-wrap gap-4 pt-1">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-4 w-40" />
+          </div>
+        </div>
+        {/* Share button */}
+        <Skeleton className="h-9 w-9" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-4">
+        {/* Main column: hero, status/category, progress, description */}
+        <div className="lg:col-span-2 space-y-6">
+          <Skeleton className="aspect-video w-full rounded-xl" />
+
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-5 w-16" />
+              <Skeleton className="h-4 w-40" />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex justify-between items-end">
+                <div className="space-y-1">
+                  <Skeleton className="h-4 w-12" />
+                  <Skeleton className="h-8 w-28" />
+                </div>
+                <div className="text-right space-y-1">
+                  <Skeleton className="h-4 w-12 ml-auto" />
+                  <Skeleton className="h-6 w-20 ml-auto" />
+                </div>
+              </div>
+              {/* progress bar */}
+              <Skeleton className="h-3 w-full" />
+            </div>
+
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-2/3" />
+            </div>
+          </div>
+        </div>
+
+        {/* Donor sidebar */}
+        <div className="lg:col-span-1">
+          <RecentDonationsSkeleton />
+        </div>
+      </div>
+    </div>
+  );
+}
