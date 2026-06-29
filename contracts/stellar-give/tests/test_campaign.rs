@@ -1,8 +1,8 @@
 //! Integration tests for campaign expiration, time-based state transitions,
 //! reentrancy/security coverage, and admin/auth negative cases.
 
-use soroban_sdk::testutils::{Address as _, MockAuth, MockAuthInvoke};
-use soroban_sdk::{symbol_short, IntoVal, String};
+use soroban_sdk::testutils::{Address as _, Events as _, MockAuth, MockAuthInvoke};
+use soroban_sdk::{symbol_short, IntoVal, String, Vec};
 
 mod helpers;
 use helpers::{
@@ -418,5 +418,154 @@ fn test_pause_blocks_refund() {
 
     let result = client.try_refund(&campaign_id, &donor);
     assert_eq!(result, Err(Ok(ContractError::ContractPaused)));
+}
+
+// =============================================================================
+// Issue #281 — Admin / Auth Negative Tests
+// =============================================================================
+
+#[test]
+fn test_pause_blocks_donations() {
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) =
+        register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let campaign_id =
+        create_default_campaign(&env, &client, &creator, &beneficiary, &token_client.address, 2_000);
+
+    client.pause();
+
+    let result = client.try_donate(&donor, &campaign_id, &1_000_000, &false, &None);
+    assert_eq!(result, Err(Ok(ContractError::ContractPaused)));
+}
+
+#[test]
+fn test_add_to_whitelist_requires_creator_auth() {
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) =
+        register_and_setup_without_auth_mock();
+    set_timestamp(&env, 1_000);
+
+    let campaign_id =
+        create_default_campaign(&env, &client, &creator, &beneficiary, &token_client.address, 2_000);
+
+    let attacker = Address::generate(&env);
+    let mut addrs = soroban_sdk::Vec::new(&env);
+    addrs.push_back(attacker.clone());
+
+    let result = client
+        .mock_auths(&[MockAuth {
+            address: &attacker,
+            invoke: &MockAuthInvoke {
+                contract: &client.address,
+                fn_name: "add_to_whitelist",
+                args: (campaign_id, addrs.clone()).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .try_add_to_whitelist(&campaign_id, &addrs);
+    assert!(result.is_err(), "non-creator must be rejected by add_to_whitelist");
+}
+
+#[test]
+fn test_admin_pause_succeeds() {
+    let (env, client, _creator, _beneficiary, _donor, admin, _token_client, _) =
+        register_and_setup_without_auth_mock();
+
+    let result = client
+        .mock_auths(&[MockAuth {
+            address: &admin,
+            invoke: &MockAuthInvoke {
+                contract: &client.address,
+                fn_name: "pause",
+                args: ().into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .try_pause();
+    assert!(result.is_ok(), "admin must be able to pause");
+}
+
+#[test]
+fn test_admin_unpause_succeeds() {
+    let (env, client, _creator, _beneficiary, _donor, admin, _token_client, _) =
+        register_and_setup_without_auth_mock();
+
+    client.mock_all_auths().pause();
+
+    let result = client
+        .mock_auths(&[MockAuth {
+            address: &admin,
+            invoke: &MockAuthInvoke {
+                contract: &client.address,
+                fn_name: "unpause",
+                args: ().into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .try_unpause();
+    assert!(result.is_ok(), "admin must be able to unpause");
+}
+
+#[test]
+fn test_owner_add_to_whitelist_succeeds() {
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) =
+        register_and_setup_without_auth_mock();
+    set_timestamp(&env, 1_000);
+
+    let campaign_id =
+        create_default_campaign(&env, &client, &creator, &beneficiary, &token_client.address, 2_000);
+
+    let mut addrs = soroban_sdk::Vec::new(&env);
+    addrs.push_back(donor.clone());
+
+    let result = client
+        .mock_auths(&[MockAuth {
+            address: &creator,
+            invoke: &MockAuthInvoke {
+                contract: &client.address,
+                fn_name: "add_to_whitelist",
+                args: (campaign_id, addrs.clone()).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .try_add_to_whitelist(&campaign_id, &addrs);
+    assert!(result.is_ok(), "creator must be able to add to whitelist");
+}
+
+#[test]
+fn test_pause_emits_paused_event() {
+    let (env, client, _creator, _beneficiary, _donor, _admin, _token_client, _) =
+        register_and_setup();
+
+    client.pause();
+
+    let events = env.events().all();
+    let has_paused = events.iter().any(|(addr, topics, _)| {
+        addr == client.address
+            && topics
+                .get(0)
+                .and_then(|t| soroban_sdk::Symbol::try_from_val(&env, &t).ok())
+                == Some(symbol_short!("paused"))
+    });
+    assert!(has_paused, "pause must emit a PausedEvent");
+}
+
+#[test]
+fn test_unpause_emits_unpaused_event() {
+    let (env, client, _creator, _beneficiary, _donor, _admin, _token_client, _) =
+        register_and_setup();
+
+    client.pause();
+    client.unpause();
+
+    let events = env.events().all();
+    let has_unpaused = events.iter().any(|(addr, topics, _)| {
+        addr == client.address
+            && topics
+                .get(0)
+                .and_then(|t| soroban_sdk::Symbol::try_from_val(&env, &t).ok())
+                == Some(symbol_short!("unpaused"))
+    });
+    assert!(has_unpaused, "unpause must emit an UnpausedEvent");
 }
 
