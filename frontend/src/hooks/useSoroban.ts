@@ -18,7 +18,7 @@ import {
   Campaign,
 } from "@/lib/soroban";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { Address, nativeToScVal } from "@stellar/stellar-sdk";
+import { Address, nativeToScVal, xdr } from "@stellar/stellar-sdk";
 import { useWallet } from "@/lib/WalletProvider";
 import { toRawAmount } from "@/utils/format";
 

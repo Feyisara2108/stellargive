@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useEvents } from "@/hooks/useSoroban";
 import { fromStroops } from "@/lib/soroban";
+import { getStellarExpertTxUrl } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -187,17 +188,24 @@ export function EventFeed() {
                   </>
                 )}
               </p>
-              
-              <div className="pt-3 border-t flex justify-between items-center text-xs">
-                <span className="text-muted-foreground">Tx Hash</span>
-                <a
-                  href={`https://stellar.expert/explorer/testnet/tx/${event.txHash}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="font-mono text-primary hover:underline"
-                >
-                  {event.txHash.substring(0, 8)}...{event.txHash.substring(event.txHash.length - 4)}
-                </a>
+              <div className="flex items-center gap-2 text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
+                <span>{event.topic}</span>
+                <span>•</span>
+                <span>Ledger {event.ledger}</span>
+                {event.txHash && (
+                  <>
+                    <span>•</span>
+                    <a
+                      href={getStellarExpertTxUrl(event.txHash)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:text-primary transition-colors normal-case tracking-normal font-normal"
+                      aria-label="Verify transaction on StellarExpert"
+                    >
+                      Verify ↗
+                    </a>
+                  </>
+                )}
               </div>
             </div>
           ))}

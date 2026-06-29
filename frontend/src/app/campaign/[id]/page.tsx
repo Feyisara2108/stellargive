@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getCampaign, fromStroops } from "@/lib/soroban";
+import { formatBasisPoints } from "@/utils/format";
 import { CampaignDetailsClient } from "./CampaignDetailsClient";
 
 type Props = { params: { id: string } };
@@ -35,10 +36,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   try {
     const campaign = await getCampaign(BigInt(params.id));
+    const numBens = campaign.beneficiaries?.length ?? 1;
+    const benDesc =
+      numBens > 1
+        ? `${numBens} beneficiaries with shares: ${campaign.beneficiaries
+            .map((b) => formatBasisPoints(b.share))
+            .join(", ")}. `
+        : "";
     const title = `${campaign.title} | StellarGive`;
     const description = `${campaign.title} — ${fromStroops(
       campaign.raised_amount,
-    )} of ${fromStroops(campaign.target_amount)} XLM raised. Support this campaign on StellarGive.`;
+    )} of ${fromStroops(campaign.target_amount)} XLM raised. ${benDesc}Support this campaign on StellarGive.`;
 
     const imageUrl = getImageUrl(campaign.metadata_uri);
 

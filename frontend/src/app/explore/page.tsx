@@ -9,6 +9,7 @@ import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCampaignsPaged } from "@/hooks/useSoroban";
+import { TokenSelector } from "@/components/TokenSelector";
 import { Search, Compass } from "lucide-react";
 import type { Campaign } from "@/lib/soroban";
 
@@ -29,6 +30,16 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: "near-goal", label: "Near Goal" },
   { key: "most-raised", label: "Most Raised" },
 ];
+
+const CATEGORIES = [
+  "all",
+  "medical",
+  "food",
+  "shelter",
+  "education",
+  "relief",
+  "uncategorized",
+] as const;
 
 function sortCampaigns(campaigns: Campaign[], sortBy: SortKey): Campaign[] {
   const sorted = [...campaigns];
@@ -58,7 +69,9 @@ function ExploreContent() {
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "funded">("active");
+  const [categoryFilter, setCategoryFilter] = useState<typeof CATEGORIES[number]>("all");
   const [sortBy, setSortBy] = useState<SortKey>("newest");
+  const [tokenFilter, setTokenFilter] = useState("");
 
   const sentinelRef = useRef<HTMLDivElement>(null);
   const { data, isLoading, isFetching } = useCampaignsPaged(limit);
@@ -79,6 +92,8 @@ function ExploreContent() {
     if (SORT_OPTIONS.some((o) => o.key === sort)) {
       setSortBy(sort as SortKey);
     }
+    const token = searchParams.get("token") ?? "";
+    setTokenFilter(token);
   }, [searchParams]);
 
   useEffect(() => {
@@ -100,9 +115,14 @@ function ExploreContent() {
     const next = new URLSearchParams(searchParams.toString());
     next.set("status", statusFilter);
     next.set("sort", sortBy);
+    if (tokenFilter) {
+      next.set("token", tokenFilter);
+    } else {
+      next.delete("token");
+    }
     const query = next.toString();
     router.replace(query ? `/explore?${query}` : "/explore", { scroll: false });
-  }, [router, searchParams, statusFilter, sortBy]);
+  }, [router, searchParams, statusFilter, sortBy, tokenFilter]);
 
   const filtered = useMemo(() => {
     const byStatus = campaigns.filter((campaign) => {
@@ -113,16 +133,20 @@ function ExploreContent() {
       return campaign.raised_amount >= campaign.target_amount || campaign.status === "Funded";
     });
 
+    const byToken = !tokenFilter
+      ? byStatus
+      : byStatus.filter((c) => c.accepted_token === tokenFilter);
+
     const term = debouncedSearch.trim().toLowerCase();
     const searched = !term
-      ? byStatus
-      : byStatus.filter(
+      ? byToken
+      : byToken.filter(
           (c) => c.title.toLowerCase().includes(term) || c.creator.toLowerCase().includes(term),
         );
 
     return sortCampaigns(searched, sortBy);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [campaigns, debouncedSearch, statusFilter, sortBy]);
+  }, [campaigns, debouncedSearch, statusFilter, sortBy, tokenFilter]);
 
   const emptyMessage = useMemo(() => {
     if (debouncedSearch) {
@@ -152,7 +176,7 @@ function ExploreContent() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-end gap-3">
           <div className="relative flex-1 min-w-[200px] max-w-sm">
             <label htmlFor="explore-search" className="sr-only">
               Search campaigns
@@ -169,6 +193,14 @@ function ExploreContent() {
               placeholder="Search by title or creator"
               autoComplete="off"
               className="pl-9"
+            />
+          </div>
+          <div className="w-full sm:w-auto min-w-[220px]">
+            <TokenSelector
+              value={tokenFilter}
+              onChange={setTokenFilter}
+              label="Token"
+              allowCustom={false}
             />
           </div>
         </div>
@@ -227,6 +259,26 @@ function ExploreContent() {
               className={`text-sm px-4 py-1.5 transition-opacity ${statusFilter === "funded" ? "ring-2 ring-primary ring-offset-2 opacity-100" : "opacity-60 hover:opacity-100"}`}
             />
           </button>
+        </div>
+
+        {/* Category filters */}
+        <div className="space-y-2">
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Filter by Category</h2>
+          <div className="flex flex-wrap gap-2" role="tablist" aria-label="Campaign category filters">
+            {CATEGORIES.map((cat) => (
+              <Button
+                key={cat}
+                variant={categoryFilter === cat ? "default" : "outline"}
+                size="sm"
+                onClick={() => setCategoryFilter(cat)}
+                role="tab"
+                aria-selected={categoryFilter === cat}
+                className="capitalize"
+              >
+                {cat === "uncategorized" ? "Uncategorized" : cat}
+              </Button>
+            ))}
+          </div>
         </div>
 
         {isLoading ? (
