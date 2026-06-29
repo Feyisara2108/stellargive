@@ -34,7 +34,8 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
   const deadlineDate = new Date(Number(campaign.deadline) * 1000);
 
   const gap = Math.max(0, target - raised);
-  const showFundTheGap = campaign.status === "Active" && progress >= 90 && progress < 100 && gap > 0;
+  const showFundTheGap =
+    campaign.status === "Active" && progress >= 90 && progress < 100 && gap > 0;
 
   return (
     <Card className="flex flex-col group hover:border-primary/50 transition-all duration-300 overflow-hidden">
