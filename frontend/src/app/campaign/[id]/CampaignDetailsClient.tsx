@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, ImageIcon } from "lucide-react";
+import { Loader2, ImageIcon, Zap } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { calculateProgress, getCampaignImageUrl } from "@/lib/utils";
 import dynamic from "next/dynamic";
@@ -179,11 +179,44 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
                       </p>
                     </div>
                   </div>
-                  <Progress
-                    value={calculateProgress(campaign.raised_amount, campaign.target_amount)}
-                    className="h-3"
-                    aria-label="Campaign progress"
-                  />
+                  {(() => {
+                    const progress = calculateProgress(
+                      campaign.raised_amount,
+                      campaign.target_amount,
+                    );
+                    const raised = Number(fromStroops(campaign.raised_amount));
+                    const target = Number(fromStroops(campaign.target_amount));
+                    const gap = Math.max(0, target - raised);
+                    const showStrip =
+                      campaign.status === "Active" && progress >= 90 && progress < 100 && gap > 0;
+                    return (
+                      <>
+                        <Progress
+                          value={progress}
+                          className="h-3"
+                          variant={
+                            progress >= 100 ? "success" : progress >= 50 ? "warning" : "default"
+                          }
+                          aria-label="Campaign progress"
+                        />
+                        {showStrip && (
+                          <div className="flex items-center justify-between gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2">
+                            <div className="flex items-center gap-1.5 text-sm font-medium text-emerald-700 dark:text-emerald-400">
+                              <Zap className="h-4 w-4 shrink-0" />
+                              <span>Only {gap.toFixed(2)} XLM left — fund the gap!</span>
+                            </div>
+                            <button
+                              onClick={() => setDonateOpen(true)}
+                              className="shrink-0 rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600"
+                              aria-label={`Quick donate to fund the remaining ${gap.toFixed(2)} XLM`}
+                            >
+                              Donate now
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
 
                 <div className="prose prose-sm dark:prose-invert max-w-none">

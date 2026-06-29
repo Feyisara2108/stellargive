@@ -227,34 +227,34 @@ describe("CampaignCard", () => {
   // Progress bar color thresholds
   // ------------------------------------------------------------------
 
-  it("shows green progress bar at 100%", () => {
+  it("shows success (emerald) progress bar at 100%", () => {
     const funded: Campaign = {
       ...baseCampaign,
       raised_amount: stroops(1_000_000),
       status: "Funded",
     };
     const { container } = render(<CampaignCard campaign={funded} />);
-    const indicator = container.querySelector(".bg-green-500");
+    const indicator = container.querySelector(".bg-emerald-600");
     expect(indicator).toBeInTheDocument();
   });
 
-  it("shows yellow progress bar at >= 50%", () => {
+  it("shows warning (amber) progress bar at >= 50%", () => {
     const half: Campaign = {
       ...baseCampaign,
       raised_amount: stroops(500_000),
     };
     const { container } = render(<CampaignCard campaign={half} />);
-    const indicator = container.querySelector(".bg-yellow-500");
+    const indicator = container.querySelector(".bg-amber-500");
     expect(indicator).toBeInTheDocument();
   });
 
-  it("shows blue progress bar below 50%", () => {
+  it("shows default (primary) progress bar below 50%", () => {
     const low: Campaign = {
       ...baseCampaign,
       raised_amount: stroops(100_000),
     };
     const { container } = render(<CampaignCard campaign={low} />);
-    const indicator = container.querySelector(".bg-blue-500");
+    const indicator = container.querySelector(".bg-primary");
     expect(indicator).toBeInTheDocument();
   });
 
