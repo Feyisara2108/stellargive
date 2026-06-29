@@ -22,6 +22,10 @@ Transparent crowdfunding on Stellar Soroban...
 - **Explorer (deploy tx):** `https://stellar.expert/explorer/testnet/tx/e3f88cee225bb5548e4640afe02c351373575469fb60dac6f5de670aa7687156`
 - **Lab contract link:** `https://lab.stellar.org/r/testnet/contract/CB6HVHRQYILGNKW7RBB66BC6TDBIEWADOA2YUUV4I22RXRLA6DY6OAKT`
 
+## Security
+
+Please review our [Security Policy](SECURITY.md) for details on supported versions, how to report vulnerabilities, and our response expectations.
+
 ## Architecture (High Level)
 
 ```text
