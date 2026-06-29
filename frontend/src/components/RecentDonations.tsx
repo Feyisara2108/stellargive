@@ -4,11 +4,23 @@ import { useEvents } from "@/hooks/useSoroban";
 import { fromStroops } from "@/lib/soroban";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Heart, ArrowUpRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Heart, ArrowUpRight, RotateCcw } from "lucide-react";
 import { AddressLink } from "@/components/AddressLink";
 import { RelativeTime } from "@/components/RelativeTime";
 
-export function RecentDonations({ campaignId }: { campaignId: bigint }) {
+export function RecentDonations({
+  campaignId,
+  onDonateAgain,
+}: {
+  campaignId: bigint;
+  /**
+   * When provided, each donation row shows a "Donate again" shortcut that calls
+   * this with the row's amount (in XLM). The parent only passes it for active
+   * campaigns, so the action is hidden once a campaign is no longer donatable.
+   */
+  onDonateAgain?: (amountXLM: string) => void;
+}) {
   const { data: allEvents, isLoading, isError } = useEvents();
 
   if (isLoading) {
@@ -119,6 +131,17 @@ export function RecentDonations({ campaignId }: { campaignId: bigint }) {
                       )}
                     </p>
                   </div>
+                  {onDonateAgain && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="shrink-0 h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-primary"
+                      onClick={() => onDonateAgain(fromStroops(event.data[2]))}
+                    >
+                      <RotateCcw className="h-3 w-3" aria-hidden="true" />
+                      Donate again
+                    </Button>
+                  )}
                 </div>
               );
             })}

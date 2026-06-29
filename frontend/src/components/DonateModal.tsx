@@ -31,7 +31,6 @@ import { Loader2, Check, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
 
-
 const FIRED_MILESTONES = new Set<string>();
 const milestoneKey = (campaignId: bigint, m: MilestonePercent) => `${campaignId.toString()}:${m}`;
 
@@ -64,10 +63,13 @@ export function DonateModal({
   campaign,
   open: openProp,
   onOpenChange,
+  suggestedAmount,
 }: {
   campaign: Campaign;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /** Pre-fills the amount field when the modal opens (e.g. "Donate again"). */
+  suggestedAmount?: string;
 }) {
   const router = useRouter();
   const { address, isWrongNetwork } = useWallet();
@@ -105,7 +107,7 @@ export function DonateModal({
   const remaining = Math.max(target - raised, 0);
   const liveRemaining = Math.max(remaining - (Number(amount) || 0), 0);
   const canFundRest = remaining >= minDonation && (Number(amount) || 0) < remaining;
-  
+
   const formatNum = (num: number) => num.toFixed(decimals).replace(/\.?0+$/, "") || "0";
 
   const [isAnonymous, setIsAnonymous] = useState(false);
@@ -142,6 +144,17 @@ export function DonateModal({
     if (submitError) setSubmitError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [amount]);
+
+  // Pre-fill a suggested amount when the modal opens (e.g. the "Donate again"
+  // shortcut passes the donor's previous amount). Only applied on the open
+  // transition so it never overwrites what the user is typing.
+  const prevOpenRef = React.useRef(false);
+  useEffect(() => {
+    if (isOpen && !prevOpenRef.current && suggestedAmount) {
+      setValue("amount", suggestedAmount, { shouldValidate: true });
+    }
+    prevOpenRef.current = isOpen;
+  }, [isOpen, suggestedAmount, setValue]);
 
   useEffect(() => {
     if (donate.isSuccess) {
@@ -273,7 +286,8 @@ export function DonateModal({
                     const num = Number(value);
                     if (isNaN(num)) return "Enter a valid number";
                     const parts = value.split(".");
-                    if (parts.length > 1 && parts[1].length > decimals) return `Maximum ${decimals} decimal places`;
+                    if (parts.length > 1 && parts[1].length > decimals)
+                      return `Maximum ${decimals} decimal places`;
                     if (num < minDonation)
                       return `Minimum donation is ${formatNum(minDonation)} ${symbol}`;
                     if (num > remaining) return "This exceeds the remaining goal";
@@ -386,7 +400,9 @@ export function DonateModal({
           <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-4 my-2 border border-slate-100 dark:border-slate-800 text-left space-y-3">
             <div className="flex justify-between items-center text-sm">
               <span className="text-muted-foreground">Amount Donated</span>
-              <span className="font-semibold text-lg text-primary">{successAmount} {symbol}</span>
+              <span className="font-semibold text-lg text-primary">
+                {successAmount} {symbol}
+              </span>
             </div>
             <div className="border-t border-slate-100 dark:border-slate-800/80 pt-3">
               <span className="block text-xs text-muted-foreground mb-1">Transaction Hash</span>

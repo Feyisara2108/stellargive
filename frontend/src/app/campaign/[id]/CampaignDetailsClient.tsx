@@ -6,7 +6,6 @@ import Image from "next/image";
 import { useCampaign, useCancelCampaign } from "@/hooks/useSoroban";
 import { useWallet } from "@/lib/WalletProvider";
 import { ShareButton } from "@/components/ShareButton";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -39,8 +38,8 @@ import { StickyDonateBar } from "@/components/StickyDonateBar";
 import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
 import { useCountdown } from "@/hooks/useCountdown";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
-import { fromStroops, type CampaignBeneficiary } from "@/lib/soroban";
-import { formatBasisPoints } from "@/utils/format";
+import { CampaignDetailSkeleton } from "@/components/CampaignSkeleton";
+import { fromStroops } from "@/lib/soroban";
 
 export function CampaignDetailsClient({ params }: { params: { id: string } }) {
   const [imgError, setImgError] = useState(false);
@@ -49,9 +48,16 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
   const cancelCampaign = useCancelCampaign();
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
   const [donateOpen, setDonateOpen] = useState(false);
+  const [donateAmount, setDonateAmount] = useState<string | undefined>(undefined);
   const countdown = useCountdown(campaign?.deadline || 0n);
 
   const isCreator = !!address && !!campaign && campaign.creator === address;
+
+  // Show a detail-shaped skeleton during the initial campaign fetch so the page
+  // doesn't pop in abruptly and the layout doesn't shift when data arrives (#357).
+  if (isLoading) {
+    return <CampaignDetailSkeleton />;
+  }
 
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-6">
@@ -65,18 +71,12 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
       <div className="flex justify-between items-start">
         <div className="space-y-2">
           <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold">
-              {isLoading ? (
-                <Skeleton className="h-9 w-64" />
-              ) : (
-                campaign?.title || `Campaign #${params.id}`
-              )}
-            </h1>
-            {!isLoading && campaign && (
+            <h1 className="text-3xl font-bold">{campaign?.title || `Campaign #${params.id}`}</h1>
+            {campaign && (
               <CampaignStatusBadge status={campaign.status} deadline={campaign.deadline} />
             )}
           </div>
-          {!isLoading && campaign && (
+          {campaign && (
             <div className="flex flex-wrap gap-4 text-sm text-muted-foreground pt-1">
               <span className="inline-flex items-center gap-2">
                 Creator:
@@ -139,7 +139,7 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-4">
         <div className="lg:col-span-2 space-y-6">
-          {!isLoading && campaign && (
+          {campaign && (
             <div className="space-y-6">
               <div className="relative aspect-video w-full bg-muted rounded-xl overflow-hidden border">
                 {getCampaignImageUrl(campaign.metadata_uri) && !imgError ? (
@@ -243,12 +243,21 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
               </div>
             </div>
           )}
-          {isLoading && <Skeleton className="h-64 w-full rounded-xl" />}
           <ProjectUpdates campaignId={BigInt(params.id)} />
         </div>
 
         <div className="lg:col-span-1">
-          <RecentDonations campaignId={BigInt(params.id)} />
+          <RecentDonations
+            campaignId={BigInt(params.id)}
+            onDonateAgain={
+              campaign?.status === "Active"
+                ? (amount) => {
+                    setDonateAmount(amount);
+                    setDonateOpen(true);
+                  }
+                : undefined
+            }
+          />
         </div>
       </div>
 
@@ -312,8 +321,19 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
       {/* Donate modal (controlled) and sticky mobile CTA */}
       {campaign?.status === "Active" && (
         <>
-          <DonateModal campaign={campaign} open={donateOpen} onOpenChange={setDonateOpen} />
-          <StickyDonateBar onOpen={() => setDonateOpen(true)} disabled={isWrongNetwork} />
+          <DonateModal
+            campaign={campaign}
+            open={donateOpen}
+            onOpenChange={setDonateOpen}
+            suggestedAmount={donateAmount}
+          />
+          <StickyDonateBar
+            onOpen={() => {
+              setDonateAmount(undefined);
+              setDonateOpen(true);
+            }}
+            disabled={isWrongNetwork}
+          />
         </>
       )}
     </div>
