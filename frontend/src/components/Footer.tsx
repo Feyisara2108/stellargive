@@ -6,6 +6,7 @@ import { Check, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { CONTRACT_ID } from "@/lib/soroban";
 import { cn } from "@/lib/utils";
+import { useRpcHealth, type RpcStatus } from "@/hooks/useRpcHealth";
 
 function truncate(id: string) {
   if (!id || id.length <= 12) return id;
@@ -55,6 +56,51 @@ function ContractIdDisplay() {
   );
 }
 
+const RPC_STATUS_CONFIG: Record<
+  RpcStatus,
+  { dot: string; label: (ms: number | null) => string }
+> = {
+  healthy: {
+    dot: "bg-green-500",
+    label: (ms) => `RPC healthy · ${ms}ms`,
+  },
+  degraded: {
+    dot: "bg-amber-500 animate-pulse",
+    label: (ms) => `RPC degraded · ${ms}ms`,
+  },
+  down: {
+    dot: "bg-red-500 animate-pulse",
+    label: () => "RPC unreachable",
+  },
+};
+
+function RpcStatusDot() {
+  const health = useRpcHealth();
+
+  const dotClass = health
+    ? RPC_STATUS_CONFIG[health.status].dot
+    : "bg-muted-foreground/40";
+  const tooltip = health
+    ? RPC_STATUS_CONFIG[health.status].label(health.latencyMs)
+    : "Checking RPC…";
+
+  return (
+    <span className="relative inline-flex group/rpc">
+      <span
+        role="status"
+        aria-label={tooltip}
+        className={cn("block h-2 w-2 rounded-full", dotClass)}
+      />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-popover px-2 py-1 text-xs text-popover-foreground shadow-sm opacity-0 transition-opacity group-hover/rpc:opacity-100"
+      >
+        {tooltip}
+      </span>
+    </span>
+  );
+}
+
 export function Footer() {
   return (
     <footer className="border-t mt-auto">
@@ -64,6 +110,10 @@ export function Footer() {
             stellar<span className="text-primary">Give</span>
           </span>
           <ContractIdDisplay />
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="font-medium">Network:</span>
+            <RpcStatusDot />
+          </div>
         </div>
         <nav className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
           <Link href="/explore" className="hover:text-foreground transition-colors">
