@@ -144,3 +144,7 @@ An `.editorconfig` file enforces consistent formatting across editors (UTF-8, LF
 ## 11. Secret Scanning
 
 Gitleaks runs on every PR and push to `main` to prevent committed secrets. If a scan flags a false positive, add an allowlist entry in `.gitleaks.toml` with a comment explaining why.
+
+## 12. Code of Conduct
+
+This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md). By participating you are expected to uphold this code. Please report unacceptable behavior to **stellargive-conduct@proton.me**.
