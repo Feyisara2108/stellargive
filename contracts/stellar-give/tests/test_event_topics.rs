@@ -8,8 +8,8 @@ use soroban_sdk::testutils::Events as _;
 use soroban_sdk::{symbol_short, String, Symbol, TryFromVal};
 
 mod helpers;
-use helpers::{register_and_setup, set_timestamp, single_ben};
-use stellar_give::{CreatedEvent, DonationEvent};
+use helpers::{create_default_campaign, register_and_setup, set_timestamp, single_ben};
+use stellar_give::{CampaignUpdateEvent, CreatedEvent, DonationEvent, RefundEvent};
 
 /// `create_campaign` emits exactly one contract event whose single topic is
 /// `symbol_short!("created")`.
@@ -321,4 +321,165 @@ fn test_events_ordered_create_before_donation() {
         ci,
         di
     );
+}
+
+// =============================================================================
+// Issue #283 — Event Topic Tests for add_update and refund
+// =============================================================================
+
+#[test]
+fn test_add_update_event_topic_is_update_symbol() {
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let campaign_id =
+        create_default_campaign(&env, &client, &creator, &beneficiary, &token_client.address, 2_000);
+
+    let content = String::from_str(&env, "New update content");
+    client.add_update(&campaign_id, &content);
+
+    let all_events = env.events().all();
+
+    let event = all_events
+        .into_iter()
+        .find(|(addr, topics, _)| {
+            addr == &client.address
+                && topics
+                    .get(0)
+                    .and_then(|t| Symbol::try_from_val(&env, &t).ok())
+                    == Some(symbol_short!("update"))
+        })
+        .expect("CampaignUpdateEvent must be emitted by add_update");
+
+    let topics = &event.1;
+    assert_eq!(topics.len(), 1, "update event must carry exactly one topic");
+
+    let topic_sym = Symbol::try_from_val(&env, &topics.get(0).unwrap())
+        .expect("topic[0] must decode as Symbol");
+    assert_eq!(topic_sym, symbol_short!("update"));
+}
+
+#[test]
+fn test_add_update_event_payload_exact_match() {
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let campaign_id =
+        create_default_campaign(&env, &client, &creator, &beneficiary, &token_client.address, 2_000);
+
+    let content = String::from_str(&env, "Progress update #1");
+    client.add_update(&campaign_id, &content);
+
+    let event = env
+        .events()
+        .all()
+        .into_iter()
+        .find(|(addr, topics, _)| {
+            addr == &client.address
+                && topics
+                    .get(0)
+                    .and_then(|t| Symbol::try_from_val(&env, &t).ok())
+                    == Some(symbol_short!("update"))
+        })
+        .expect("CampaignUpdateEvent must be emitted by add_update");
+
+    let payload = CampaignUpdateEvent::try_from_val(&env, &event.2)
+        .expect("event data must decode as CampaignUpdateEvent");
+
+    assert_eq!(payload.campaign_id, campaign_id);
+    assert_eq!(payload.content, content);
+    assert_eq!(payload.timestamp, 1_000);
+}
+
+#[test]
+fn test_refund_event_topic_is_refund_symbol() {
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let campaign_id =
+        create_default_campaign(&env, &client, &creator, &beneficiary, &token_client.address, 2_000);
+    client.donate(&donor, &campaign_id, &5_000_000, &false, &None);
+
+    set_timestamp(&env, 3_000);
+    client.refund(&campaign_id, &donor);
+
+    let all_events = env.events().all();
+
+    let event = all_events
+        .into_iter()
+        .find(|(addr, topics, _)| {
+            addr == &client.address
+                && topics
+                    .get(0)
+                    .and_then(|t| Symbol::try_from_val(&env, &t).ok())
+                    == Some(symbol_short!("refund"))
+        })
+        .expect("RefundEvent must be emitted by refund");
+
+    let topics = &event.1;
+    assert_eq!(topics.len(), 1, "refund event must carry exactly one topic");
+
+    let topic_sym = Symbol::try_from_val(&env, &topics.get(0).unwrap())
+        .expect("topic[0] must decode as Symbol");
+    assert_eq!(topic_sym, symbol_short!("refund"));
+}
+
+#[test]
+fn test_refund_event_payload_exact_match() {
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let campaign_id =
+        create_default_campaign(&env, &client, &creator, &beneficiary, &token_client.address, 2_000);
+    let donation_amount = 5_000_000_i128;
+    client.donate(&donor, &campaign_id, &donation_amount, &false, &None);
+
+    set_timestamp(&env, 3_000);
+    client.refund(&campaign_id, &donor);
+
+    let event = env
+        .events()
+        .all()
+        .into_iter()
+        .find(|(addr, topics, _)| {
+            addr == &client.address
+                && topics
+                    .get(0)
+                    .and_then(|t| Symbol::try_from_val(&env, &t).ok())
+                    == Some(symbol_short!("refund"))
+        })
+        .expect("RefundEvent must be emitted by refund");
+
+    let payload = RefundEvent::try_from_val(&env, &event.2)
+        .expect("event data must decode as RefundEvent");
+
+    assert_eq!(payload.campaign_id, campaign_id);
+    assert_eq!(payload.donor, donor);
+    assert_eq!(payload.amount, donation_amount);
+}
+
+#[test]
+fn test_add_update_emits_only_one_event() {
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let campaign_id =
+        create_default_campaign(&env, &client, &creator, &beneficiary, &token_client.address, 2_000);
+
+    client.add_update(&campaign_id, &String::from_str(&env, "Update content"));
+
+    let update_event_count = env
+        .events()
+        .all()
+        .into_iter()
+        .filter(|(addr, topics, _)| {
+            addr == client.address
+                && topics
+                    .get(0)
+                    .and_then(|t| Symbol::try_from_val(&env, &t).ok())
+                    == Some(symbol_short!("update"))
+        })
+        .count();
+
+    assert_eq!(update_event_count, 1, "add_update must emit exactly one event");
 }
