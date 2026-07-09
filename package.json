@@ -10,20 +10,21 @@
     "react-hook-form": "^7.76.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "@stellar/stellar-sdk": "^15.1.0",
     "dotenv": "^16.4.5",
     "eslint": "^8.57.0",
     "husky": "^9.0.11",
     "lint-staged": "^15.2.2",
-    "prettier": "^3.2.5",
-    "@stellar/stellar-sdk": "^15.1.0"
+    "prettier": "^3.2.5"
   },
   "lint-staged": {
     "frontend/**/*.{js,jsx,ts,tsx}": [
-      "npx prettier --check",
-      "npx eslint --config frontend/.eslintrc.json"
+      "prettier --write",
+      "eslint --config frontend/.eslintrc.json --fix"
     ],
     "contracts/**/*.rs": [
-      "cargo fmt --manifest-path contracts/stellar-give/Cargo.toml --check --"
+      "cargo fmt --manifest-path contracts/stellar-give/Cargo.toml --"
     ]
   }
 }

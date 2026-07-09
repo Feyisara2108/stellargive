@@ -108,3 +108,197 @@ fn test_unicode_title_edge_cases() {
         assert!(result.is_ok(), "Failed for {}: {}", description, raw_title);
     }
 }
+
+#[test]
+fn test_get_campaigns_paged_boundaries() {
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _token_admin_client) =
+        register_and_setup();
+    set_timestamp(&env, 1_000);
+    let bens = single_ben(&env, &beneficiary);
+
+    // Create 5 campaigns to test boundary offsets and limits
+    for i in 1..=5 {
+        extern crate std;
+        let title_raw = std::format!("Campaign {}", i);
+        let title = String::from_str(&env, &title_raw);
+        client.create_campaign(
+            &creator,
+            &bens,
+            &title,
+            &String::from_str(&env, "A test campaign description."),
+            &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
+            &10_000_000_i128,
+            &2_000_u64,
+            &token_client.address,
+            &None,
+        );
+    }
+
+    // 1. Test offset 0, limit 2 (first page, in-range)
+    let page_1 = client.get_campaigns_paged(&0_u64, &2_u32);
+    assert_eq!(page_1.len(), 2);
+    assert_eq!(page_1.get(0).unwrap().id, 1);
+    assert_eq!(
+        page_1.get(0).unwrap().title,
+        String::from_str(&env, "Campaign 1")
+    );
+    assert_eq!(page_1.get(1).unwrap().id, 2);
+    assert_eq!(
+        page_1.get(1).unwrap().title,
+        String::from_str(&env, "Campaign 2")
+    );
+
+    // 2. Test in-range page (offset 2, limit 2)
+    let page_2 = client.get_campaigns_paged(&2_u64, &2_u32);
+    assert_eq!(page_2.len(), 2);
+    assert_eq!(page_2.get(0).unwrap().id, 3);
+    assert_eq!(
+        page_2.get(0).unwrap().title,
+        String::from_str(&env, "Campaign 3")
+    );
+    assert_eq!(page_2.get(1).unwrap().id, 4);
+    assert_eq!(
+        page_2.get(1).unwrap().title,
+        String::from_str(&env, "Campaign 4")
+    );
+
+    // 3. Test partial final page (offset 4, limit 2)
+    let page_3 = client.get_campaigns_paged(&4_u64, &2_u32);
+    assert_eq!(page_3.len(), 1);
+    assert_eq!(page_3.get(0).unwrap().id, 5);
+    assert_eq!(
+        page_3.get(0).unwrap().title,
+        String::from_str(&env, "Campaign 5")
+    );
+
+    // 4. Test offset past the end (offset 5, limit 2) -> empty result, not an error
+    let page_past = client.get_campaigns_paged(&5_u64, &2_u32);
+    assert_eq!(page_past.len(), 0);
+
+    // 5. Test offset way past the end (offset 100, limit 2) -> empty result, not an error
+    let page_way_past = client.get_campaigns_paged(&100_u64, &2_u32);
+    assert_eq!(page_way_past.len(), 0);
+
+    // 6. Test limit edge value: 1 (offset 0, limit 1)
+    let page_limit_1 = client.get_campaigns_paged(&0_u64, &1_u32);
+    assert_eq!(page_limit_1.len(), 1);
+    assert_eq!(page_limit_1.get(0).unwrap().id, 1);
+
+    // 7. Test limit edge value: large limit (offset 0, limit 50) -> clamps to 20, returns all 5
+    let page_large_limit = client.get_campaigns_paged(&0_u64, &50_u32);
+    assert_eq!(page_large_limit.len(), 5);
+    for i in 0..5 {
+        assert_eq!(page_large_limit.get(i).unwrap().id, (i as u64) + 1);
+    }
+
+    // 8. Assert stable ordering: ascending by ID
+    let all_campaigns = client.get_campaigns_paged(&0_u64, &20_u32);
+    assert_eq!(all_campaigns.len(), 5);
+    for i in 0..4 {
+        assert!(all_campaigns.get(i).unwrap().id < all_campaigns.get(i + 1).unwrap().id);
+    }
+}
+
+#[test]
+fn test_donation_overflow() {
+    let (env, client, creator, beneficiary, donor, _admin, token_client, token_admin_client) =
+        register_and_setup();
+    set_timestamp(&env, 1_000);
+    let bens = single_ben(&env, &beneficiary);
+
+    let id = client.create_campaign(
+        &creator,
+        &bens,
+        &String::from_str(&env, "Overflow Check"),
+        &String::from_str(&env, "Testing overflow boundary."),
+        &String::from_str(&env, "https://example.com/meta"),
+        &symbol_short!("relief"),
+        &10_000_000_i128,
+        &2_000_u64,
+        &token_client.address,
+        &None,
+    );
+
+    // Give donor near-max i128 tokens
+    let max_val = i128::MAX;
+    token_admin_client.mint(&donor, &max_val);
+
+    // Donate an amount that brings total near max
+    let first_donation = max_val - 1_000_000;
+    client.donate(&donor, &id, &first_donation, &false, &None);
+
+    // Second donation to trigger overflow in checked_add
+    let second_donation = 2_000_000_i128;
+    let result = client.try_donate(&donor, &id, &second_donation, &false, &None);
+
+    assert_eq!(result, Err(Ok(ContractError::ArithmeticError)));
+}
+
+#[test]
+fn test_platform_fee_overflow() {
+    let (env, client, creator, beneficiary, donor, _admin, token_client, token_admin_client) =
+        register_and_setup();
+    set_timestamp(&env, 1_000);
+    let bens = single_ben(&env, &beneficiary);
+
+    let id = client.create_campaign(
+        &creator,
+        &bens,
+        &String::from_str(&env, "Fee Overflow"),
+        &String::from_str(&env, "Desc"),
+        &String::from_str(&env, "https://example.com"),
+        &symbol_short!("relief"),
+        &10_000_000_i128,
+        &2_000_u64,
+        &token_client.address,
+        &None,
+    );
+
+    // To hit platform fee overflow in distribute_funds, amount * FEE_BPS must overflow i128
+    let massive_amount = (i128::MAX / 100) + 1;
+    token_admin_client.mint(&donor, &massive_amount);
+
+    client.donate(&donor, &id, &massive_amount, &false, &None);
+
+    // Attempt to claim
+    let result = client.try_claim_funds(&beneficiary, &id);
+
+    // Should return InvalidAmount when platform fee multiplies out of bounds
+    assert_eq!(result, Err(Ok(ContractError::InvalidAmount)));
+}
+
+#[test]
+fn test_refund_underflow_guard() {
+    let (env, client, creator, beneficiary, donor, _admin, token_client, token_admin_client) =
+        register_and_setup();
+    set_timestamp(&env, 1_000);
+    let bens = single_ben(&env, &beneficiary);
+
+    let id = client.create_campaign(
+        &creator,
+        &bens,
+        &String::from_str(&env, "Underflow Guard"),
+        &String::from_str(&env, "Desc"),
+        &String::from_str(&env, "https://example.com"),
+        &symbol_short!("relief"),
+        &10_000_000_i128,
+        &2_000_u64,
+        &token_client.address,
+        &None,
+    );
+
+    let amount = 5_000_000_i128;
+    client.donate(&donor, &id, &amount, &false, &None);
+
+    // Cancel campaign so refund can be called
+    client.cancel_campaign(&id);
+
+    // Refund correctly the first time
+    client.claim_refund(&donor, &id);
+
+    // Second refund attempt should not underflow raised_amount,
+    // it should be caught by NothingToRefund because donor contribution is zeroed.
+    let result = client.try_claim_refund(&donor, &id);
+    assert_eq!(result, Err(Ok(ContractError::NothingToRefund)));
+}

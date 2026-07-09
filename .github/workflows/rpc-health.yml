@@ -1,9 +1,19 @@
 name: RPC Health Monitor
 
-# Pings the Soroban RPC node every 5 minutes and fails (alerting) if it is
-# unreachable or unhealthy. Configure repo secrets to override defaults:
-#   SOROBAN_RPC_URL    – RPC endpoint to monitor (defaults to public testnet)
-#   SLACK_WEBHOOK_URL  – optional Slack incoming webhook for alerts
+# Pings the Soroban RPC node every 5 minutes.
+#
+# On failure:  opens (or updates) a GitHub tracking issue and posts a
+#              Slack / Discord webhook alert.
+# On recovery: closes the tracking issue automatically.
+#
+# Required repo secrets (Settings → Secrets → Actions):
+#   SOROBAN_RPC_URL      RPC endpoint (defaults to public testnet)
+#   SLACK_WEBHOOK_URL    Slack incoming-webhook URL   (optional)
+#   DISCORD_WEBHOOK_URL  Discord incoming-webhook URL (optional)
+#
+# The GITHUB_TOKEN secret is automatically provided — no extra configuration
+# needed for the issue-tracking feature.
+
 on:
   schedule:
     - cron: "*/5 * * * *"
@@ -12,13 +22,113 @@ on:
 jobs:
   health-check:
     runs-on: ubuntu-latest
+    # Grant write access so the job can open/close tracking issues
+    permissions:
+      issues: write
+      contents: read
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+
       - name: Ping Soroban RPC
+        id: rpc
+        continue-on-error: true
         env:
-          SOROBAN_RPC_URL: ${{ secrets.SOROBAN_RPC_URL }}
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SOROBAN_RPC_URL:     ${{ secrets.SOROBAN_RPC_URL }}
+          RPC_TIMEOUT_MS:      ${{ vars.RPC_TIMEOUT_MS || '10000' }}
+          SLACK_WEBHOOK_URL:   ${{ secrets.SLACK_WEBHOOK_URL }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: node scripts/monitor-rpc.js
+
+      # ── On failure: open / update a GitHub tracking issue ───────────────────
+      - name: Open or update outage tracking issue
+        if: steps.rpc.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO:     ${{ github.repository }}
+          RPC_URL:  ${{ secrets.SOROBAN_RPC_URL || 'https://soroban-testnet.stellar.org' }}
+        run: |
+          TITLE="🚨 RPC Outage Detected: $RPC_URL"
+          LABEL="rpc-outage"
+
+          # Ensure the label exists (idempotent)
+          gh label create "$LABEL" --color "d93f0b" --description "Soroban RPC health alert" \
+            --repo "$REPO" 2>/dev/null || true
+
+          # Find an open issue with the same title to avoid duplicates
+          EXISTING=$(gh issue list \
+            --repo "$REPO" \
+            --state open \
+            --label "$LABEL" \
+            --search "\"$TITLE\" in:title" \
+            --json number \
+            --jq '.[0].number // empty')
+
+          if [ -n "$EXISTING" ]; then
+            echo "ℹ️ Outage issue #$EXISTING already open — adding a comment."
+            gh issue comment "$EXISTING" \
+              --repo "$REPO" \
+              --body "⏰ Still unhealthy as of $(date -u '+%Y-%m-%d %H:%M UTC')."
+          else
+            echo "Creating new outage tracking issue…"
+            gh issue create \
+              --repo "$REPO" \
+              --title "$TITLE" \
+              --label "$LABEL" \
+              --body "## Soroban RPC Outage
+
+**Endpoint:** \`$RPC_URL\`
+**Detected at:** $(date -u '+%Y-%m-%d %H:%M UTC')
+**Triggered by:** [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+### What this means
+The scheduled RPC health check could not reach the endpoint or received an unhealthy status.
+
+### Next steps
+1. Check the [Stellar status page](https://status.stellar.org/) for known incidents.
+2. Verify \`SOROBAN_RPC_URL\` in repo secrets points to the correct endpoint.
+3. Consider switching to a backup RPC node until the primary recovers.
+
+---
+_This issue is managed automatically. It will be closed when the RPC recovers._"
+          fi
+
+      # ── On recovery: close any open tracking issue ───────────────────────────
+      - name: Close outage tracking issue on recovery
+        if: steps.rpc.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO:     ${{ github.repository }}
+          RPC_URL:  ${{ secrets.SOROBAN_RPC_URL || 'https://soroban-testnet.stellar.org' }}
+        run: |
+          TITLE="🚨 RPC Outage Detected: $RPC_URL"
+          LABEL="rpc-outage"
+
+          EXISTING=$(gh issue list \
+            --repo "$REPO" \
+            --state open \
+            --label "$LABEL" \
+            --search "\"$TITLE\" in:title" \
+            --json number \
+            --jq '.[0].number // empty')
+
+          if [ -n "$EXISTING" ]; then
+            echo "✅ RPC recovered — closing issue #$EXISTING"
+            gh issue comment "$EXISTING" \
+              --repo "$REPO" \
+              --body "✅ RPC is healthy again as of $(date -u '+%Y-%m-%d %H:%M UTC'). Closing."
+            gh issue close "$EXISTING" --repo "$REPO"
+          else
+            echo "No open outage issue found — nothing to close."
+          fi
+
+      # ── Fail the workflow if the health check failed ─────────────────────────
+      - name: Propagate RPC failure
+        if: steps.rpc.outcome == 'failure'
+        run: |
+          echo "❌ RPC health check failed — see steps above for details."
+          exit 1

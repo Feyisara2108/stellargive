@@ -6,6 +6,15 @@ import { WalletProvider } from "@/lib/WalletProvider";
 import { MockWalletProvider } from "@/components/MockWalletProvider";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "next-themes";
+import { NetworkMismatchBanner } from "@/components/NetworkMismatchBanner";
+import dynamic from "next/dynamic";
+
+const CommandPalette = dynamic(
+  () => import("@/components/CommandPalette").then((mod) => mod.CommandPalette),
+  {
+    ssr: false,
+  },
+);
 
 const queryClient = new QueryClient();
 
@@ -24,8 +33,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <QueryClientProvider client={queryClient}>
         <ActiveWalletProvider>
+          <NetworkMismatchBanner />
           {children}
           <Toaster position="top-center" richColors />
+          <CommandPalette />
         </ActiveWalletProvider>
       </QueryClientProvider>
     </ThemeProvider>

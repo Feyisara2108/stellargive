@@ -1,3 +1,5 @@
+use proptest::collection::vec as proptest_vec;
+use proptest::prelude::*;
 use soroban_sdk::testutils::Address as _;
 use soroban_sdk::{symbol_short, String};
 
@@ -14,6 +16,119 @@ fn to_stroops(amount: &str) -> i128 {
     };
 
     (whole * 10_000_000) + (frac * 100_000)
+}
+
+fn normalized_shares(raw_shares: Vec<u32>) -> Vec<u32> {
+    let sum: u32 = raw_shares.iter().sum();
+    let mut scaled: Vec<u32> = raw_shares
+        .into_iter()
+        .map(|share| {
+            let scaled_share = (share as u64 * 10_000 / sum as u64) as u32;
+            std::cmp::max(1, scaled_share)
+        })
+        .collect();
+    let mut current_sum: i32 = scaled.iter().map(|&share| share as i32).sum();
+    let mut index = 0;
+    while current_sum < 10_000 {
+        scaled[index] += 1;
+        current_sum += 1;
+        index = (index + 1) % scaled.len();
+    }
+    while current_sum > 10_000 {
+        if scaled[index] > 1 {
+            scaled[index] -= 1;
+            current_sum -= 1;
+        }
+        index = (index + 1) % scaled.len();
+    }
+    scaled
+}
+
+fn build_beneficiaries(
+    env: &soroban_sdk::Env,
+    shares: &[u32],
+) -> (
+    soroban_sdk::Vec<(soroban_sdk::Address, u32)>,
+    Vec<soroban_sdk::Address>,
+) {
+    let mut beneficiaries = soroban_sdk::Vec::new(env);
+    let mut addresses = Vec::new();
+    for &share in shares {
+        let address = soroban_sdk::Address::generate(env);
+        beneficiaries.push_back((address.clone(), share));
+        addresses.push(address);
+    }
+    (beneficiaries, addresses)
+}
+
+fn valid_split_shares() -> impl Strategy<Value = Vec<u32>> {
+    (1usize..=5).prop_flat_map(|len| {
+        proptest_vec(1u32..10_000, len).prop_map(|raw_shares| normalized_shares(raw_shares))
+    })
+}
+
+proptest! {
+    #[test]
+    fn test_multi_beneficiary_split_rounding(
+        total in 1_000_000_i128..=100_000_000_i128,
+        shares in valid_split_shares()
+    ) {
+        let (env, client, creator, _beneficiary, donor, _admin, token_client, _token_admin_client) =
+            register_and_setup();
+        set_timestamp(&env, 1_000);
+
+        let (bens, beneficiary_addresses) = build_beneficiaries(&env, &shares);
+        let campaign_id = client.create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Split Rounding Campaign"),
+            &String::from_str(&env, "Property test for split rounding."),
+            &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
+            &to_stroops("1"),
+            &2_000_u64,
+            &token_client.address,
+            &None,
+        );
+
+        let initial_balances: Vec<i128> = beneficiary_addresses
+            .iter()
+            .map(|address| token_client.balance(address))
+            .collect();
+
+        client.donate(&donor, &campaign_id, &total, &false, &None);
+
+        let final_balances: Vec<i128> = beneficiary_addresses
+            .iter()
+            .map(|address| token_client.balance(address))
+            .collect();
+
+        let payouts: Vec<i128> = initial_balances
+            .iter()
+            .zip(final_balances.iter())
+            .map(|(initial, final_balance)| final_balance - initial)
+            .collect();
+
+        let fee = (total * 100 + 5_000) / 10_000;
+        let net = total - fee;
+        let expected_other_sum: i128 = shares
+            .iter()
+            .skip(1)
+            .map(|&share| net * (share as i128) / 10_000)
+            .sum();
+        let expected_first = net - expected_other_sum;
+
+        assert_eq!(payouts[0], expected_first, "First beneficiary absorbs rounding dust");
+        for (paid, &share) in payouts.iter().skip(1).zip(shares.iter().skip(1)) {
+            assert_eq!(*paid, net * (share as i128) / 10_000);
+        }
+
+        assert_eq!(
+            payouts.iter().sum::<i128>() + fee,
+            total,
+            "Sum of beneficiary payouts plus fee must equal donated total"
+        );
+    }
 }
 
 #[test]

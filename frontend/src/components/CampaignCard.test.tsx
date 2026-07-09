@@ -7,6 +7,10 @@ import type { Campaign } from "@/lib/soroban";
 expect.extend(toHaveNoViolations);
 
 // ... rest of mocks ...
+vi.mock("@/hooks/useSoroban", () => ({
+  useTokenMetadata: vi.fn().mockReturnValue({ data: undefined, isLoading: false }),
+}));
+
 vi.mock("@/lib/soroban", () => ({
   fromStroops: (stroops: bigint | string | number): string => {
     const s = BigInt(stroops).toString().padStart(8, "0");
@@ -62,6 +66,7 @@ const baseCampaign: Campaign = {
   creator: "GA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVSGZ",
   beneficiary: "GCDEMOBENEFICIARYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
   title: "Flood Relief — Lagos",
+  description: "Test description",
   category: "relief",
   target_amount: stroops(1_000_000),
   raised_amount: stroops(350_000),
@@ -226,34 +231,34 @@ describe("CampaignCard", () => {
   // Progress bar color thresholds
   // ------------------------------------------------------------------
 
-  it("shows green progress bar at 100%", () => {
+  it("shows success (emerald) progress bar at 100%", () => {
     const funded: Campaign = {
       ...baseCampaign,
       raised_amount: stroops(1_000_000),
       status: "Funded",
     };
     const { container } = render(<CampaignCard campaign={funded} />);
-    const indicator = container.querySelector(".bg-green-500");
+    const indicator = container.querySelector(".bg-emerald-600");
     expect(indicator).toBeInTheDocument();
   });
 
-  it("shows yellow progress bar at >= 50%", () => {
+  it("shows warning (amber) progress bar at >= 50%", () => {
     const half: Campaign = {
       ...baseCampaign,
       raised_amount: stroops(500_000),
     };
     const { container } = render(<CampaignCard campaign={half} />);
-    const indicator = container.querySelector(".bg-yellow-500");
+    const indicator = container.querySelector(".bg-amber-500");
     expect(indicator).toBeInTheDocument();
   });
 
-  it("shows blue progress bar below 50%", () => {
+  it("shows default (primary) progress bar below 50%", () => {
     const low: Campaign = {
       ...baseCampaign,
       raised_amount: stroops(100_000),
     };
     const { container } = render(<CampaignCard campaign={low} />);
-    const indicator = container.querySelector(".bg-blue-500");
+    const indicator = container.querySelector(".bg-primary");
     expect(indicator).toBeInTheDocument();
   });
 

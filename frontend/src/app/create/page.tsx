@@ -1,7 +1,13 @@
+"use client";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+
 export default function CreateCampaign() {
-  return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold">Create a New Campaign</h1>
-    </div>
-  );
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace("/?create=true");
+  }, [router]);
+
+  return null;
 }

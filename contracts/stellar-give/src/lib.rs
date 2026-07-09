@@ -89,6 +89,14 @@ pub struct UnpausedEvent {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[contracttype]
+pub struct CampaignUpdateEvent {
+    pub campaign_id: u64,
+    pub content: String,
+    pub timestamp: u64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
 pub struct Campaign {
     pub id: u64,
     pub creator: Address,
@@ -1366,6 +1374,15 @@ impl StellarGiveContract {
 
         write_update(&env, id, count, &update);
         write_update_count(&env, id, count + 1);
+
+        env.events().publish(
+            (symbol_short!("update"),),
+            CampaignUpdateEvent {
+                campaign_id: id,
+                content: update.content.clone(),
+                timestamp: update.timestamp,
+            },
+        );
 
         Ok(())
     }

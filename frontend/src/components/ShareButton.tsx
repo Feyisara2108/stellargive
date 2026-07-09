@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Share2, Twitter, Copy, Check } from "lucide-react";
+import { Share2, Twitter, Copy, Check, Send, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 
 // We only need the ID and title from the campaign for sharing.
@@ -52,9 +52,27 @@ export function ShareButton({ campaign }: { campaign: ShareableCampaign }) {
     const url = getShareUrl();
     if (!url) return;
 
-    const text = `Check out "${campaign.title}" on StellarGive: ${url}`;
-    const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
+    const text = `Check out "${campaign.title}" on StellarGive`;
+    const twitterUrl = `https://x.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
     window.open(twitterUrl, "_blank", "noopener,noreferrer");
+  };
+
+  const handleTelegramShare = () => {
+    const url = getShareUrl();
+    if (!url) return;
+
+    const text = `Check out "${campaign.title}" on StellarGive`;
+    const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
+    window.open(telegramUrl, "_blank", "noopener,noreferrer");
+  };
+
+  const handleWhatsAppShare = () => {
+    const url = getShareUrl();
+    if (!url) return;
+
+    const text = `Check out "${campaign.title}" on StellarGive: ${url}`;
+    const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+    window.open(whatsappUrl, "_blank", "noopener,noreferrer");
   };
 
   const handleShareClick = async (e: React.MouseEvent) => {
@@ -124,6 +142,26 @@ export function ShareButton({ campaign }: { campaign: ShareableCampaign }) {
             >
               <Twitter className="w-4 h-4" />
               Share on X
+            </Button>
+
+            <Button
+              variant="outline"
+              className="flex items-center justify-start gap-2 w-full"
+              onClick={handleTelegramShare}
+              aria-label="Share on Telegram"
+            >
+              <Send className="w-4 h-4" />
+              Share on Telegram
+            </Button>
+
+            <Button
+              variant="outline"
+              className="flex items-center justify-start gap-2 w-full"
+              onClick={handleWhatsAppShare}
+              aria-label="Share on WhatsApp"
+            >
+              <MessageCircle className="w-4 h-4" />
+              Share on WhatsApp
             </Button>
           </div>
         </DialogContent>

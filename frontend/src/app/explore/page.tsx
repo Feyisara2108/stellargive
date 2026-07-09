@@ -1,26 +1,45 @@
 "use client";
 
-import { useState, useMemo, useEffect, Suspense } from "react";
+import { useState, useMemo, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Navbar } from "@/components/Navbar";
 import { CampaignCard } from "@/components/CampaignCard";
+import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCampaignsPaged } from "@/hooks/useSoroban";
-import { Loader2, Search, Compass, ArrowUpDown } from "lucide-react";
+import { TokenSelector } from "@/components/TokenSelector";
+import { Search, Compass } from "lucide-react";
 import type { Campaign } from "@/lib/soroban";
 
 const PAGE_SIZE = 9;
 
 type SortKey = "newest" | "ending-soon" | "near-goal" | "most-raised";
 
+// Tabs for time-based curation (highest conversion drivers)
+const TIME_TABS: { key: SortKey; label: string }[] = [
+  { key: "newest", label: "Newest" },
+  { key: "ending-soon", label: "Ending Soon" },
+];
+
+// Full sort options (including advanced sorts)
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: "newest", label: "Newest" },
   { key: "ending-soon", label: "Ending Soon" },
   { key: "near-goal", label: "Near Goal" },
   { key: "most-raised", label: "Most Raised" },
 ];
+
+const CATEGORIES = [
+  "all",
+  "medical",
+  "food",
+  "shelter",
+  "education",
+  "relief",
+  "uncategorized",
+] as const;
 
 function sortCampaigns(campaigns: Campaign[], sortBy: SortKey): Campaign[] {
   const sorted = [...campaigns];
@@ -41,6 +60,8 @@ function sortCampaigns(campaigns: Campaign[], sortBy: SortKey): Campaign[] {
   }
 }
 
+const EMPTY_CAMPAIGNS: Campaign[] = [];
+
 function ExploreContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -48,10 +69,13 @@ function ExploreContent() {
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "funded">("active");
+  const [categoryFilter, setCategoryFilter] = useState<typeof CATEGORIES[number]>("all");
   const [sortBy, setSortBy] = useState<SortKey>("newest");
+  const [tokenFilter, setTokenFilter] = useState("");
 
+  const sentinelRef = useRef<HTMLDivElement>(null);
   const { data, isLoading, isFetching } = useCampaignsPaged(limit);
-  const campaigns = data?.campaigns ?? [];
+  const campaigns = data?.campaigns ?? EMPTY_CAMPAIGNS;
   const hasMore = data?.hasMore ?? false;
 
   useEffect(() => {
@@ -68,15 +92,37 @@ function ExploreContent() {
     if (SORT_OPTIONS.some((o) => o.key === sort)) {
       setSortBy(sort as SortKey);
     }
+    const token = searchParams.get("token") ?? "";
+    setTokenFilter(token);
   }, [searchParams]);
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isFetching && !debouncedSearch) {
+          setLimit((prev) => prev + PAGE_SIZE);
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMore, isFetching, debouncedSearch]);
 
   useEffect(() => {
     const next = new URLSearchParams(searchParams.toString());
     next.set("status", statusFilter);
     next.set("sort", sortBy);
+    if (tokenFilter) {
+      next.set("token", tokenFilter);
+    } else {
+      next.delete("token");
+    }
     const query = next.toString();
     router.replace(query ? `/explore?${query}` : "/explore", { scroll: false });
-  }, [router, searchParams, statusFilter, sortBy]);
+  }, [router, searchParams, statusFilter, sortBy, tokenFilter]);
 
   const filtered = useMemo(() => {
     const byStatus = campaigns.filter((campaign) => {
@@ -87,15 +133,20 @@ function ExploreContent() {
       return campaign.raised_amount >= campaign.target_amount || campaign.status === "Funded";
     });
 
+    const byToken = !tokenFilter
+      ? byStatus
+      : byStatus.filter((c) => c.accepted_token === tokenFilter);
+
     const term = debouncedSearch.trim().toLowerCase();
     const searched = !term
-      ? byStatus
-      : byStatus.filter(
+      ? byToken
+      : byToken.filter(
           (c) => c.title.toLowerCase().includes(term) || c.creator.toLowerCase().includes(term),
         );
 
     return sortCampaigns(searched, sortBy);
-  }, [campaigns, debouncedSearch, statusFilter, sortBy]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campaigns, debouncedSearch, statusFilter, sortBy, tokenFilter]);
 
   const emptyMessage = useMemo(() => {
     if (debouncedSearch) {
@@ -125,7 +176,7 @@ function ExploreContent() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-end gap-3">
           <div className="relative flex-1 min-w-[200px] max-w-sm">
             <label htmlFor="explore-search" className="sr-only">
               Search campaigns
@@ -144,51 +195,90 @@ function ExploreContent() {
               className="pl-9"
             />
           </div>
-          <div className="relative w-full sm:w-44">
-            <label htmlFor="explore-sort" className="sr-only">
-              Sort by
-            </label>
-            <ArrowUpDown className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <select
-              id="explore-sort"
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortKey)}
-              className="flex h-10 w-full rounded-lg border border-input bg-background pl-9 pr-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {SORT_OPTIONS.map((opt) => (
-                <option key={opt.key} value={opt.key}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+          <div className="w-full sm:w-auto min-w-[220px]">
+            <TokenSelector
+              value={tokenFilter}
+              onChange={setTokenFilter}
+              label="Token"
+              allowCustom={false}
+            />
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2" role="tablist" aria-label="Campaign status filters">
-          <Button
-            variant={statusFilter === "all" ? "default" : "outline"}
+        {/* Time-based curation tabs */}
+        <div className="flex flex-wrap gap-2" role="tablist" aria-label="Campaign curation">
+          {TIME_TABS.map((tab) => (
+            <Button
+              key={tab.key}
+              variant={sortBy === tab.key ? "default" : "outline"}
+              onClick={() => setSortBy(tab.key)}
+              role="tab"
+              aria-selected={sortBy === tab.key}
+            >
+              {tab.label}
+            </Button>
+          ))}
+        </div>
+
+        {/* Status filters */}
+        <div
+          className="flex flex-wrap gap-2 items-center"
+          role="tablist"
+          aria-label="Campaign status filters"
+        >
+          <button
             onClick={() => setStatusFilter("all")}
             role="tab"
             aria-selected={statusFilter === "all"}
+            className="focus:outline-none"
           >
-            All
-          </Button>
-          <Button
-            variant={statusFilter === "active" ? "default" : "outline"}
+            <CampaignStatusBadge
+              status="All"
+              className={`text-sm px-4 py-1.5 transition-opacity ${statusFilter === "all" ? "ring-2 ring-primary ring-offset-2 opacity-100" : "opacity-60 hover:opacity-100"}`}
+            />
+          </button>
+          <button
             onClick={() => setStatusFilter("active")}
             role="tab"
             aria-selected={statusFilter === "active"}
+            className="focus:outline-none"
           >
-            Active
-          </Button>
-          <Button
-            variant={statusFilter === "funded" ? "default" : "outline"}
+            <CampaignStatusBadge
+              status="Active"
+              className={`text-sm px-4 py-1.5 transition-opacity ${statusFilter === "active" ? "ring-2 ring-primary ring-offset-2 opacity-100" : "opacity-60 hover:opacity-100"}`}
+            />
+          </button>
+          <button
             onClick={() => setStatusFilter("funded")}
             role="tab"
             aria-selected={statusFilter === "funded"}
+            className="focus:outline-none"
           >
-            Funded
-          </Button>
+            <CampaignStatusBadge
+              status="Funded"
+              className={`text-sm px-4 py-1.5 transition-opacity ${statusFilter === "funded" ? "ring-2 ring-primary ring-offset-2 opacity-100" : "opacity-60 hover:opacity-100"}`}
+            />
+          </button>
+        </div>
+
+        {/* Category filters */}
+        <div className="space-y-2">
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Filter by Category</h2>
+          <div className="flex flex-wrap gap-2" role="tablist" aria-label="Campaign category filters">
+            {CATEGORIES.map((cat) => (
+              <Button
+                key={cat}
+                variant={categoryFilter === cat ? "default" : "outline"}
+                size="sm"
+                onClick={() => setCategoryFilter(cat)}
+                role="tab"
+                aria-selected={categoryFilter === cat}
+                className="capitalize"
+              >
+                {cat === "uncategorized" ? "Uncategorized" : cat}
+              </Button>
+            ))}
+          </div>
         </div>
 
         {isLoading ? (
@@ -221,25 +311,15 @@ function ExploreContent() {
           </div>
         )}
 
-        {!isLoading && hasMore && !debouncedSearch && (
-          <div className="flex justify-center pt-4">
-            <Button
-              variant="outline"
-              onClick={() => setLimit((prev) => prev + PAGE_SIZE)}
-              disabled={isFetching}
-              className="min-w-[140px]"
-            >
-              {isFetching ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Loading...
-                </>
-              ) : (
-                "Load More"
-              )}
-            </Button>
+        {!isLoading && isFetching && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="h-[300px] rounded-xl bg-muted animate-pulse" />
+            ))}
           </div>
         )}
+
+        <div ref={sentinelRef} className="h-4" aria-hidden="true" />
       </main>
     </div>
   );

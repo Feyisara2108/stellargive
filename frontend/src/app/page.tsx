@@ -5,6 +5,7 @@ const EventFeed = dynamic(() => import("@/components/EventFeed").then((mod) => m
   ssr: false,
 });
 import { HeroCTA } from "@/components/HeroCTA";
+import { PlatformStats } from "@/components/PlatformStats";
 import { Heart, ShieldCheck, Zap } from "lucide-react";
 
 export default function Home() {
@@ -37,6 +38,7 @@ export default function Home() {
             </div>
 
             <HeroCTA />
+            <PlatformStats />
           </div>
         </section>
 

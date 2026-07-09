@@ -249,3 +249,78 @@ bash scripts/build-contract.sh
 ### Dependabot Maintenance
 
 We use Dependabot to keep our dependencies up-to-date. It runs on a weekly schedule for both Cargo and NPM, keeping a maximum of 5 open PRs each. Dependabot PRs will be prefixed with chore(deps/cargo) and chore(deps/npm).
+
+---
+
+## Environment Configuration
+
+All network, contract, and alerting settings live in environment files.
+
+### Root `.env` (scripts)
+
+```bash
+cp .env.example .env
+# Edit .env — set SOROBAN_RPC_URL, DEPLOYER_ALIAS, etc.
+```
+
+### Frontend `.env.local`
+
+```bash
+cp frontend/.env.example frontend/.env.local
+# Edit — set NEXT_PUBLIC_CONTRACT_ID from your deployment
+```
+
+Every required variable is documented with its purpose and default value in
+both `.env.example` and `frontend/.env.example`.  Never commit `.env` or
+`frontend/.env.local` — they are git-ignored.
+
+---
+
+## One-Command Testnet Bootstrap
+
+To go from a fresh clone to a fully-working local/testnet environment in one step:
+
+```bash
+./scripts/bootstrap-testnet.sh
+```
+
+This script:
+1. Loads `.env` (or copies `.env.example` if it doesn't exist and prompts you to fill it in)
+2. Generates and funds a testnet Stellar account via Friendbot
+3. Builds the Soroban contract with `cargo`
+4. Deploys the contract (idempotent — skips if already deployed; pass `--force-deploy` to redeploy)
+5. Generates TypeScript bindings with `generate-types.sh`
+6. Copies the env to `frontend/.env.local` if it doesn't already exist
+
+### Options
+
+```
+--force-deploy     Redeploy even if a deployment record already exists
+--alias <name>     Stellar key alias to use as the deployer (default: sg-deployer)
+```
+
+### Idempotency
+
+Every step is safe to re-run.  If an account is already funded or a contract
+already deployed, those steps are skipped automatically.
+
+---
+
+## RPC Alerting
+
+The `rpc-health` GitHub Actions workflow pings the Soroban RPC every 5 minutes.
+On failure it:
+- Opens a GitHub issue labelled `rpc-outage` (or adds a comment if one is already open)
+- Posts to Slack / Discord if webhooks are configured
+
+On recovery it automatically closes the tracking issue.
+
+**Configure alerting** via repo secrets (Settings → Secrets → Actions):
+
+| Secret | Purpose |
+|---|---|
+| `SOROBAN_RPC_URL` | RPC endpoint to monitor |
+| `SLACK_WEBHOOK_URL` | Slack incoming webhook (optional) |
+| `DISCORD_WEBHOOK_URL` | Discord incoming webhook (optional) |
+
+See `.env.example` for all available configuration variables.

@@ -28,6 +28,7 @@ export function ClaimButton({ campaign }: { campaign: Campaign }) {
   }
 
   const handleClaim = async () => {
+    if (claim.isPending || claim.isSuccess) return;
     try {
       await claim.mutateAsync(campaign.id);
     } catch (e: any) {
@@ -40,11 +41,11 @@ export function ClaimButton({ campaign }: { campaign: Campaign }) {
     <Button
       variant="outline"
       onClick={handleClaim}
-      disabled={claim.isPending || !canClaim}
+      disabled={claim.isPending || claim.isSuccess || !canClaim}
       className="border-primary text-primary hover:bg-primary/10"
     >
       {claim.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-      Claim Funds
+      {claim.isSuccess ? "Claimed" : "Claim Funds"}
     </Button>
   );
 }

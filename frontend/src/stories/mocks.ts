@@ -10,6 +10,7 @@ export const mockCampaign: Campaign = {
   creator: "GA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVSGZ",
   beneficiary: "GCDEMOBENEFICIARYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
   title: "Flood Relief — Lagos",
+  description: "Test description",
   category: "relief",
   target_amount: stroops(1_000_000),
   raised_amount: stroops(350_000),

@@ -1,0 +1,18 @@
+blank_issues_enabled: false
+
+contact_links:
+  - name: 💬 Discord Community
+    url: https://discord.gg/stellargive
+    about: Chat with the StellarGive community, ask questions, and get help from maintainers.
+
+  - name: 📖 Documentation
+    url: https://github.com/Feyisara2108/stellargive/tree/main/docs
+    about: Read the project docs including architecture, API reference, deployment guides, and more.
+
+  - name: 🔐 Security Vulnerability
+    url: https://github.com/Feyisara2108/stellargive/blob/main/docs/SECURITY.md
+    about: Please do NOT file a public issue for security vulnerabilities. Follow our responsible disclosure policy instead.
+
+  - name: 💡 Start a Discussion
+    url: https://github.com/Feyisara2108/stellargive/discussions
+    about: Have a question or idea that doesn't fit the issue templates? Start a discussion.

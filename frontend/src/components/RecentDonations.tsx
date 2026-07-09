@@ -3,11 +3,24 @@
 import { useEvents } from "@/hooks/useSoroban";
 import { fromStroops } from "@/lib/soroban";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Heart, ArrowUpRight, Activity } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { Heart, ArrowUpRight, RotateCcw } from "lucide-react";
 import { AddressLink } from "@/components/AddressLink";
 import { RelativeTime } from "@/components/RelativeTime";
 
-export function RecentDonations({ campaignId }: { campaignId: bigint }) {
+export function RecentDonations({
+  campaignId,
+  onDonateAgain,
+}: {
+  campaignId: bigint;
+  /**
+   * When provided, each donation row shows a "Donate again" shortcut that calls
+   * this with the row's amount (in XLM). The parent only passes it for active
+   * campaigns, so the action is hidden once a campaign is no longer donatable.
+   */
+  onDonateAgain?: (amountXLM: string) => void;
+}) {
   const { data: allEvents, isLoading, isError } = useEvents();
 
   if (isLoading) {
@@ -18,8 +31,16 @@ export function RecentDonations({ campaignId }: { campaignId: bigint }) {
             <Heart className="w-4 h-4 text-primary" /> Recent Donations
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <Activity className="animate-spin mx-auto my-8 text-muted-foreground" />
+        <CardContent className="space-y-4" aria-busy="true" aria-label="Loading recent donations">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="flex gap-3 items-center">
+              <Skeleton className="h-8 w-8 rounded-full shrink-0" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-3 w-3/4" />
+                <Skeleton className="h-2 w-1/4" />
+              </div>
+            </div>
+          ))}
         </CardContent>
       </Card>
     );
@@ -110,12 +131,27 @@ export function RecentDonations({ campaignId }: { campaignId: bigint }) {
                       )}
                     </p>
                   </div>
+                  {onDonateAgain && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="shrink-0 h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-primary"
+                      onClick={() => onDonateAgain(fromStroops(event.data[2]))}
+                    >
+                      <RotateCcw className="h-3 w-3" aria-hidden="true" />
+                      Donate again
+                    </Button>
+                  )}
                 </div>
               );
             })}
           </div>
         ) : (
-          <div className="text-center py-12 text-muted-foreground space-y-1 bg-muted/20 rounded-lg border border-dashed">
+          <div
+            role="status"
+            aria-live="polite"
+            className="text-center py-12 text-muted-foreground space-y-1 bg-muted/20 rounded-lg border border-dashed"
+          >
             <p className="text-sm font-medium">No donations yet</p>
             <p className="text-xs">Be the first to support this campaign.</p>
           </div>

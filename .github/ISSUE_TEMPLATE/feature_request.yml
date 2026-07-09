@@ -1,0 +1,85 @@
+name: 🚀 Feature Request
+description: Propose a new feature or improvement for StellarGive
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have an idea that would make StellarGive better? We'd love to hear it! Please fill in the details below so we can evaluate and prioritize it.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What is the background or motivation behind this feature request? What problem does it solve?
+      placeholder: "e.g. Currently, donors have no way to track the history of their contributions across campaigns..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Feature Description
+      description: A clear and concise description of the feature you are proposing.
+      placeholder: "e.g. Add a 'My Donations' page that lists all past donations with transaction hashes and amounts."
+    validations:
+      required: true
+
+  - type: textarea
+    id: requirements
+    attributes:
+      label: Requirements
+      description: List the functional and non-functional requirements for this feature.
+      placeholder: |
+        - The page must be accessible only to connected wallet holders
+        - Donations should be listed in reverse chronological order
+        - Each entry should show: campaign name, amount, date, tx hash
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance Criteria
+      description: Define the conditions that must be met for this feature to be considered complete.
+      placeholder: |
+        - [ ] User can navigate to /my-donations after connecting wallet
+        - [ ] All past donations are listed with correct details
+        - [ ] Clicking a tx hash opens the Stellar explorer
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of the project does this feature relate to?
+      options:
+        - Frontend (UI/UX)
+        - Smart Contract (Soroban)
+        - Backend / API
+        - DevOps / Infrastructure
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Have you considered any alternative approaches or workarounds?
+      placeholder: "e.g. We considered using an off-chain indexer but prefer an on-chain approach for trustlessness."
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Information
+      description: Mockups, related issues, external references, or any other context.
+    validations:
+      required: false

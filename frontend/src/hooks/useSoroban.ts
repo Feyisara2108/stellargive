@@ -6,13 +6,20 @@ import {
   getRecentCampaigns,
   getCampaignsPage,
   submitTransaction,
+  estimateFee,
   CONTRACT_ID,
   toStroops,
   getEvents,
   getUpdates,
+  getTotalCampaigns,
+  getSACBalance,
+  resolveAddressName,
+  Campaign,
 } from "@/lib/soroban";
-import { Address, nativeToScVal } from "@stellar/stellar-sdk";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { Address, nativeToScVal, xdr } from "@stellar/stellar-sdk";
 import { useWallet } from "@/lib/WalletProvider";
+import { toRawAmount } from "@/utils/format";
 
 export function useCampaign(id: bigint) {
   return useQuery({
@@ -37,6 +44,35 @@ export function useCampaignsPaged(limit: number) {
 }
 
 import { toast } from "sonner";
+
+/**
+ * Funding milestones (percent of target) that trigger a celebratory toast.
+ * Order matters — callers iterate in ascending order so multiple thresholds
+ * crossed by a single donation fire in the right sequence.
+ */
+export const MILESTONE_PERCENTS = [25, 50, 75, 100] as const;
+export type MilestonePercent = (typeof MILESTONE_PERCENTS)[number];
+
+/**
+ * Returns the milestone thresholds (25, 50, 75, 100) that the raised amount
+ * crossed when moving from `beforeStroops` to `afterStroops` for a campaign
+ * with `targetStroops` as its target. A threshold is "crossed" when the
+ * before-percentage is strictly below it and the after-percentage is at or
+ * above it. Returns an empty array for non-positive targets (defensive — the
+ * contract rejects those at create time).
+ */
+export function getCrossedMilestones(
+  beforeStroops: bigint,
+  afterStroops: bigint,
+  targetStroops: bigint,
+): MilestonePercent[] {
+  if (targetStroops <= 0n) return [];
+  // Scale before dividing so we don't lose precision converting i128-sized
+  // bigints to Number. Result is percentage with two decimal places.
+  const pctBefore = Number((beforeStroops * 10_000n) / targetStroops) / 100;
+  const pctAfter = Number((afterStroops * 10_000n) / targetStroops) / 100;
+  return MILESTONE_PERCENTS.filter((m) => pctBefore < m && pctAfter >= m);
+}
 
 function mapTransactionError(error: any): string {
   const msg = error?.message || String(error);
@@ -100,7 +136,7 @@ export function useCreateCampaign() {
       const toastId = toast.loading("Submitting transaction...");
       return { toastId };
     },
-    onSuccess: (data: any, variables, context) => {
+    onSuccess: (data: any, variables: any, context: any) => {
       const action = data?.hash
         ? {
             label: "View Explorer",
@@ -116,7 +152,7 @@ export function useCreateCampaign() {
       }
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
     },
-    onError: (error: any, variables, context) => {
+    onError: (error: any, variables: any, context: any) => {
       const mappedError = mapTransactionError(error);
       if (context?.toastId) {
         toast.error(mappedError, { id: context.toastId });
@@ -132,23 +168,65 @@ export function useDonate() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (params: { campaignId: bigint; amount: string; isAnonymous: boolean }) => {
+    mutationFn: async (params: {
+      campaignId: bigint;
+      amount: string;
+      isAnonymous: boolean;
+      decimals: number;
+    }) => {
       if (!address) throw new Error("Wallet not connected");
 
       const args = [
         new Address(address).toScVal(),
         nativeToScVal(params.campaignId, { type: "u64" }),
-        nativeToScVal(toStroops(params.amount), { type: "i128" }),
+        nativeToScVal(toRawAmount(params.amount, params.decimals), { type: "i128" }),
         nativeToScVal(params.isAnonymous, { type: "bool" }),
       ];
 
       return submitTransaction(address, "donate", args);
     },
-    onMutate: () => {
+    onMutate: async (variables: any) => {
+      await queryClient.cancelQueries({ queryKey: ["campaign", variables.campaignId.toString()] });
+      await queryClient.cancelQueries({ queryKey: ["campaigns"] });
+
+      const previousCampaign = queryClient.getQueryData<Campaign>([
+        "campaign",
+        variables.campaignId.toString(),
+      ]);
+      const previousCampaignsQueries = queryClient.getQueriesData<{
+        campaigns: Campaign[];
+        hasMore: boolean;
+      }>({ queryKey: ["campaigns"] });
+
+      const amountRaw = toRawAmount(variables.amount, variables.decimals);
+
+      // Update individual campaign cache
+      if (previousCampaign) {
+        queryClient.setQueryData<Campaign>(["campaign", variables.campaignId.toString()], {
+          ...previousCampaign,
+          raised_amount: previousCampaign.raised_amount + amountRaw,
+        });
+      }
+
+      // Update campaigns lists (recent, paged)
+      queryClient.setQueriesData<{ campaigns: Campaign[]; hasMore: boolean }>(
+        { queryKey: ["campaigns"] },
+        (old: any) => {
+          if (!old) return old;
+          const newCampaigns =
+            old.campaigns?.map((c: any) =>
+              c.id === variables.campaignId
+                ? { ...c, raised_amount: c.raised_amount + amountRaw }
+                : c,
+            ) || [];
+          return { ...old, campaigns: newCampaigns };
+        },
+      );
+
       const toastId = toast.loading("Submitting transaction...");
-      return { toastId };
+      return { previousCampaign, previousCampaignsQueries, toastId };
     },
-    onSuccess: (data: any, variables, context) => {
+    onSuccess: (data: any, variables: any, context: any) => {
       const action = data?.hash
         ? {
             label: "View Explorer",
@@ -162,16 +240,29 @@ export function useDonate() {
       } else {
         toast.success(message, { action });
       }
-      queryClient.invalidateQueries({ queryKey: ["campaign", variables.campaignId.toString()] });
-      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
     },
-    onError: (error: any, variables, context) => {
+    onError: (error: any, variables: any, context: any) => {
+      if (context?.previousCampaign) {
+        queryClient.setQueryData(
+          ["campaign", variables.campaignId.toString()],
+          context.previousCampaign,
+        );
+      }
+      if (context?.previousCampaignsQueries) {
+        context.previousCampaignsQueries.forEach(([queryKey, previousData]: any) => {
+          queryClient.setQueryData(queryKey, previousData);
+        });
+      }
       const mappedError = mapTransactionError(error);
       if (context?.toastId) {
         toast.error(mappedError, { id: context.toastId });
       } else {
         toast.error(mappedError);
       }
+    },
+    onSettled: (data: any, error: any, variables: any) => {
+      queryClient.invalidateQueries({ queryKey: ["campaign", variables.campaignId.toString()] });
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
     },
   });
 }
@@ -192,7 +283,7 @@ export function useClaimFunds() {
       const toastId = toast.loading("Submitting transaction...");
       return { toastId };
     },
-    onSuccess: (data: any, campaignId, context) => {
+    onSuccess: (data: any, campaignId: any, context: any) => {
       const action = data?.hash
         ? {
             label: "View Explorer",
@@ -209,7 +300,7 @@ export function useClaimFunds() {
       queryClient.invalidateQueries({ queryKey: ["campaign", campaignId.toString()] });
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
     },
-    onError: (error: any, variables, context) => {
+    onError: (error: any, variables: any, context: any) => {
       const mappedError = mapTransactionError(error);
       if (context?.toastId) {
         toast.error(mappedError, { id: context.toastId });
@@ -220,11 +311,102 @@ export function useClaimFunds() {
   });
 }
 
+export function useClaimRefund() {
+  const { address } = useWallet();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (campaignId: bigint) => {
+      if (!address) throw new Error("Wallet not connected");
+
+      const args = [new Address(address).toScVal(), nativeToScVal(campaignId, { type: "u64" })];
+
+      return submitTransaction(address, "claim_refund", args);
+    },
+    onMutate: () => {
+      const toastId = toast.loading("Claiming refund...");
+      return { toastId };
+    },
+    onSuccess: (data: any, campaignId: any, context: any) => {
+      const action = data?.hash
+        ? {
+            label: "View Explorer",
+            onClick: () =>
+              window.open(`https://stellar.expert/explorer/testnet/tx/${data.hash}`, "_blank"),
+          }
+        : undefined;
+      const message = "Refund claimed successfully";
+      if (context?.toastId) {
+        toast.success(message, { id: context.toastId, action });
+      } else {
+        toast.success(message, { action });
+      }
+      queryClient.invalidateQueries({ queryKey: ["campaign", campaignId.toString()] });
+      queryClient.invalidateQueries({ queryKey: ["refund-eligibility", campaignId.toString()] });
+    },
+    onError: (error: any, _variables: any, context: any) => {
+      if (context?.toastId) {
+        toast.error("Unable to claim refund. Please try again.", { id: context.toastId });
+      } else {
+        toast.error("Unable to claim refund. Please try again.");
+      }
+    },
+  });
+}
+
+export function useRefundEligibility(campaignId: bigint, isCancelled: boolean) {
+  const { address } = useWallet();
+  return useQuery({
+    queryKey: ["refund-eligibility", campaignId.toString(), address],
+    queryFn: async () => {
+      if (!address || !isCancelled) return false;
+      try {
+        const args = [new Address(address).toScVal(), nativeToScVal(campaignId, { type: "u64" })];
+        const fee = await estimateFee(address, "claim_refund", args);
+        return fee !== null;
+      } catch {
+        return false;
+      }
+    },
+    enabled: !!address && isCancelled,
+    staleTime: 60_000,
+  });
+}
+
+export function usePlatformStats() {
+  return useQuery({
+    queryKey: ["platform-stats"],
+    queryFn: async () => {
+      const totalCampaigns = await getTotalCampaigns();
+      let totalRaised = BigInt(0);
+      let activeCampaigns = 0;
+      if (totalCampaigns > 0) {
+        const campaigns = await getRecentCampaigns(totalCampaigns);
+        for (const c of campaigns) {
+          totalRaised += c.raised_amount;
+          if (c.status === "Active") activeCampaigns++;
+        }
+      }
+      return { totalCampaigns, totalRaised: totalRaised.toString(), activeCampaigns };
+    },
+    staleTime: 60_000,
+  });
+}
+
 export function useEvents(limit = 20) {
   return useQuery({
     queryKey: ["events", limit],
     queryFn: () => getEvents(limit),
-    refetchInterval: 10_000,
+    refetchInterval: (query) => {
+      if (typeof document !== "undefined" && document.hidden) {
+        return false;
+      }
+      if (query.state.status === "error") {
+        const failureCount = query.state.fetchFailureCount;
+        return Math.min(10000 * Math.pow(2, failureCount), 60000);
+      }
+      return 10000;
+    },
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
@@ -252,8 +434,135 @@ export function useAddUpdate() {
 
       return submitTransaction(address, "add_update", args);
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (_: any, variables: any) => {
       queryClient.invalidateQueries({ queryKey: ["updates", variables.campaignId.toString()] });
     },
+  });
+}
+
+export function useDonateFeeEstimate(params: {
+  campaignId: bigint;
+  amount: string;
+  address: string | null;
+  decimals: number;
+}) {
+  const debouncedAmount = useDebouncedValue(params.amount, 600);
+
+  return useQuery({
+    queryKey: [
+      "fee-estimate",
+      "donate",
+      params.campaignId.toString(),
+      debouncedAmount,
+      params.address,
+      params.decimals,
+    ],
+    queryFn: async () => {
+      if (!params.address || !debouncedAmount || Number(debouncedAmount) <= 0) return null;
+      try {
+        const args = [
+          new Address(params.address).toScVal(),
+          nativeToScVal(params.campaignId, { type: "u64" }),
+          nativeToScVal(toRawAmount(debouncedAmount, params.decimals), { type: "i128" }),
+          nativeToScVal(false, { type: "bool" }),
+        ];
+        return estimateFee(params.address, "donate", args);
+      } catch {
+        return null;
+      }
+    },
+    enabled: !!params.address && !!debouncedAmount && Number(debouncedAmount) > 0,
+    retry: false,
+    staleTime: 30_000,
+  });
+}
+
+export function useCancelCampaign() {
+  const { address } = useWallet();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (campaignId: bigint) => {
+      if (!address) throw new Error("Wallet not connected");
+
+      const args = [new Address(address).toScVal(), nativeToScVal(campaignId, { type: "u64" })];
+
+      return submitTransaction(address, "cancel_campaign", args);
+    },
+    onMutate: () => {
+      const toastId = toast.loading("Cancelling campaign...");
+      return { toastId };
+    },
+    onSuccess: (data: any, campaignId: any, context: any) => {
+      const action = data?.hash
+        ? {
+            label: "View Explorer",
+            onClick: () =>
+              window.open(`https://stellar.expert/explorer/testnet/tx/${data.hash}`, "_blank"),
+          }
+        : undefined;
+      const message = "Campaign cancelled";
+      if (context?.toastId) {
+        toast.success(message, { id: context.toastId, action });
+      } else {
+        toast.success(message, { action });
+      }
+      queryClient.invalidateQueries({ queryKey: ["campaign", campaignId.toString()] });
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+    },
+    onError: (error: any, _variables: any, context: any) => {
+      const mappedError = mapTransactionError(error);
+      if (context?.toastId) {
+        toast.error(mappedError, { id: context.toastId });
+      } else {
+        toast.error(mappedError);
+      }
+    },
+  });
+}
+
+export function useWalletBalance(
+  tokenContractId: string | null | undefined,
+  address: string | null,
+) {
+  return useQuery({
+    queryKey: ["wallet-balance", tokenContractId, address],
+    queryFn: async () => {
+      if (!tokenContractId || !address) return null;
+      return getSACBalance(tokenContractId, address);
+    },
+    enabled: !!tokenContractId && !!address,
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
+/**
+ * Hook to resolve a Soroban Domain name for an address with caching.
+ * Returns the domain name if available, otherwise returns null.
+ * Never blocks render - resolution happens asynchronously.
+ */
+export function useResolvedName(address: string | null) {
+  return useQuery({
+    queryKey: ["resolved-name", address],
+    queryFn: () => (address ? resolveAddressName(address) : null),
+    enabled: !!address && address.length === 56,
+    staleTime: 1000 * 60 * 60, // Cache for 1 hour
+    gcTime: 1000 * 60 * 60 * 24, // Keep in cache for 24 hours
+    retry: false, // Don't retry on failure
+  });
+}
+
+export function useTokenMetadata(contractId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["token-metadata", contractId],
+    queryFn: async () => {
+      if (!contractId) return null;
+      const { getTokenMetadata } = await import("@/lib/soroban");
+      return getTokenMetadata(contractId);
+    },
+    enabled: !!contractId,
+    staleTime: 1000 * 60 * 60 * 24, // cache for 24h since token metadata doesn't change
+    retry: 2,
   });
 }

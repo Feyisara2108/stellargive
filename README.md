@@ -22,6 +22,14 @@ Transparent crowdfunding on Stellar Soroban...
 - **Explorer (deploy tx):** `https://stellar.expert/explorer/testnet/tx/e3f88cee225bb5548e4640afe02c351373575469fb60dac6f5de670aa7687156`
 - **Lab contract link:** `https://lab.stellar.org/r/testnet/contract/CB6HVHRQYILGNKW7RBB66BC6TDBIEWADOA2YUUV4I22RXRLA6DY6OAKT`
 
+## Code of Conduct
+
+This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code. Please report unacceptable behavior to **stellargive-conduct@proton.me**.
+
+## Security
+
+Please review our [Security Policy](SECURITY.md) for details on supported versions, how to report vulnerabilities, and our response expectations.
+
 ## Architecture (High Level)
 
 ```text
@@ -80,6 +88,43 @@ docs/                    Security, deployment, architecture, contributing docs
 | Frontend lint | `cd frontend && npm run lint` |
 | Frontend build | `cd frontend && npm run build` |
 | Frontend dev | `cd frontend && npm run dev` |
+## Local Development with Docker
+
+You can run the entire StellarGive stack locally using Docker and Docker Compose. This starts a standalone Stellar node (with Soroban support) and the frontend application, ensuring they boot up in the correct order.
+
+### Setup and Startup
+
+1. **Configure Environment Variables**:
+   Copy the example environment file:
+   ```bash
+   cp .env.example .env
+   ```
+   You can customize the ports and node environment in the `.env` file:
+   - `STELLAR_PORT_RPC`: Port for Soroban RPC / Horizon API (default: `8000`)
+   - `STELLAR_PORT_FRIENDBOT`: Port for Friendbot funder utility (default: `8001`)
+   - `FRONTEND_PORT`: Port where the Next.js frontend will be accessible (default: `3000`)
+
+2. **Start the Stack**:
+   Run the following command to start the containers:
+   ```bash
+   docker compose up -d
+   ```
+   Docker Compose will start the `stellar` node first. The `frontend` container will wait until the `stellar` node is healthy (using a built-in curl healthcheck) before executing its setup and boot command.
+
+3. **Verify Service Health**:
+   You can monitor the health status of the services by running:
+   ```bash
+   docker compose ps
+   ```
+   Both the `stellar` and `frontend` services will show as `healthy` once fully initialized.
+
+### Service Ports & Endpoints
+
+| Service | Port | Endpoint |
+|---|---|---|
+| Frontend App | `3000` | `http://localhost:3000` |
+| Soroban RPC / Horizon API | `8000` | `http://localhost:8000` |
+| Friendbot Funder | `8001` | `http://localhost:8001` |
 
 ## Live / Network Links
 
@@ -103,6 +148,7 @@ docs/                    Security, deployment, architecture, contributing docs
 - Security: [`docs/SECURITY.md`](./docs/SECURITY.md)
 - Deployment: [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md)
 - Contributing: [`docs/CONTRIBUTING.md`](./docs/CONTRIBUTING.md)
+- Branch Protection: [`docs/branch-protection.md`](./docs/branch-protection.md)
 - Video Transcript: [`docs/VIDEO_TRANSCRIPT.md`](./docs/VIDEO_TRANSCRIPT.md)
 - Litepaper: [`docs/WHITEPAPER.md`](./docs/WHITEPAPER.md)
 
@@ -113,6 +159,8 @@ docs/                    Security, deployment, architecture, contributing docs
 - **WASM optimization:** Contract builds are strictly validated to ensure optimized `.wasm` size remains under 64KB.
 - **Local Soroban node:** We support local-first Soroban development using `stellar/quickstart:testing`. Run `docker compose up` to start a standalone node (RPC on port 8000, Horizon on port 8001).
 - **Dependabot maintenance:** Weekly dependency updates are enabled for both Cargo (contracts) and NPM (frontend) dependencies.
+- **Branch protection:** The `main` branch is protected by mandatory status checks (`Contract CI`, `Lint & Format`, `CI`, `Dependency Audit`). Admins/owners can bypass checks in emergencies. See [Branch Protection Guide](./docs/branch-protection.md) or run `bash scripts/apply-branch-protection.sh` to apply.
+
 
 ## Roadmap
 
@@ -138,7 +186,7 @@ docs/                    Security, deployment, architecture, contributing docs
 
 ## Contributor Onboarding
 
-Welcome! If you are new to the project, please start by reading our [Detailed Setup Guide](./docs/SETUP.md) which will walk you through installing all necessary dependencies (Rust, Soroban CLI, Node.js) across macOS, Linux, and Windows. Once your environment is set up, check out [`docs/CONTRIBUTING.md`](./docs/CONTRIBUTING.md) for our workflow guidelines.
+Welcome! If you are new to the project, please start by reading our [Detailed Setup Guide](./docs/SETUP.md) which will walk you through installing all necessary dependencies (Rust, Soroban CLI, Node.js) across macOS, Linux, and Windows. Once your environment is set up, check out [`CONTRIBUTING.md`](./CONTRIBUTING.md) for our workflow guidelines.
 
 ## 👥 Contributors
 
@@ -159,4 +207,4 @@ Welcome! If you are new to the project, please start by reading our [Detailed Se
 
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 
-This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome as always!..
+This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome as always!.........

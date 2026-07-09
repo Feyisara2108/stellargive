@@ -5,5 +5,5 @@ Sentry.init({
   tracesSampleRate: 0.1,
   debug: false,
   environment: process.env.NODE_ENV,
-  release: process.env.NEXT_PUBLIC_APP_VERSION,
+  release: process.env.SENTRY_RELEASE,
 });

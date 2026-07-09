@@ -6,8 +6,36 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  change-detection:
+    runs-on: ubuntu-latest
+    outputs:
+      contracts: ${{ steps.filter.outputs.contracts }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Detect changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            contracts:
+              - 'contracts/**'
+              - '.github/workflows/**'
+              - 'scripts/**'
+              - 'Cargo.lock'
+              - 'Cargo.toml'
+              - 'package.json'
+              - 'package-lock.json'
+              - '.gitignore'
+
   test:
+    needs: change-detection
+    if: ${{ needs.change-detection.outputs.contracts == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

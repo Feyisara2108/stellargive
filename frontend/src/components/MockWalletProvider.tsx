@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useCallback } from "react";
+import { WalletContext } from "@/lib/WalletProvider";
 
 /**
  * Mock wallet context for E2E / CI testing without the Freighter browser
@@ -89,7 +90,18 @@ export function MockWalletProvider({ children }: { children: React.ReactNode }) 
         mockSignedTxXdr,
       }}
     >
-      {children}
+      <WalletContext.Provider
+        value={{
+          address,
+          isConnected,
+          walletNetwork: process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE || null,
+          isWrongNetwork: false,
+          connect,
+          disconnect,
+        }}
+      >
+        {children}
+      </WalletContext.Provider>
     </MockWalletContext.Provider>
   );
 }

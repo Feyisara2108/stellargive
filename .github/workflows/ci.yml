@@ -6,8 +6,43 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  change-detection:
+    runs-on: ubuntu-latest
+    outputs:
+      contracts: ${{ steps.filter.outputs.contracts }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Detect changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            contracts:
+              - 'contracts/**'
+              - '.github/workflows/**'
+              - 'scripts/**'
+              - 'Cargo.lock'
+              - 'Cargo.toml'
+              - 'package.json'
+              - 'package-lock.json'
+              - '.gitignore'
+            frontend:
+              - 'frontend/**'
+              - '.github/workflows/**'
+              - 'package.json'
+              - 'package-lock.json'
+              - '.gitignore'
+
   rust-and-contract:
+    needs: change-detection
+    if: ${{ needs.change-detection.outputs.contracts == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -57,6 +92,7 @@ jobs:
         run: bash scripts/build-contract.sh
 
       - name: Codecov Upload (Rust)
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         uses: codecov/codecov-action@v4
         with:
           files: contracts/stellar-give/cobertura.xml
@@ -64,6 +100,8 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
 
   frontend:
+    needs: change-detection
+    if: ${{ needs.change-detection.outputs.frontend == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -72,17 +110,16 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: frontend/.nvmrc
 
-      - name: Cache Next.js and node_modules cache
+      - name: Cache Next.js build
         uses: actions/cache@v4
         with:
           path: |
             frontend/.next/cache
-            frontend/node_modules/.cache
-          key: ${{ runner.os }}-next-${{ hashFiles('frontend/package-lock.json') }}
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('frontend/package-lock.json') }}-${{ hashFiles('frontend/src/**/*.js', 'frontend/src/**/*.jsx', 'frontend/src/**/*.ts', 'frontend/src/**/*.tsx') }}
           restore-keys: |
-            ${{ runner.os }}-next-
+            ${{ runner.os }}-nextjs-${{ hashFiles('frontend/package-lock.json') }}-
 
       - name: Install dependencies
         working-directory: frontend
@@ -101,8 +138,28 @@ jobs:
         run: npm run test -- --coverage
 
       - name: Codecov Upload (Frontend)
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         uses: codecov/codecov-action@v4
         with:
           directory: frontend/coverage
           flags: frontend
           token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Build (with Sentry sourcemap upload)
+        working-directory: frontend
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+          SENTRY_RELEASE: ${{ github.sha }}
+        run: npm run build
+
+      - name: Finalize Sentry release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+        run: |
+          npx sentry-cli releases set-commits ${{ github.sha }} --auto
+          npx sentry-cli releases finalize ${{ github.sha }}

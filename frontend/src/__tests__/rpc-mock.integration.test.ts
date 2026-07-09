@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { http, HttpResponse } from "msw";
-import { server } from "@/mocks/setup";
+import { server, errorHandlers } from "@/mocks/setup";
 
 describe("Soroban RPC Mock Integration", () => {
   it("should handle successful transaction simulation", async () => {
@@ -108,30 +107,7 @@ describe("Soroban RPC Mock Integration", () => {
   });
 
   it("should handle transaction failure scenarios", async () => {
-    server.use(
-      http.post("/rpc", async ({ request }) => {
-        const body = (await request.json()) as any;
-        if (body.method === "simulateTransaction") {
-          return HttpResponse.json({
-            id: body.id,
-            jsonrpc: "2.0",
-            error: {
-              code: -32603,
-              message: "Internal error",
-              data: "Transaction simulation failed: Insufficient balance",
-            },
-          });
-        }
-        return HttpResponse.json({
-          id: body.id,
-          jsonrpc: "2.0",
-          error: {
-            code: -32603,
-            message: "Internal error",
-          },
-        });
-      }),
-    );
+    server.use(...errorHandlers.transactionFailed);
 
     const response = await fetch("/rpc", {
       method: "POST",
@@ -152,11 +128,7 @@ describe("Soroban RPC Mock Integration", () => {
   });
 
   it("should handle node timeout scenarios", async () => {
-    server.use(
-      http.post("/rpc", () => {
-        return HttpResponse.error();
-      }),
-    );
+    server.use(...errorHandlers.nodeTimeout);
 
     try {
       await fetch("/rpc", {
@@ -178,33 +150,7 @@ describe("Soroban RPC Mock Integration", () => {
   });
 
   it("should handle failed transaction responses", async () => {
-    server.use(
-      http.post("/rpc", async ({ request }) => {
-        const body = (await request.json()) as any;
-        if (body.method === "getTransaction") {
-          return HttpResponse.json({
-            id: body.id,
-            jsonrpc: "2.0",
-            result: {
-              status: "FAILED",
-              latestLedger: 123456,
-              latestLedgerCloseTime: "1234567890",
-              oldestLedger: 1,
-              oldestLedgerCloseTime: "1000000000",
-              resultXdr: "failed_result",
-            },
-          });
-        }
-        return HttpResponse.json({
-          id: body.id,
-          jsonrpc: "2.0",
-          error: {
-            code: -32603,
-            message: "Internal error",
-          },
-        });
-      }),
-    );
+    server.use(...errorHandlers.transactionFailed);
 
     const response = await fetch("/rpc", {
       method: "POST",

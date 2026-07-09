@@ -13,6 +13,13 @@ vi.mock("@/hooks/useSoroban", () => ({
   }),
 }));
 
+vi.mock("next/navigation", () => ({
+  useRouter: vi.fn().mockReturnValue({ push: vi.fn() }),
+  useSearchParams: vi.fn().mockReturnValue({ get: vi.fn() }),
+}));
+
+import { WalletContext } from "@/lib/WalletProvider";
+
 vi.mock("./TokenSelector", () => ({
   TokenSelector: ({ value, onChange }: any) => (
     <div data-testid="token-selector">
@@ -25,13 +32,43 @@ vi.mock("./TokenSelector", () => ({
 
 describe("CreateCampaignForm", () => {
   it("should have no accessibility violations in trigger state", async () => {
-    const { container } = render(<CreateCampaignForm />);
+    const { container } = render(
+      <WalletContext.Provider
+        value={
+          {
+            address: "GBX...",
+            isConnected: true,
+            connect: vi.fn(),
+            disconnect: vi.fn(),
+            isWrongNetwork: false,
+            walletNetwork: "TESTNET",
+          } as any
+        }
+      >
+        <CreateCampaignForm />
+      </WalletContext.Provider>,
+    );
     const results = await axe(container);
     expect(results).toHaveNoViolations();
   });
 
   it("should have no accessibility violations in open state", async () => {
-    render(<CreateCampaignForm />);
+    render(
+      <WalletContext.Provider
+        value={
+          {
+            address: "GBX...",
+            isConnected: true,
+            connect: vi.fn(),
+            disconnect: vi.fn(),
+            isWrongNetwork: false,
+            walletNetwork: "TESTNET",
+          } as any
+        }
+      >
+        <CreateCampaignForm />
+      </WalletContext.Provider>,
+    );
 
     // Open the dialog
     const trigger = screen.getByRole("button", { name: /Start a Campaign/i });

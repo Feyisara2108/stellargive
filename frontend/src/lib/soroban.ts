@@ -19,7 +19,7 @@ export const CONTRACT_ID = process.env.NEXT_PUBLIC_CONTRACT_ID!;
 export const RPC_URL = process.env.NEXT_PUBLIC_SOROBAN_RPC_URL!;
 export const NETWORK_PASSPHRASE = process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE!;
 
-export const server = new rpc.Server(RPC_URL);
+export const server = new rpc.Server(RPC_URL, { allowHttp: RPC_URL.startsWith("http:") });
 
 export const STROOP_PRECISION = 7;
 
@@ -67,33 +67,48 @@ export function fromStroops(stroops: bigint | string | number): string {
 
 export type CampaignStatus = "Active" | "Funded" | "Claimed" | "Expired";
 
+export interface CampaignBeneficiary {
+  address: string;
+  share: number; // basis points (10000 = 100%)
+}
+
 export interface Campaign {
   id: bigint;
   creator: string;
   beneficiary: string;
+  beneficiaries: CampaignBeneficiary[];
   title: string;
+  description: string;
   category: string;
   target_amount: bigint;
   raised_amount: bigint;
   deadline: bigint;
   accepted_token: string;
   status: CampaignStatus;
+  metadata_uri?: string;
   website?: string;
   twitter?: string;
 }
 
 function parseCampaign(native: any): Campaign {
+  const bens = (native.beneficiaries || []).map((b: any) => ({
+    address: String(b[0]),
+    share: Number(b[1]),
+  }));
   return {
     id: BigInt(native.id),
     creator: native.creator,
-    beneficiary: native.beneficiary,
+    beneficiary: bens[0]?.address || native.beneficiary || "",
+    beneficiaries: bens,
     title: native.title.toString(),
+    description: native.description.toString(),
     category: native.category.toString(),
     target_amount: BigInt(native.target_amount),
     raised_amount: BigInt(native.raised_amount),
     deadline: BigInt(native.deadline),
     accepted_token: native.accepted_token,
     status: Object.keys(native.status)[0] as CampaignStatus,
+    metadata_uri: native.metadata_uri?.toString(),
     website: native.website?.toString(),
     twitter: native.twitter?.toString(),
   };
@@ -126,17 +141,86 @@ export async function getCampaign(id: bigint): Promise<Campaign> {
   return parseCampaign(result);
 }
 
-export async function getRecentCampaigns(limit = 10): Promise<Campaign[]> {
+export async function getRecentCampaigns(limit = 20): Promise<Campaign[]> {
   const campaigns: Campaign[] = [];
-  for (let i = 1n; i <= BigInt(limit); i++) {
+  let currentOffset = 0n;
+  const batchSize = 20;
+
+  while (campaigns.length < limit) {
+    const fetchLimit = Math.min(batchSize, limit - campaigns.length);
+
+    const tx = new TransactionBuilder(
+      new Account("GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF", "0"),
+      {
+        fee: "100",
+        networkPassphrase: NETWORK_PASSPHRASE,
+      },
+    )
+      .addOperation(
+        Operation.invokeHostFunction({
+          func: "get_campaigns_paged",
+          contractId: CONTRACT_ID,
+          args: [
+            nativeToScVal(currentOffset, { type: "u64" }),
+            nativeToScVal(fetchLimit, { type: "u32" }),
+          ],
+        } as any),
+      )
+      .setTimeout(30)
+      .build();
+
     try {
-      const c = await getCampaign(i);
-      campaigns.push(c);
+      const sim = await server.simulateTransaction(tx);
+      if (rpc.Api.isSimulationError(sim) || !sim.result) {
+        break;
+      }
+
+      const result = scValToNative(sim.result.retval);
+      const batch = (result as any[]).map(parseCampaign);
+
+      if (batch.length === 0) {
+        break;
+      }
+
+      campaigns.push(...batch);
+      currentOffset += BigInt(batch.length);
+
+      if (batch.length < fetchLimit) {
+        break;
+      }
     } catch (e) {
       break;
     }
   }
+
   return campaigns;
+}
+
+export async function getTotalCampaigns(): Promise<bigint> {
+  const tx = new TransactionBuilder(
+    new Account("GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF", "0"),
+    {
+      fee: "100",
+      networkPassphrase: NETWORK_PASSPHRASE,
+    },
+  )
+    .addOperation(
+      Operation.invokeHostFunction({
+        func: "get_total_campaigns",
+        contractId: CONTRACT_ID,
+        args: [],
+      } as any),
+    )
+    .setTimeout(30)
+    .build();
+
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim)) {
+    return 0n;
+  }
+  if (!sim.result) return 0n;
+  const result = scValToNative(sim.result.retval);
+  return BigInt(result);
 }
 
 export async function getCampaignsPage(
@@ -146,6 +230,35 @@ export async function getCampaignsPage(
   const all = await getRecentCampaigns(limit + 1);
   const hasMore = all.length > limit;
   return { campaigns: all.slice(0, limit), hasMore };
+}
+
+export async function estimateFee(
+  sender: string,
+  func: string,
+  args: any[],
+): Promise<number | null> {
+  try {
+    const account = await server.getAccount(sender);
+    const tx = new TransactionBuilder(account, {
+      fee: "1000",
+      networkPassphrase: NETWORK_PASSPHRASE,
+    })
+      .addOperation(
+        Operation.invokeHostFunction({
+          func,
+          contractId: CONTRACT_ID,
+          args,
+        } as any),
+      )
+      .setTimeout(30)
+      .build();
+
+    const sim = await server.simulateTransaction(tx);
+    if (rpc.Api.isSimulationError(sim)) return null;
+    return Number((sim as rpc.Api.SimulateTransactionSuccessResponse).minResourceFee ?? 0);
+  } catch {
+    return null;
+  }
 }
 
 export interface SubmitOptions {
@@ -244,10 +357,12 @@ export async function getEvents(limit = 20) {
     const value = scValToNative(event.value);
     return {
       id: event.id,
+      txHash: (event as any).txHash || event.id,
       ledger: event.ledger,
       createdAt: event.ledgerClosedAt,
       topic: topics[1], // e.g., 'created', 'received', 'claimed'
       data: value,
+      txHash: (event as any).txHash as string | undefined,
     };
   });
 }
@@ -367,4 +482,44 @@ export async function getTokenMetadata(contractId: string): Promise<TokenMetadat
   const decimals = Number(scValToNative(simDecimals.result.retval));
 
   return { symbol, decimals };
+}
+
+/**
+ * Attempt to resolve a Soroban Domain name for the given address.
+ * Falls back to null if the address has no associated domain.
+ * Uses a simple HTTP API pattern; adapt as needed for your network.
+ */
+export async function resolveAddressName(address: string): Promise<string | null> {
+  if (!address || address.length < 56) return null;
+
+  try {
+    // Attempt to resolve via domain-resolver service
+    // This is a placeholder pattern - adapt to match your network's domain service
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+    try {
+      const response = await fetch(`https://domain-resolver.stellar.expert/resolve/${address}`, {
+        method: "GET",
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) return null;
+
+      const data = await response.json();
+      if (data?.name && typeof data.name === "string") {
+        return data.name;
+      }
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      // Network/timeout errors are silent failures
+    }
+
+    return null;
+  } catch {
+    // Silently fail for any other errors
+    return null;
+  }
 }
