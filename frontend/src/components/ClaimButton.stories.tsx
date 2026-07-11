@@ -15,7 +15,14 @@ const withWallet = (address: string | null) =>
   function WalletDecorator(Story: React.ComponentType) {
     return (
       <WalletContext.Provider
-        value={{ address, isConnected: !!address, connect: async () => {}, disconnect: () => {} }}
+        value={{
+          address,
+          isConnected: !!address,
+          walletNetwork: null,
+          isWrongNetwork: false,
+          connect: async () => {},
+          disconnect: () => {},
+        }}
       >
         <Story />
       </WalletContext.Provider>

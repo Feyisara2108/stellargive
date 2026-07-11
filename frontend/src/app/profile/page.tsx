@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRecentCampaigns, useEvents } from "@/hooks/useSoroban";
 import { fromStroops, type Campaign } from "@/lib/soroban";
+import { AddressLink } from "@/components/AddressLink";
 import { useWallet } from "@/lib/WalletProvider";
 import {
   Loader2,
@@ -33,6 +34,7 @@ function normalizeAddress(value: unknown): string | null {
 
 export default function ProfilePage() {
   const { address, isConnected } = useWallet();
+  const [activeTab, setActiveTab] = useState<"campaigns" | "donations">("campaigns");
   const {
     data: campaigns,
     isLoading: campaignsLoading,

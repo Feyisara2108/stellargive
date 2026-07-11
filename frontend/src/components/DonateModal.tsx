@@ -127,6 +127,7 @@ export function DonateModal({
     campaignId: campaign.id,
     amount,
     address,
+    decimals,
   });
   const walletBalance = useWalletBalance(campaign.accepted_token, address);
   const balanceTokens = walletBalance.data != null ? Number(walletBalance.data) / divisor : null;

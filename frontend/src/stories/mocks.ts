@@ -9,6 +9,9 @@ export const mockCampaign: Campaign = {
   id: 1n,
   creator: "GA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVSGZ",
   beneficiary: "GCDEMOBENEFICIARYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+  beneficiaries: [
+    { address: "GCDEMOBENEFICIARYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", share: 10000 },
+  ],
   title: "Flood Relief — Lagos",
   description: "Test description",
   category: "relief",

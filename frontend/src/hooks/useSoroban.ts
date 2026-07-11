@@ -380,8 +380,8 @@ export function usePlatformStats() {
       const totalCampaigns = await getTotalCampaigns();
       let totalRaised = BigInt(0);
       let activeCampaigns = 0;
-      if (totalCampaigns > 0) {
-        const campaigns = await getRecentCampaigns(totalCampaigns);
+      if (totalCampaigns > 0n) {
+        const campaigns = await getRecentCampaigns(Number(totalCampaigns));
         for (const c of campaigns) {
           totalRaised += c.raised_amount;
           if (c.status === "Active") activeCampaigns++;
@@ -509,6 +509,54 @@ export function useCancelCampaign() {
       }
       queryClient.invalidateQueries({ queryKey: ["campaign", campaignId.toString()] });
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+    },
+    onError: (error: any, _variables: any, context: any) => {
+      const mappedError = mapTransactionError(error);
+      if (context?.toastId) {
+        toast.error(mappedError, { id: context.toastId });
+      } else {
+        toast.error(mappedError);
+      }
+    },
+  });
+}
+
+export function useAddToWhitelist() {
+  const { address } = useWallet();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: { campaignId: bigint; addressToWhitelist: string }) => {
+      if (!address) throw new Error("Wallet not connected");
+
+      const args = [
+        nativeToScVal(params.campaignId, { type: "u64" }),
+        xdr.ScVal.scvVec([new Address(params.addressToWhitelist).toScVal()]),
+      ];
+
+      return submitTransaction(address, "add_to_whitelist", args);
+    },
+    onMutate: () => {
+      const toastId = toast.loading("Whitelisting address...");
+      return { toastId };
+    },
+    onSuccess: (data: any, variables: any, context: any) => {
+      const action = data?.hash
+        ? {
+            label: "View Explorer",
+            onClick: () =>
+              window.open(`https://stellar.expert/explorer/testnet/tx/${data.hash}`, "_blank"),
+          }
+        : undefined;
+      const message = "Address whitelisted";
+      if (context?.toastId) {
+        toast.success(message, { id: context.toastId, action });
+      } else {
+        toast.success(message, { action });
+      }
+      queryClient.invalidateQueries({
+        queryKey: ["campaign", variables.campaignId.toString()],
+      });
     },
     onError: (error: any, _variables: any, context: any) => {
       const mappedError = mapTransactionError(error);

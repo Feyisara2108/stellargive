@@ -48,9 +48,11 @@ export function ProjectUpdates({ campaignId }: { campaignId: bigint }) {
       <CardContent className="space-y-4">
         {showForm && (
           <PostUpdateForm
-            campaignId={campaignId}
+            campaignId={campaignId.toString()}
             onSuccess={handleSuccess}
-            addUpdateMutation={addUpdate.mutateAsync}
+            addUpdateMutation={async (id, content) => {
+              await addUpdate.mutateAsync({ campaignId: BigInt(id), content });
+            }}
           />
         )}
 

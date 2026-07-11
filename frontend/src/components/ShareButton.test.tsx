@@ -121,8 +121,10 @@ describe("ShareButton — social intents", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /share on x/i }));
 
-    const expectedText = `Check out "Clean Water Project" on StellarGive: ${EXPECTED_URL}`;
-    const expectedUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(expectedText)}`;
+    const expectedText = `Check out "Clean Water Project" on StellarGive`;
+    const expectedUrl = `https://x.com/intent/tweet?text=${encodeURIComponent(
+      expectedText,
+    )}&url=${encodeURIComponent(EXPECTED_URL)}`;
 
     expect(window.open).toHaveBeenCalledWith(expectedUrl, "_blank", "noopener,noreferrer");
   });
@@ -135,16 +137,17 @@ describe("ShareButton — social intents", () => {
     fireEvent.click(screen.getByRole("button", { name: /share on x/i }));
 
     const [openedUrl] = vi.mocked(window.open).mock.calls[0];
-    const encodedText = (openedUrl as string).split("?text=")[1];
+    // The intent URL has the shape `...?text=<text>&url=<url>`; isolate the
+    // encoded `text` param (everything between `?text=` and the `&url=`).
+    const encodedText = (openedUrl as string).split("?text=")[1].split("&url=")[0];
 
-    // The raw URL must not contain unencoded spaces, quotes, or ampersands -
-    // those would either break the URL or get misinterpreted as extra params.
-    expect(openedUrl).not.toMatch(/[ "&](?!amp;)/);
+    // The encoded text param must not contain unencoded spaces, quotes, or
+    // ampersands - those would either break the URL or get misinterpreted as
+    // extra query params.
+    expect(encodedText).not.toMatch(/[ "&]/);
     // And decoding it back should give us exactly the text we expect.
     const decoded = decodeURIComponent(encodedText);
-    expect(decoded).toBe(
-      `Check out "Save the Reef & "Friends"" on StellarGive: ${window.location.origin}/campaign/7`,
-    );
+    expect(decoded).toBe(`Check out "Save the Reef & "Friends"" on StellarGive`);
   });
 
   it("includes the campaign's share URL inside the tweet text", async () => {

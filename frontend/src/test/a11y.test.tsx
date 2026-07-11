@@ -29,7 +29,9 @@ vi.mock("@stellar/stellar-sdk", async (importActual) => {
     ...actual,
     rpc: {
       ...actual.rpc,
-      Server: vi.fn(() => ({})),
+      Server: vi.fn(function () {
+        return {};
+      }),
     },
     Address: vi.fn().mockImplementation(() => ({
       toScVal: () => ({}),
@@ -65,6 +67,10 @@ vi.mock("@/hooks/useSoroban", () => ({
   useCancelCampaign: () => ({
     mutateAsync: vi.fn(),
     isPending: false,
+  }),
+  useEvents: () => ({
+    data: [],
+    isLoading: false,
   }),
   useCreateCampaign: () => ({
     mutateAsync: vi.fn(),
@@ -102,7 +108,11 @@ vi.mock("@/components/Breadcrumbs", () => ({ Breadcrumbs: () => <div data-testid
 vi.mock("@/components/AddressLink", () => ({ AddressLink: () => <div data-testid="address-link" /> }));
 vi.mock("@/components/RefundButton", () => ({ RefundButton: () => <div data-testid="refund-button" /> }));
 vi.mock("@/components/StickyDonateBar", () => ({ StickyDonateBar: () => <div data-testid="sticky-donate-bar" /> }));
-vi.mock("@/components/CampaignStatusBadge", () => ({ CampaignStatusBadge: () => <div data-testid="campaign-status-badge" /> }));
+vi.mock("@/components/CampaignStatusBadge", () => ({
+  CampaignStatusBadge: ({ status }: { status?: string }) => (
+    <div data-testid="campaign-status-badge">{status}</div>
+  ),
+}));
 
 import Home from "@/app/page";
 import ExplorePage from "@/app/explore/page";

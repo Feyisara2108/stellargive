@@ -40,6 +40,7 @@ const baseCampaign: Campaign = {
   id: 1n,
   creator: CREATOR,
   beneficiary: BENEFICIARY,
+  beneficiaries: [{ address: BENEFICIARY, share: 10000 }],
   title: "Test Campaign",
   description: "Test description",
   category: "relief",
@@ -50,7 +51,13 @@ const baseCampaign: Campaign = {
   status: "Funded",
 };
 
-const mockClaim = (overrides: Partial<ReturnType<typeof vi.fn>> = {}) => ({
+type MockClaimReturn = {
+  mutateAsync: ReturnType<typeof vi.fn>;
+  isPending: boolean;
+  isSuccess: boolean;
+};
+
+const mockClaim = (overrides: Partial<MockClaimReturn> = {}): MockClaimReturn => ({
   mutateAsync: vi.fn().mockResolvedValue({}),
   isPending: false,
   isSuccess: false,

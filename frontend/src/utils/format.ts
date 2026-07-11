@@ -33,6 +33,11 @@ export const formatTokenAmount = (raw: bigint | string | number, decimals: numbe
   return decPart.length > 0 ? `${intPart}.${decPart}` : intPart;
 };
 
+export const formatBasisPoints = (bps: number): string => {
+  const pct = bps / 100;
+  return `${Number.isInteger(pct) ? pct.toString() : pct.toFixed(2)}%`;
+};
+
 export const toRawAmount = (amount: string | number, decimals: number = 7): bigint => {
   const str = amount.toString().trim();
 

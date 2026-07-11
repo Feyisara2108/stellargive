@@ -1,5 +1,7 @@
 // frontend/src/components/PostUpdateForm.tsx
 
+import React, { useState, useEffect } from "react";
+
 interface PostUpdateFormProps {
   campaignId: string;
   onSuccess: () => void;

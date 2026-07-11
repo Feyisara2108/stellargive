@@ -195,7 +195,7 @@ describe("useSoroban", () => {
   // ── useDonate ─────────────────────────────────────────────────────────────
 
   describe("useDonate", () => {
-    const params = { campaignId: 1n, amount: "10", isAnonymous: false };
+    const params = { campaignId: 1n, amount: "10", isAnonymous: false, decimals: 7 };
 
     it("success: shows confirmation toast and invalidates the campaign and campaigns caches", async () => {
       vi.mocked(submitTransaction).mockResolvedValueOnce(TX_SUCCESS);
@@ -329,6 +329,8 @@ describe("useSoroban", () => {
       vi.mocked(useWallet).mockReturnValueOnce({
         address: null,
         isConnected: false,
+        walletNetwork: null,
+        isWrongNetwork: false,
         connect: vi.fn(),
         disconnect: vi.fn(),
       });
@@ -428,6 +430,8 @@ describe("useSoroban", () => {
       vi.mocked(useWallet).mockReturnValueOnce({
         address: null,
         isConnected: false,
+        walletNetwork: null,
+        isWrongNetwork: false,
         connect: vi.fn(),
         disconnect: vi.fn(),
       });

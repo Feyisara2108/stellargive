@@ -118,7 +118,7 @@ describe("DonateModal", () => {
       await user.click(trigger);
 
       const dialog = await screen.findByRole("dialog");
-      expect(dialog).toContainElement(document.activeElement);
+      expect(dialog).toContainElement(document.activeElement as HTMLElement | null);
 
       // Cycle through all focusable elements — focus should never leave the dialog
       const focusable = dialog.querySelectorAll<HTMLElement>(
@@ -126,7 +126,7 @@ describe("DonateModal", () => {
       );
       for (let i = 0; i < focusable.length * 2; i++) {
         await user.tab();
-        expect(dialog).toContainElement(document.activeElement);
+        expect(dialog).toContainElement(document.activeElement as HTMLElement | null);
       }
     });
 
@@ -164,7 +164,7 @@ describe("DonateModal", () => {
       );
       for (let i = 0; i < focusable.length * 2; i++) {
         await user.tab({ shift: true });
-        expect(dialog).toContainElement(document.activeElement);
+        expect(dialog).toContainElement(document.activeElement as HTMLElement | null);
       }
     });
   });

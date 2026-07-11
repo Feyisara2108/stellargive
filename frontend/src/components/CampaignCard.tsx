@@ -22,8 +22,15 @@ import { RelativeTime } from "@/components/RelativeTime";
 import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
 import { Badge } from "@/components/ui/badge";
 
+const progressIndicatorVariants: Record<ProgressVariant, string> = {
+  default: "bg-primary",
+  success: "bg-emerald-600 dark:bg-emerald-400",
+  warning: "bg-amber-500 dark:bg-amber-400",
+};
+
 export function CampaignCard({ campaign }: { campaign: Campaign }) {
   const [imgError, setImgError] = useState(false);
+  const [donateOpen, setDonateOpen] = useState(false);
   const { data: tokenMeta } = useTokenMetadata(campaign.accepted_token);
   const decimals = tokenMeta?.decimals ?? 7;
   const symbol = tokenMeta?.symbol ?? "XLM";
@@ -39,7 +46,11 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
   const isClaimed = campaign.status === "Claimed";
   const deadlineDate = new Date(Number(campaign.deadline) * 1000);
 
-  const gap = Math.max(0, target - raised);
+  const gapRaw =
+    campaign.target_amount > campaign.raised_amount
+      ? campaign.target_amount - campaign.raised_amount
+      : 0n;
+  const gap = Number(gapRaw) / 10 ** decimals;
   const showFundTheGap =
     campaign.status === "Active" && progress >= 90 && progress < 100 && gap > 0;
 
@@ -89,7 +100,7 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
           <Progress
             value={progress}
             className="h-2"
-            variant={progressVariant}
+            indicatorClassName={progressIndicatorVariants[progressVariant]}
             aria-label={`Fundraising progress for ${campaign.title}`}
           />
           <div className="flex justify-between text-xs text-muted-foreground">
