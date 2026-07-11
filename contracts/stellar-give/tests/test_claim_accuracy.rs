@@ -63,14 +63,16 @@ fn build_beneficiaries(
 
 fn valid_split_shares() -> impl Strategy<Value = Vec<u32>> {
     (1usize..=5).prop_flat_map(|len| {
-        proptest_vec(1u32..10_000, len).prop_map(|raw_shares| normalized_shares(raw_shares))
+        proptest_vec(1u32..10_000, len).prop_map(normalized_shares)
     })
 }
 
 proptest! {
     #[test]
     fn test_multi_beneficiary_split_rounding(
-        total in 1_000_000_i128..=100_000_000_i128,
+        // Donation must meet the campaign target (10_000_000 = MIN_TARGET) so the
+        // donate() call auto-distributes to beneficiaries; below target nothing pays out.
+        total in 10_000_000_i128..=100_000_000_i128,
         shares in valid_split_shares()
     ) {
         let (env, client, creator, _beneficiary, donor, _admin, token_client, _token_admin_client) =

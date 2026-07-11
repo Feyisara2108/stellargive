@@ -71,6 +71,7 @@ pub fn single_ben(env: &Env, beneficiary: &Address) -> Vec<(Address, u32)> {
 }
 
 /// Creates a campaign with default parameters for quick test setup.
+#[allow(dead_code)]
 pub fn create_default_campaign(
     env: &Env,
     client: &StellarGiveContractClient<'static>,

@@ -332,8 +332,14 @@ fn test_add_update_event_topic_is_update_symbol() {
     let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
-    let campaign_id =
-        create_default_campaign(&env, &client, &creator, &beneficiary, &token_client.address, 2_000);
+    let campaign_id = create_default_campaign(
+        &env,
+        &client,
+        &creator,
+        &beneficiary,
+        &token_client.address,
+        2_000,
+    );
 
     let content = String::from_str(&env, "New update content");
     client.add_update(&campaign_id, &content);
@@ -364,8 +370,14 @@ fn test_add_update_event_payload_exact_match() {
     let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
-    let campaign_id =
-        create_default_campaign(&env, &client, &creator, &beneficiary, &token_client.address, 2_000);
+    let campaign_id = create_default_campaign(
+        &env,
+        &client,
+        &creator,
+        &beneficiary,
+        &token_client.address,
+        2_000,
+    );
 
     let content = String::from_str(&env, "Progress update #1");
     client.add_update(&campaign_id, &content);
@@ -396,8 +408,14 @@ fn test_refund_event_topic_is_refund_symbol() {
     let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
-    let campaign_id =
-        create_default_campaign(&env, &client, &creator, &beneficiary, &token_client.address, 2_000);
+    let campaign_id = create_default_campaign(
+        &env,
+        &client,
+        &creator,
+        &beneficiary,
+        &token_client.address,
+        2_000,
+    );
     client.donate(&donor, &campaign_id, &5_000_000, &false, &None);
 
     set_timestamp(&env, 3_000);
@@ -429,8 +447,14 @@ fn test_refund_event_payload_exact_match() {
     let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
-    let campaign_id =
-        create_default_campaign(&env, &client, &creator, &beneficiary, &token_client.address, 2_000);
+    let campaign_id = create_default_campaign(
+        &env,
+        &client,
+        &creator,
+        &beneficiary,
+        &token_client.address,
+        2_000,
+    );
     let donation_amount = 5_000_000_i128;
     client.donate(&donor, &campaign_id, &donation_amount, &false, &None);
 
@@ -450,8 +474,8 @@ fn test_refund_event_payload_exact_match() {
         })
         .expect("RefundEvent must be emitted by refund");
 
-    let payload = RefundEvent::try_from_val(&env, &event.2)
-        .expect("event data must decode as RefundEvent");
+    let payload =
+        RefundEvent::try_from_val(&env, &event.2).expect("event data must decode as RefundEvent");
 
     assert_eq!(payload.campaign_id, campaign_id);
     assert_eq!(payload.donor, donor);
@@ -463,8 +487,14 @@ fn test_add_update_emits_only_one_event() {
     let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
-    let campaign_id =
-        create_default_campaign(&env, &client, &creator, &beneficiary, &token_client.address, 2_000);
+    let campaign_id = create_default_campaign(
+        &env,
+        &client,
+        &creator,
+        &beneficiary,
+        &token_client.address,
+        2_000,
+    );
 
     client.add_update(&campaign_id, &String::from_str(&env, "Update content"));
 
@@ -473,7 +503,7 @@ fn test_add_update_emits_only_one_event() {
         .all()
         .into_iter()
         .filter(|(addr, topics, _)| {
-            addr == client.address
+            addr == &client.address
                 && topics
                     .get(0)
                     .and_then(|t| Symbol::try_from_val(&env, &t).ok())
@@ -481,5 +511,8 @@ fn test_add_update_emits_only_one_event() {
         })
         .count();
 
-    assert_eq!(update_event_count, 1, "add_update must emit exactly one event");
+    assert_eq!(
+        update_event_count, 1,
+        "add_update must emit exactly one event"
+    );
 }

@@ -665,7 +665,7 @@ impl StellarGiveContract {
 
     /// Pauses the contract. Only callable by the platform admin.
     /// While paused, all state-mutating functions (create_campaign, donate,
-    /// cancel_campaign, claim_funds, add_update) will return ContractPaused.
+    /// cancel_campaign, claim_funds, add_update, refund) will return ContractPaused.
     pub fn pause(env: Env) -> Result<(), ContractError> {
         let admin = read_admin(&env)?;
         admin.require_auth();
@@ -1148,6 +1148,7 @@ impl StellarGiveContract {
 
     /// Refunds a donor's contribution when a campaign expires without meeting its target.
     pub fn refund(env: Env, campaign_id: u64, donor: Address) -> Result<(), ContractError> {
+        ensure_not_paused(&env)?;
         donor.require_auth();
 
         enter_lock(&env)?;

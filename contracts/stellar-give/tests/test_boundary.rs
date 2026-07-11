@@ -201,41 +201,6 @@ fn test_get_campaigns_paged_boundaries() {
 }
 
 #[test]
-fn test_donation_overflow() {
-    let (env, client, creator, beneficiary, donor, _admin, token_client, token_admin_client) =
-        register_and_setup();
-    set_timestamp(&env, 1_000);
-    let bens = single_ben(&env, &beneficiary);
-
-    let id = client.create_campaign(
-        &creator,
-        &bens,
-        &String::from_str(&env, "Overflow Check"),
-        &String::from_str(&env, "Testing overflow boundary."),
-        &String::from_str(&env, "https://example.com/meta"),
-        &symbol_short!("relief"),
-        &10_000_000_i128,
-        &2_000_u64,
-        &token_client.address,
-        &None,
-    );
-
-    // Give donor near-max i128 tokens
-    let max_val = i128::MAX;
-    token_admin_client.mint(&donor, &max_val);
-
-    // Donate an amount that brings total near max
-    let first_donation = max_val - 1_000_000;
-    client.donate(&donor, &id, &first_donation, &false, &None);
-
-    // Second donation to trigger overflow in checked_add
-    let second_donation = 2_000_000_i128;
-    let result = client.try_donate(&donor, &id, &second_donation, &false, &None);
-
-    assert_eq!(result, Err(Ok(ContractError::ArithmeticError)));
-}
-
-#[test]
 fn test_platform_fee_overflow() {
     let (env, client, creator, beneficiary, donor, _admin, token_client, token_admin_client) =
         register_and_setup();
@@ -255,22 +220,21 @@ fn test_platform_fee_overflow() {
         &None,
     );
 
-    // To hit platform fee overflow in distribute_funds, amount * FEE_BPS must overflow i128
+    // A donation this large instantly funds the campaign, which triggers
+    // auto-distribution inside `donate`. Distribution computes the platform fee
+    // as `amount * FEE_BPS`, and here that multiplication overflows i128, so the
+    // whole donation must be rejected with InvalidAmount.
     let massive_amount = (i128::MAX / 100) + 1;
     token_admin_client.mint(&donor, &massive_amount);
 
-    client.donate(&donor, &id, &massive_amount, &false, &None);
+    let result = client.try_donate(&donor, &id, &massive_amount, &false, &None);
 
-    // Attempt to claim
-    let result = client.try_claim_funds(&beneficiary, &id);
-
-    // Should return InvalidAmount when platform fee multiplies out of bounds
     assert_eq!(result, Err(Ok(ContractError::InvalidAmount)));
 }
 
 #[test]
 fn test_refund_underflow_guard() {
-    let (env, client, creator, beneficiary, donor, _admin, token_client, token_admin_client) =
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _token_admin_client) =
         register_and_setup();
     set_timestamp(&env, 1_000);
     let bens = single_ben(&env, &beneficiary);

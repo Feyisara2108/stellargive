@@ -2,7 +2,7 @@
 //! reentrancy/security coverage, and admin/auth negative cases.
 
 use soroban_sdk::testutils::{Address as _, Events as _, MockAuth, MockAuthInvoke};
-use soroban_sdk::{symbol_short, IntoVal, String, Vec};
+use soroban_sdk::{symbol_short, Address, IntoVal, String, TryFromVal};
 
 mod helpers;
 use helpers::{
@@ -131,12 +131,17 @@ fn test_status_transitions_from_active_to_expired() {
 
 #[test]
 fn test_refund_reentrancy_lock_prevents_concurrent() {
-    let (env, client, creator, beneficiary, donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
-    let campaign_id =
-        create_default_campaign(&env, &client, &creator, &beneficiary, &token_client.address, 2_000);
+    let campaign_id = create_default_campaign(
+        &env,
+        &client,
+        &creator,
+        &beneficiary,
+        &token_client.address,
+        2_000,
+    );
     client.donate(&donor, &campaign_id, &5_000_000, &false, &None);
 
     set_timestamp(&env, 3_000);
@@ -158,12 +163,17 @@ fn test_refund_reentrancy_lock_prevents_concurrent() {
 
 #[test]
 fn test_refund_lock_released_after_success() {
-    let (env, client, creator, beneficiary, donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
-    let campaign_id =
-        create_default_campaign(&env, &client, &creator, &beneficiary, &token_client.address, 2_000);
+    let campaign_id = create_default_campaign(
+        &env,
+        &client,
+        &creator,
+        &beneficiary,
+        &token_client.address,
+        2_000,
+    );
     client.donate(&donor, &campaign_id, &5_000_000, &false, &None);
     set_timestamp(&env, 3_000);
 
@@ -180,12 +190,17 @@ fn test_refund_lock_released_after_success() {
 
 #[test]
 fn test_refund_lock_released_after_internal_failure() {
-    let (env, client, creator, beneficiary, donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
-    let campaign_id =
-        create_default_campaign(&env, &client, &creator, &beneficiary, &token_client.address, 2_000);
+    let campaign_id = create_default_campaign(
+        &env,
+        &client,
+        &creator,
+        &beneficiary,
+        &token_client.address,
+        2_000,
+    );
 
     env.as_contract(&client.address, || {
         assert!(!env.storage().temporary().has(&symbol_short!("LOCK")));
@@ -206,8 +221,14 @@ fn test_cancel_campaign_requires_creator_auth() {
         register_and_setup_without_auth_mock();
     set_timestamp(&env, 1_000);
 
-    let campaign_id =
-        create_default_campaign(&env, &client, &creator, &beneficiary, &token_client.address, 2_000);
+    let campaign_id = create_default_campaign(
+        &env,
+        &client.mock_all_auths(),
+        &creator,
+        &beneficiary,
+        &token_client.address,
+        2_000,
+    );
 
     let attacker = Address::generate(&env);
     let result = client
@@ -226,12 +247,17 @@ fn test_cancel_campaign_requires_creator_auth() {
 
 #[test]
 fn test_cancel_campaign_rejects_double_cancel() {
-    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
-    let campaign_id =
-        create_default_campaign(&env, &client, &creator, &beneficiary, &token_client.address, 2_000);
+    let campaign_id = create_default_campaign(
+        &env,
+        &client,
+        &creator,
+        &beneficiary,
+        &token_client.address,
+        2_000,
+    );
 
     client.cancel_campaign(&campaign_id);
     let result = client.try_cancel_campaign(&campaign_id);
@@ -240,12 +266,17 @@ fn test_cancel_campaign_rejects_double_cancel() {
 
 #[test]
 fn test_cancel_campaign_rejects_after_expiry() {
-    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
-    let campaign_id =
-        create_default_campaign(&env, &client, &creator, &beneficiary, &token_client.address, 2_000);
+    let campaign_id = create_default_campaign(
+        &env,
+        &client,
+        &creator,
+        &beneficiary,
+        &token_client.address,
+        2_000,
+    );
 
     set_timestamp(&env, 3_000);
 
@@ -259,8 +290,14 @@ fn test_add_update_requires_creator_auth() {
         register_and_setup_without_auth_mock();
     set_timestamp(&env, 1_000);
 
-    let campaign_id =
-        create_default_campaign(&env, &client, &creator, &beneficiary, &token_client.address, 2_000);
+    let campaign_id = create_default_campaign(
+        &env,
+        &client.mock_all_auths(),
+        &creator,
+        &beneficiary,
+        &token_client.address,
+        2_000,
+    );
 
     let attacker = Address::generate(&env);
     let content = String::from_str(&env, "Valid update");
@@ -275,17 +312,25 @@ fn test_add_update_requires_creator_auth() {
             },
         }])
         .try_add_update(&campaign_id, &content);
-    assert!(result.is_err(), "non-creator must be rejected by add_update");
+    assert!(
+        result.is_err(),
+        "non-creator must be rejected by add_update"
+    );
 }
 
 #[test]
 fn test_add_update_rejects_empty_content() {
-    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
-    let campaign_id =
-        create_default_campaign(&env, &client, &creator, &beneficiary, &token_client.address, 2_000);
+    let campaign_id = create_default_campaign(
+        &env,
+        &client,
+        &creator,
+        &beneficiary,
+        &token_client.address,
+        2_000,
+    );
 
     let result = client.try_add_update(&campaign_id, &String::from_str(&env, ""));
     assert_eq!(result, Err(Ok(ContractError::InvalidUpdateContent)));
@@ -293,12 +338,17 @@ fn test_add_update_rejects_empty_content() {
 
 #[test]
 fn test_add_update_rejects_too_many_updates() {
-    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
-    let campaign_id =
-        create_default_campaign(&env, &client, &creator, &beneficiary, &token_client.address, 2_000);
+    let campaign_id = create_default_campaign(
+        &env,
+        &client,
+        &creator,
+        &beneficiary,
+        &token_client.address,
+        2_000,
+    );
 
     for i in 0..10 {
         let content = String::from_str(&env, &format!("Update {}", i));
@@ -311,16 +361,22 @@ fn test_add_update_rejects_too_many_updates() {
 
 #[test]
 fn test_add_update_paused_fails() {
-    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
-    let campaign_id =
-        create_default_campaign(&env, &client, &creator, &beneficiary, &token_client.address, 2_000);
+    let campaign_id = create_default_campaign(
+        &env,
+        &client,
+        &creator,
+        &beneficiary,
+        &token_client.address,
+        2_000,
+    );
 
     client.pause();
 
-    let result = client.try_add_update(&campaign_id, &String::from_str(&env, "Update while paused"));
+    let result =
+        client.try_add_update(&campaign_id, &String::from_str(&env, "Update while paused"));
     assert_eq!(result, Err(Ok(ContractError::ContractPaused)));
 }
 
@@ -366,8 +422,7 @@ fn test_unpause_requires_admin_auth() {
 
 #[test]
 fn test_pause_blocks_create_campaign() {
-    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
     client.pause();
@@ -390,12 +445,17 @@ fn test_pause_blocks_create_campaign() {
 
 #[test]
 fn test_pause_blocks_cancel() {
-    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
-    let campaign_id =
-        create_default_campaign(&env, &client, &creator, &beneficiary, &token_client.address, 2_000);
+    let campaign_id = create_default_campaign(
+        &env,
+        &client,
+        &creator,
+        &beneficiary,
+        &token_client.address,
+        2_000,
+    );
 
     client.pause();
 
@@ -405,12 +465,17 @@ fn test_pause_blocks_cancel() {
 
 #[test]
 fn test_pause_blocks_refund() {
-    let (env, client, creator, beneficiary, donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
-    let campaign_id =
-        create_default_campaign(&env, &client, &creator, &beneficiary, &token_client.address, 2_000);
+    let campaign_id = create_default_campaign(
+        &env,
+        &client,
+        &creator,
+        &beneficiary,
+        &token_client.address,
+        2_000,
+    );
     client.donate(&donor, &campaign_id, &5_000_000, &false, &None);
     set_timestamp(&env, 3_000);
 
@@ -426,12 +491,17 @@ fn test_pause_blocks_refund() {
 
 #[test]
 fn test_pause_blocks_donations() {
-    let (env, client, creator, beneficiary, donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
-    let campaign_id =
-        create_default_campaign(&env, &client, &creator, &beneficiary, &token_client.address, 2_000);
+    let campaign_id = create_default_campaign(
+        &env,
+        &client,
+        &creator,
+        &beneficiary,
+        &token_client.address,
+        2_000,
+    );
 
     client.pause();
 
@@ -445,8 +515,14 @@ fn test_add_to_whitelist_requires_creator_auth() {
         register_and_setup_without_auth_mock();
     set_timestamp(&env, 1_000);
 
-    let campaign_id =
-        create_default_campaign(&env, &client, &creator, &beneficiary, &token_client.address, 2_000);
+    let campaign_id = create_default_campaign(
+        &env,
+        &client.mock_all_auths(),
+        &creator,
+        &beneficiary,
+        &token_client.address,
+        2_000,
+    );
 
     let attacker = Address::generate(&env);
     let mut addrs = soroban_sdk::Vec::new(&env);
@@ -463,7 +539,10 @@ fn test_add_to_whitelist_requires_creator_auth() {
             },
         }])
         .try_add_to_whitelist(&campaign_id, &addrs);
-    assert!(result.is_err(), "non-creator must be rejected by add_to_whitelist");
+    assert!(
+        result.is_err(),
+        "non-creator must be rejected by add_to_whitelist"
+    );
 }
 
 #[test]
@@ -512,8 +591,14 @@ fn test_owner_add_to_whitelist_succeeds() {
         register_and_setup_without_auth_mock();
     set_timestamp(&env, 1_000);
 
-    let campaign_id =
-        create_default_campaign(&env, &client, &creator, &beneficiary, &token_client.address, 2_000);
+    let campaign_id = create_default_campaign(
+        &env,
+        &client.mock_all_auths(),
+        &creator,
+        &beneficiary,
+        &token_client.address,
+        2_000,
+    );
 
     let mut addrs = soroban_sdk::Vec::new(&env);
     addrs.push_back(donor.clone());
@@ -568,4 +653,3 @@ fn test_unpause_emits_unpaused_event() {
     });
     assert!(has_unpaused, "unpause must emit an UnpausedEvent");
 }
-
