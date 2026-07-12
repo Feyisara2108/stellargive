@@ -62,9 +62,7 @@ fn build_beneficiaries(
 }
 
 fn valid_split_shares() -> impl Strategy<Value = Vec<u32>> {
-    (1usize..=5).prop_flat_map(|len| {
-        proptest_vec(1u32..10_000, len).prop_map(normalized_shares)
-    })
+    (1usize..=5).prop_flat_map(|len| proptest_vec(1u32..10_000, len).prop_map(normalized_shares))
 }
 
 proptest! {
