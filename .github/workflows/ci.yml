@@ -161,5 +161,9 @@ jobs:
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
         run: |
+          if [ -z "$SENTRY_AUTH_TOKEN" ]; then
+            echo "SENTRY_AUTH_TOKEN is not set — skipping Sentry release finalize."
+            exit 0
+          fi
           npx sentry-cli releases set-commits ${{ github.sha }} --auto
           npx sentry-cli releases finalize ${{ github.sha }}
