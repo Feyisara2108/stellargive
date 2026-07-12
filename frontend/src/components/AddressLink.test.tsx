@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { AddressLink } from "./AddressLink";
 import * as useSorobanModule from "@/hooks/useSoroban";
+
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const FULL_ADDRESS = "GA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVSGZ";
 // formatAddress slices first 4 + last 4: "GA7Q...VSGZ"
@@ -118,5 +120,73 @@ describe("AddressLink — accessible label", () => {
     render(<AddressLink address={FULL_ADDRESS} />);
     const link = screen.getByRole("link");
     expect(link).toHaveAttribute("title", FULL_ADDRESS);
+  });
+});
+
+describe("AddressLink — copy interaction", () => {
+  beforeEach(() => {
+    vi.spyOn(useSorobanModule, "useResolvedName").mockReturnValue({
+      data: null,
+      isLoading: false,
+      isError: false,
+      error: null,
+      status: "success",
+    } as any);
+  });
+
+  it("writes the address to the clipboard when the copy button is clicked", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    render(<AddressLink address={FULL_ADDRESS} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /copy address/i }));
+
+    // On success the handler resolves and flips into the "copied" (Check) state.
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(FULL_ADDRESS));
+  });
+
+  it("handles a failed clipboard write without throwing", async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error("denied"));
+    Object.assign(navigator, { clipboard: { writeText } });
+    render(<AddressLink address={FULL_ADDRESS} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /copy address/i }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalled());
+  });
+
+  it("copies when Enter is pressed on the copy button", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    render(<AddressLink address={FULL_ADDRESS} />);
+
+    fireEvent.keyDown(screen.getByRole("button", { name: /copy address/i }), { key: "Enter" });
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(FULL_ADDRESS));
+  });
+
+  it("copies when Space is pressed on the copy button", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    render(<AddressLink address={FULL_ADDRESS} />);
+
+    fireEvent.keyDown(screen.getByRole("button", { name: /copy address/i }), { key: " " });
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(FULL_ADDRESS));
+  });
+
+  it("ignores unrelated keys on the copy button", () => {
+    const writeText = vi.fn();
+    Object.assign(navigator, { clipboard: { writeText } });
+    render(<AddressLink address={FULL_ADDRESS} />);
+
+    fireEvent.keyDown(screen.getByRole("button", { name: /copy address/i }), { key: "a" });
+
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
+  it("applies a custom className to the wrapper", () => {
+    render(<AddressLink address={FULL_ADDRESS} className="my-custom-class" />);
+    expect(document.querySelector(".my-custom-class")).not.toBeNull();
   });
 });
