@@ -69,7 +69,7 @@ function ExploreContent() {
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "funded">("active");
-  const [categoryFilter, setCategoryFilter] = useState<typeof CATEGORIES[number]>("all");
+  const [categoryFilter, setCategoryFilter] = useState<(typeof CATEGORIES)[number]>("all");
   const [sortBy, setSortBy] = useState<SortKey>("newest");
   const [tokenFilter, setTokenFilter] = useState("");
 
@@ -263,8 +263,14 @@ function ExploreContent() {
 
         {/* Category filters */}
         <div className="space-y-2">
-          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Filter by Category</h2>
-          <div className="flex flex-wrap gap-2" role="tablist" aria-label="Campaign category filters">
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Filter by Category
+          </h2>
+          <div
+            className="flex flex-wrap gap-2"
+            role="tablist"
+            aria-label="Campaign category filters"
+          >
             {CATEGORIES.map((cat) => (
               <Button
                 key={cat}

@@ -93,21 +93,41 @@ vi.mock("@/lib/WalletProvider", () => ({
 // Mock dynamic and complex components to avoid network/rendering side-effects
 vi.mock("@/components/Navbar", () => ({ Navbar: () => <div data-testid="navbar" /> }));
 vi.mock("@/components/HeroCTA", () => ({ HeroCTA: () => <div data-testid="hero-cta" /> }));
-vi.mock("@/components/PlatformStats", () => ({ PlatformStats: () => <div data-testid="platform-stats" /> }));
-vi.mock("@/components/CampaignList", () => ({ CampaignList: () => <div data-testid="campaign-list" /> }));
+vi.mock("@/components/PlatformStats", () => ({
+  PlatformStats: () => <div data-testid="platform-stats" />,
+}));
+vi.mock("@/components/CampaignList", () => ({
+  CampaignList: () => <div data-testid="campaign-list" />,
+}));
 vi.mock("@/components/EventFeed", () => ({ EventFeed: () => <div data-testid="event-feed" /> }));
-vi.mock("@/components/CampaignCard", () => ({ CampaignCard: () => <div data-testid="campaign-card" /> }));
-vi.mock("@/components/RecentDonations", () => ({ RecentDonations: () => <div data-testid="recent-donations" /> }));
-vi.mock("@/components/ProjectUpdates", () => ({ ProjectUpdates: () => <div data-testid="project-updates" /> }));
-vi.mock("@/components/DonateModal", () => ({ DonateModal: () => <div data-testid="donate-modal" /> }));
+vi.mock("@/components/CampaignCard", () => ({
+  CampaignCard: () => <div data-testid="campaign-card" />,
+}));
+vi.mock("@/components/RecentDonations", () => ({
+  RecentDonations: () => <div data-testid="recent-donations" />,
+}));
+vi.mock("@/components/ProjectUpdates", () => ({
+  ProjectUpdates: () => <div data-testid="project-updates" />,
+}));
+vi.mock("@/components/DonateModal", () => ({
+  DonateModal: () => <div data-testid="donate-modal" />,
+}));
 vi.mock("@/components/TokenSelector", () => ({
   TokenSelector: () => <div data-testid="token-selector" />,
   PREDEFINED_TOKENS: [],
 }));
-vi.mock("@/components/Breadcrumbs", () => ({ Breadcrumbs: () => <div data-testid="breadcrumbs" /> }));
-vi.mock("@/components/AddressLink", () => ({ AddressLink: () => <div data-testid="address-link" /> }));
-vi.mock("@/components/RefundButton", () => ({ RefundButton: () => <div data-testid="refund-button" /> }));
-vi.mock("@/components/StickyDonateBar", () => ({ StickyDonateBar: () => <div data-testid="sticky-donate-bar" /> }));
+vi.mock("@/components/Breadcrumbs", () => ({
+  Breadcrumbs: () => <div data-testid="breadcrumbs" />,
+}));
+vi.mock("@/components/AddressLink", () => ({
+  AddressLink: () => <div data-testid="address-link" />,
+}));
+vi.mock("@/components/RefundButton", () => ({
+  RefundButton: () => <div data-testid="refund-button" />,
+}));
+vi.mock("@/components/StickyDonateBar", () => ({
+  StickyDonateBar: () => <div data-testid="sticky-donate-bar" />,
+}));
 vi.mock("@/components/CampaignStatusBadge", () => ({
   CampaignStatusBadge: ({ status }: { status?: string }) => (
     <div data-testid="campaign-status-badge">{status}</div>
@@ -126,7 +146,7 @@ import { CampaignDetailsClient } from "@/app/campaign/[id]/CampaignDetailsClient
 async function checkAccessibility(container: HTMLElement) {
   const results = await axe(container);
   const violations = results.violations.filter(
-    (v) => v.impact === "serious" || v.impact === "critical"
+    (v) => v.impact === "serious" || v.impact === "critical",
   );
   if (violations.length > 0) {
     console.error("Accessibility Violations:", JSON.stringify(violations, null, 2));

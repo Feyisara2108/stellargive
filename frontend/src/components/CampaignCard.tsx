@@ -80,7 +80,9 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
         <div className="flex justify-between items-center gap-2 mb-2">
           <CampaignStatusBadge status={campaign.status} deadline={campaign.deadline} />
           <Badge variant="secondary" className="capitalize text-[10px] font-bold px-2 py-1">
-            {campaign.category && campaign.category !== "other" ? campaign.category : "Uncategorized"}
+            {campaign.category && campaign.category !== "other"
+              ? campaign.category
+              : "Uncategorized"}
           </Badge>
         </div>
         <CardTitle className="line-clamp-1 group-hover:text-primary transition-colors">

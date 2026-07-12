@@ -42,9 +42,7 @@ export function AddressLink({ address, network = "testnet", className }: Address
   };
 
   return (
-    <span
-      className={`inline-flex items-center gap-1 ${className ?? ""}`.trim()}
-    >
+    <span className={`inline-flex items-center gap-1 ${className ?? ""}`.trim()}>
       <a
         href={href}
         target="_blank"

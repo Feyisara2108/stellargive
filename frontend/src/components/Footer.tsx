@@ -56,30 +56,26 @@ function ContractIdDisplay() {
   );
 }
 
-const RPC_STATUS_CONFIG: Record<
-  RpcStatus,
-  { dot: string; label: (ms: number | null) => string }
-> = {
-  healthy: {
-    dot: "bg-green-500",
-    label: (ms) => `RPC healthy · ${ms}ms`,
-  },
-  degraded: {
-    dot: "bg-amber-500 animate-pulse",
-    label: (ms) => `RPC degraded · ${ms}ms`,
-  },
-  down: {
-    dot: "bg-red-500 animate-pulse",
-    label: () => "RPC unreachable",
-  },
-};
+const RPC_STATUS_CONFIG: Record<RpcStatus, { dot: string; label: (ms: number | null) => string }> =
+  {
+    healthy: {
+      dot: "bg-green-500",
+      label: (ms) => `RPC healthy · ${ms}ms`,
+    },
+    degraded: {
+      dot: "bg-amber-500 animate-pulse",
+      label: (ms) => `RPC degraded · ${ms}ms`,
+    },
+    down: {
+      dot: "bg-red-500 animate-pulse",
+      label: () => "RPC unreachable",
+    },
+  };
 
 function RpcStatusDot() {
   const health = useRpcHealth();
 
-  const dotClass = health
-    ? RPC_STATUS_CONFIG[health.status].dot
-    : "bg-muted-foreground/40";
+  const dotClass = health ? RPC_STATUS_CONFIG[health.status].dot : "bg-muted-foreground/40";
   const tooltip = health
     ? RPC_STATUS_CONFIG[health.status].label(health.latencyMs)
     : "Checking RPC…";

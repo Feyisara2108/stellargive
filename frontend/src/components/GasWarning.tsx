@@ -22,8 +22,7 @@ export function GasWarning({ feeStroops, estimatedFeeStroops, onDismiss }: GasWa
 
   const balanceStroops = balance ?? 0n;
   const network = walletNetwork && walletNetwork.includes("Test") ? "testnet" : "mainnet";
-  const isLowBalance =
-    estimatedFeeStroops != null && balanceStroops < BigInt(estimatedFeeStroops);
+  const isLowBalance = estimatedFeeStroops != null && balanceStroops < BigInt(estimatedFeeStroops);
 
   const isHighFee = feeStroops != null && feeStroops > MAX_SIMULATION_FEE_STROOPS;
   const showEstimate = estimatedFeeStroops != null && !isHighFee;

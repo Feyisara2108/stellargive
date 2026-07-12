@@ -20,9 +20,8 @@ export default function AdminPage() {
   const [errorMessage, setErrorMessage] = useState<string>("");
 
   // Filter campaigns owned by the connected user (creator)
-  const ownedCampaigns = campaigns?.filter(
-    (c) => c.creator.toLowerCase() === address?.toLowerCase()
-  ) || [];
+  const ownedCampaigns =
+    campaigns?.filter((c) => c.creator.toLowerCase() === address?.toLowerCase()) || [];
 
   const handleSelectCampaign = (id: string) => {
     setSelectedCampaignId(id);
@@ -57,7 +56,9 @@ export default function AdminPage() {
         campaignId: BigInt(selectedCampaignId),
         addressToWhitelist,
       });
-      setSuccessMessage(`Successfully whitelisted ${addressToWhitelist} for campaign #${selectedCampaignId}`);
+      setSuccessMessage(
+        `Successfully whitelisted ${addressToWhitelist} for campaign #${selectedCampaignId}`,
+      );
       setAddressToWhitelist("");
     } catch (err: any) {
       setErrorMessage(err?.message || "Failed to whitelist address.");
