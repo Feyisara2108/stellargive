@@ -20,7 +20,8 @@ jobs:
       - uses: googleapis/release-please-action@v4
         id: release
         with:
-          release-type: node
+          config-file: .release-please-config.json
+          manifest-file: .release-please-manifest.json
 
       - name: Log Release Creation
         if: ${{ steps.release.outputs.release_created }}
@@ -36,6 +37,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
+      attestations: write
 
     steps:
       - name: Checkout
@@ -59,9 +62,11 @@ jobs:
             --output-file ../sbom-frontend.cdx.json
           echo "Frontend SBOM generated."
 
-      # ── Contract SBOM (cargo / CycloneDX) ────────────────────────────────
+      # ── Contract SBOM + optimized WASM (cargo / CycloneDX) ───────────────
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
 
       - name: Install cargo-cyclonedx
         run: cargo install cargo-cyclonedx
@@ -73,12 +78,53 @@ jobs:
           mv bom.json ../../sbom-contracts.cdx.json
           echo "Contract SBOM generated."
 
-      # ── Attach both SBOMs to the GitHub Release ───────────────────────────
-      - name: Upload SBOMs to release
+      - name: Install Soroban CLI system deps
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev libudev-dev pkg-config
+
+      - name: Install Soroban CLI
+        run: cargo install --locked soroban-cli
+
+      - name: Build optimized contract WASM
+        run: bash scripts/build-contract.sh
+
+      - name: Copy optimized WASM for release
+        run: cp contracts/stellar-give/target/wasm32-unknown-unknown/release/stellar_give.optimized.wasm ./stellar_give.optimized.wasm
+
+      # ── Sign SBOMs (Sigstore/cosign, keyless) ─────────────────────────────
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign SBOMs
+        run: |
+          cosign sign-blob --yes \
+            --output-signature sbom-frontend.cdx.json.sig \
+            --output-certificate sbom-frontend.cdx.json.pem \
+            sbom-frontend.cdx.json
+          cosign sign-blob --yes \
+            --output-signature sbom-contracts.cdx.json.sig \
+            --output-certificate sbom-contracts.cdx.json.pem \
+            sbom-contracts.cdx.json
+
+      # ── Build provenance attestation for released artifacts ───────────────
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            sbom-frontend.cdx.json
+            sbom-contracts.cdx.json
+            stellar_give.optimized.wasm
+
+      # ── Attach everything to the GitHub Release ───────────────────────────
+      - name: Upload release artifacts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release upload ${{ needs.release-please.outputs.tag_name }} \
             sbom-frontend.cdx.json \
+            sbom-frontend.cdx.json.sig \
+            sbom-frontend.cdx.json.pem \
             sbom-contracts.cdx.json \
+            sbom-contracts.cdx.json.sig \
+            sbom-contracts.cdx.json.pem \
+            stellar_give.optimized.wasm \
             --clobber
