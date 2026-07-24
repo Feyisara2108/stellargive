@@ -107,6 +107,12 @@ export function Navbar() {
             Activity
           </Link>
           <Link
+            href="/leaderboard"
+            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Leaderboard
+          </Link>
+          <Link
             href="/profile"
             className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
           >
@@ -182,6 +188,13 @@ export function Navbar() {
             onClick={closeMenu}
           >
             Activity
+          </Link>
+          <Link
+            href="/leaderboard"
+            className="text-base font-medium text-muted-foreground hover:text-foreground transition-colors py-1"
+            onClick={closeMenu}
+          >
+            Leaderboard
           </Link>
           <Link
             href="/profile"
