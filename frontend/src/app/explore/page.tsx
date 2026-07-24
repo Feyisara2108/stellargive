@@ -9,8 +9,9 @@ import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCampaignsPaged } from "@/hooks/useSoroban";
+import { useCampaignSearch } from "@/hooks/useCampaignSearch";
 import { TokenSelector } from "@/components/TokenSelector";
-import { Search, Compass } from "lucide-react";
+import { Search, Compass, Loader2 } from "lucide-react";
 import type { Campaign } from "@/lib/soroban";
 
 const PAGE_SIZE = 9;
@@ -41,6 +42,23 @@ const CATEGORIES = [
   "uncategorized",
 ] as const;
 
+type CategoryKey = (typeof CATEGORIES)[number];
+
+function isCategoryKey(value: string | null): value is CategoryKey {
+  return value !== null && (CATEGORIES as readonly string[]).includes(value);
+}
+
+/**
+ * Mirrors CampaignCard's badge logic: a campaign with an empty or "other"
+ * category is labelled "Uncategorized", so that tab must match those too.
+ */
+function matchesCategory(campaign: Campaign, category: CategoryKey): boolean {
+  if (category === "all") return true;
+  const value = (campaign.category ?? "").trim().toLowerCase();
+  if (category === "uncategorized") return value === "" || value === "other";
+  return value === category;
+}
+
 function sortCampaigns(campaigns: Campaign[], sortBy: SortKey): Campaign[] {
   const sorted = [...campaigns];
   switch (sortBy) {
@@ -67,9 +85,8 @@ function ExploreContent() {
   const searchParams = useSearchParams();
   const [limit, setLimit] = useState(PAGE_SIZE);
   const [searchTerm, setSearchTerm] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "funded">("active");
-  const [categoryFilter, setCategoryFilter] = useState<(typeof CATEGORIES)[number]>("all");
+  const [categoryFilter, setCategoryFilter] = useState<CategoryKey>("all");
   const [sortBy, setSortBy] = useState<SortKey>("newest");
   const [tokenFilter, setTokenFilter] = useState("");
 
@@ -78,10 +95,14 @@ function ExploreContent() {
   const campaigns = data?.campaigns ?? EMPTY_CAMPAIGNS;
   const hasMore = data?.hasMore ?? false;
 
-  useEffect(() => {
-    const timeout = window.setTimeout(() => setDebouncedSearch(searchTerm), 300);
-    return () => window.clearTimeout(timeout);
-  }, [searchTerm]);
+  // Debouncing + title/creator/category/description matching lives in the hook.
+  const {
+    results: searched,
+    term: debouncedSearch,
+    isSearching,
+  } = useCampaignSearch(campaigns, searchTerm);
+
+  const loadMore = () => setLimit((prev) => prev + PAGE_SIZE);
 
   useEffect(() => {
     const status = searchParams.get("status");
@@ -92,16 +113,22 @@ function ExploreContent() {
     if (SORT_OPTIONS.some((o) => o.key === sort)) {
       setSortBy(sort as SortKey);
     }
+    const category = searchParams.get("category");
+    if (isCategoryKey(category)) {
+      setCategoryFilter(category);
+    }
     const token = searchParams.get("token") ?? "";
     setTokenFilter(token);
   }, [searchParams]);
 
+  // Progressive enhancement only — the "Load more" button below is the
+  // guaranteed path (keyboard, reduced motion, and during an active search).
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMore && !isFetching && !debouncedSearch) {
+        if (entries[0].isIntersecting && hasMore && !isFetching && !isSearching) {
           setLimit((prev) => prev + PAGE_SIZE);
         }
       },
@@ -109,12 +136,17 @@ function ExploreContent() {
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [hasMore, isFetching, debouncedSearch]);
+  }, [hasMore, isFetching, isSearching]);
 
   useEffect(() => {
     const next = new URLSearchParams(searchParams.toString());
     next.set("status", statusFilter);
     next.set("sort", sortBy);
+    if (categoryFilter !== "all") {
+      next.set("category", categoryFilter);
+    } else {
+      next.delete("category");
+    }
     if (tokenFilter) {
       next.set("token", tokenFilter);
     } else {
@@ -122,10 +154,10 @@ function ExploreContent() {
     }
     const query = next.toString();
     router.replace(query ? `/explore?${query}` : "/explore", { scroll: false });
-  }, [router, searchParams, statusFilter, sortBy, tokenFilter]);
+  }, [router, searchParams, statusFilter, sortBy, categoryFilter, tokenFilter]);
 
   const filtered = useMemo(() => {
-    const byStatus = campaigns.filter((campaign) => {
+    const byStatus = searched.filter((campaign) => {
       if (statusFilter === "all") return true;
       if (statusFilter === "active") {
         return campaign.status === "Active" && campaign.raised_amount < campaign.target_amount;
@@ -137,20 +169,24 @@ function ExploreContent() {
       ? byStatus
       : byStatus.filter((c) => c.accepted_token === tokenFilter);
 
-    const term = debouncedSearch.trim().toLowerCase();
-    const searched = !term
-      ? byToken
-      : byToken.filter(
-          (c) => c.title.toLowerCase().includes(term) || c.creator.toLowerCase().includes(term),
-        );
+    const byCategory = byToken.filter((c) => matchesCategory(c, categoryFilter));
 
-    return sortCampaigns(searched, sortBy);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [campaigns, debouncedSearch, statusFilter, sortBy, tokenFilter]);
+    return sortCampaigns(byCategory, sortBy);
+  }, [searched, statusFilter, sortBy, categoryFilter, tokenFilter]);
 
   const emptyMessage = useMemo(() => {
+    const inCategory =
+      categoryFilter === "all"
+        ? ""
+        : categoryFilter === "uncategorized"
+          ? " in Uncategorized"
+          : ` in ${categoryFilter}`;
+
     if (debouncedSearch) {
-      return "No campaigns match your search.";
+      return `No campaigns match your search${inCategory}.`;
+    }
+    if (inCategory) {
+      return `No campaigns${inCategory} yet. Try another category.`;
     }
     if (statusFilter === "funded") {
       return "No funded campaigns yet.";
@@ -159,7 +195,10 @@ function ExploreContent() {
       return "No active campaigns right now.";
     }
     return "No campaigns found. Be the first to create one!";
-  }, [debouncedSearch, statusFilter]);
+  }, [debouncedSearch, statusFilter, categoryFilter]);
+
+  const moreLabel = hasMore ? " — more available" : "";
+  const countLabel = `Showing ${filtered.length} of ${campaigns.length} campaigns${moreLabel}`;
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -190,7 +229,7 @@ function ExploreContent() {
               type="search"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by title or creator"
+              placeholder="Search by title or creator, category, description"
               autoComplete="off"
               className="pl-9"
             />
@@ -287,6 +326,12 @@ function ExploreContent() {
           </div>
         </div>
 
+        {!isLoading && (
+          <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
+            {countLabel}
+          </p>
+        )}
+
         {isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {Array.from({ length: PAGE_SIZE }).map((_, i) => (
@@ -302,6 +347,10 @@ function ExploreContent() {
             {debouncedSearch ? (
               <Button variant="outline" onClick={() => setSearchTerm("")}>
                 Clear search
+              </Button>
+            ) : categoryFilter !== "all" ? (
+              <Button variant="outline" onClick={() => setCategoryFilter("all")}>
+                Show all categories
               </Button>
             ) : (
               <Button asChild>
@@ -322,6 +371,23 @@ function ExploreContent() {
             {Array.from({ length: 3 }).map((_, i) => (
               <div key={i} className="h-[300px] rounded-xl bg-muted animate-pulse" />
             ))}
+          </div>
+        )}
+
+        {/* Explicit fallback for the IntersectionObserver above: always available,
+            including while a search term is narrowing the loaded results. */}
+        {hasMore && (
+          <div className="flex justify-center">
+            <Button variant="outline" onClick={loadMore} disabled={isFetching}>
+              {isFetching ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                  Loading...
+                </>
+              ) : (
+                "Load more"
+              )}
+            </Button>
           </div>
         )}
 
