@@ -35,6 +35,32 @@ make test
 make wasm
 ```
 
+### Test Snapshots & Fuzz Determinism
+
+This contract runs both standard unit tests and property-based (`proptest`)
+fuzz tests in `tests/fuzz_donate.rs`.  Two artifacts can cause noisy
+working-tree diffs after `cargo test`:
+
+1. **`test_snapshots/*.json`** — Soroban SDK ledger-environment captures
+   written by the test harness.  Every run embeds new random
+   `Address::generate(&env)` values and `ledger_key_nonce` entries, so the
+   files cannot be meaningfully diffed or replayed.
+2. **Proptest failure-regression files** — numbered artefacts proptest
+   writes by default when a case shrinks.
+
+**Policy (seed + ignore):**
+
+| Concern | Handling |
+| --- | --- |
+| Fuzz input reproducibility | Fixed `PROPEST_TEST_SEED` set in `.cargo/config.toml` (hex-encoded 32-byte seed) so every `cargo test` run exercises the same 256 cases. |
+| Proptest regression artefacts | Primary: `failure_persistence: None` via the `#![proptest_config(...)]` module attribute in `tests/fuzz_donate.rs` — no per-case files are written at runtime.  Defence-in-depth: `*.proptest-regressions` is `.gitignore`d so a future config revert won't accidentally commit regression seeds. |
+| Soroban `test_snapshots/` | `.gitignore`d (see `.gitignore` in this directory).  Useful for local debugging, never committed.  Existing tracked snapshots were removed with `git rm -r --cached test_snapshots`.  Snapshots are inherently non-deterministic because `Address::generate(&env)` and `ledger_key_nonce` values are not driven by the proptest seed. |
+
+After running `cargo test`, `git status` should show **no unexpected changes**
+outside of the test/source files you actually edit.  If fuzz tests ever need
+to exercise *new* inputs, change the seed in `.cargo/config.toml` (and
+document the reason).
+
 ## Stellar Testnet Setup
 
 1. Install Stellar CLI and configure testnet:

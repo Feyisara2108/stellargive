@@ -1,0 +1,8 @@
+[env]
+# Deterministic seed for proptest property-based tests.
+# This ensures every `cargo test` run exercises the same fuzz inputs, so
+# snapshot/ regression cases and the fuzz tests produce reproducible results.
+#
+# Proptest accepts seeds are 32 bytes, hex-encoded. This seed spells out
+# "StellarGive-Donate-Fuzz-Seed-001" in ASCII when decoded.
+PROPEST_TEST_SEED = "5374656c6c6172476976652d446f6e6174652d46757a7a2d536565642d303031"

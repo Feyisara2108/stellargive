@@ -4,6 +4,34 @@
 //! raised values. Validates the core invariant (`new_raised == old_raised +
 //! donation_amount`) and ensures integer overflow is caught cleanly by the
 //! contract's `checked_add` arithmetic without panicking.
+//!
+//! Determinism policy (seed + ignore — see also README.md and .gitignore):
+//! - Fuzz inputs are seeded via `PROPEST_TEST_SEED` env var (see
+//!   `.cargo/config.toml` in the contract directory) so that every
+//!   `cargo test` run exercises the same 256 cases.  A fixed seed replaces
+//!   the need for proptest's on-disk regression artefacts.
+//! - Failure persistence (proptest per-case regression seed files) is
+//!   disabled at runtime via `failure_persistence: None` in the module-level
+//!   proptest config below.  As defence-in-depth, `*.proptest-regressions`
+//!   files are additionally `.gitignore`d so a future config revert won't
+//!   silently start committing seeds.  Any previously tracked regression
+//!   file was removed from the index with `git rm --cached`.
+//! - The `test_snapshots/` directory (ledger snapshots emitted by the
+//!   Soroban SDK test harness) is `.gitignore`d and previously tracked
+//!   snapshots were removed from git with `git rm -r --cached
+//!   test_snapshots/`.  Snapshots are *inherently* non-deterministic
+//!   because `Address::generate(&env)` values and `ledger_key_nonce`
+//!   entries are not driven by the proptest seed — they cannot be made
+//!   deterministic by seeding proptest alone, so they are never committed.
+
+#![proptest_config(
+    proptest::test_runner::Config {
+        failure_persistence: None,
+        cases: 256,
+        source_file: None,
+        ..Default::default()
+    }
+)]
 
 use proptest::prelude::*;
 use soroban_sdk::{symbol_short, testutils::Address as _, token, Address, Env, String};
@@ -39,8 +67,6 @@ fn setup_fuzz_campaign(
     let token_client = token::Client::new(&env, &token_id.address());
     let token_admin_client = token::StellarAssetClient::new(&env, &token_id.address());
 
-    // Mint a very large balance for the donor so donation amount isn't constrained
-    // by balance. Use i128::MAX / 4 to leave headroom.
     token_admin_client.mint(&donor, &(i128::MAX / 4));
     token_admin_client.mint(&creator, &1_000_000_000_000);
 
@@ -52,7 +78,6 @@ fn setup_fuzz_campaign(
 
     let bens = single_ben(&env, &beneficiary);
 
-    // Use a very high target so donations don't trigger auto-claim settlement
     let campaign_id = client.create_campaign(
         &creator,
         &bens,
@@ -61,7 +86,7 @@ fn setup_fuzz_campaign(
         &String::from_str(&env, "https://example.com/fuzz"),
         &symbol_short!("relief"),
         &target_amount,
-        &31_537_000_u64, // 1 year from now (now + MAX_DURATION)
+        &31_537_000_u64,
         &token_client.address,
         &None,
     );
@@ -78,7 +103,6 @@ proptest! {
     fn fuzz_raised_invariant(
         donation_amount in MIN_DONATION..=(i128::MAX / 4),
     ) {
-        // Use a target higher than any single donation to avoid auto-claim
         let target = i128::MAX / 2;
         let (_env, client, donor, campaign_id, _token_client) = setup_fuzz_campaign(target);
 
@@ -103,9 +127,7 @@ proptest! {
                     old_raised, donation_amount, campaign_after.raised_amount
                 );
             }
-            // ArithmeticError is an acceptable outcome for extreme values
             Err(Ok(ContractError::ArithmeticError)) => {}
-            // TokenTransferFailed can happen if donor runs out of funds
             Err(Ok(ContractError::TokenTransferFailed)) => {}
             other => {
                 prop_assert!(false, "Unexpected result: {:?}", other);
@@ -160,9 +182,6 @@ proptest! {
 
 /// Overflow protection: donating when raised_amount is near i128::MAX must
 /// return `ArithmeticError`, not panic.
-///
-/// This test doesn't use proptest because it requires precise pre-loading of
-/// the campaign's raised_amount to near the overflow boundary.
 #[test]
 fn test_overflow_returns_arithmetic_error() {
     let env = Env::default();
@@ -189,7 +208,6 @@ fn test_overflow_returns_arithmetic_error() {
 
     let bens = single_ben(&env, &beneficiary);
 
-    // Campaign with extremely high target so it stays Active
     let campaign_id = client.create_campaign(
         &creator,
         &bens,
@@ -203,21 +221,16 @@ fn test_overflow_returns_arithmetic_error() {
         &None,
     );
 
-    // First donation: a very large amount to bring raised near the overflow boundary
     let large_amount = i128::MAX / 4;
     let result = client.try_donate(&donor, &campaign_id, &large_amount, &false, &None);
     assert!(result.is_ok(), "First large donation should succeed");
 
-    // Second donation: attempt to push past i128::MAX
-    // This should fail cleanly with ArithmeticError or TokenTransferFailed, not panic
     let second_amount = i128::MAX / 2;
     let result = client.try_donate(&donor, &campaign_id, &second_amount, &false, &None);
 
-    // We accept either ArithmeticError (overflow in checked_add) or
-    // TokenTransferFailed (donor doesn't have enough tokens) — both are clean errors
     match result {
-        Err(Ok(ContractError::ArithmeticError)) => {} // expected
-        Err(Ok(ContractError::TokenTransferFailed)) => {} // also acceptable
+        Err(Ok(ContractError::ArithmeticError)) => {}
+        Err(Ok(ContractError::TokenTransferFailed)) => {}
         Ok(_) => panic!("Donation that would overflow should not succeed"),
         other => panic!(
             "Expected ArithmeticError or TokenTransferFailed, got {:?}",
@@ -242,7 +255,6 @@ fn test_max_i128_donation_rejected() {
     let token_client = token::Client::new(&env, &token_id.address());
     let token_admin_client = token::StellarAssetClient::new(&env, &token_id.address());
 
-    // Can't mint i128::MAX, but mint a large amount
     token_admin_client.mint(&donor, &(i128::MAX / 2));
     token_admin_client.mint(&creator, &1_000_000_000_000);
 
@@ -267,7 +279,6 @@ fn test_max_i128_donation_rejected() {
         &None,
     );
 
-    // Attempt i128::MAX donation — should fail, not panic
     let result = client.try_donate(&donor, &campaign_id, &i128::MAX, &false, &None);
 
     assert!(
