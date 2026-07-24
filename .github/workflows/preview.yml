@@ -2,7 +2,7 @@ name: Preview Deployment
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, closed]
 
 concurrency:
   group: preview-${{ github.head_ref || github.run_id }}
@@ -10,6 +10,7 @@ concurrency:
 
 jobs:
   deploy-preview:
+    if: github.event.action != 'closed'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -35,7 +36,7 @@ jobs:
         id: deploy
         working-directory: frontend
         run: |
-          url=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
+          url=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }} --meta githubPrNumber=${{ github.event.pull_request.number }})
           echo "url=$url" >> $GITHUB_OUTPUT
 
       - name: Comment Preview URL
@@ -74,9 +75,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.nvmrc
+
       - name: Install Vercel CLI
         run: npm i -g vercel@latest
 
+      - name: Pull Vercel Environment
+        working-directory: frontend
+        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+
       - name: Teardown Preview
+        working-directory: frontend
         run: |
-          vercel ls --token=${{ secrets.VERCEL_TOKEN }} | grep -E "stellargive.*Preview" | awk '{print $1}' | xargs -r -I {} vercel rm {} --yes --token=${{ secrets.VERCEL_TOKEN }}
+          deployment_ids=$(vercel list --meta githubPrNumber=${{ github.event.pull_request.number }} --format json --token=${{ secrets.VERCEL_TOKEN }} | jq -r '.deployments[].uid')
+          if [ -z "$deployment_ids" ]; then
+            echo "No deployment found for PR #${{ github.event.pull_request.number }}; nothing to remove."
+            exit 0
+          fi
+          echo "$deployment_ids" | xargs -r -I {} vercel rm {} --yes --token=${{ secrets.VERCEL_TOKEN }}

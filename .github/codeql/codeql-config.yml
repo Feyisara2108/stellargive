@@ -1,0 +1,8 @@
+name: "stellarGive CodeQL Config"
+
+paths-ignore:
+  - frontend/src/lib/bindings/**
+  - "**/__snapshots__/**"
+  - "**/*.snap"
+  - frontend/.next/**
+  - contracts/stellar-give/target/**
