@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/stale@v9
+      - uses: actions/stale@1184758553f162e74a1d37c8104523d11d3c00ab # v9.0.0
         with:
           stale-issue-message: >
             This issue has been automatically marked as stale because it has not
