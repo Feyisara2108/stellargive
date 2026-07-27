@@ -84,7 +84,7 @@ export function getCrossedMilestones(
   return MILESTONE_PERCENTS.filter((m) => pctBefore < m && pctAfter >= m);
 }
 
-function mapTransactionError(error: any): string {
+export function mapTransactionError(error: any): string {
   const msg = error?.message || String(error);
   if (
     msg.includes("User declined") ||
