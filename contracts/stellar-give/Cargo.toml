@@ -1,6 +1,6 @@
 [package]
 name = "stellar-give"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 # Minimum Supported Rust Version. Bounded by locked dependencies (darling,
 # serde_with require 1.88). Verified in CI by the `contract-msrv` job.
