@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { ProjectUpdates } from "./ProjectUpdates";
 
 vi.mock("@/hooks/useSoroban", () => ({
@@ -13,7 +13,10 @@ vi.mock("@/lib/WalletProvider", () => ({
 }));
 
 vi.mock("@tanstack/react-query", () => ({
-  useQueryClient: vi.fn().mockReturnValue({ invalidateQueries: vi.fn() }),
+  useQueryClient: vi.fn().mockReturnValue({
+    invalidateQueries: vi.fn().mockResolvedValue(undefined),
+    setQueryData: vi.fn(),
+  }),
 }));
 
 vi.mock("sonner", () => ({
@@ -127,6 +130,30 @@ describe("ProjectUpdates — populated state", () => {
     expect(screen.getByText("First update")).toBeInTheDocument();
     expect(screen.getByText("Second update")).toBeInTheDocument();
     expect(screen.getByText("Third update")).toBeInTheDocument();
+  });
+});
+
+describe("ProjectUpdates — posting", () => {
+  it("prepends a new update optimistically while the mutation is pending", async () => {
+    mockUpdates([makeUpdate("Existing update", 60)], false);
+    vi.mocked(useWallet).mockReturnValue({ address: CREATOR } as any);
+    vi.mocked(useCampaign).mockReturnValue({ data: { creator: CREATOR } } as any);
+    const mutateAsync = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(useAddUpdate).mockReturnValue({ mutateAsync, isPending: false } as any);
+
+    render(<ProjectUpdates campaignId={CAMPAIGN_ID} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Post Update/i }));
+    fireEvent.change(screen.getByPlaceholderText(/Tell your backers/i), {
+      target: { value: "Fresh update" },
+    });
+    const buttons = screen.getAllByRole("button", { name: /Post Update/i });
+    const submitButton = buttons.find((button) => button.getAttribute("type") === "submit");
+    expect(submitButton).toBeDefined();
+    fireEvent.click(submitButton!);
+
+    expect(screen.getByText("Fresh update", { selector: "p" })).toBeInTheDocument();
+    expect(mutateAsync).toHaveBeenCalledWith({ campaignId: CAMPAIGN_ID, content: "Fresh update" });
   });
 });
 

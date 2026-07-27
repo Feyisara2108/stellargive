@@ -27,13 +27,10 @@ const FILTERS: { key: FilterKey; label: string }[] = [
 // there is no layout shift.
 // ---------------------------------------------------------------------------
 
-const ActivityFeed = dynamic(
-  () => import("./ActivityFeed").then((mod) => mod.ActivityFeed),
-  {
-    ssr: false,
-    loading: () => <ActivityFeedSkeleton />,
-  },
-);
+const ActivityFeed = dynamic(() => import("./ActivityFeed").then((mod) => mod.ActivityFeed), {
+  ssr: false,
+  loading: () => <ActivityFeedSkeleton />,
+});
 
 function ActivityFeedSkeleton() {
   return (
@@ -56,7 +53,8 @@ function ActivityFeedSkeleton() {
 }
 
 export default function ActivityPage() {
-  const { data: fetchedEvents, isLoading, isError, refetch } = useEvents(HISTORY_LIMIT);
+  const [limit, setLimit] = useState(HISTORY_LIMIT);
+  const { data: fetchedEvents, isLoading, isError, refetch } = useEvents(limit);
   const [filter, setFilter] = useState<FilterKey>("all");
   const [events, setEvents] = useState<any[]>([]);
   const [showIndicator, setShowIndicator] = useState(false);
@@ -91,6 +89,8 @@ export default function ActivityPage() {
     () => (filter === "all" ? sorted : sorted.filter((e: any) => e.topic === filter)),
     [sorted, filter],
   );
+  const canLoadMore =
+    Array.isArray(fetchedEvents) && fetchedEvents.length >= limit && limit >= HISTORY_LIMIT;
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -102,7 +102,7 @@ export default function ActivityPage() {
             <h1 className="text-3xl font-bold tracking-tight">Transaction History</h1>
           </div>
           <p className="text-muted-foreground">
-            The most recent {HISTORY_LIMIT} on-chain events from the StellarGive contract.
+            The most recent {limit} on-chain events from the StellarGive contract.
           </p>
         </div>
 
@@ -150,11 +150,22 @@ export default function ActivityPage() {
             events found yet.
           </div>
         ) : (
-          <ActivityFeed visible={visible} showIndicator={showIndicator} />
+          <>
+            <ActivityFeed visible={visible} showIndicator={showIndicator} />
+            {canLoadMore && (
+              <div className="flex justify-center">
+                <Button
+                  variant="outline"
+                  onClick={() => setLimit((current) => current + HISTORY_LIMIT)}
+                  disabled={isLoading}
+                >
+                  {isLoading ? "Loading..." : "Load older"}
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </main>
     </div>
   );
 }
-
-

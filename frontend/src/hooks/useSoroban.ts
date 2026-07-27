@@ -355,6 +355,8 @@ export function useEvents(limit = 20) {
   return useQuery({
     queryKey: ["events", limit],
     queryFn: () => getEvents(limit),
+    placeholderData: (previousData) => previousData,
+    staleTime: 30_000,
     refetchInterval: (query) => {
       if (typeof document !== "undefined" && document.hidden) {
         return false;
@@ -556,7 +558,7 @@ export function useTokenMetadataBatch(contractIds: string[]) {
     queryFn: async () => {
       if (uniqueIds.length === 0) return {};
       const { getTokenMetadata } = await import("@/lib/soroban");
-      
+
       const results = await Promise.all(
         uniqueIds.map(async (id) => {
           try {
@@ -569,7 +571,7 @@ export function useTokenMetadataBatch(contractIds: string[]) {
           } catch (e) {
             return [id, null] as const;
           }
-        })
+        }),
       );
       return Object.fromEntries(results);
     },
