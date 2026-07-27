@@ -351,6 +351,39 @@ export function usePlatformStats() {
   });
 }
 
+/** Steady-state poll interval for the event feed, in ms. */
+export const EVENTS_POLL_INTERVAL_MS = 10_000;
+/** Upper bound on the error backoff, in ms. */
+export const EVENTS_MAX_BACKOFF_MS = 60_000;
+
+/**
+ * Adaptive refetch interval for the event feed.
+ *
+ * - Hidden tab: `false`, which pauses polling entirely.
+ * - Errored query: exponential backoff from the failure count, capped at
+ *   `EVENTS_MAX_BACKOFF_MS` so a persistent outage cannot stretch the gap
+ *   without bound.
+ * - Otherwise: the steady `EVENTS_POLL_INTERVAL_MS`.
+ *
+ * Pure apart from reading `document.hidden`, so it is exercised directly rather
+ * than through a rendered query.
+ */
+export function eventsRefetchInterval(query: {
+  state: { status: string; fetchFailureCount: number };
+}): number | false {
+  if (typeof document !== "undefined" && document.hidden) {
+    return false;
+  }
+  if (query.state.status === "error") {
+    const failureCount = query.state.fetchFailureCount;
+    return Math.min(
+      EVENTS_POLL_INTERVAL_MS * Math.pow(2, failureCount),
+      EVENTS_MAX_BACKOFF_MS,
+    );
+  }
+  return EVENTS_POLL_INTERVAL_MS;
+}
+
 export function useEvents(limit = 20) {
   return useQuery({
     queryKey: ["events", limit],
