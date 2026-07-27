@@ -653,3 +653,120 @@ fn test_unpause_emits_unpaused_event() {
     });
     assert!(has_unpaused, "unpause must emit an UnpausedEvent");
 }
+
+// =============================================================================
+// Issue #534 — Creation fee transfer and creator campaign-count guard
+// =============================================================================
+
+#[test]
+fn test_create_campaign_fee_transfer() {
+    let (env, client, creator, beneficiary, _donor, admin, token_client, _) = register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let admin_initial = token_client.balance(&admin);
+    let creator_initial = token_client.balance(&creator);
+
+    let bens = single_ben(&env, &beneficiary);
+    client.create_campaign(
+        &creator,
+        &bens,
+        &String::from_str(&env, "Fee Check"),
+        &String::from_str(&env, "A test campaign description."),
+        &String::from_str(&env, "https://example.com/meta"),
+        &symbol_short!("relief"),
+        &10_000_000_i128,
+        &2_000_u64,
+        &token_client.address,
+        &None,
+    );
+
+    let creation_fee = 100_000_i128;
+    assert_eq!(token_client.balance(&admin), admin_initial + creation_fee);
+    assert_eq!(
+        token_client.balance(&creator),
+        creator_initial - creation_fee
+    );
+}
+
+#[test]
+fn test_create_campaign_fails_with_insufficient_fee_balance() {
+    let (env, client, _creator, beneficiary, _donor, _admin, token_client, token_admin_client) =
+        register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let poor_creator = Address::generate(&env);
+    token_admin_client.mint(&poor_creator, &50_000_i128);
+
+    let bens = single_ben(&env, &beneficiary);
+    let result = client.try_create_campaign(
+        &poor_creator,
+        &bens,
+        &String::from_str(&env, "Poor Creator Campaign"),
+        &String::from_str(&env, "A test campaign description."),
+        &String::from_str(&env, "https://example.com/meta"),
+        &symbol_short!("relief"),
+        &10_000_000_i128,
+        &2_000_u64,
+        &token_client.address,
+        &None,
+    );
+
+    assert_eq!(result, Err(Ok(ContractError::CreationFeeTransferFailed)));
+}
+
+#[test]
+fn test_create_campaign_creator_campaign_limit() {
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, token_admin_client) =
+        register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let bens = single_ben(&env, &beneficiary);
+    for i in 0..10 {
+        let title = String::from_str(&env, &format!("Campaign {}", i));
+        client.create_campaign(
+            &creator,
+            &bens,
+            &title,
+            &String::from_str(&env, "A test campaign description."),
+            &String::from_str(&env, "https://example.com/meta"),
+            &symbol_short!("relief"),
+            &10_000_000_i128,
+            &(2_000 + i as u64),
+            &token_client.address,
+            &None,
+        );
+    }
+
+    assert_eq!(client.get_campaigns_by_creator(&creator).len(), 10);
+
+    let result = client.try_create_campaign(
+        &creator,
+        &bens,
+        &String::from_str(&env, "Campaign 10"),
+        &String::from_str(&env, "A test campaign description."),
+        &String::from_str(&env, "https://example.com/meta"),
+        &symbol_short!("relief"),
+        &10_000_000_i128,
+        &3_000_u64,
+        &token_client.address,
+        &None,
+    );
+    assert_eq!(result, Err(Ok(ContractError::LimitExceeded)));
+
+    let creator2 = Address::generate(&env);
+    token_admin_client.mint(&creator2, &1_000_000_000_i128);
+    let id2 = client.create_campaign(
+        &creator2,
+        &bens,
+        &String::from_str(&env, "Creator 2 Campaign"),
+        &String::from_str(&env, "A test campaign description."),
+        &String::from_str(&env, "https://example.com/meta"),
+        &symbol_short!("relief"),
+        &10_000_000_i128,
+        &4_000_u64,
+        &token_client.address,
+        &None,
+    );
+    assert!(id2 > 0);
+    assert_eq!(client.get_campaigns_by_creator(&creator2).len(), 1);
+}
