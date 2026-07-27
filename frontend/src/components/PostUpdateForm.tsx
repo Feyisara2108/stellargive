@@ -1,52 +1,50 @@
 // frontend/src/components/PostUpdateForm.tsx
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 
 interface PostUpdateFormProps {
   campaignId: string;
   onSuccess: () => void;
   addUpdateMutation: (id: string, content: string) => Promise<void>;
+  onSubmit?: (content: string) => Promise<void> | void;
 }
 
-// Adjust based on your Soroban smart contract limits (typically 280 or 500 characters for compact strings)
 const MAX_CHARACTER_LIMIT = 280;
 
 export const PostUpdateForm: React.FC<PostUpdateFormProps> = ({
   campaignId,
   onSuccess,
   addUpdateMutation,
+  onSubmit,
 }) => {
   const [content, setContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [overLimitTimer, setOverLimitTimer] = useState<number>(0);
 
   const remainingCharacters = MAX_CHARACTER_LIMIT - content.length;
-  const isOverLimit = remainingCharacters < 0;
+  const isOverLimit = content.length > MAX_CHARACTER_LIMIT;
 
-  // Start countdown when over limit
-  useEffect(() => {
-    if (isOverLimit && overLimitTimer === 0) {
-      setOverLimitTimer(5); // 5‑second countdown
-    }
-    if (overLimitTimer > 0) {
-      const id = setTimeout(() => setOverLimitTimer(overLimitTimer - 1), 1000);
-      return () => clearTimeout(id);
-    }
-  }, [isOverLimit, overLimitTimer]);
+  const handleContentChange = (value: string) => {
+    const nextValue =
+      value.length > MAX_CHARACTER_LIMIT ? value.slice(0, MAX_CHARACTER_LIMIT) : value;
+    setContent(nextValue);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!content.trim() || isOverLimit) return;
+    const trimmedContent = content.trim();
+    if (!trimmedContent || isOverLimit) return;
 
     setIsSubmitting(true);
     setError(null);
     try {
-      await addUpdateMutation(campaignId, content.trim());
+      if (onSubmit) {
+        await onSubmit(trimmedContent);
+      } else {
+        await addUpdateMutation(campaignId, trimmedContent);
+      }
       setContent("");
       onSuccess();
-      // Replace with your UI toast component if available
-      alert("Update posted successfully!");
     } catch (err: any) {
       console.error("Failed to submit update to Soroban:", err);
       setError(err?.message || "Transaction failed. Please try again.");
@@ -63,22 +61,20 @@ export const PostUpdateForm: React.FC<PostUpdateFormProps> = ({
           <textarea
             className="w-full p-2 border rounded-md bg-background resize-none focus:ring-2 focus:ring-primary"
             rows={4}
+            maxLength={MAX_CHARACTER_LIMIT}
             placeholder="Tell your backers what's happening..."
             value={content}
-            onChange={(e) => setContent(e.target.value)}
+            onChange={(e) => handleContentChange(e.target.value)}
             disabled={isSubmitting}
           />
-          <div className="flex justify-between items-center mt-1 text-sm">
+          <div className="flex justify-between items-center mt-1 text-sm gap-2">
             <span
               className={isOverLimit ? "text-destructive font-medium" : "text-muted-foreground"}
             >
-              {remainingCharacters} characters remaining
+              {isOverLimit
+                ? "0 characters remaining"
+                : `${remainingCharacters} characters remaining`}
             </span>
-            {isOverLimit && overLimitTimer > 0 && (
-              <span className="text-destructive font-medium ml-2">
-                Please shorten within {overLimitTimer}s
-              </span>
-            )}
             {error && <span className="text-destructive font-medium">{error}</span>}
           </div>
         </div>

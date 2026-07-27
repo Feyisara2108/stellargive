@@ -40,6 +40,7 @@ import { sanitizeUrl } from "@/lib/sanitize";
 import { RefundButton } from "@/components/RefundButton";
 import { StickyDonateBar } from "@/components/StickyDonateBar";
 import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
+import { Badge } from "@/components/ui/badge";
 import { useCountdown } from "@/hooks/useCountdown";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { CampaignDetailSkeleton } from "@/components/CampaignSkeleton";
@@ -83,7 +84,9 @@ function TopDonors({ campaignId }: { campaignId: bigint }) {
                 </span>
                 <AddressLink address={donor} />
               </div>
-              <span className="font-bold text-primary">{formatTokenAmount(amount as bigint, 7)} XLM</span>
+              <span className="font-bold text-primary">
+                {formatTokenAmount(amount as bigint, 7)} XLM
+              </span>
             </div>
           ))}
         </div>
@@ -145,6 +148,11 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
   const countdown = useCountdown(campaign?.deadline || 0n);
 
   const isCreator = !!address && !!campaign && campaign.creator === address;
+  const progressPercent = campaign
+    ? Math.min(100, Math.max(0, calculateProgress(campaign.raised_amount, campaign.target_amount)))
+    : 0;
+  const categoryLabel =
+    campaign?.category && campaign.category !== "other" ? campaign.category : "Uncategorized";
 
   // Show a detail-shaped skeleton during the initial campaign fetch so the page
   // doesn't pop in abruptly and the layout doesn't shift when data arrives (#357).
@@ -295,21 +303,13 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
               </div>
 
               <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <span
-                    className={`px-2 py-1 rounded text-xs font-bold uppercase tracking-wider ${
-                      campaign.status === "Active"
-                        ? "bg-green-500/20 text-green-500"
-                        : campaign.status === "Funded"
-                          ? "bg-blue-500/20 text-blue-500"
-                          : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    {campaign.status}
-                  </span>
-                  <span className="text-sm text-muted-foreground">
-                    Category: {campaign.category}
-                  </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="secondary" className="capitalize text-[10px] font-bold px-2 py-1">
+                    {categoryLabel}
+                  </Badge>
+                  <Badge variant="outline" className="text-[10px] font-bold px-2 py-1">
+                    {Math.round(progressPercent)}% funded
+                  </Badge>
                 </div>
 
                 <div className="space-y-2">
@@ -353,17 +353,17 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
 
         <div className="lg:col-span-1">
           <ErrorBoundary heading="Recent donations">
-              <RecentDonations
-            campaignId={BigInt(params.id)}
-            onDonateAgain={
-              campaign?.status === "Active"
-                ? (amount) => {
-                    setDonateAmount(amount);
-                    setDonateOpen(true);
-                  }
-                : undefined
-            }
-          />
+            <RecentDonations
+              campaignId={BigInt(params.id)}
+              onDonateAgain={
+                campaign?.status === "Active"
+                  ? (amount) => {
+                      setDonateAmount(amount);
+                      setDonateOpen(true);
+                    }
+                  : undefined
+              }
+            />
           </ErrorBoundary>
         </div>
       </div>

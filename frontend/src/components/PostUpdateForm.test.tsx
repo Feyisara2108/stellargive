@@ -44,13 +44,16 @@ describe("PostUpdateForm — validation", () => {
     expect(screen.getByRole("button", { name: /Post Update/i })).not.toBeDisabled();
   });
 
-  it("disables submit when over character limit", () => {
+  it("truncates contents to the max length and keeps submit enabled", () => {
     renderForm();
     const longContent = "a".repeat(281);
-    fireEvent.change(screen.getByPlaceholderText(/Tell your backers/i), {
+    const textarea = screen.getByPlaceholderText(/Tell your backers/i);
+    fireEvent.change(textarea, {
       target: { value: longContent },
     });
-    expect(screen.getByRole("button", { name: /Post Update/i })).toBeDisabled();
+    expect(textarea).toHaveValue("a".repeat(280));
+    expect(screen.getByText("0 characters remaining")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Post Update/i })).not.toBeDisabled();
   });
 
   it("shows remaining characters count", () => {
@@ -103,7 +106,7 @@ describe("PostUpdateForm — submission", () => {
     });
   });
 
-  it("does not submit when content is over the limit", async () => {
+  it("submits when content is truncated at the character limit", async () => {
     renderForm();
     const longContent = "a".repeat(281);
     fireEvent.change(screen.getByPlaceholderText(/Tell your backers/i), {
@@ -112,7 +115,7 @@ describe("PostUpdateForm — submission", () => {
     fireEvent.click(screen.getByRole("button", { name: /Post Update/i }));
 
     await waitFor(() => {
-      expect(addUpdateMutation).not.toHaveBeenCalled();
+      expect(addUpdateMutation).toHaveBeenCalledWith(CAMPAIGN_ID, "a".repeat(280));
     });
   });
 });
@@ -121,7 +124,10 @@ describe("PostUpdateForm — pending state", () => {
   it("disables textarea and button while submitting", async () => {
     let resolveMutation: () => void;
     addUpdateMutation.mockImplementation(
-      () => new Promise<void>((resolve) => { resolveMutation = resolve; }),
+      () =>
+        new Promise<void>((resolve) => {
+          resolveMutation = resolve;
+        }),
     );
 
     renderForm();
