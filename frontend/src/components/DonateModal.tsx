@@ -28,7 +28,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Check, AlertCircle } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 const FIRED_MILESTONES = new Set<string>();
 const milestoneKey = (campaignId: bigint, m: MilestonePercent) => `${campaignId.toString()}:${m}`;
@@ -233,19 +235,23 @@ export function DonateModal({
         }}
       >
         <DialogTrigger asChild>
-          <Button
-            className="flex-1"
-            disabled={!address || isWrongNetwork}
-            title={
-              !address
-                ? "Connect your wallet to donate"
-                : isWrongNetwork
-                  ? "Switch to the correct network to donate"
-                  : undefined
-            }
-          >
-            Donate Now
-          </Button>
+          <Tooltip>
+            <TooltipTrigger className="relative flex-1">
+              <Button
+                className="w-full"
+                disabled={!address || isWrongNetwork}
+              >
+                Donate Now
+              </Button>
+            </TooltipTrigger>
+            {(!address || isWrongNetwork) && (
+              <TooltipContent side="top">
+                {!address
+                  ? "Connect your wallet to donate"
+                  : "Switch to the correct network to donate"}
+              </TooltipContent>
+            )}
+          </Tooltip>
         </DialogTrigger>
         <DialogContent
           aria-labelledby="donate-dialog-title"
@@ -323,11 +329,16 @@ export function DonateModal({
                       ? "This will fully fund the campaign!"
                       : `${formatNum(remaining)} ${symbol} left to reach the goal`}
                 </span>
-                {balanceTokens !== null && (
-                  <span className="text-xs text-muted-foreground">
-                    Balance: {formatNum(balanceTokens)} {symbol}
-                  </span>
-                )}
+                {/* Always render the balance slot so the row height is stable.
+                    Skeleton while loading → value once resolved → nothing if
+                    no address (slot collapses naturally when empty). */}
+                <span className="text-xs text-muted-foreground min-w-[6rem] text-right">
+                  {walletBalance.isLoading ? (
+                    <Skeleton className="h-3 w-24 inline-block" aria-label="Loading balance" />
+                  ) : balanceTokens !== null ? (
+                    `Balance: ${formatNum(balanceTokens)} ${symbol}`
+                  ) : null}
+                </span>
               </div>
               {errors.amount && (
                 <span
@@ -363,7 +374,21 @@ export function DonateModal({
               </p>
             </div>
           </div>
-          {feeEstimate.data != null && <GasWarning estimatedFeeStroops={feeEstimate.data} />}
+          {/* Fee estimate row — always occupies space so GasWarning arrival
+              does not shift the footer. Three states:
+              1. No amount entered yet → invisible placeholder preserving height.
+              2. Amount entered, estimate in-flight → "Estimating fee…" pulse.
+              3. Estimate resolved → GasWarning (or nothing if data is null). */}
+          <div className="min-h-[2.5rem]" aria-live="polite" aria-atomic="true">
+            {feeEstimate.isFetching && feeEstimate.data == null ? (
+              <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin shrink-0" aria-hidden="true" />
+                <span>Estimating network fee…</span>
+              </div>
+            ) : feeEstimate.data != null ? (
+              <GasWarning estimatedFeeStroops={feeEstimate.data} />
+            ) : null}
+          </div>
           {submitError && (
             <div
               className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400"

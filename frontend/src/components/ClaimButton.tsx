@@ -4,6 +4,7 @@ import { useClaimFunds } from "@/hooks/useSoroban";
 import { useWallet } from "@/lib/WalletProvider";
 import { Campaign } from "@/lib/soroban";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { Loader2, CheckCircle2 } from "lucide-react";
 
@@ -19,9 +20,14 @@ export function ClaimButton({ campaign }: { campaign: Campaign }) {
   if (!isCreatorOrBeneficiary || campaign.status === "Claimed") {
     if (campaign.status === "Claimed") {
       return (
-        <Button variant="ghost" disabled className="text-green-500 gap-2">
-          <CheckCircle2 className="w-4 h-4" /> Claimed
-        </Button>
+        <Tooltip>
+          <TooltipTrigger className="relative">
+            <Button variant="ghost" disabled className="text-green-500 gap-2">
+              <CheckCircle2 className="w-4 h-4" /> Claimed
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top">Funds have already been claimed</TooltipContent>
+        </Tooltip>
       );
     }
     return null;
@@ -37,15 +43,29 @@ export function ClaimButton({ campaign }: { campaign: Campaign }) {
     }
   };
 
+  // Derive a hint for the disabled state so users understand why they can't claim yet.
+  const disabledReason = !canClaim
+    ? campaign.status === "Active"
+      ? "Campaign must be fully funded or expired before claiming"
+      : "Nothing to claim — no funds have been raised"
+    : null;
+
   return (
-    <Button
-      variant="outline"
-      onClick={handleClaim}
-      disabled={claim.isPending || claim.isSuccess || !canClaim}
-      className="border-primary text-primary hover:bg-primary/10"
-    >
-      {claim.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-      {claim.isSuccess ? "Claimed" : "Claim Funds"}
-    </Button>
+    <Tooltip>
+      <TooltipTrigger className="relative">
+        <Button
+          variant="outline"
+          onClick={handleClaim}
+          disabled={claim.isPending || claim.isSuccess || !canClaim}
+          className="border-primary text-primary hover:bg-primary/10"
+        >
+          {claim.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          {claim.isSuccess ? "Claimed" : "Claim Funds"}
+        </Button>
+      </TooltipTrigger>
+      {disabledReason && (
+        <TooltipContent side="top">{disabledReason}</TooltipContent>
+      )}
+    </Tooltip>
   );
 }

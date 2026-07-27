@@ -12,16 +12,8 @@ import {
   getEventField,
 } from "@/lib/eventData";
 import { RelativeTime } from "@/components/RelativeTime";
+import { normalizeAddress } from "@/utils/format";
 import { ArrowUpRight, Megaphone, Trophy } from "lucide-react";
-
-const ZERO_ADDRESS = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
-
-function normalizeAddress(value: unknown): string | null {
-  if (!value) return null;
-  const str = value.toString();
-  if (str === ZERO_ADDRESS) return null;
-  return str.length === 56 && str.startsWith("G") ? str : null;
-}
 
 function ledgerLabel(ledger: unknown): string {
   return ledger === null || ledger === undefined || ledger === "" ? MISSING_FIELD : String(ledger);

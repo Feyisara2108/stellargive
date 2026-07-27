@@ -1,7 +1,7 @@
 "use client";
 
 import { useEvents } from "@/hooks/useSoroban";
-import { fromStroops } from "@/lib/soroban";
+import { formatTokenAmount } from "@/utils/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -113,7 +113,7 @@ export function RecentDonations({
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm truncate">
-                      <span className="font-bold">{fromStroops(event.data[2])} XLM</span> donated by{" "}
+                      <span className="font-bold">{formatTokenAmount(event.data[2], 7)} XLM</span> donated by{" "}
                       {donorAddress ? (
                         <AddressLink address={donorAddress} className="text-muted-foreground" />
                       ) : (
@@ -136,7 +136,7 @@ export function RecentDonations({
                       variant="ghost"
                       size="sm"
                       className="shrink-0 h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-primary"
-                      onClick={() => onDonateAgain(fromStroops(event.data[2]))}
+                      onClick={() => onDonateAgain(formatTokenAmount(event.data[2], 7))}
                     >
                       <RotateCcw className="h-3 w-3" aria-hidden="true" />
                       Donate again

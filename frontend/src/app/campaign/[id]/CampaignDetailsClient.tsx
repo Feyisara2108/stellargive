@@ -20,7 +20,7 @@ import { Loader2, ImageIcon, Zap, AlertTriangle, RotateCw } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { formatBasisPoints } from "@/utils/format";
+import { formatBasisPoints, ZERO_ADDRESS, formatTokenAmount } from "@/utils/format";
 import { calculateProgress, getCampaignImageUrl, CAMPAIGN_IMAGE_BLUR_DATA_URL } from "@/lib/utils";
 import dynamic from "next/dynamic";
 const RecentDonations = dynamic(
@@ -43,7 +43,6 @@ import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
 import { useCountdown } from "@/hooks/useCountdown";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { CampaignDetailSkeleton } from "@/components/CampaignSkeleton";
-import { fromStroops } from "@/lib/soroban";
 
 function TopDonors({ campaignId }: { campaignId: bigint }) {
   const { data: allEvents, isLoading } = useEvents();
@@ -56,7 +55,7 @@ function TopDonors({ campaignId }: { campaignId: bigint }) {
       (acc: any, event: any) => {
         const donor = event.data[1]?.toString();
         const amount = BigInt(event.data[2]);
-        if (donor && donor !== "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF") {
+        if (donor && donor !== ZERO_ADDRESS) {
           acc[donor] = (acc[donor] || 0n) + amount;
         }
         return acc;
@@ -84,7 +83,7 @@ function TopDonors({ campaignId }: { campaignId: bigint }) {
                 </span>
                 <AddressLink address={donor} />
               </div>
-              <span className="font-bold text-primary">{fromStroops(amount as bigint)} XLM</span>
+              <span className="font-bold text-primary">{formatTokenAmount(amount as bigint, 7)} XLM</span>
             </div>
           ))}
         </div>
@@ -318,13 +317,13 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
                     <div className="space-y-1">
                       <p className="text-sm text-muted-foreground">Raised</p>
                       <p className="text-2xl font-bold">
-                        {fromStroops(campaign.raised_amount)} XLM
+                        {formatTokenAmount(campaign.raised_amount, 7)} XLM
                       </p>
                     </div>
                     <div className="text-right space-y-1">
                       <p className="text-sm text-muted-foreground">Target</p>
                       <p className="text-lg font-medium">
-                        {fromStroops(campaign.target_amount)} XLM
+                        {formatTokenAmount(campaign.target_amount, 7)} XLM
                       </p>
                     </div>
                   </div>
