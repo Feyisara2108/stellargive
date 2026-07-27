@@ -18,7 +18,7 @@ jobs:
       tag_name: ${{ steps.release.outputs.tag_name }}
       version: ${{ steps.release.outputs.version }}
     steps:
-      - uses: googleapis/release-please-action@v4
+      - uses: googleapis/release-please-action@a3a8e0f9b6e680a3a2d2121c60b54e7d4d42013f # v4.13.0
         id: release
         with:
           config-file: .release-please-config.json
@@ -44,11 +44,11 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       # ── Frontend SBOM (npm / CycloneDX) ──────────────────────────────────
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@0bef4c7b22a681944a11cc3de49f483a91aa0d65 # v4.0.2
         with:
           node-version-file: frontend/.nvmrc
 
@@ -66,12 +66,14 @@ jobs:
 
       # ── Contract SBOM + optimized WASM (cargo / CycloneDX) ───────────────
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@e12dec229babb4ebc2fbcc5d1ab75d86212b0051 # stable
         with:
           targets: wasm32-unknown-unknown
 
       - name: Install cargo-cyclonedx
-        run: cargo install cargo-cyclonedx
+        uses: taiki-e/install-action@af683be8c4878b0934ee8f3c7ef531c257c14e04 # v2.4.4
+        with:
+          tool: cargo-cyclonedx@0.5.9
 
       - name: Generate contract SBOM
         working-directory: contracts/stellar-give
@@ -84,7 +86,9 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev libudev-dev pkg-config
 
       - name: Install Soroban CLI
-        run: cargo install --locked soroban-cli
+        uses: taiki-e/install-action@af683be8c4878b0934ee8f3c7ef531c257c14e04 # v2.4.4
+        with:
+          tool: soroban-cli@21.6.0
 
       - name: Build optimized contract WASM
         run: bash scripts/build-contract.sh
@@ -94,7 +98,7 @@ jobs:
 
       # ── Sign SBOMs (Sigstore/cosign, keyless) ─────────────────────────────
       - name: Install cosign
-        uses: sigstore/cosign-installer@v3
+        uses: sigstore/cosign-installer@59acb8aa57c5134dabe87c474db634a5d8f4bc90 # v3.5.0
 
       - name: Sign SBOMs
         run: |
@@ -109,7 +113,7 @@ jobs:
 
       # ── Build provenance attestation for released artifacts ───────────────
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@520d1802d6bde01deeee2cfecd367fb7adfe6863 # v2.2.0
         with:
           subject-path: |
             sbom-frontend.cdx.json

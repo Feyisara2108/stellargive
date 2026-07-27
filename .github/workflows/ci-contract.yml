@@ -19,12 +19,12 @@ jobs:
       contracts: ${{ steps.filter.outputs.contracts }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       # On merge_group events, skip path filtering so the test job below always
       # runs and reports its required status check to the merge queue.
       - name: Detect changes
         if: github.event_name != 'merge_group'
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: filter
         with:
           filters: |
@@ -38,51 +38,13 @@ jobs:
               - 'package-lock.json'
               - '.gitignore'
 
-  test:
+  contract-checks:
     needs: change-detection
     if: ${{ github.event_name == 'merge_group' || needs.change-detection.outputs.contracts == 'true' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
-          targets: wasm32-unknown-unknown
-
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: contracts/stellar-give
-
-      - name: Format check
-        working-directory: contracts/stellar-give
-        run: cargo fmt --check
-
-      - name: Clippy
-        working-directory: contracts/stellar-give
-        run: cargo clippy -- -D warnings
-
-      - name: Test
-        working-directory: contracts/stellar-give
-        run: cargo test --verbose
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: contract-test-results
-          path: contracts/stellar-give/target/nextest/ci/junit.xml
-          # Retention policy:
-          #   7 days — short-lived debugging artifact; test failures are resolved
-          #             within the PR lifecycle and don't need long-term storage.
-          retention-days: 7
+    uses: ./.github/workflows/contract-checks.yml
 
   notify:
-    needs: test
+    needs: contract-checks
     if: always() && failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5

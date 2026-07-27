@@ -20,12 +20,12 @@ jobs:
       frontend: ${{ steps.filter.outputs.frontend }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       # On merge_group events, skip path filtering so the gating jobs below always
       # run and report their required status checks to the merge queue.
       - name: Detect changes
         if: github.event_name != 'merge_group'
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: filter
         with:
           filters: |
@@ -45,6 +45,11 @@ jobs:
               - 'package-lock.json'
               - '.gitignore'
 
+  contract-checks:
+    needs: change-detection
+    if: ${{ github.event_name == 'merge_group' || needs.change-detection.outputs.contracts == 'true' }}
+    uses: ./.github/workflows/contract-checks.yml
+
   rust-and-contract:
     needs: change-detection
     if: ${{ github.event_name == 'merge_group' || needs.change-detection.outputs.contracts == 'true' }}
@@ -52,43 +57,34 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@e12dec229babb4ebc2fbcc5d1ab75d86212b0051 # stable
         with:
-          components: clippy, rustfmt
           targets: wasm32-unknown-unknown
 
       - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@23bde2884508604e0e681a6c568ecbd27dc00ab3 # v2.7.3
         with:
           workspaces: contracts/stellar-give
 
-      - name: Format check
-        working-directory: contracts/stellar-give
-        run: cargo fmt --check
-
-      - name: Clippy
-        working-directory: contracts/stellar-give
-        run: cargo clippy -- -D warnings
-
       - name: Install cargo-tarpaulin
-        run: cargo install cargo-tarpaulin
+        uses: taiki-e/install-action@af683be8c4878b0934ee8f3c7ef531c257c14e04 # v2.4.4
+        with:
+          tool: cargo-tarpaulin@0.30.0
 
       - name: Install Soroban CLI system deps
         run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev libudev-dev pkg-config
 
       - name: Install Soroban CLI
-        run: cargo install --locked soroban-cli
+        uses: taiki-e/install-action@af683be8c4878b0934ee8f3c7ef531c257c14e04 # v2.4.4
+        with:
+          tool: soroban-cli@21.6.0
 
       - name: Rust Build
         working-directory: contracts/stellar-give
         run: cargo build --locked --target wasm32-unknown-unknown --release
-
-      - name: Rust Test
-        working-directory: contracts/stellar-give
-        run: cargo test --locked
 
       - name: Rust Coverage
         working-directory: contracts/stellar-give
@@ -124,7 +120,7 @@ jobs:
       #             (optimized WASM, size report).
       - name: Upload optimized WASM artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@6011914590750262c2f6d764491748530b59d991 # v4.3.0
         with:
           name: stellar-give-wasm-${{ github.sha }}
           path: |
@@ -135,7 +131,7 @@ jobs:
 
       - name: Codecov Upload (Rust)
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@e28ff10e200021c5dc2ecd7ef06de8ae147dfb23 # v4.5.0
         with:
           files: contracts/stellar-give/cobertura.xml
           flags: rust
@@ -148,15 +144,15 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@0bef4c7b22a681944a11cc3de49f483a91aa0d65 # v4.0.2
         with:
           node-version-file: frontend/.nvmrc
 
       - name: Cache Next.js build
-        uses: actions/cache@v4
+        uses: actions/cache@0bef4c7b22a681944a11cc3de49f483a91aa0d65 # v4.0.2
         with:
           path: |
             frontend/.next/cache
@@ -182,7 +178,7 @@ jobs:
 
       - name: Codecov Upload (Frontend)
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@e28ff10e200021c5dc2ecd7ef06de8ae147dfb23 # v4.5.0
         with:
           directory: frontend/coverage
           flags: frontend
@@ -258,10 +254,10 @@ jobs:
         node-version: [20, 22]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@0bef4c7b22a681944a11cc3de49f483a91aa0d65 # v4.0.2
         with:
           node-version: ${{ matrix.node-version }}
 
@@ -284,7 +280,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Read MSRV from Cargo.toml
         id: msrv
@@ -295,13 +291,13 @@ jobs:
           echo "Declared MSRV: $version"
 
       - name: Install Rust toolchain (MSRV ${{ steps.msrv.outputs.version }})
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@e12dec229babb4ebc2fbcc5d1ab75d86212b0051 # master
         with:
           toolchain: ${{ steps.msrv.outputs.version }}
           targets: wasm32-unknown-unknown
 
       - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@23bde2884508604e0e681a6c568ecbd27dc00ab3 # v2.7.3
         with:
           workspaces: contracts/stellar-give
 
@@ -314,7 +310,7 @@ jobs:
         run: cargo test --locked
 
   notify:
-    needs: [rust-and-contract, frontend]
+    needs: [contract-checks, rust-and-contract, frontend]
     if: always() && failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
