@@ -14,7 +14,7 @@ const { mockState } = vi.hoisted(() => ({
 vi.mock("../../hooks/useSoroban", () => ({
   useCampaignsPaged: () => ({
     get data() {
-      return mockState.campaigns;
+      return { campaigns: mockState.campaigns, hasMore: false };
     },
     get isLoading() {
       return mockState.isLoading;
@@ -143,7 +143,7 @@ describe("ExplorePage - Integrated Search & Hydration", () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText(/Failed to load explore data/i)).toBeInTheDocument();
+      expect(screen.getByText(/Unable to load campaigns/i)).toBeInTheDocument();
     });
   });
 

@@ -83,6 +83,9 @@ function ExploreContent() {
   });
   const [tokenFilter, setTokenFilter] = useState(() => searchParams.get("token") ?? "");
 
+  /** Ref to track the last search term synced to URL to prevent hydration from clobbering active typing */
+  const lastSyncedSearchRef = useRef<string>(searchParams.get("q") ?? "");
+
   /** Roving tabIndex refs — one entry per STATUS_TABS item */
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([null, null, null]);
 
@@ -136,16 +139,23 @@ function ExploreContent() {
 
   useEffect(() => {
     const q = searchParams.get("q") ?? "";
-    setSearchTerm((prev) => (prev !== q ? q : prev));
+    if (q !== lastSyncedSearchRef.current) {
+      lastSyncedSearchRef.current = q;
+      setSearchTerm(q);
+    }
 
     const status = searchParams.get("status");
     if (status === "all" || status === "active" || status === "funded") {
       setStatusFilter(status);
+    } else if (status === null) {
+      setStatusFilter("active");
     }
 
     const sort = searchParams.get("sort");
     if (SORT_OPTIONS.some((o) => o.key === sort)) {
       setSortBy(sort as SortKey);
+    } else if (sort === null) {
+      setSortBy("newest");
     }
 
     const category = searchParams.get("category");
@@ -158,6 +168,8 @@ function ExploreContent() {
     const token = searchParams.get("token");
     if (token !== null) {
       setTokenFilter(token);
+    } else if (token === null) {
+      setTokenFilter("");
     }
   }, [searchParams]);
 
@@ -213,6 +225,7 @@ function ExploreContent() {
     const query = next.toString();
     const currentQuery = searchParams.toString();
     if (query !== currentQuery) {
+      lastSyncedSearchRef.current = searchTerm;
       router.replace(query ? `/explore?${query}` : "/explore", { scroll: false });
     }
   }, [router, searchParams, statusFilter, sortBy, categoryFilter, tokenFilter, searchTerm]);
