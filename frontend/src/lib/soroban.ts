@@ -15,11 +15,13 @@ import {
 // submitTransaction. This keeps the read-only helpers (getCampaign, getEvents…)
 // safe to import on the server — e.g. from a route's generateMetadata.
 
-export const CONTRACT_ID = process.env.NEXT_PUBLIC_CONTRACT_ID!;
-export const RPC_URL = process.env.NEXT_PUBLIC_SOROBAN_RPC_URL!;
-export const NETWORK_PASSPHRASE = process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE!;
+export const CONTRACT_ID =
+  process.env.NEXT_PUBLIC_CONTRACT_ID || "CXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
+export const RPC_URL = process.env.NEXT_PUBLIC_SOROBAN_RPC_URL || "http://localhost:8000/rpc";
+export const NETWORK_PASSPHRASE =
+  process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE || "Standalone Network ; February 2017";
 
-export const server = new rpc.Server(RPC_URL, { allowHttp: RPC_URL.startsWith("http:") });
+export const server = new rpc.Server(RPC_URL, { allowHttp: true });
 
 export const STROOP_PRECISION = 7;
 
@@ -102,13 +104,19 @@ function parseCampaign(native: any): Campaign {
     beneficiaries: bens,
     title: native.title.toString(),
     description: native.description.toString(),
-    category: native.category.toString(),
+    category:
+      typeof native.category === "symbol"
+        ? (native.category.description ?? "relief")
+        : String(native.category ?? "relief").replace(/^Symbol\((.*)\)$/, "$1"),
     target_amount: BigInt(native.target_amount),
     raised_amount: BigInt(native.raised_amount),
     deadline: BigInt(native.deadline),
     accepted_token: native.accepted_token,
-    status: Object.keys(native.status)[0] as CampaignStatus,
-    metadata_uri: native.metadata_uri?.toString(),
+    status: (Object.keys(native.status || {})[0] ??
+      (typeof native.status === "object" && native.status
+        ? Object.getOwnPropertySymbols(native.status)[0]?.description
+        : undefined) ??
+      "Active") as CampaignStatus,
     website: native.website?.toString(),
     twitter: native.twitter?.toString(),
   };

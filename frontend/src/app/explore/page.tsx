@@ -68,11 +68,23 @@ function ExploreContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [limit, setLimit] = useState(PAGE_SIZE);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "funded">("active");
-  const [categoryFilter, setCategoryFilter] = useState<CategoryKey>("all");
-  const [sortBy, setSortBy] = useState<SortKey>("newest");
-  const [tokenFilter, setTokenFilter] = useState("");
+  const [searchTerm, setSearchTerm] = useState(() => searchParams.get("q") ?? "");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "funded">(() => {
+    const status = searchParams.get("status");
+    return status === "all" || status === "active" || status === "funded" ? status : "active";
+  });
+  const [categoryFilter, setCategoryFilter] = useState<CategoryKey>(() => {
+    const category = searchParams.get("category");
+    return isCategoryKey(category) ? category : "all";
+  });
+  const [sortBy, setSortBy] = useState<SortKey>(() => {
+    const sort = searchParams.get("sort");
+    return SORT_OPTIONS.some((o) => o.key === sort) ? (sort as SortKey) : "newest";
+  });
+  const [tokenFilter, setTokenFilter] = useState(() => searchParams.get("token") ?? "");
+
+  /** Ref to track the last search term synced to URL to prevent hydration from clobbering active typing */
+  const lastSyncedSearchRef = useRef<string>(searchParams.get("q") ?? "");
 
   /** Roving tabIndex refs — one entry per STATUS_TABS item */
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([null, null, null]);
@@ -126,20 +138,39 @@ function ExploreContent() {
   const loadMore = () => setLimit((prev) => prev + PAGE_SIZE);
 
   useEffect(() => {
+    const q = searchParams.get("q") ?? "";
+    if (q !== lastSyncedSearchRef.current) {
+      lastSyncedSearchRef.current = q;
+      setSearchTerm(q);
+    }
+
     const status = searchParams.get("status");
     if (status === "all" || status === "active" || status === "funded") {
       setStatusFilter(status);
+    } else if (status === null) {
+      setStatusFilter("active");
     }
+
     const sort = searchParams.get("sort");
     if (SORT_OPTIONS.some((o) => o.key === sort)) {
       setSortBy(sort as SortKey);
+    } else if (sort === null) {
+      setSortBy("newest");
     }
+
     const category = searchParams.get("category");
     if (isCategoryKey(category)) {
       setCategoryFilter(category);
+    } else if (category === null) {
+      setCategoryFilter("all");
     }
-    const token = searchParams.get("token") ?? "";
-    setTokenFilter(token);
+
+    const token = searchParams.get("token");
+    if (token !== null) {
+      setTokenFilter(token);
+    } else if (token === null) {
+      setTokenFilter("");
+    }
   }, [searchParams]);
 
   // Progressive enhancement only — the "Load more" button below is the
@@ -161,21 +192,43 @@ function ExploreContent() {
 
   useEffect(() => {
     const next = new URLSearchParams(searchParams.toString());
-    next.set("status", statusFilter);
-    next.set("sort", sortBy);
+    if (statusFilter !== "active") {
+      next.set("status", statusFilter);
+    } else {
+      next.delete("status");
+    }
+
+    if (sortBy !== "newest") {
+      next.set("sort", sortBy);
+    } else {
+      next.delete("sort");
+    }
+
+    if (searchTerm.trim()) {
+      next.set("q", searchTerm);
+    } else {
+      next.delete("q");
+    }
+
     if (categoryFilter !== "all") {
       next.set("category", categoryFilter);
     } else {
       next.delete("category");
     }
+
     if (tokenFilter) {
       next.set("token", tokenFilter);
     } else {
       next.delete("token");
     }
+
     const query = next.toString();
-    router.replace(query ? `/explore?${query}` : "/explore", { scroll: false });
-  }, [router, searchParams, statusFilter, sortBy, categoryFilter, tokenFilter]);
+    const currentQuery = searchParams.toString();
+    if (query !== currentQuery) {
+      lastSyncedSearchRef.current = searchTerm;
+      router.replace(query ? `/explore?${query}` : "/explore", { scroll: false });
+    }
+  }, [router, searchParams, statusFilter, sortBy, categoryFilter, tokenFilter, searchTerm]);
 
   const filtered = useMemo(() => {
     const byStatus = searched.filter((campaign) => {
@@ -385,7 +438,11 @@ function ExploreContent() {
                 aria-busy={isRefreshing}
               >
                 {filtered.map((campaign) => (
-                  <CampaignCard key={campaign.id.toString()} campaign={campaign} preloadedTokenMeta={tokenMetas?.[campaign.accepted_token]} />
+                  <CampaignCard
+                    key={campaign.id.toString()}
+                    campaign={campaign}
+                    preloadedTokenMeta={tokenMetas?.[campaign.accepted_token]}
+                  />
                 ))}
               </div>
             </div>

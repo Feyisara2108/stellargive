@@ -4,7 +4,9 @@
   "private": true,
   "scripts": {
     "prepare": "husky",
-    "lint:staged": "lint-staged"
+    "lint:staged": "lint-staged",
+    "test:e2e": "playwright test",
+    "test:e2e:update": "playwright test --update-snapshots"
   },
   "dependencies": {
     "react-hook-form": "^7.76.1"

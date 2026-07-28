@@ -34,6 +34,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     },
   };
 
+  if (process.env.NEXT_PUBLIC_USE_MOCK_WALLET === "true") {
+    return fallback;
+  }
+
   try {
     const campaign = await getCampaign(BigInt(params.id));
     const numBens = campaign.beneficiaries?.length ?? 1;
@@ -76,7 +80,9 @@ export default async function CampaignPage({ params }: Props) {
   try {
     await getCampaign(BigInt(params.id));
   } catch {
-    notFound();
+    if (process.env.NEXT_PUBLIC_USE_MOCK_WALLET !== "true") {
+      notFound();
+    }
   }
   return <CampaignDetailsClient params={params} />;
 }

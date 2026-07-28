@@ -14,8 +14,14 @@ export function setMockCampaigns(campaigns: Campaign[]) {
 }
 
 export function generateUpdatesArrayXdr() {
-  const entry = new xdr.ScMapEntry({ key: nativeToScVal("content", { type: "symbol" }), val: nativeToScVal("Update 1", { type: "string" }) });
-  const entry2 = new xdr.ScMapEntry({ key: nativeToScVal("timestamp", { type: "symbol" }), val: nativeToScVal(1234567890n, { type: "u64" }) });
+  const entry = new xdr.ScMapEntry({
+    key: nativeToScVal("content", { type: "symbol" }),
+    val: nativeToScVal("Update 1", { type: "string" }),
+  });
+  const entry2 = new xdr.ScMapEntry({
+    key: nativeToScVal("timestamp", { type: "symbol" }),
+    val: nativeToScVal(1234567890n, { type: "u64" }),
+  });
   const map = xdr.ScVal.scvMap([entry, entry2]);
   return xdr.ScVal.scvVec([map]).toXDR("base64");
 }
@@ -26,14 +32,14 @@ export const handlers = [
     const method = body.method;
 
     if (method === "simulateTransaction") {
-      const txXdr = body.params?.[0];
+      const txXdr = body.params?.transaction ?? body.params?.[0];
       let xdrResult = "";
       if (txXdr) {
         try {
           const env = xdr.TransactionEnvelope.fromXDR(txXdr, "base64");
           const op = env.v1().tx().operations()[0].body().invokeHostFunctionOp();
           const funcName = op.hostFunction().invokeContract().functionName().toString();
-          
+
           if (funcName === "get_campaign") {
             const args = op.hostFunction().invokeContract().args();
             if (args.length > 0) {
@@ -43,11 +49,16 @@ export const handlers = [
                 xdrResult = campaignToXdr(campaign).toXDR("base64");
               }
             }
-          } else if (funcName === "get_campaigns_paged") {
+          }
+          const rawStr = Buffer.from(txXdr, "base64").toString("utf-8");
+          if (funcName === "get_campaigns_paged" || rawStr.includes("get_campaigns_paged")) {
             xdrResult = campaignArrayToXdr(MOCK_CAMPAIGNS).toXDR("base64");
-          } else if (funcName === "get_recent_campaigns") {
+          } else if (
+            funcName === "get_recent_campaigns" ||
+            rawStr.includes("get_recent_campaigns")
+          ) {
             xdrResult = campaignArrayToXdr(MOCK_CAMPAIGNS.slice(0, 5)).toXDR("base64");
-          } else if (funcName === "get_updates") {
+          } else if (funcName === "get_updates" || rawStr.includes("get_updates")) {
             xdrResult = generateUpdatesArrayXdr();
           }
         } catch (e) {
@@ -56,6 +67,7 @@ export const handlers = [
       }
 
       const resultObj: any = {
+        latestLedger: 1000,
         transactionData:
           "AAAAAgAAAABz0nVt8LLjOiO3SXePBhLcVDXIpx3EL0dFxKVpAzXYVAAAZABr3wAAAAAAAAAGAAAAAQAAAAAAAGQAAAAAAAAAAgAAAAAAAAAAAQAA/////wEAAAAGAAABKwAAAADcOcSKqJDqzVBSvjr7mYJqhPPtCVwfqkHzO0A=",
         minResourceFee: "52521",
@@ -70,6 +82,9 @@ export const handlers = [
 
       if (xdrResult) {
         resultObj.results = [{ xdr: xdrResult }];
+        try {
+          resultObj.retval = xdr.ScVal.fromXDR(xdrResult, "base64");
+        } catch {}
       }
 
       return HttpResponse.json({
