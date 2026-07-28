@@ -45,29 +45,23 @@ function sym(s: string) {
 }
 
 function campaignScVal(c: Seed): string {
-  const entries: [string, xdr.ScVal][] = [
-    ["accepted_token", new Address(TOKEN).toScVal()],
-    ["beneficiary", new Address(CREATOR).toScVal()],
-    ["category", nativeToScVal("Disaster", { type: "string" })],
-    ["creator", new Address(CREATOR).toScVal()],
-    ["deadline", nativeToScVal(9_999_999_999n, { type: "u64" })],
-    ["description", nativeToScVal(c.description, { type: "string" })],
-    ["id", nativeToScVal(BigInt(c.id), { type: "u64" })],
-    ["metadata_uri", nativeToScVal("", { type: "string" })],
-    ["raised_amount", nativeToScVal(c.raised, { type: "i128" })],
-    [
-      "status",
-      xdr.ScVal.scvMap([new xdr.ScMapEntry({ key: sym(c.status), val: xdr.ScVal.scvVoid() })]),
-    ],
-    ["target_amount", nativeToScVal(c.target, { type: "i128" })],
-    ["title", nativeToScVal(c.title, { type: "string" })],
-    ["twitter", nativeToScVal("https://twitter.com/stellargive", { type: "string" })],
-    ["website", nativeToScVal("https://stellargive.org", { type: "string" })],
-  ];
-  const map = xdr.ScVal.scvMap(
-    entries.map(([k, v]) => new xdr.ScMapEntry({ key: sym(k), val: v })),
-  );
-  return map.toXDR("base64");
+  const mockCampaign = {
+    id: BigInt(c.id),
+    creator: CREATOR,
+    beneficiary: CREATOR,
+    title: c.title,
+    description: c.description,
+    category: "Disaster",
+    target_amount: c.target,
+    raised_amount: c.raised,
+    deadline: 9_999_999_999n,
+    accepted_token: TOKEN,
+    status: { [c.status]: null },
+    metadata_uri: "",
+    website: "https://stellargive.org",
+    twitter: "https://twitter.com/stellargive",
+  };
+  return nativeToScVal(mockCampaign).toXDR("base64");
 }
 
 function decodeInvocation(txXdr: string): { fn: string; args: unknown[] } | null {
@@ -110,12 +104,30 @@ async function mockSorobanRPC(page: Page) {
     const method = body.method || "";
     const id = body.id;
 
+    if (method === "getLatestLedger" || method === "getHealth") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id,
+          result: { status: "healthy", sequence: 1000, latestLedger: 1000 },
+        }),
+      });
+      return;
+    }
+
     if (method === "simulateTransaction") {
-      const txXdr = body.params?.transaction ?? "";
+      const txXdr = body.params?.transaction ?? body.params?.[0] ?? "";
+      const buffer = Buffer.from(txXdr, "base64");
       const call = decodeInvocation(txXdr);
       const fn = call?.fn ?? "";
 
-      if (fn === "get_campaign" || txXdr.includes("Z2V0X2NhbXBhaWdu")) {
+      if (
+        fn === "get_campaign" ||
+        buffer.includes("get_campaign") ||
+        txXdr.includes("Z2V0X2NhbXBhaWdu")
+      ) {
         const wanted = Number(call?.args?.[0] ?? 1);
         const seed = CAMPAIGNS.find((c) => c.id === wanted) ?? CAMPAIGNS[0];
         await route.fulfill({
@@ -126,7 +138,32 @@ async function mockSorobanRPC(page: Page) {
         return;
       }
 
-      if (fn === "get_total_campaigns") {
+      if (fn === "get_campaigns_paged" || buffer.includes("get_campaigns_paged")) {
+        const mockCampaigns = CAMPAIGNS.map((c) => ({
+          id: BigInt(c.id),
+          creator: CREATOR,
+          beneficiary: CREATOR,
+          title: c.title,
+          description: c.description,
+          category: "Disaster",
+          target_amount: c.target,
+          raised_amount: c.raised,
+          deadline: 9_999_999_999n,
+          accepted_token: TOKEN,
+          status: { [c.status]: null },
+          metadata_uri: "",
+          website: "https://stellargive.org",
+          twitter: "https://twitter.com/stellargive",
+        }));
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(ok(id, nativeToScVal(mockCampaigns).toXDR("base64"))),
+        });
+        return;
+      }
+
+      if (fn === "get_total_campaigns" || buffer.includes("get_total_campaigns")) {
         await route.fulfill({
           status: 200,
           contentType: "application/json",
@@ -137,7 +174,7 @@ async function mockSorobanRPC(page: Page) {
         return;
       }
 
-      if (fn === "decimals") {
+      if (fn === "decimals" || buffer.includes("decimals")) {
         await route.fulfill({
           status: 200,
           contentType: "application/json",
@@ -146,7 +183,7 @@ async function mockSorobanRPC(page: Page) {
         return;
       }
 
-      if (fn === "name" || fn === "symbol") {
+      if (fn === "name" || fn === "symbol" || buffer.includes("symbol")) {
         await route.fulfill({
           status: 200,
           contentType: "application/json",
@@ -188,6 +225,7 @@ const DYNAMIC_MASKS = {
   donationAmounts: "[data-testid='donation-amount']",
   timestamps: "time, [data-testid='relative-time']",
   countdowns: ".countdown, span:has-text('left'), span:has-text('⏱️')",
+  rpcBadge: "[role='status']",
 };
 
 async function gotoWithTheme(page: Page, url: string, theme: "light" | "dark") {
