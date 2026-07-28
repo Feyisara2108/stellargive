@@ -246,9 +246,10 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
                   href={sanitizeUrl(campaign.website)}
                   target="_blank"
                   rel="noopener noreferrer"
+                  aria-label="Campaign website (opens in new tab)"
                   className="hover:text-primary transition-colors flex items-center gap-1 font-medium"
                 >
-                  🌐 Website
+                  <span aria-hidden="true">🌐</span> Website
                 </a>
               )}
               {campaign.twitter && (
@@ -256,14 +257,23 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
                   href={sanitizeUrl(campaign.twitter)}
                   target="_blank"
                   rel="noopener noreferrer"
+                  aria-label="Campaign Twitter profile (opens in new tab)"
                   className="hover:text-primary transition-colors flex items-center gap-1 font-medium"
                 >
-                  🐦 Twitter
+                  <span aria-hidden="true">🐦</span> Twitter
                 </a>
               )}
               {campaign.status === "Active" && (
-                <span className="inline-flex items-center gap-1 font-medium text-orange-500">
-                  ⏱️{" "}
+                <span
+                  role="status"
+                  aria-label={
+                    countdown.isEnded
+                      ? "Campaign has ended"
+                      : `Time remaining: ${countdown.days} days, ${countdown.hours} hours, ${countdown.minutes} minutes`
+                  }
+                  className="inline-flex items-center gap-1 font-medium text-orange-500"
+                >
+                  <span aria-hidden="true">⏱️</span>{" "}
                   {countdown.isEnded
                     ? "Ended"
                     : `${countdown.days}d ${countdown.hours}h ${countdown.minutes}m left`}
