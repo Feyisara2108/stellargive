@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import {
   getCrossedMilestones,
   useDonate,
@@ -74,6 +75,7 @@ export function DonateModal({
 }) {
   const router = useRouter();
   const { address, isWrongNetwork } = useWallet();
+  const prefersReducedMotion = usePrefersReducedMotion();
   const {
     register,
     handleSubmit,
@@ -160,14 +162,13 @@ export function DonateModal({
   }, [isOpen, suggestedAmount, setValue]);
 
   useEffect(() => {
-    if (donate.isSuccess) {
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (donate.isSuccess && !prefersReducedMotion) {
       import("canvas-confetti").then((module) => {
         const confetti = module.default;
         confetti({ spread: 90, particleCount: 100 });
       });
     }
-  }, [donate.isSuccess]);
+  }, [donate.isSuccess, prefersReducedMotion]);
 
   const onSubmit = async (data: { amount: string }) => {
     if (donate.isPending) return;
