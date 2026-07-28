@@ -419,3 +419,116 @@ fn test_claim_preserves_every_stroop_across_fee() {
         "every stroop is accounted for: net + fee equals gross"
     );
 }
+
+// -----------------------------------------------------------------------
+// Multi-beneficiary split fixtures (#521): 2, 3, and 5 beneficiaries with
+// shares chosen to force rounding dust onto the first beneficiary. Funds
+// are settled through an explicit `claim_funds` call (donation kept below
+// target) so `distribute_funds` runs outside the auto-claim path too.
+// -----------------------------------------------------------------------
+
+/// Creates a campaign with the given beneficiary shares, donates an amount
+/// kept below target, claims after the deadline, and asserts:
+/// - each non-first beneficiary receives exactly `floor(net * share / 10_000)`
+/// - the first beneficiary absorbs the exact rounding remainder
+/// - `platform_fee + Σ(beneficiary balance deltas) == raised_amount`
+fn run_split_fixture(shares: &[u32]) {
+    let (env, client, creator, _beneficiary, donor, admin, token_client, _token_admin_client) =
+        register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let (bens, beneficiary_addresses) = build_beneficiaries(&env, shares);
+    let donation = to_stroops("50");
+    // Target strictly above the donation so it stays Active and settlement
+    // happens via an explicit claim_funds call after the deadline.
+    let target = donation + 1;
+
+    let campaign_id = client.create_campaign(
+        &creator,
+        &bens,
+        &String::from_str(&env, "Split Fixture Campaign"),
+        &String::from_str(&env, "Fixture for multi-beneficiary rounding."),
+        &String::from_str(&env, "https://example.com/meta"),
+        &symbol_short!("relief"),
+        &target,
+        &2_000_u64,
+        &token_client.address,
+        &None,
+    );
+
+    let initial_balances: Vec<i128> = beneficiary_addresses
+        .iter()
+        .map(|address| token_client.balance(address))
+        .collect();
+    let initial_admin_balance = token_client.balance(&admin);
+
+    client.donate(&donor, &campaign_id, &donation, &false, &None);
+
+    set_timestamp(&env, 2_001);
+    client.claim_funds(&beneficiary_addresses[0], &campaign_id);
+
+    let final_balances: Vec<i128> = beneficiary_addresses
+        .iter()
+        .map(|address| token_client.balance(address))
+        .collect();
+    let platform_fee = token_client.balance(&admin) - initial_admin_balance;
+
+    let payouts: Vec<i128> = initial_balances
+        .iter()
+        .zip(final_balances.iter())
+        .map(|(initial, final_balance)| final_balance - initial)
+        .collect();
+
+    let expected_fee = (donation * 100 + 5_000) / 10_000;
+    assert_eq!(
+        platform_fee, expected_fee,
+        "platform fee must match round-half-up"
+    );
+
+    let net = donation - platform_fee;
+    let expected_other_sum: i128 = shares
+        .iter()
+        .skip(1)
+        .map(|&share| net * (share as i128) / 10_000)
+        .sum();
+    let expected_first = net - expected_other_sum;
+
+    assert_eq!(
+        payouts[0], expected_first,
+        "first beneficiary must absorb the exact rounding remainder"
+    );
+    for (paid, &share) in payouts.iter().skip(1).zip(shares.iter().skip(1)) {
+        assert_eq!(
+            *paid,
+            net * (share as i128) / 10_000,
+            "non-first beneficiary must receive the exact floor payout"
+        );
+    }
+
+    let payout_sum: i128 = payouts.iter().sum();
+    assert_eq!(
+        platform_fee + payout_sum,
+        donation,
+        "platform_fee + sum(beneficiary balance deltas) must equal raised_amount exactly"
+    );
+}
+
+#[test]
+fn test_split_2_beneficiaries_uneven_dust() {
+    run_split_fixture(&[4_999, 5_001]);
+}
+
+#[test]
+fn test_split_3_beneficiaries_3333_3333_3334() {
+    run_split_fixture(&[3_333, 3_333, 3_334]);
+}
+
+#[test]
+fn test_split_3_beneficiaries_1_1_9998() {
+    run_split_fixture(&[1, 1, 9_998]);
+}
+
+#[test]
+fn test_split_5_beneficiaries() {
+    run_split_fixture(&[500, 1_500, 2_000, 3_000, 3_000]);
+}
