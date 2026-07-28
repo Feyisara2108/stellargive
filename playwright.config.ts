@@ -1,7 +1,12 @@
 import { defineConfig, devices } from "@playwright/test";
+import path from "path";
+import fs from "fs";
+
+const systemChrome = fs.existsSync("/usr/bin/google-chrome") ? "/usr/bin/google-chrome" : undefined;
 
 export default defineConfig({
-  testDir: "./e2e",
+  testDir: path.join(__dirname, "frontend/e2e"),
+  testMatch: "**/*.spec.ts",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
@@ -18,7 +23,10 @@ export default defineConfig({
   projects: [
     {
       name: "desktop",
-      use: { ...devices["Desktop Chrome"] },
+      use: {
+        ...devices["Desktop Chrome"],
+        ...(systemChrome ? { channel: "chrome" } : {}),
+      },
     },
     {
       name: "firefox",

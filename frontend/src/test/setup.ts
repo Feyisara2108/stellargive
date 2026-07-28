@@ -2,7 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import "../mocks/setup";
 import { vi } from "vitest";
 
-process.env.NEXT_PUBLIC_SOROBAN_RPC_URL = "https://localhost:8000/rpc";
+process.env.NEXT_PUBLIC_SOROBAN_RPC_URL = "http://localhost:8000/rpc";
 process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE = "Standalone Network ; February 2017";
 process.env.NEXT_PUBLIC_CONTRACT_ID = "CXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
 

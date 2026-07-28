@@ -54,28 +54,72 @@ export const buildDonation = makeDonationEvent;
 // XDR generation helpers for MSW simulateTransaction
 export function campaignToXdr(campaign: Campaign) {
   const entries = [
-    new xdr.ScMapEntry({ key: nativeToScVal("id", { type: "symbol" }), val: nativeToScVal(campaign.id, { type: "u64" }) }),
-    new xdr.ScMapEntry({ key: nativeToScVal("creator", { type: "symbol" }), val: new Address(campaign.creator).toScVal() }),
-    new xdr.ScMapEntry({ key: nativeToScVal("beneficiary", { type: "symbol" }), val: new Address(campaign.beneficiary).toScVal() }),
+    new xdr.ScMapEntry({
+      key: nativeToScVal("id", { type: "symbol" }),
+      val: nativeToScVal(campaign.id, { type: "u64" }),
+    }),
+    new xdr.ScMapEntry({
+      key: nativeToScVal("creator", { type: "symbol" }),
+      val: new Address(campaign.creator).toScVal(),
+    }),
+    new xdr.ScMapEntry({
+      key: nativeToScVal("beneficiary", { type: "symbol" }),
+      val: new Address(campaign.beneficiary).toScVal(),
+    }),
     new xdr.ScMapEntry({
       key: nativeToScVal("beneficiaries", { type: "symbol" }),
       val: xdr.ScVal.scvVec(
         campaign.beneficiaries.map((b) =>
           xdr.ScVal.scvMap([
-            new xdr.ScMapEntry({ key: nativeToScVal("address", { type: "symbol" }), val: new Address(b.address).toScVal() }),
-            new xdr.ScMapEntry({ key: nativeToScVal("share", { type: "symbol" }), val: nativeToScVal(b.share, { type: "u32" }) }),
-          ])
-        )
+            new xdr.ScMapEntry({
+              key: nativeToScVal("address", { type: "symbol" }),
+              val: new Address(b.address).toScVal(),
+            }),
+            new xdr.ScMapEntry({
+              key: nativeToScVal("share", { type: "symbol" }),
+              val: nativeToScVal(b.share, { type: "u32" }),
+            }),
+          ]),
+        ),
       ),
     }),
-    new xdr.ScMapEntry({ key: nativeToScVal("title", { type: "symbol" }), val: nativeToScVal(campaign.title, { type: "string" }) }),
-    new xdr.ScMapEntry({ key: nativeToScVal("description", { type: "symbol" }), val: nativeToScVal(campaign.description, { type: "string" }) }),
-    new xdr.ScMapEntry({ key: nativeToScVal("category", { type: "symbol" }), val: nativeToScVal(campaign.category, { type: "symbol" }) }),
-    new xdr.ScMapEntry({ key: nativeToScVal("target_amount", { type: "symbol" }), val: nativeToScVal(campaign.target_amount, { type: "i128" }) }),
-    new xdr.ScMapEntry({ key: nativeToScVal("raised_amount", { type: "symbol" }), val: nativeToScVal(campaign.raised_amount, { type: "i128" }) }),
-    new xdr.ScMapEntry({ key: nativeToScVal("deadline", { type: "symbol" }), val: nativeToScVal(campaign.deadline, { type: "u64" }) }),
-    new xdr.ScMapEntry({ key: nativeToScVal("accepted_token", { type: "symbol" }), val: new Address(campaign.accepted_token).toScVal() }),
-    new xdr.ScMapEntry({ key: nativeToScVal("status", { type: "symbol" }), val: xdr.ScVal.scvMap([new xdr.ScMapEntry({ key: nativeToScVal(campaign.status, { type: "symbol" }), val: xdr.ScVal.scvVoid() })]) }),
+    new xdr.ScMapEntry({
+      key: nativeToScVal("title", { type: "symbol" }),
+      val: nativeToScVal(campaign.title, { type: "string" }),
+    }),
+    new xdr.ScMapEntry({
+      key: nativeToScVal("description", { type: "symbol" }),
+      val: nativeToScVal(campaign.description, { type: "string" }),
+    }),
+    new xdr.ScMapEntry({
+      key: nativeToScVal("category", { type: "symbol" }),
+      val: nativeToScVal(campaign.category, { type: "string" }),
+    }),
+    new xdr.ScMapEntry({
+      key: nativeToScVal("target_amount", { type: "symbol" }),
+      val: nativeToScVal(campaign.target_amount, { type: "i128" }),
+    }),
+    new xdr.ScMapEntry({
+      key: nativeToScVal("raised_amount", { type: "symbol" }),
+      val: nativeToScVal(campaign.raised_amount, { type: "i128" }),
+    }),
+    new xdr.ScMapEntry({
+      key: nativeToScVal("deadline", { type: "symbol" }),
+      val: nativeToScVal(campaign.deadline, { type: "u64" }),
+    }),
+    new xdr.ScMapEntry({
+      key: nativeToScVal("accepted_token", { type: "symbol" }),
+      val: new Address(campaign.accepted_token).toScVal(),
+    }),
+    new xdr.ScMapEntry({
+      key: nativeToScVal("status", { type: "symbol" }),
+      val: xdr.ScVal.scvMap([
+        new xdr.ScMapEntry({
+          key: nativeToScVal(campaign.status, { type: "symbol" }),
+          val: xdr.ScVal.scvVoid(),
+        }),
+      ]),
+    }),
   ];
   return xdr.ScVal.scvMap(entries);
 }
