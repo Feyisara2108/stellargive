@@ -23,8 +23,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           >
             Skip to content
           </a>
-          <div id="main-content" tabIndex={-1} className="outline-none" />
-          {children}
+          <main id="main-content" tabIndex={-1} className="outline-none">
+            {children}
+          </main>
           <Footer />
           <ConsentBanner />
         </Providers>
