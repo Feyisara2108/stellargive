@@ -399,7 +399,7 @@ When testing reveals a browser-specific issue:
 3. Capture screenshot or video
 4. Check if issue is CSS, JavaScript, or runtime related
 5. Create GitHub issue with label: `browser-compatibility`
-6. Include test results table
+6. Include test results table.
 
 Example issue template:
 ```
