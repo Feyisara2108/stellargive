@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Dialog,
@@ -55,6 +55,8 @@ export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const router = useRouter();
+  const [activeIndex, setActiveIndex] = useState(0);
+  const listRef = useRef<HTMLDivElement>(null);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -82,10 +84,27 @@ export function CommandPalette() {
     router.push(href);
   };
 
-  const handleKeyDownInList = (e: React.KeyboardEvent, href: string) => {
-    if (e.key === "Enter") {
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [filteredItems.length]);
+
+  useEffect(() => {
+    const el = listRef.current?.children[activeIndex];
+    if (el instanceof HTMLElement) {
+      el.scrollIntoView({ block: "nearest" });
+    }
+  }, [activeIndex]);
+
+  const handleDialogKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "ArrowDown") {
       e.preventDefault();
-      handleSelect(href);
+      setActiveIndex((prev) => (prev + 1) % filteredItems.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((prev) => (prev - 1 + filteredItems.length) % filteredItems.length);
+    } else if (e.key === "Enter" && filteredItems[activeIndex]) {
+      e.preventDefault();
+      handleSelect(filteredItems[activeIndex].href);
     }
   };
 
@@ -94,6 +113,7 @@ export function CommandPalette() {
       <DialogContent
         className="p-0 gap-0 overflow-hidden max-w-lg"
         aria-describedby="command-palette-description"
+        onKeyDown={handleDialogKeyDown}
       >
         <DialogHeader className="sr-only">
           <DialogTitle>Command Palette</DialogTitle>
@@ -119,15 +139,15 @@ export function CommandPalette() {
           {filteredItems.length === 0 ? (
             <div className="py-6 text-center text-sm text-muted-foreground">No results found</div>
           ) : (
-            <div role="listbox" aria-label="Command options">
-              {filteredItems.map((item) => (
+            <div ref={listRef} role="listbox" aria-label="Command options">
+              {filteredItems.map((item, index) => (
                 <button
                   key={item.id}
                   role="option"
-                  aria-selected="false"
+                  aria-selected={index === activeIndex}
+                  data-index={index}
                   onClick={() => handleSelect(item.href)}
-                  onKeyDown={(e) => handleKeyDownInList(e, item.href)}
-                  className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm hover:bg-muted transition-colors focus:bg-muted focus:outline-none"
+                  className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors focus:outline-none ${index === activeIndex ? "bg-muted" : "hover:bg-muted"}`}
                 >
                   <span className="text-muted-foreground">{item.icon}</span>
                   <span>{item.label}</span>

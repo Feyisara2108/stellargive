@@ -72,17 +72,17 @@ export default function Home() {
             <span>Built on Stellar Testnet for the community.</span>
           </div>
           <div className="flex gap-8">
-            <a href="#" className="hover:text-foreground transition-colors">
+            <a href="https://github.com/razeprasine/stellargive#readme" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">
               Documentation
             </a>
-            <a href="#" className="hover:text-foreground transition-colors">
+            <a href="https://github.com/razeprasine/stellargive#contracts" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">
               Contracts
             </a>
-            <a href="#" className="hover:text-foreground transition-colors">
+            <a href="https://github.com/razeprasine/stellargive" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">
               GitHub
             </a>
           </div>
-          <p>© 2024 stellarGive. Open source relief.</p>
+          <p>© {new Date().getFullYear()} stellarGive. Open source relief.</p>
         </div>
       </footer>
     </div>
