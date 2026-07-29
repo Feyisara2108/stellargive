@@ -151,7 +151,7 @@ This document outlines the manual testing procedures for StellarGive across majo
 - Transaction succeeds
 - Funds transferred accurately
 - Campaign status updates
-- Success notification displayed
+- Success notification displayed.
 
 **Browser Results:**
 
