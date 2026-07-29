@@ -32,6 +32,7 @@ const progressIndicatorVariants: Record<ProgressVariant, string> = {
 function CampaignCardComponent({ campaign, preloadedTokenMeta }: { campaign: Campaign, preloadedTokenMeta?: any }) {
   const [imgError, setImgError] = useState(false);
   const [donateOpen, setDonateOpen] = useState(false);
+  const [donateAmount, setDonateAmount] = useState<string | undefined>(undefined);
   const { data: fetchedMeta } = useTokenMetadata(preloadedTokenMeta ? null : campaign.accepted_token);
   const tokenMeta = preloadedTokenMeta ?? fetchedMeta;
   const decimals = tokenMeta?.decimals ?? 7;
@@ -142,12 +143,15 @@ function CampaignCardComponent({ campaign, preloadedTokenMeta }: { campaign: Cam
         <div className="mx-4 mb-3 flex items-center justify-between gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2">
           <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
             <Zap className="h-3 w-3 shrink-0" />
-            <span>Only {gap.toFixed(2)} XLM left — fund the gap!</span>
+            <span>Only {gap.toFixed(2)} {symbol} left — fund the gap!</span>
           </div>
           <button
-            onClick={() => setDonateOpen(true)}
+            onClick={() => {
+              setDonateAmount(gap.toFixed(decimals).replace(/\.?0+$/, ""));
+              setDonateOpen(true);
+            }}
             className="shrink-0 rounded-md bg-emerald-600 px-3 py-2 min-h-[44px] text-xs font-semibold text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 dark:bg-emerald-500 dark:hover:bg-emerald-600 dark:focus-visible:ring-emerald-400 dark:focus-visible:ring-offset-emerald-900"
-            aria-label={`Quick donate to fund the remaining ${gap.toFixed(2)} XLM`}
+            aria-label={`Quick donate to fund the remaining ${gap.toFixed(2)} ${symbol}`}
           >
             Donate
           </button>
@@ -155,7 +159,7 @@ function CampaignCardComponent({ campaign, preloadedTokenMeta }: { campaign: Cam
       )}
       <CardFooter className="gap-2">
         {campaign.status === "Active" && (
-          <DonateModal campaign={campaign} open={donateOpen} onOpenChange={setDonateOpen} />
+          <DonateModal campaign={campaign} open={donateOpen} onOpenChange={setDonateOpen} suggestedAmount={donateAmount} />
         )}
         <ClaimButton campaign={campaign} />
         <div className="ml-auto">
