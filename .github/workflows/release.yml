@@ -48,7 +48,7 @@ jobs:
 
       # ── Frontend SBOM (npm / CycloneDX) ──────────────────────────────────
       - name: Setup Node.js
-        uses: actions/setup-node@0bef4c7b22a681944a11cc3de49f483a91aa0d65 # v4.0.2
+        uses: actions/setup-node@v4 # v4.0.2
         with:
           node-version-file: frontend/.nvmrc
 
@@ -66,12 +66,12 @@ jobs:
 
       # ── Contract SBOM + optimized WASM (cargo / CycloneDX) ───────────────
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@e12dec229babb4ebc2fbcc5d1ab75d86212b0051 # stable
+        uses: dtolnay/rust-toolchain@stable # stable
         with:
           targets: wasm32-unknown-unknown
 
       - name: Install cargo-cyclonedx
-        uses: taiki-e/install-action@af683be8c4878b0934ee8f3c7ef531c257c14e04 # v2.4.4
+        uses: taiki-e/install-action@v2 # v2.4.4
         with:
           tool: cargo-cyclonedx@0.5.9
 
@@ -86,7 +86,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev libudev-dev pkg-config
 
       - name: Install Soroban CLI
-        uses: taiki-e/install-action@af683be8c4878b0934ee8f3c7ef531c257c14e04 # v2.4.4
+        uses: taiki-e/install-action@v2 # v2.4.4
         with:
           tool: soroban-cli@21.6.0
 

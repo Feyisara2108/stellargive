@@ -23,10 +23,10 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@e12dec229babb4ebc2fbcc5d1ab75d86212b0051 # stable
+        uses: dtolnay/rust-toolchain@stable # stable
 
       - name: Cache cargo registry
-        uses: actions/cache@0bef4c7b22a681944a11cc3de49f483a91aa0d65 # v4.0.2
+        uses: actions/cache@v4 # v4.0.2
         with:
           path: |
             ~/.cargo/registry
@@ -35,7 +35,7 @@ jobs:
           restore-keys: ${{ runner.os }}-cargo-audit-
 
       - name: Install cargo-audit
-        uses: taiki-e/install-action@af683be8c4878b0934ee8f3c7ef531c257c14e04 # v2.4.4
+        uses: taiki-e/install-action@v2 # v2.4.4
         with:
           tool: cargo-audit@0.22.2
 
@@ -51,7 +51,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@0bef4c7b22a681944a11cc3de49f483a91aa0d65 # v4.0.2
+        uses: actions/setup-node@v4 # v4.0.2
         with:
           node-version: "20"
           cache: "npm"

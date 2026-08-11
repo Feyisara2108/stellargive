@@ -60,7 +60,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@e12dec229babb4ebc2fbcc5d1ab75d86212b0051 # stable
+        uses: dtolnay/rust-toolchain@stable # stable
         with:
           targets: wasm32-unknown-unknown
 
@@ -70,7 +70,7 @@ jobs:
           workspaces: contracts/stellar-give
 
       - name: Install cargo-tarpaulin
-        uses: taiki-e/install-action@af683be8c4878b0934ee8f3c7ef531c257c14e04 # v2.4.4
+        uses: taiki-e/install-action@v2 # v2.4.4
         with:
           tool: cargo-tarpaulin@0.30.0
 
@@ -78,7 +78,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev libudev-dev pkg-config
 
       - name: Install Soroban CLI
-        uses: taiki-e/install-action@af683be8c4878b0934ee8f3c7ef531c257c14e04 # v2.4.4
+        uses: taiki-e/install-action@v2 # v2.4.4
         with:
           tool: soroban-cli@21.6.0
 
@@ -131,7 +131,7 @@ jobs:
 
       - name: Codecov Upload (Rust)
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        uses: codecov/codecov-action@e28ff10e200021c5dc2ecd7ef06de8ae147dfb23 # v4.5.0
+        uses: codecov/codecov-action@v4 # v4.5.0
         with:
           files: contracts/stellar-give/cobertura.xml
           flags: rust
@@ -147,12 +147,12 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@0bef4c7b22a681944a11cc3de49f483a91aa0d65 # v4.0.2
+        uses: actions/setup-node@v4 # v4.0.2
         with:
           node-version-file: frontend/.nvmrc
 
       - name: Cache Next.js build
-        uses: actions/cache@0bef4c7b22a681944a11cc3de49f483a91aa0d65 # v4.0.2
+        uses: actions/cache@v4 # v4.0.2
         with:
           path: |
             frontend/.next/cache
@@ -178,7 +178,7 @@ jobs:
 
       - name: Codecov Upload (Frontend)
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        uses: codecov/codecov-action@e28ff10e200021c5dc2ecd7ef06de8ae147dfb23 # v4.5.0
+        uses: codecov/codecov-action@v4 # v4.5.0
         with:
           directory: frontend/coverage
           flags: frontend
@@ -257,7 +257,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@0bef4c7b22a681944a11cc3de49f483a91aa0d65 # v4.0.2
+        uses: actions/setup-node@v4 # v4.0.2
         with:
           node-version: ${{ matrix.node-version }}
 
@@ -291,7 +291,7 @@ jobs:
           echo "Declared MSRV: $version"
 
       - name: Install Rust toolchain (MSRV ${{ steps.msrv.outputs.version }})
-        uses: dtolnay/rust-toolchain@e12dec229babb4ebc2fbcc5d1ab75d86212b0051 # master
+        uses: dtolnay/rust-toolchain@stable # master
         with:
           toolchain: ${{ steps.msrv.outputs.version }}
           targets: wasm32-unknown-unknown

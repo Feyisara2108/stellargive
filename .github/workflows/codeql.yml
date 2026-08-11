@@ -42,7 +42,7 @@ jobs:
 
       - name: Install Rust toolchain
         if: matrix.language == 'rust'
-        uses: dtolnay/rust-toolchain@e12dec229babb4ebc2fbcc5d1ab75d86212b0051 # stable
+        uses: dtolnay/rust-toolchain@stable # stable
         with:
           targets: wasm32-unknown-unknown
 
