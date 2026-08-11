@@ -20,12 +20,12 @@ jobs:
       frontend: ${{ steps.filter.outputs.frontend }}
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@v4.2.2 # v4.2.2
       # On merge_group events, skip path filtering so the gating jobs below always
       # run and report their required status checks to the merge queue.
       - name: Detect changes
         if: github.event_name != 'merge_group'
-        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        uses: dorny/paths-filter@v3.0.2 # v3.0.2
         id: filter
         with:
           filters: |
@@ -57,7 +57,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@v4.2.2 # v4.2.2
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable # stable
@@ -65,7 +65,7 @@ jobs:
           targets: wasm32-unknown-unknown
 
       - name: Cache cargo
-        uses: Swatinem/rust-cache@23bde2884508604e0e681a6c568ecbd27dc00ab3 # v2.7.3
+        uses: Swatinem/rust-cache@v2.7.3 # v2.7.3
         with:
           workspaces: contracts/stellar-give
 
@@ -120,7 +120,7 @@ jobs:
       #             (optimized WASM, size report).
       - name: Upload optimized WASM artifact
         if: always()
-        uses: actions/upload-artifact@6011914590750262c2f6d764491748530b59d991 # v4.3.0
+        uses: actions/upload-artifact@v4.3.0 # v4.3.0
         with:
           name: stellar-give-wasm-${{ github.sha }}
           path: |
@@ -144,7 +144,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@v4.2.2 # v4.2.2
 
       - name: Setup Node.js
         uses: actions/setup-node@v4 # v4.0.2
@@ -254,7 +254,7 @@ jobs:
         node-version: [20, 22]
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@v4.2.2 # v4.2.2
 
       - name: Setup Node.js
         uses: actions/setup-node@v4 # v4.0.2
@@ -280,7 +280,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@v4.2.2 # v4.2.2
 
       - name: Read MSRV from Cargo.toml
         id: msrv
@@ -297,7 +297,7 @@ jobs:
           targets: wasm32-unknown-unknown
 
       - name: Cache cargo
-        uses: Swatinem/rust-cache@23bde2884508604e0e681a6c568ecbd27dc00ab3 # v2.7.3
+        uses: Swatinem/rust-cache@v2.7.3 # v2.7.3
         with:
           workspaces: contracts/stellar-give
 

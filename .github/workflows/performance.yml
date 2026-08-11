@@ -22,7 +22,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@v4.2.2 # v4.2.2
 
       - name: Setup Node.js
         uses: actions/setup-node@v4 # v4.0.2
@@ -64,7 +64,7 @@ jobs:
 
       # Persist bundle stats for trend tracking across runs
       - name: Upload bundle stats artifact
-        uses: actions/upload-artifact@6011914590750262c2f6d764491748530b59d991 # v4.3.0
+        uses: actions/upload-artifact@v4.3.0 # v4.3.0
         with:
           name: bundle-stats-${{ github.sha }}
           path: |
@@ -95,7 +95,7 @@ jobs:
 
       - name: Post bundle size comment
         if: github.event_name == 'pull_request'
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        uses: actions/github-script@v7.0.1 # v7.0.1
         with:
           script: |
             const totalKb = '${{ steps.bundle-report.outputs.total_kb }}';
@@ -149,7 +149,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@v4.2.2 # v4.2.2
 
       - name: Setup Node.js
         uses: actions/setup-node@v4 # v4.0.2
@@ -188,7 +188,7 @@ jobs:
 
       - name: Upload Lighthouse results
         if: always()
-        uses: actions/upload-artifact@6011914590750262c2f6d764491748530b59d991 # v4.3.0
+        uses: actions/upload-artifact@v4.3.0 # v4.3.0
         with:
           name: lighthouse-results-${{ github.sha }}
           path: frontend/.lighthouseci/
