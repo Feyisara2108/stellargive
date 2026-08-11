@@ -375,6 +375,7 @@ export async function getEvents(limit = 20) {
 }
 
 export interface CampaignUpdate {
+  id?: string;
   content: string;
   timestamp: bigint;
 }
