@@ -47,6 +47,10 @@ const formSchema = z.object({
     .string()
     .min(5, "Title must be at least 5 characters")
     .max(MAX_TITLE_LEN, `Title cannot exceed ${MAX_TITLE_LEN} characters`),
+  description: z
+    .string()
+    .min(10, "Description must be at least 10 characters")
+    .max(500, "Description cannot exceed 500 characters"),
   beneficiary: z.string().regex(/^G[A-Z0-9]{55}$/, "Invalid Stellar address"),
   category: z
     .enum(["medical", "food", "shelter", "education", "relief", "other"])
@@ -112,6 +116,7 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
     mode: "onChange",
     defaultValues: {
       title: "",
+      description: "",
       beneficiary: "",
       category: "",
       targetAmount: "",
@@ -166,6 +171,7 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
       const deadline = Math.floor(Date.now() / 1000) + parseInt(values.deadlineDays) * 24 * 60 * 60;
       const result = await createCampaign.mutateAsync({
         title: values.title,
+        description: values.description,
         beneficiary: values.beneficiary,
         category: values.category || "other",
         metadataUri: values.metadataUri || undefined,
@@ -286,6 +292,37 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
                 <Input
                   placeholder="Flood Relief 2024"
                   maxLength={MAX_TITLE_LEN}
+                  {...field}
+                  disabled={createCampaign.isPending}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="description"
+          render={({ field }) => (
+            <FormItem>
+              <div className="flex items-center justify-between">
+                <FormLabel>Campaign Description</FormLabel>
+                <span
+                  aria-live="polite"
+                  className={cn(
+                    "text-xs tabular-nums",
+                    (form.watch("description")?.length ?? 0) > 500 ? "text-destructive" : "text-muted-foreground",
+                  )}
+                >
+                  {form.watch("description")?.length ?? 0}/500
+                </span>
+              </div>
+              <FormControl>
+                <textarea
+                  placeholder="Provide a detailed description of the campaign..."
+                  maxLength={500}
+                  rows={3}
+                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
                   {...field}
                   disabled={createCampaign.isPending}
                 />

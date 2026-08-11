@@ -115,6 +115,7 @@ export function useCreateCampaign() {
     mutationFn: async (params: {
       beneficiary: string;
       title: string;
+      description: string;
       category?: string;
       metadataUri?: string;
       targetAmount: string;
@@ -122,22 +123,36 @@ export function useCreateCampaign() {
       acceptedToken: string;
       website?: string;
       twitter?: string;
+      maxPerDonor?: string | null;
     }) => {
       if (!address) throw new Error("Wallet not connected");
       if (params.beneficiary === CONTRACT_ID) {
         throw new Error("Beneficiary cannot be the campaign contract address.");
       }
 
+      // Pack the single beneficiary address into the format expected by the contract's
+      // beneficiaries argument, which is Vec<(Address, u32)>. We map this to a nested
+      // array packaging: [[Address, 10000]] (100% share to the beneficiary).
+      const beneficiariesVec = xdr.ScVal.scvVec([
+        xdr.ScVal.scvVec([
+          new Address(params.beneficiary).toScVal(),
+          nativeToScVal(10000, { type: "u32" }),
+        ]),
+      ]);
+
       const args = [
-        new Address(address).toScVal(),
-        new Address(params.beneficiary).toScVal(),
-        nativeToScVal(params.title, { type: "string" }),
-        nativeToScVal(params.metadataUri || "https://example.com", { type: "string" }),
-        nativeToScVal(params.category || "relief", { type: "symbol" }),
-        nativeToScVal(toStroops(params.targetAmount), { type: "i128" }),
-        nativeToScVal(BigInt(params.deadline), { type: "u64" }),
-        new Address(params.acceptedToken).toScVal(),
-        nativeToScVal(null, { type: "i128" }),
+        new Address(address).toScVal(), // 1. creator: Address
+        beneficiariesVec,               // 2. beneficiaries: Vec<(Address, u32)>
+        nativeToScVal(params.title, { type: "string" }), // 3. title: String
+        nativeToScVal(params.description, { type: "string" }), // 4. description: String
+        nativeToScVal(params.metadataUri || "https://example.com", { type: "string" }), // 5. metadata_uri: String
+        nativeToScVal(params.category || "relief", { type: "symbol" }), // 6. category: Symbol
+        nativeToScVal(toStroops(params.targetAmount), { type: "i128" }), // 7. target_amount: i128
+        nativeToScVal(BigInt(params.deadline), { type: "u64" }), // 8. deadline: u64
+        new Address(params.acceptedToken).toScVal(), // 9. accepted_token: Address
+        params.maxPerDonor
+          ? nativeToScVal(toStroops(params.maxPerDonor), { type: "i128" })
+          : nativeToScVal(null, { type: "i128" }), // 10. max_per_donor: Option<i128>
       ];
 
       return submitTransaction(address, "create_campaign", args);
