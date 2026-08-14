@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 
 function get_time_left(deadline: bigint | number) {
-  const now = Math.floor(Date.now() / 1000);
-  return Math.max(0, Number(deadline) - now);
+  const deadlineMs = Number(deadline) < 1e11 ? Number(deadline) * 1000 : Number(deadline);
+  const now = Date.now();
+  return Math.max(0, deadlineMs - now);
 }
 
 export function useCountdown(deadline: bigint | number) {
@@ -26,9 +27,9 @@ export function useCountdown(deadline: bigint | number) {
     return () => clearInterval(timer);
   }, [deadline]);
 
-  const days = Math.floor(timeLeft / (3600 * 24));
-  const hours = Math.floor((timeLeft % (3600 * 24)) / 3600);
-  const minutes = Math.floor((timeLeft % 3600) / 60);
+  const days = Math.floor(timeLeft / (1000 * 3600 * 24));
+  const hours = Math.floor((timeLeft % (1000 * 3600 * 24)) / (1000 * 3600));
+  const minutes = Math.floor((timeLeft % (1000 * 3600)) / (1000 * 60));
 
   return {
     days,

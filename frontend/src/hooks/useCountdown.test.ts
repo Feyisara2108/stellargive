@@ -127,11 +127,12 @@ describe('useCountdown', () => {
     it('should clear interval on unmount (no state updates after unmount)', () => {
       const deadlineMs = MOCK_NOW + (5 * ONE_DAY_MS);
       const clearIntervalSpy = vi.spyOn(window, 'clearInterval');
+      const setIntervalSpy = vi.spyOn(window, 'setInterval');
       
       const { result, unmount } = renderHook(() => useCountdown(deadlineMs));
       
       // Verify interval was set
-      expect(setInterval).toHaveBeenCalledTimes(1);
+      expect(setIntervalSpy).toHaveBeenCalledTimes(1);
       
       // Unmount the hook
       unmount();
