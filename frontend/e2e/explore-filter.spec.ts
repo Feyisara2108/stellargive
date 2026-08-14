@@ -1,10 +1,10 @@
 // playwright test for explore page filter, empty search, pagination
-import { test, expect } from "@playwright/test";
+import { test, expect, Page, Route } from "@playwright/test";
 import { mockCampaign } from "@/stories/mocks";
 
 // Helper to mock campaigns API response
-async function mockCampaigns(page, campaigns) {
-  await page.route("**/api/campaigns**", (route) => {
+async function mockCampaigns(page: Page, campaigns: any[]) {
+  await page.route("**/api/campaigns**", (route: Route) => {
     route.fulfill({
       status: 200,
       contentType: "application/json",
