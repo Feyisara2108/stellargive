@@ -32,9 +32,9 @@ function TestComponent() {
 describe("WalletProvider", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(freighterApi.isConnected).mockResolvedValue(false);
+    vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: false });
     vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "" });
-    vi.mocked(freighterApi.setAllowed).mockResolvedValue(false);
+    vi.mocked(freighterApi.setAllowed).mockResolvedValue({ isAllowed: false });
     vi.mocked(freighterApi.getNetwork).mockResolvedValue({ network: process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE } as any);
   });
 
@@ -51,7 +51,7 @@ describe("WalletProvider", () => {
   });
 
   it("auto-connects on mount if freighter returns isConnected: true", async () => {
-    vi.mocked(freighterApi.isConnected).mockResolvedValue(true);
+    vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: true });
     vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "G12345" });
     vi.mocked(freighterApi.getNetwork).mockResolvedValue({ network: process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE } as any);
 
@@ -75,7 +75,7 @@ describe("WalletProvider", () => {
       </WalletProvider>
     );
 
-    vi.mocked(freighterApi.setAllowed).mockResolvedValue(true);
+    vi.mocked(freighterApi.setAllowed).mockResolvedValue({ isAllowed: true });
     vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "G54321" });
 
     await user.click(screen.getByTestId("btn-connect"));
@@ -94,7 +94,7 @@ describe("WalletProvider", () => {
       </WalletProvider>
     );
 
-    vi.mocked(freighterApi.setAllowed).mockResolvedValue(false);
+    vi.mocked(freighterApi.setAllowed).mockResolvedValue({ isAllowed: false });
 
     await user.click(screen.getByTestId("btn-connect"));
 
@@ -105,7 +105,7 @@ describe("WalletProvider", () => {
 
   it("disconnects and clears state when disconnect is called", async () => {
     const user = userEvent.setup();
-    vi.mocked(freighterApi.isConnected).mockResolvedValue(true);
+    vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: true });
     vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "G12345" });
 
     render(
@@ -128,7 +128,7 @@ describe("WalletProvider", () => {
 
   it("detects wrong network", async () => {
     const user = userEvent.setup();
-    vi.mocked(freighterApi.isConnected).mockResolvedValue(true);
+    vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: true });
     vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "G12345" });
     // Provide a different network passphrase than the app expects
     vi.mocked(freighterApi.getNetwork).mockResolvedValue({ network: "Wrong Network" } as any);

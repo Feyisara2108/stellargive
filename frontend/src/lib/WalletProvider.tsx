@@ -48,7 +48,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const checkConnection = async () => {
       const connected = await isConnected();
-      if (connected) {
+      if (connected && connected.isConnected) {
         const result = await getAddress();
         if (result && "address" in result) {
           setAddress(result.address);
@@ -80,7 +80,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const connect = async () => {
     try {
       const allowed = await setAllowed();
-      if (allowed) {
+      if (allowed && allowed.isAllowed) {
         const result = await getAddress();
         if (result && "address" in result) {
           setAddress(result.address);
