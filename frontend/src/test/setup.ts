@@ -34,7 +34,7 @@ vi.mock("next/dynamic", () => {
 
 process.env.NEXT_PUBLIC_SOROBAN_RPC_URL = "http://localhost:8000/rpc";
 process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE = "Standalone Network ; February 2017";
-process.env.NEXT_PUBLIC_CONTRACT_ID = "CXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
+process.env.NEXT_PUBLIC_CONTRACT_ID = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
 
 // jsdom does not implement matchMedia; next-themes calls it on mount.
 // Provide a no-op stub so theme-aware components can render under test.
