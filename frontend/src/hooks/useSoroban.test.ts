@@ -83,7 +83,12 @@ describe("useSoroban", () => {
     it("useCampaign returns data on success", async () => {
       const { Wrapper } = makeWrapper();
       const { result } = renderHook(() => useCampaign(1n), { wrapper: Wrapper });
-      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      await waitFor(() => {
+        if (result.current.isError) {
+          console.error("useCampaign Error:", result.current.error);
+        }
+        expect(result.current.isSuccess).toBe(true);
+      });
       expect(result.current.data?.title).toBe("Test Campaign");
     });
 
@@ -97,14 +102,24 @@ describe("useSoroban", () => {
     it("useRecentCampaigns returns data on success", async () => {
       const { Wrapper } = makeWrapper();
       const { result } = renderHook(() => useRecentCampaigns(), { wrapper: Wrapper });
-      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      await waitFor(() => {
+        if (result.current.isError) {
+          console.error("useRecentCampaigns Error:", result.current.error);
+        }
+        expect(result.current.isSuccess).toBe(true);
+      });
       expect(result.current.data).toHaveLength(1);
     });
 
     it("useCampaignsPaged returns data on success", async () => {
       const { Wrapper } = makeWrapper();
       const { result } = renderHook(() => useCampaignsPaged(5), { wrapper: Wrapper });
-      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      await waitFor(() => {
+        if (result.current.isError) {
+          console.error("useCampaignsPaged Error:", result.current.error);
+        }
+        expect(result.current.isSuccess).toBe(true);
+      });
       expect(result.current.data?.campaigns).toHaveLength(1);
       expect(result.current.data?.hasMore).toBe(false);
     });
@@ -112,14 +127,24 @@ describe("useSoroban", () => {
     it("useEvents returns data on success", async () => {
       const { Wrapper } = makeWrapper();
       const { result } = renderHook(() => useEvents(10), { wrapper: Wrapper });
-      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      await waitFor(() => {
+        if (result.current.isError) {
+          console.error("useEvents Error:", result.current.error);
+        }
+        expect(result.current.isSuccess).toBe(true);
+      });
       expect(result.current.data).toHaveLength(1);
     });
 
     it("useGetUpdates returns data on success", async () => {
       const { Wrapper } = makeWrapper();
       const { result } = renderHook(() => useGetUpdates(1n), { wrapper: Wrapper });
-      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      await waitFor(() => {
+        if (result.current.isError) {
+          console.error("useGetUpdates Error:", result.current.error);
+        }
+        expect(result.current.isSuccess).toBe(true);
+      });
       expect(result.current.data).toHaveLength(1);
       expect(result.current.data?.[0].content).toBe("Update 1");
     });
