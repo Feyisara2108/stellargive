@@ -80,6 +80,10 @@ vi.mock("@/hooks/useSoroban", () => ({
     data: "100",
     isLoading: false,
   }),
+  useTokenMetadataBatch: () => ({
+    data: {},
+    isLoading: false,
+  }),
 }));
 
 // Mock WalletProvider
