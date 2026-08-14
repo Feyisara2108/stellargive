@@ -28,7 +28,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable # stable
         with:
-          targets: wasm32-unknown-unknown
+          targets: wasm32v1-none
 
       - name: Install Soroban / Stellar CLI
         run: |
@@ -44,11 +44,11 @@ jobs:
       - name: Build contract WASM
         run: |
           cd contracts/stellar-give
-          cargo build --target wasm32-unknown-unknown --release
+          cargo build --target wasm32v1-none --release
 
       - name: Check WASM size
         run: |
-          WASM="contracts/stellar-give/target/wasm32-unknown-unknown/release/stellar_give.wasm"
+          WASM="contracts/stellar-give/target/wasm32v1-none/release/stellar_give.wasm"
           SIZE=$(stat --format=%s "$WASM")
           echo "WASM size: $SIZE bytes"
           if [ "$SIZE" -gt 65536 ]; then
@@ -63,7 +63,7 @@ jobs:
           STELLAR_SOURCE: ${{ secrets.STELLAR_DEPLOYER_ALIAS }}
           STELLAR_SECRET_KEY: ${{ secrets.STELLAR_DEPLOYER_SECRET }}
         run: |
-          WASM="contracts/stellar-give/target/wasm32-unknown-unknown/release/stellar_give.wasm"
+          WASM="contracts/stellar-give/target/wasm32v1-none/release/stellar_give.wasm"
           WASM_HASH=$(sha256sum "$WASM" | awk '{print $1}')
 
           NETWORK="${STELLAR_NETWORK}"
@@ -102,5 +102,5 @@ jobs:
         uses: actions/upload-artifact@v4.3.0 # v4.3.0
         with:
           name: stellar-give-wasm-${{ github.sha }}
-          path: contracts/stellar-give/target/wasm32-unknown-unknown/release/stellar_give.wasm
+          path: contracts/stellar-give/target/wasm32v1-none/release/stellar_give.wasm
           retention-days: 90

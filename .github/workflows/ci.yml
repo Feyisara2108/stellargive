@@ -62,7 +62,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable # stable
         with:
-          targets: wasm32-unknown-unknown
+          targets: wasm32v1-none
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2.7.3 # v2.7.3
@@ -84,7 +84,7 @@ jobs:
 
       - name: Rust Build
         working-directory: contracts/stellar-give
-        run: cargo build --locked --target wasm32-unknown-unknown --release
+        run: cargo build --locked --target wasm32v1-none --release
 
       - name: Rust Coverage
         working-directory: contracts/stellar-give
@@ -95,8 +95,8 @@ jobs:
 
       - name: Generate WASM size report
         run: |
-          OPTIMIZED_WASM="contracts/stellar-give/target/wasm32-unknown-unknown/release/stellar_give.optimized.wasm"
-          ORIGINAL_WASM="contracts/stellar-give/target/wasm32-unknown-unknown/release/stellar_give.wasm"
+          OPTIMIZED_WASM="contracts/stellar-give/target/wasm32v1-none/release/stellar_give.optimized.wasm"
+          ORIGINAL_WASM="contracts/stellar-give/target/wasm32v1-none/release/stellar_give.wasm"
           ORIG=$(stat -c%s "$ORIGINAL_WASM")
           OPT=$(stat -c%s "$OPTIMIZED_WASM")
           REDUCTION=$(( 100 - (OPT * 100 / ORIG) ))
@@ -124,7 +124,7 @@ jobs:
         with:
           name: stellar-give-wasm-${{ github.sha }}
           path: |
-            contracts/stellar-give/target/wasm32-unknown-unknown/release/stellar_give.optimized.wasm
+            contracts/stellar-give/target/wasm32v1-none/release/stellar_give.optimized.wasm
             wasm-size-report.txt
           retention-days: 30
           if-no-files-found: error
@@ -290,11 +290,11 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Declared MSRV: $version"
 
-      - name: Install Rust toolchain (MSRV ${{ steps.msrv.outputs.version }})
+      - name: Install Rust toolchain (MSRV "${{ steps.msrv.outputs.version }}")
         uses: dtolnay/rust-toolchain@stable # master
         with:
           toolchain: ${{ steps.msrv.outputs.version }}
-          targets: wasm32-unknown-unknown
+          targets: wasm32v1-none
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2.7.3 # v2.7.3
@@ -303,7 +303,7 @@ jobs:
 
       - name: Build (MSRV)
         working-directory: contracts/stellar-give
-        run: cargo build --locked --target wasm32-unknown-unknown --release
+        run: cargo build --locked --target wasm32v1-none --release
 
       - name: Test (MSRV)
         working-directory: contracts/stellar-give

@@ -68,7 +68,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable # stable
         with:
-          targets: wasm32-unknown-unknown
+          targets: wasm32v1-none
 
       - name: Install cargo-cyclonedx
         uses: taiki-e/install-action@v2 # v2.4.4
@@ -94,7 +94,7 @@ jobs:
         run: bash scripts/build-contract.sh
 
       - name: Copy optimized WASM for release
-        run: cp contracts/stellar-give/target/wasm32-unknown-unknown/release/stellar_give.optimized.wasm ./stellar_give.optimized.wasm
+        run: cp contracts/stellar-give/target/wasm32v1-none/release/stellar_give.optimized.wasm ./stellar_give.optimized.wasm
 
       # ── Sign SBOMs (Sigstore/cosign, keyless) ─────────────────────────────
       - name: Install cosign
