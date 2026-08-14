@@ -131,11 +131,11 @@ export async function getCampaign(id: bigint): Promise<Campaign> {
     },
   )
     .addOperation(
-      Operation.invokeHostFunction({
-        func: "get_campaign",
-        contractId: CONTRACT_ID,
+      Operation.invokeContractFunction({
+        contract: CONTRACT_ID,
+        function: "get_campaign",
         args: [nativeToScVal(id, { type: "u64" })],
-      } as any),
+      }),
     )
     .setTimeout(30)
     .build();
@@ -165,14 +165,14 @@ export async function getRecentCampaigns(limit = 20): Promise<Campaign[]> {
       },
     )
       .addOperation(
-        Operation.invokeHostFunction({
-          func: "get_campaigns_paged",
-          contractId: CONTRACT_ID,
+        Operation.invokeContractFunction({
+          contract: CONTRACT_ID,
+          function: "get_campaigns_paged",
           args: [
             nativeToScVal(currentOffset, { type: "u64" }),
             nativeToScVal(fetchLimit, { type: "u32" }),
           ],
-        } as any),
+        }),
       )
       .setTimeout(30)
       .build();
@@ -213,11 +213,11 @@ export async function getTotalCampaigns(): Promise<bigint> {
     },
   )
     .addOperation(
-      Operation.invokeHostFunction({
-        func: "get_total_campaigns",
-        contractId: CONTRACT_ID,
+      Operation.invokeContractFunction({
+        contract: CONTRACT_ID,
+        function: "get_total_campaigns",
         args: [],
-      } as any),
+      }),
     )
     .setTimeout(30)
     .build();
@@ -252,11 +252,11 @@ export async function estimateFee(
       networkPassphrase: NETWORK_PASSPHRASE,
     })
       .addOperation(
-        Operation.invokeHostFunction({
-          func,
-          contractId: CONTRACT_ID,
+        Operation.invokeContractFunction({
+          contract: CONTRACT_ID,
+          function: func,
           args,
-        } as any),
+        }),
       )
       .setTimeout(30)
       .build();
@@ -286,11 +286,11 @@ export async function submitTransaction(
     networkPassphrase: NETWORK_PASSPHRASE,
   })
     .addOperation(
-      Operation.invokeHostFunction({
-        func,
-        contractId: CONTRACT_ID,
+      Operation.invokeContractFunction({
+        contract: CONTRACT_ID,
+        function: func,
         args,
-      } as any),
+      }),
     )
     .setTimeout(30)
     .build();
@@ -389,11 +389,11 @@ export async function getUpdates(campaignId: bigint): Promise<CampaignUpdate[]> 
     },
   )
     .addOperation(
-      Operation.invokeHostFunction({
-        func: "get_updates",
-        contractId: CONTRACT_ID,
+      Operation.invokeContractFunction({
+        contract: CONTRACT_ID,
+        function: "get_updates",
         args: [nativeToScVal(campaignId, { type: "u64" })],
-      } as any),
+      }),
     )
     .setTimeout(30)
     .build();
