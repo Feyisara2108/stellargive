@@ -235,25 +235,27 @@ export function DonateModal({
           }
         }}
       >
-        <DialogTrigger asChild>
-          <Tooltip>
-            <TooltipTrigger className="relative flex-1">
-              <Button
-                className="w-full"
-                disabled={!address || isWrongNetwork}
-              >
-                Donate Now
-              </Button>
-            </TooltipTrigger>
-            {(!address || isWrongNetwork) && (
-              <TooltipContent side="top">
-                {!address
-                  ? "Connect your wallet to donate"
-                  : "Switch to the correct network to donate"}
-              </TooltipContent>
-            )}
-          </Tooltip>
-        </DialogTrigger>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="relative flex-1 block">
+              <DialogTrigger asChild>
+                <Button
+                  className="w-full"
+                  disabled={!address || isWrongNetwork}
+                >
+                  Donate Now
+                </Button>
+              </DialogTrigger>
+            </span>
+          </TooltipTrigger>
+          {(!address || isWrongNetwork) && (
+            <TooltipContent side="top">
+              {!address
+                ? "Connect your wallet to donate"
+                : "Switch to the correct network to donate"}
+            </TooltipContent>
+          )}
+        </Tooltip>
         <DialogContent
           aria-labelledby="donate-dialog-title"
           onPointerDownOutside={(e) => {
