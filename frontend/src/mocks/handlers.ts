@@ -179,10 +179,7 @@ export const handlers = [
               id: "0-0",
               pagingToken: "0-0",
               topic: ["AAAADwAAAARoZWxsbw==", "AAAAEQAAAADSuZLn4FkGFx3d5GhFE"],
-              value: {
-                type: "sym",
-                sym: "aGVsbG8=",
-              },
+              value: "AAAADwAAAARoZWxsbw==",
               inSuccessfulContractInvocation: true,
               txn_result_code: "txSUCCESS",
               tx_set_operation_count: 0,

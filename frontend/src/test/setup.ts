@@ -8,13 +8,16 @@ vi.mock("next/dynamic", () => {
     default: (loader: any) => {
       const str = loader.toString();
       if (str.includes("AdminPanel")) {
-        return require("@/app/admin/AdminPanel").AdminPanel;
+        return require("../app/admin/AdminPanel").AdminPanel;
       }
       if (str.includes("ActivityFeed")) {
-        return require("@/app/activity/ActivityFeed").ActivityFeed;
+        return require("../app/activity/ActivityFeed").ActivityFeed;
       }
       if (str.includes("CreateCampaignForm")) {
-        return require("@/components/CreateCampaignForm").CreateCampaignForm;
+        return require("../components/CreateCampaignForm").CreateCampaignForm;
+      }
+      if (str.includes("DonateModal")) {
+        return require("../components/DonateModal").DonateModal;
       }
       // Fallback: render loaded component asynchronously
       const React = require("react");

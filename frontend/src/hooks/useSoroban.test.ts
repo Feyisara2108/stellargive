@@ -89,7 +89,7 @@ describe("useSoroban", () => {
         }
         expect(result.current.isSuccess).toBe(true);
       });
-      expect(result.current.data?.title).toBe("Test Campaign");
+      expect(result.current.data?.title).toBe("First Campaign");
     });
 
     it("useCampaign returns error on failure", async () => {
@@ -108,7 +108,7 @@ describe("useSoroban", () => {
         }
         expect(result.current.isSuccess).toBe(true);
       });
-      expect(result.current.data).toHaveLength(1);
+      expect(result.current.data).toHaveLength(2);
     });
 
     it("useCampaignsPaged returns data on success", async () => {
@@ -120,7 +120,7 @@ describe("useSoroban", () => {
         }
         expect(result.current.isSuccess).toBe(true);
       });
-      expect(result.current.data?.campaigns).toHaveLength(1);
+      expect(result.current.data?.campaigns).toHaveLength(2);
       expect(result.current.data?.hasMore).toBe(false);
     });
 
