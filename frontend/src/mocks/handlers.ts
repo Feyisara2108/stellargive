@@ -68,8 +68,7 @@ export const handlers = [
 
       const resultObj: any = {
         latestLedger: 1000,
-        transactionData:
-          "AAAAAgAAAABz0nVt8LLjOiO3SXePBhLcVDXIpx3EL0dFxKVpAzXYVAAAZABr3wAAAAAAAAAGAAAAAQAAAAAAAGQAAAAAAAAAAgAAAAAAAAAAAQAA/////wEAAAAGAAABKwAAAADcOcSKqJDqzVBSvjr7mYJqhPPtCVwfqkHzO0A=",
+        transactionData: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
         minResourceFee: "52521",
         events: [],
         restorePreamble: [],
