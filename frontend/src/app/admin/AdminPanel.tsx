@@ -24,15 +24,7 @@ import { toast } from "sonner";
 import { Campaign } from "@/lib/soroban";
 import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
 import { PostUpdateForm } from "@/components/PostUpdateForm";
-import {
-  Shield,
-  CheckCircle,
-  AlertCircle,
-  Loader2,
-  Eye,
-  FileText,
-  XCircle,
-} from "lucide-react";
+import { Shield, CheckCircle, AlertCircle, Loader2, Eye, FileText, XCircle } from "lucide-react";
 
 interface AdminPanelProps {
   ownedCampaigns: Campaign[];
@@ -62,9 +54,7 @@ export function AdminPanel({ ownedCampaigns }: AdminPanelProps) {
     setAddressToWhitelist(val);
     setSuccessMessage("");
     if (val && !/^G[A-Z0-9]{55}$/.test(val)) {
-      setValidationError(
-        "Invalid Stellar address format (must start with G and be 56 characters)",
-      );
+      setValidationError("Invalid Stellar address format (must start with G and be 56 characters)");
     } else {
       setValidationError("");
     }

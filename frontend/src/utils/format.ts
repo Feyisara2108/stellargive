@@ -4,8 +4,7 @@
  * Centralised here so every consumer uses the same constant and tests can
  * import it directly.
  */
-export const ZERO_ADDRESS =
-  "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
+export const ZERO_ADDRESS = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
 
 /**
  * Returns a normalised Stellar G-address, or `null` if the value is absent,

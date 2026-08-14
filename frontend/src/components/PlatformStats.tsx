@@ -12,7 +12,11 @@ export function PlatformStats() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-wrap items-center justify-center gap-8 pt-6 min-h-[3.5rem]" aria-busy="true" aria-live="polite">
+      <div
+        className="flex flex-wrap items-center justify-center gap-8 pt-6 min-h-[3.5rem]"
+        aria-busy="true"
+        aria-live="polite"
+      >
         {[1, 2, 3].map((i) => (
           <div key={i} className="flex flex-col items-center gap-2">
             <Skeleton className="h-8 w-20" />
@@ -25,7 +29,10 @@ export function PlatformStats() {
 
   if (isError || !stats) {
     return (
-      <div className="flex flex-wrap items-center justify-center gap-3 pt-6 min-h-[3.5rem] text-sm" role="status">
+      <div
+        className="flex flex-wrap items-center justify-center gap-3 pt-6 min-h-[3.5rem] text-sm"
+        role="status"
+      >
         <span className="flex items-center gap-2 text-muted-foreground">
           <AlertCircle className="w-4 h-4 text-destructive" aria-hidden="true" />
           Couldn&apos;t load platform stats.

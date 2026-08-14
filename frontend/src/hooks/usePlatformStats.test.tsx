@@ -118,9 +118,7 @@ describe("usePlatformStats — aggregation", () => {
 
   it("returns totalRaised as a string", async () => {
     vi.mocked(getTotalCampaigns).mockResolvedValue(1n);
-    vi.mocked(getRecentCampaigns).mockResolvedValue([
-      makeCampaign({ raised_amount: 42n }),
-    ]);
+    vi.mocked(getRecentCampaigns).mockResolvedValue([makeCampaign({ raised_amount: 42n })]);
 
     const result = await renderStats();
 
@@ -187,9 +185,7 @@ describe("usePlatformStats — bigint precision", () => {
     // Rounding through a float would swallow the trailing 1.
     const huge = 170_141_183_460_469_231_731_687_303_715_884_105_727n; // i128 max
     vi.mocked(getTotalCampaigns).mockResolvedValue(1n);
-    vi.mocked(getRecentCampaigns).mockResolvedValue([
-      makeCampaign({ raised_amount: huge }),
-    ]);
+    vi.mocked(getRecentCampaigns).mockResolvedValue([makeCampaign({ raised_amount: huge })]);
 
     const result = await renderStats();
 

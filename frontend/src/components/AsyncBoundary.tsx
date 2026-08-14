@@ -97,7 +97,9 @@ export function AsyncBoundary({
 
   if (isError) {
     return (
-      <>{errorSlot ?? <DefaultError onRetry={onRetry} title={errorTitle} message={errorMessage} />}</>
+      <>
+        {errorSlot ?? <DefaultError onRetry={onRetry} title={errorTitle} message={errorMessage} />}
+      </>
     );
   }
 

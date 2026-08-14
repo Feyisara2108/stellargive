@@ -113,7 +113,8 @@ export function RecentDonations({
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm truncate">
-                      <span className="font-bold">{formatTokenAmount(event.data[2], 7)} XLM</span> donated by{" "}
+                      <span className="font-bold">{formatTokenAmount(event.data[2], 7)} XLM</span>{" "}
+                      donated by{" "}
                       {donorAddress ? (
                         <AddressLink address={donorAddress} className="text-muted-foreground" />
                       ) : (

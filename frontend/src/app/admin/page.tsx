@@ -15,13 +15,10 @@ import dynamic from "next/dynamic";
 // for the auth/loading gate minimal.
 // ---------------------------------------------------------------------------
 
-const AdminPanel = dynamic(
-  () => import("./AdminPanel").then((mod) => mod.AdminPanel),
-  {
-    ssr: false,
-    loading: () => <AdminPanelSkeleton />,
-  },
-);
+const AdminPanel = dynamic(() => import("./AdminPanel").then((mod) => mod.AdminPanel), {
+  ssr: false,
+  loading: () => <AdminPanelSkeleton />,
+});
 
 function AdminPanelSkeleton() {
   return (

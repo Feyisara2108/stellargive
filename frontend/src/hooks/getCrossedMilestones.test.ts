@@ -99,13 +99,13 @@ describe("getCrossedMilestones", () => {
     it("correctly calculates multi-cross with realistic 7-decimal stroop values", () => {
       const target = 50_000_000_000n; // 5,000 XLM
       const before = 10_000_000_000n; // 20%
-      const after = 40_000_000_000n;  // 80%
+      const after = 40_000_000_000n; // 80%
       expect(getCrossedMilestones(before, after, target)).toEqual([25, 50, 75]);
     });
 
     it("returns [100] when crossing 100% and landing above target (overfunding)", () => {
       const target = 1000n;
-      const before = 900n;  // 90%
+      const before = 900n; // 90%
       const after = 1500n; // 150%
       expect(getCrossedMilestones(before, after, target)).toEqual([100]);
     });

@@ -23,7 +23,15 @@ import { AddressLink } from "@/components/AddressLink";
 import { useWallet } from "@/lib/WalletProvider";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { normalizeAddress, formatTokenAmount } from "@/utils/format";
-import { AlertCircle, RotateCw, UserCircle, Wallet, HandCoins, TrendingUp, Megaphone } from "lucide-react";
+import {
+  AlertCircle,
+  RotateCw,
+  UserCircle,
+  Wallet,
+  HandCoins,
+  TrendingUp,
+  Megaphone,
+} from "lucide-react";
 
 export default function ProfilePage() {
   const { address, isConnected } = useWallet();
@@ -130,9 +138,12 @@ export default function ProfilePage() {
             <div className="flex items-start gap-3">
               <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
               <div className="space-y-2 flex-1">
-                <h3 className="font-semibold text-red-900 dark:text-red-200">Failed to load data</h3>
+                <h3 className="font-semibold text-red-900 dark:text-red-200">
+                  Failed to load data
+                </h3>
                 <p className="text-sm text-red-800 dark:text-red-300">
-                  We encountered an error while fetching your campaigns. Please check your connection and try again.
+                  We encountered an error while fetching your campaigns. Please check your
+                  connection and try again.
                 </p>
               </div>
             </div>

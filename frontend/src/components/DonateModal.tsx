@@ -239,10 +239,7 @@ export function DonateModal({
           <TooltipTrigger asChild>
             <span className="relative flex-1 block">
               <DialogTrigger asChild>
-                <Button
-                  className="w-full"
-                  disabled={!address || isWrongNetwork}
-                >
+                <Button className="w-full" disabled={!address || isWrongNetwork}>
                   Donate Now
                 </Button>
               </DialogTrigger>
@@ -393,9 +390,7 @@ export function DonateModal({
             ) : null}
           </div>
           {submitError && (
-            <div
-              className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400"
-            >
+            <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <span>{submitError}</span>
             </div>
@@ -418,8 +413,8 @@ export function DonateModal({
         </DialogContent>
       </Dialog>
 
-      <Dialog 
-        open={showSuccess} 
+      <Dialog
+        open={showSuccess}
         onOpenChange={(open) => {
           setShowSuccess(open);
           if (!open) {
@@ -475,7 +470,7 @@ export function DonateModal({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      
+
       {/* Screen Reader Announcements */}
       <div aria-live="polite" className="sr-only">
         {successAnnouncement}

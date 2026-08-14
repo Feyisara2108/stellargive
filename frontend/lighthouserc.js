@@ -33,7 +33,7 @@ module.exports = {
         "largest-contentful-paint": ["error", { maxNumericValue: 3000 }],
         "total-blocking-time": ["error", { maxNumericValue: 300 }],
         "cumulative-layout-shift": ["error", { maxNumericValue: 0.1 }],
-        "interactive": ["warn", { maxNumericValue: 4000 }],
+        interactive: ["warn", { maxNumericValue: 4000 }],
 
         // JS bundle budget: max 200 KB transferred for JS resources
         "resource-summary:script:size": ["error", { maxNumericValue: 200_000 }],

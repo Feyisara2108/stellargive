@@ -14,8 +14,6 @@ import { Heart, Menu, X } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 
-
-
 const NAV_LINKS = [
   { href: "/explore", label: "Explore" },
   { href: "/activity", label: "Activity" },
@@ -97,7 +95,9 @@ export function Navbar() {
         {/* Desktop navigation */}
         <div className="hidden md:flex items-center gap-4">
           {NAV_LINKS.map((link) => {
-            const isActive = pathname ? (pathname === link.href || pathname.startsWith(`${link.href}/`)) : false;
+            const isActive = pathname
+              ? pathname === link.href || pathname.startsWith(`${link.href}/`)
+              : false;
             return (
               <Link
                 key={link.href}
@@ -159,7 +159,9 @@ export function Navbar() {
         </div>
         <nav className="flex flex-col p-4 space-y-4" aria-label="Mobile navigation">
           {NAV_LINKS.map((link) => {
-            const isActive = pathname ? (pathname === link.href || pathname.startsWith(`${link.href}/`)) : false;
+            const isActive = pathname
+              ? pathname === link.href || pathname.startsWith(`${link.href}/`)
+              : false;
             return (
               <Link
                 key={link.href}

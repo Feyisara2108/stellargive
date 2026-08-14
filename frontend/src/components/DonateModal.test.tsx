@@ -144,7 +144,9 @@ describe("DonateModal", () => {
       });
 
       expect(screen.queryByText(/Donation Successful!/i)).not.toBeInTheDocument();
-      expect(screen.queryByRole("link", { name: /View on StellarExpert/i })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("link", { name: /View on StellarExpert/i }),
+      ).not.toBeInTheDocument();
     });
 
     it("blocks submit for a non-numeric amount", async () => {

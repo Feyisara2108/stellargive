@@ -76,9 +76,7 @@ describe("useSoroban", () => {
       connect: vi.fn(),
       disconnect: vi.fn(),
     } as any);
-    vi.spyOn(rpcServer, "getAccount").mockResolvedValue(
-      new Account(WALLET, "1")
-    );
+    vi.spyOn(rpcServer, "getAccount").mockResolvedValue(new Account(WALLET, "1"));
   });
 
   describe("Queries", () => {
@@ -145,7 +143,7 @@ describe("useSoroban", () => {
 
       expect(toast.success).toHaveBeenCalledWith(
         "Transaction confirmed",
-        expect.objectContaining({ id: "test-toast-id" })
+        expect.objectContaining({ id: "test-toast-id" }),
       );
       expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["campaigns"] });
       expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["events"] });
@@ -166,7 +164,7 @@ describe("useSoroban", () => {
 
       expect(toast.success).toHaveBeenCalledWith(
         "Transaction confirmed",
-        expect.objectContaining({ id: "test-toast-id" })
+        expect.objectContaining({ id: "test-toast-id" }),
       );
       expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["campaign", "1"] });
       expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["campaigns"] });
@@ -182,7 +180,7 @@ describe("useSoroban", () => {
 
       expect(toast.success).toHaveBeenCalledWith(
         "Transaction confirmed",
-        expect.objectContaining({ id: "test-toast-id" })
+        expect.objectContaining({ id: "test-toast-id" }),
       );
       expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["campaign", "1"] });
       expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["campaigns"] });
@@ -198,7 +196,7 @@ describe("useSoroban", () => {
 
       expect(toast.success).toHaveBeenCalledWith(
         "Transaction confirmed",
-        expect.objectContaining({ id: "test-toast-id" })
+        expect.objectContaining({ id: "test-toast-id" }),
       );
       expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["updates", "1"] });
     });
@@ -208,7 +206,7 @@ describe("useSoroban", () => {
         address: null,
         isConnected: false,
       } as any);
-      
+
       const { Wrapper } = makeWrapper();
       const { result } = renderHook(() => useCreateCampaign(), { wrapper: Wrapper });
 

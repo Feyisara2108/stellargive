@@ -23,8 +23,12 @@ function TestComponent() {
       <div data-testid="address">{wallet.address || "none"}</div>
       <div data-testid="is-connected">{String(wallet.isConnected)}</div>
       <div data-testid="is-wrong-network">{String(wallet.isWrongNetwork)}</div>
-      <button onClick={wallet.connect} data-testid="btn-connect">Connect</button>
-      <button onClick={wallet.disconnect} data-testid="btn-disconnect">Disconnect</button>
+      <button onClick={wallet.connect} data-testid="btn-connect">
+        Connect
+      </button>
+      <button onClick={wallet.disconnect} data-testid="btn-disconnect">
+        Disconnect
+      </button>
     </div>
   );
 }
@@ -35,14 +39,16 @@ describe("WalletProvider", () => {
     vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: false });
     vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "" });
     vi.mocked(freighterApi.setAllowed).mockResolvedValue({ isAllowed: false });
-    vi.mocked(freighterApi.getNetwork).mockResolvedValue({ network: process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE } as any);
+    vi.mocked(freighterApi.getNetwork).mockResolvedValue({
+      network: process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE,
+    } as any);
   });
 
   it("initializes with default disconnected state", async () => {
     render(
       <WalletProvider>
         <TestComponent />
-      </WalletProvider>
+      </WalletProvider>,
     );
 
     expect(screen.getByTestId("address")).toHaveTextContent("none");
@@ -53,12 +59,14 @@ describe("WalletProvider", () => {
   it("auto-connects on mount if freighter returns isConnected: true", async () => {
     vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: true });
     vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "G12345" });
-    vi.mocked(freighterApi.getNetwork).mockResolvedValue({ network: process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE } as any);
+    vi.mocked(freighterApi.getNetwork).mockResolvedValue({
+      network: process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE,
+    } as any);
 
     render(
       <WalletProvider>
         <TestComponent />
-      </WalletProvider>
+      </WalletProvider>,
     );
 
     await waitFor(() => {
@@ -72,7 +80,7 @@ describe("WalletProvider", () => {
     render(
       <WalletProvider>
         <TestComponent />
-      </WalletProvider>
+      </WalletProvider>,
     );
 
     vi.mocked(freighterApi.setAllowed).mockResolvedValue({ isAllowed: true });
@@ -91,7 +99,7 @@ describe("WalletProvider", () => {
     render(
       <WalletProvider>
         <TestComponent />
-      </WalletProvider>
+      </WalletProvider>,
     );
 
     vi.mocked(freighterApi.setAllowed).mockResolvedValue({ isAllowed: false });
@@ -111,7 +119,7 @@ describe("WalletProvider", () => {
     render(
       <WalletProvider>
         <TestComponent />
-      </WalletProvider>
+      </WalletProvider>,
     );
 
     await waitFor(() => {
@@ -136,7 +144,7 @@ describe("WalletProvider", () => {
     render(
       <WalletProvider>
         <TestComponent />
-      </WalletProvider>
+      </WalletProvider>,
     );
 
     await waitFor(() => {
@@ -148,7 +156,9 @@ describe("WalletProvider", () => {
   it("throws an error if useWallet is used outside of WalletProvider", () => {
     // Suppress React error boundary console.error for this test
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(() => render(<TestComponent />)).toThrow("useWallet must be used within a WalletProvider");
+    expect(() => render(<TestComponent />)).toThrow(
+      "useWallet must be used within a WalletProvider",
+    );
     consoleSpy.mockRestore();
   });
 });

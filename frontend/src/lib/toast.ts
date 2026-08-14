@@ -23,10 +23,7 @@ export const notify = {
    * @param message - Success message
    * @param options - Optional config including toastId for updating in place
    */
-  success: (
-    message: string,
-    options?: { id?: string | number; hash?: string },
-  ): void => {
+  success: (message: string, options?: { id?: string | number; hash?: string }): void => {
     const action = options?.hash
       ? {
           label: "View Explorer",
@@ -47,10 +44,7 @@ export const notify = {
    * @param message - Error message
    * @param options - Optional config including toastId for updating in place
    */
-  error: (
-    message: string,
-    options?: { id?: string | number },
-  ): void => {
+  error: (message: string, options?: { id?: string | number }): void => {
     if (options?.id) {
       toast.error(message, { id: options.id });
     } else {
@@ -67,7 +61,6 @@ export const notify = {
 export function txAction(hash: string) {
   return {
     label: "View Explorer",
-    onClick: () =>
-      window.open(`https://stellar.expert/explorer/testnet/tx/${hash}`, "_blank"),
+    onClick: () => window.open(`https://stellar.expert/explorer/testnet/tx/${hash}`, "_blank"),
   };
 }

@@ -44,11 +44,7 @@ export function CategorySelector({ value, onChange, label }: CategorySelectorPro
   };
 
   const selectedDisplay =
-    value === "uncategorized"
-      ? "Uncategorized"
-      : value === "all"
-        ? "All Categories"
-        : value;
+    value === "uncategorized" ? "Uncategorized" : value === "all" ? "All Categories" : value;
 
   return (
     <div className="space-y-2" ref={containerRef}>
@@ -62,9 +58,7 @@ export function CategorySelector({ value, onChange, label }: CategorySelectorPro
         >
           <span className="flex items-center gap-2">
             <Folder className="h-4 w-4 text-primary" />
-            <span className="font-medium text-foreground capitalize">
-              {selectedDisplay}
-            </span>
+            <span className="font-medium text-foreground capitalize">{selectedDisplay}</span>
           </span>
           <ChevronDown className="h-4 w-4 opacity-50" />
         </Button>

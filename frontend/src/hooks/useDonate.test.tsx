@@ -128,9 +128,7 @@ describe("useDonate — optimistic update", () => {
     });
 
     await waitFor(() =>
-      expect(readCampaign(queryClient)?.raised_amount).toBe(
-        campaign.raised_amount + DONATION_RAW,
-      ),
+      expect(readCampaign(queryClient)?.raised_amount).toBe(campaign.raised_amount + DONATION_RAW),
     );
   });
 
@@ -172,9 +170,7 @@ describe("useDonate — optimistic update", () => {
       await result.current.mutateAsync(donation);
     });
 
-    expect(readCampaign(queryClient)?.raised_amount).toBe(
-      campaign.raised_amount + DONATION_RAW,
-    );
+    expect(readCampaign(queryClient)?.raised_amount).toBe(campaign.raised_amount + DONATION_RAW);
   });
 
   it("scales the delta by the token's decimals", async () => {
@@ -267,9 +263,7 @@ describe("useDonate — rollback on error", () => {
     });
 
     // Exactly one donation's worth, not two.
-    expect(readCampaign(queryClient)?.raised_amount).toBe(
-      campaign.raised_amount + DONATION_RAW,
-    );
+    expect(readCampaign(queryClient)?.raised_amount).toBe(campaign.raised_amount + DONATION_RAW);
   });
 });
 

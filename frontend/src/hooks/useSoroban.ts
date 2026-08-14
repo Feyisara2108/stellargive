@@ -142,7 +142,7 @@ export function useCreateCampaign() {
 
       const args = [
         new Address(address).toScVal(), // 1. creator: Address
-        beneficiariesVec,               // 2. beneficiaries: Vec<(Address, u32)>
+        beneficiariesVec, // 2. beneficiaries: Vec<(Address, u32)>
         nativeToScVal(params.title, { type: "string" }), // 3. title: String
         nativeToScVal(params.description, { type: "string" }), // 4. description: String
         nativeToScVal(params.metadataUri || "https://example.com", { type: "string" }), // 5. metadata_uri: String
@@ -391,10 +391,7 @@ export function eventsRefetchInterval(query: {
   }
   if (query.state.status === "error") {
     const failureCount = query.state.fetchFailureCount;
-    return Math.min(
-      EVENTS_POLL_INTERVAL_MS * Math.pow(2, failureCount),
-      EVENTS_MAX_BACKOFF_MS,
-    );
+    return Math.min(EVENTS_POLL_INTERVAL_MS * Math.pow(2, failureCount), EVENTS_MAX_BACKOFF_MS);
   }
   return EVENTS_POLL_INTERVAL_MS;
 }

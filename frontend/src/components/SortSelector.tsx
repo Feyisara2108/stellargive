@@ -54,9 +54,7 @@ export function SortSelector({ value, onChange, label }: SortSelectorProps) {
         >
           <span className="flex items-center gap-2">
             <ArrowDownUp className="h-4 w-4 text-primary" />
-            <span className="font-medium text-foreground">
-              {selectedDisplay}
-            </span>
+            <span className="font-medium text-foreground">{selectedDisplay}</span>
           </span>
           <ChevronDown className="h-4 w-4 opacity-50" />
         </Button>
@@ -71,9 +69,7 @@ export function SortSelector({ value, onChange, label }: SortSelectorProps) {
                   onClick={() => handleSelect(opt.key)}
                   className="w-full flex items-center justify-between px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground transition-colors"
                 >
-                  <span className="font-medium text-left">
-                    {opt.label}
-                  </span>
+                  <span className="font-medium text-left">{opt.label}</span>
                   {value === opt.key && <Check className="h-4 w-4 text-primary" />}
                 </button>
               ))}

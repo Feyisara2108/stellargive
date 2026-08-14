@@ -123,8 +123,12 @@ describe("format utils", () => {
     });
 
     it("should reject over-precision inputs", () => {
-      expect(() => toRawAmount("1.12345678", 7)).toThrow("Invalid amount: exceeds 7 decimal places");
-      expect(() => toRawAmount("0.1234567890", 9)).toThrow("Invalid amount: exceeds 9 decimal places");
+      expect(() => toRawAmount("1.12345678", 7)).toThrow(
+        "Invalid amount: exceeds 7 decimal places",
+      );
+      expect(() => toRawAmount("0.1234567890", 9)).toThrow(
+        "Invalid amount: exceeds 9 decimal places",
+      );
     });
 
     it("should handle negative inputs with various decimals", () => {
@@ -166,9 +170,13 @@ describe("format utils", () => {
       // Too short
       expect(normalizeAddress("GABC")).toBeNull();
       // Wrong prefix
-      expect(normalizeAddress("XAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF")).toBeNull();
+      expect(
+        normalizeAddress("XAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF"),
+      ).toBeNull();
       // Correct length but wrong prefix
-      expect(normalizeAddress("BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF")).toBeNull();
+      expect(
+        normalizeAddress("BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF"),
+      ).toBeNull();
     });
 
     it("returns the address string for a valid 56-char G-address", () => {

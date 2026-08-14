@@ -104,10 +104,7 @@ const TabsList = React.forwardRef<HTMLDivElement, TabsListProps>(
       <div
         ref={ref}
         role="tablist"
-        className={cn(
-          "flex items-center border-b border-border",
-          className,
-        )}
+        className={cn("flex items-center border-b border-border", className)}
         {...props}
       >
         {children}
@@ -252,10 +249,7 @@ const TabsContent = React.forwardRef<HTMLDivElement, TabsContentProps>(
         // switches.  Only visually (and for AT) hide inactive panels.
         hidden={!isSelected}
         tabIndex={0}
-        className={cn(
-          "focus:outline-none",
-          className,
-        )}
+        className={cn("focus:outline-none", className)}
         {...props}
       >
         {children}

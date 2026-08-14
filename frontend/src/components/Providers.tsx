@@ -48,11 +48,7 @@ function saveToStorage(client: QueryClient): void {
     const cache = client.getQueryCache();
     const queries = cache
       .getAll()
-      .filter(
-        (q) =>
-          q.state.status === "success" &&
-          shouldPersist(q.queryKey),
-      )
+      .filter((q) => q.state.status === "success" && shouldPersist(q.queryKey))
       .map((q) => ({
         queryKey: q.queryKey,
         state: q.state,

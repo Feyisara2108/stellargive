@@ -63,9 +63,7 @@ export function ClaimButton({ campaign }: { campaign: Campaign }) {
           {claim.isSuccess ? "Claimed" : "Claim Funds"}
         </Button>
       </TooltipTrigger>
-      {disabledReason && (
-        <TooltipContent side="top">{disabledReason}</TooltipContent>
-      )}
+      {disabledReason && <TooltipContent side="top">{disabledReason}</TooltipContent>}
     </Tooltip>
   );
 }

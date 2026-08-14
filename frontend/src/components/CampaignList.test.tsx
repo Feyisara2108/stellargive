@@ -64,9 +64,7 @@ function makeWrapper() {
   return function Wrapper({ children }: { children: React.ReactNode }) {
     return (
       <QueryClientProvider client={queryClient}>
-        <MockWalletProvider>
-          {children}
-        </MockWalletProvider>
+        <MockWalletProvider>{children}</MockWalletProvider>
       </QueryClientProvider>
     );
   };
@@ -121,9 +119,7 @@ describe("CampaignList - MSW Integrated States", () => {
   });
 
   it("displays 'No campaigns match your search' when search filters out all campaigns", async () => {
-    setMockCampaigns([
-      buildCampaign({ id: 1n, title: "Flood Relief" }),
-    ]);
+    setMockCampaigns([buildCampaign({ id: 1n, title: "Flood Relief" })]);
     const Wrapper = makeWrapper();
     render(<CampaignList />, { wrapper: Wrapper });
 

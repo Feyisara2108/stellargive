@@ -7,9 +7,9 @@ import { useWallet } from "@/lib/WalletProvider";
 import React from "react";
 
 // Mock matchMedia for NextThemes
-Object.defineProperty(window, 'matchMedia', {
+Object.defineProperty(window, "matchMedia", {
   writable: true,
-  value: vi.fn().mockImplementation(query => ({
+  value: vi.fn().mockImplementation((query) => ({
     matches: false,
     media: query,
     onchange: null,
@@ -36,9 +36,15 @@ function MockControlComponent() {
   const { setMockAddress, disconnect, connect } = useMockWallet();
   return (
     <div>
-      <button onClick={() => setMockAddress("G-MOCKED")} data-testid="change-addr">Change</button>
-      <button onClick={disconnect} data-testid="disconnect-mock">Disconnect</button>
-      <button onClick={connect} data-testid="connect-mock">Connect</button>
+      <button onClick={() => setMockAddress("G-MOCKED")} data-testid="change-addr">
+        Change
+      </button>
+      <button onClick={disconnect} data-testid="disconnect-mock">
+        Disconnect
+      </button>
+      <button onClick={connect} data-testid="connect-mock">
+        Connect
+      </button>
     </div>
   );
 }
@@ -48,7 +54,7 @@ describe("Providers", () => {
     render(
       <Providers>
         <div data-testid="child">Hello Providers</div>
-      </Providers>
+      </Providers>,
     );
     expect(screen.getByTestId("child")).toBeInTheDocument();
   });
@@ -59,7 +65,7 @@ describe("MockWalletProvider", () => {
     render(
       <MockWalletProvider>
         <GatedComponent />
-      </MockWalletProvider>
+      </MockWalletProvider>,
     );
     // MockWalletProvider auto-connects
     expect(screen.getByTestId("gated-content")).toBeInTheDocument();
@@ -71,9 +77,9 @@ describe("MockWalletProvider", () => {
       <MockWalletProvider>
         <GatedComponent />
         <MockControlComponent />
-      </MockWalletProvider>
+      </MockWalletProvider>,
     );
-    
+
     await user.click(screen.getByTestId("change-addr"));
     await waitFor(() => {
       expect(screen.getByTestId("gated-content")).toHaveTextContent("Welcome G-MOCKED");
@@ -86,9 +92,9 @@ describe("MockWalletProvider", () => {
       <MockWalletProvider>
         <GatedComponent />
         <MockControlComponent />
-      </MockWalletProvider>
+      </MockWalletProvider>,
     );
-    
+
     // Disconnect
     await user.click(screen.getByTestId("disconnect-mock"));
     await waitFor(() => {
@@ -109,7 +115,9 @@ describe("MockWalletProvider", () => {
       useMockWallet();
       return null;
     };
-    expect(() => render(<TestComponent />)).toThrow("useMockWallet must be used within a MockWalletProvider");
+    expect(() => render(<TestComponent />)).toThrow(
+      "useMockWallet must be used within a MockWalletProvider",
+    );
     consoleSpy.mockRestore();
   });
 });

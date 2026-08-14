@@ -311,7 +311,9 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
                   aria-live="polite"
                   className={cn(
                     "text-xs tabular-nums",
-                    (form.watch("description")?.length ?? 0) > 500 ? "text-destructive" : "text-muted-foreground",
+                    (form.watch("description")?.length ?? 0) > 500
+                      ? "text-destructive"
+                      : "text-muted-foreground",
                   )}
                 >
                   {form.watch("description")?.length ?? 0}/500

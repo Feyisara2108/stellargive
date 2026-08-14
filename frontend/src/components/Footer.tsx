@@ -11,8 +11,10 @@ import { useRpcHealth, type RpcStatus } from "@/hooks/useRpcHealth";
 
 function networkLabel(): string {
   if (!NETWORK_PASSPHRASE) return "unknown";
-  if (NETWORK_PASSPHRASE.includes("testnet") || NETWORK_PASSPHRASE.includes("Test")) return "testnet";
-  if (NETWORK_PASSPHRASE.includes("mainnet") || NETWORK_PASSPHRASE.includes("Main")) return "mainnet";
+  if (NETWORK_PASSPHRASE.includes("testnet") || NETWORK_PASSPHRASE.includes("Test"))
+    return "testnet";
+  if (NETWORK_PASSPHRASE.includes("mainnet") || NETWORK_PASSPHRASE.includes("Main"))
+    return "mainnet";
   return "custom";
 }
 
@@ -93,11 +95,7 @@ function RpcStatusDot() {
 
   return (
     <span className="relative inline-flex group/rpc">
-      <span
-        role="status"
-        aria-label={tooltip}
-        className={cn("block h-2 w-2 rounded-full", dot)}
-      />
+      <span role="status" aria-label={tooltip} className={cn("block h-2 w-2 rounded-full", dot)} />
       <span
         aria-hidden
         className="pointer-events-none absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-popover px-2 py-1 text-xs text-popover-foreground shadow-sm opacity-0 transition-opacity group-hover/rpc:opacity-100"

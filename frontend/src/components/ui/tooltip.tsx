@@ -58,7 +58,12 @@ export interface TooltipProps {
   children: React.ReactNode;
 }
 
-export function Tooltip({ open: controlledOpen, onOpenChange, delayDuration, children }: TooltipProps) {
+export function Tooltip({
+  open: controlledOpen,
+  onOpenChange,
+  delayDuration,
+  children,
+}: TooltipProps) {
   const providerDelay = React.useContext(TooltipDelayContext);
   const delay = delayDuration ?? providerDelay;
 
@@ -197,8 +202,7 @@ export const TooltipContent = React.forwardRef<HTMLDivElement, TooltipContentPro
 
     if (!open) return null;
 
-    const positionClass =
-      alignOverrides[side]?.[align] ?? sideClasses[side];
+    const positionClass = alignOverrides[side]?.[align] ?? sideClasses[side];
 
     return (
       <div

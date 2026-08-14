@@ -27,7 +27,9 @@ type MockClaimReturn = {
   isSuccess: boolean;
 };
 
-const mockEligibility = (overrides: Partial<MockEligibilityReturn> = {}): MockEligibilityReturn => ({
+const mockEligibility = (
+  overrides: Partial<MockEligibilityReturn> = {},
+): MockEligibilityReturn => ({
   data: undefined,
   isLoading: false,
   ...overrides,
