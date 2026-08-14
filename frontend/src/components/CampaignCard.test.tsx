@@ -185,9 +185,9 @@ describe("CampaignCard", () => {
   // DonateModal visibility based on status
   // ------------------------------------------------------------------
 
-  it("shows DonateModal for Active campaigns", () => {
+  it("shows DonateModal for Active campaigns", async () => {
     render(<CampaignCard campaign={baseCampaign} />);
-    expect(screen.getByTestId("donate-modal")).toBeInTheDocument();
+    expect(await screen.findByTestId("donate-modal")).toBeInTheDocument();
   });
 
   it("does not show DonateModal for Funded campaigns", () => {

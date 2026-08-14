@@ -2,34 +2,18 @@ import "@testing-library/jest-dom/vitest";
 import "../mocks/setup";
 import { vi } from "vitest";
 
-// Mock next/dynamic generically to resolve dynamic imports synchronously in tests
+// Mock next/dynamic generically using React.lazy to run dynamic imports asynchronously under test
 vi.mock("next/dynamic", () => {
   return {
     default: (loader: any) => {
-      const str = loader.toString();
-      if (str.includes("AdminPanel")) {
-        return require("../app/admin/AdminPanel").AdminPanel;
-      }
-      if (str.includes("ActivityFeed")) {
-        return require("../app/activity/ActivityFeed").ActivityFeed;
-      }
-      if (str.includes("CreateCampaignForm")) {
-        return require("../components/CreateCampaignForm").CreateCampaignForm;
-      }
-      if (str.includes("DonateModal")) {
-        return require("../components/DonateModal").DonateModal;
-      }
-      // Fallback: render loaded component asynchronously
       const React = require("react");
-      return function DynamicMock(props: any) {
-        const [Component, setComponent] = React.useState(null);
-        React.useEffect(() => {
-          loader().then((mod: any) => {
-            setComponent(() => mod.default || mod);
-          });
-        }, []);
-        if (!Component) return null;
-        return React.createElement(Component, props);
+      const LazyComponent = React.lazy(loader);
+      return function DynamicComponent(props: any) {
+        return React.createElement(
+          React.Suspense,
+          { fallback: null },
+          React.createElement(LazyComponent, props)
+        );
       };
     },
   };
