@@ -46,25 +46,25 @@ describe("Footer Component", () => {
     it("shows a healthy label with latency when the RPC is healthy", () => {
       mockUseRpcHealth.mockReturnValue({ status: "healthy", latencyMs: 42 } as any);
       render(<Footer />);
-      expect(screen.getByRole("status")).toHaveAttribute("aria-label", "RPC healthy · 42ms");
+      expect(screen.getByRole("status")).toHaveAttribute("aria-label", "RPC healthy · 42ms · custom");
     });
 
     it("shows a degraded label with latency when the RPC is degraded", () => {
       mockUseRpcHealth.mockReturnValue({ status: "degraded", latencyMs: 900 } as any);
       render(<Footer />);
-      expect(screen.getByRole("status")).toHaveAttribute("aria-label", "RPC degraded · 900ms");
+      expect(screen.getByRole("status")).toHaveAttribute("aria-label", "RPC degraded · 900ms · custom");
     });
 
     it("shows an unreachable label when the RPC is down", () => {
       mockUseRpcHealth.mockReturnValue({ status: "down", latencyMs: null } as any);
       render(<Footer />);
-      expect(screen.getByRole("status")).toHaveAttribute("aria-label", "RPC unreachable");
+      expect(screen.getByRole("status")).toHaveAttribute("aria-label", "RPC unreachable · custom");
     });
 
     it("shows a checking state before the first health result arrives", () => {
       mockUseRpcHealth.mockReturnValue(undefined as any);
       render(<Footer />);
-      expect(screen.getByRole("status")).toHaveAttribute("aria-label", "Checking RPC…");
+      expect(screen.getByRole("status")).toHaveAttribute("aria-label", "Checking RPC… · custom");
     });
   });
 });

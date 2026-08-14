@@ -85,7 +85,7 @@ const RPC_STATUS_CONFIG: Record<RpcStatus, { dot: string; label: (ms: number | n
   };
 
 function RpcStatusDot() {
-  const health = useRpcHealth();
+  const health = useRpcHealth() || { status: "loading", latencyMs: null };
   const network = networkLabel();
 
   const { dot, label } = RPC_STATUS_CONFIG[health.status];
