@@ -24,9 +24,13 @@ fn test_donation_overflow_raised_amount() {
         &None,
     );
 
-    let first_amount = i128::MAX - 1_000_000;
-    token_admin_client.mint(&donor, &first_amount);
-    client.donate(&donor, &id, &first_amount, &false, &None);
+    // Inflate raised_amount via storage to bypass token balance bounds
+    env.as_contract(&client.address, || {
+        let camp_key = (symbol_short!("CMP"), id);
+        let mut campaign: Campaign = env.storage().persistent().get(&camp_key).unwrap();
+        campaign.raised_amount = i128::MAX - 1_000_000;
+        env.storage().persistent().set(&camp_key, &campaign);
+    });
 
     token_admin_client.mint(&donor, &2_000_000);
     let result = client.try_donate(&donor, &id, &2_000_000, &false, &None);
@@ -93,7 +97,7 @@ fn test_refund_underflow_arithmetic_error() {
     env.as_contract(&client.address, || {
         let camp_key = (symbol_short!("CMP"), id);
         let mut campaign: Campaign = env.storage().persistent().get(&camp_key).unwrap();
-        campaign.raised_amount = 0;
+        campaign.raised_amount = i128::MIN;
         env.storage().persistent().set(&camp_key, &campaign);
     });
 

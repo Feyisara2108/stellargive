@@ -110,6 +110,23 @@ fn test_persistent_storage_ttl_extended_by_write() {
     );
 }
 
+fn get_events(env: &Env) -> std::vec::Vec<(soroban_sdk::Address, soroban_sdk::Vec<soroban_sdk::Val>, soroban_sdk::Val)> {
+    use soroban_sdk::xdr;
+    use soroban_sdk::testutils::Events as _;
+    let mut result = std::vec::Vec::new();
+    for event in env.events().all().events() {
+        let contract_id = event.contract_id.clone().unwrap();
+        let sc_address = xdr::ScAddress::Contract(contract_id);
+        let addr = soroban_sdk::Address::try_from_val(env, &sc_address).unwrap();
+        if let xdr::ContractEventBody::V0(event_body) = &event.body {
+            let topics = soroban_sdk::Vec::try_from_val(env, &event_body.topics).unwrap();
+            let data = soroban_sdk::Val::try_from_val(env, &event_body.data).unwrap();
+            result.push((addr, topics, data));
+        }
+    }
+    result
+}
+
 #[test]
 fn test_transient_comment_data_is_not_persisted() {
     let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
@@ -134,12 +151,12 @@ fn test_transient_comment_data_is_not_persisted() {
     );
 
     // The comment must exist in the event log
-    let donation_event = env.events().all().into_iter().find(|(addr, topics, _)| {
+    let donation_event = get_events(&env).into_iter().find(|(addr, topics, _)| {
         addr == &client.address
             && topics
                 .get(0)
                 .and_then(|t| soroban_sdk::Symbol::try_from_val(&env, &t).ok())
-                == Some(symbol_short!("donation"))
+                == Some(soroban_sdk::symbol_short!("donation"))
     });
     assert!(donation_event.is_some(), "donation event must exist");
 

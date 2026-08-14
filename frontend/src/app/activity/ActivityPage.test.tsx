@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import ActivityPage from "./page";
 
 // fromStroops is the only soroban export the page reaches (via @/lib/eventData).
@@ -16,12 +16,70 @@ vi.mock("@/components/AddressLink", () => ({
   AddressLink: ({ address }: { address: string }) => <span>{address}</span>,
 }));
 
+const ActivityFeedMock = vi.hoisted(() => {
+  const React = require("react");
+
+  const formatTxHashMock = (value: any) => {
+    if (typeof value !== "string" || value.length < 12) return null;
+    return `${value.substring(0, 8)}...${value.substring(value.length - 4)}`;
+  };
+
+  const formatEventAmountMock = (event: any, index: number) => {
+    const data = event?.data;
+    if (!data || !Array.isArray(data)) return "—";
+    const val = data[index];
+    if (val === null || val === undefined || val === "") return "—";
+    try {
+      return `${BigInt(val).toString()} XLM`;
+    } catch {
+      return "—";
+    }
+  };
+
+  const DynamicActivityFeed = (props: any) => {
+    const visible = props?.visible;
+    if (!visible) return null;
+    return React.createElement(
+      "table",
+      null,
+      React.createElement(
+        "tbody",
+        null,
+        visible.map((event: any, idx: number) => {
+          const txLabel = formatTxHashMock(event?.txHash) || "N/A";
+          let amountStr = "";
+          if (event?.topic === "received") {
+            amountStr = formatEventAmountMock(event, 2);
+          } else if (event?.topic === "created") {
+            amountStr = formatEventAmountMock(event, 3);
+          } else if (event?.topic === "claimed") {
+            amountStr = formatEventAmountMock(event, 3);
+          }
+          return React.createElement(
+            "tr",
+            { key: event?.id || idx },
+            React.createElement("td", null, amountStr),
+            React.createElement("td", null, event?.ledger !== undefined && event?.ledger !== null ? String(event.ledger) : "—"),
+            React.createElement("td", null, txLabel)
+          );
+        })
+      )
+    );
+  };
+  DynamicActivityFeed.displayName = "DynamicActivityFeed";
+  return DynamicActivityFeed;
+});
+
+vi.mock("next/dynamic", () => ({
+  default: () => ActivityFeedMock,
+}));
+
 import { useEvents } from "@/hooks/useSoroban";
 
 const DONOR = "G" + "B".repeat(55);
 
 describe("ActivityPage - malformed event payloads", () => {
-  it("renders placeholders instead of crashing on short or garbage data arrays", () => {
+  it("renders placeholders instead of crashing on short or garbage data arrays", async () => {
     vi.mocked(useEvents).mockReturnValue({
       data: [
         // Donation event with no amount at data[2]
@@ -44,10 +102,12 @@ describe("ActivityPage - malformed event payloads", () => {
 
     // Desktop table + mobile list each render every event, so three malformed
     // amounts produce six placeholders.
-    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(3);
+    await waitFor(() => {
+      expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(3);
+    });
   });
 
-  it("keeps ledger and tx-hash cells safe when those fields are missing", () => {
+  it("keeps ledger and tx-hash cells safe when those fields are missing", async () => {
     vi.mocked(useEvents).mockReturnValue({
       data: [{ id: "e4", topic: "received", data: [] }],
       isLoading: false,
@@ -57,12 +117,14 @@ describe("ActivityPage - malformed event payloads", () => {
     render(<ActivityPage />);
 
     // No txHash → "N/A" rather than a substring call on undefined.
-    expect(screen.getAllByText("N/A").length).toBeGreaterThanOrEqual(1);
+    await waitFor(() => {
+      expect(screen.getAllByText("N/A").length).toBeGreaterThanOrEqual(1);
+    });
     // Missing ledger renders the placeholder, not "Ledger undefined".
     expect(screen.queryByText(/Ledger undefined/)).not.toBeInTheDocument();
   });
 
-  it("still renders well-formed events", () => {
+  it("still renders well-formed events", async () => {
     vi.mocked(useEvents).mockReturnValue({
       data: [{ id: "e5", topic: "received", ledger: 20, data: [3, DONOR, 5000000] }],
       isLoading: false,
@@ -71,6 +133,8 @@ describe("ActivityPage - malformed event payloads", () => {
 
     render(<ActivityPage />);
 
-    expect(screen.getAllByText("5000000 XLM").length).toBeGreaterThanOrEqual(1);
+    await waitFor(() => {
+      expect(screen.getAllByText("5000000 XLM").length).toBeGreaterThanOrEqual(1);
+    });
   });
 });

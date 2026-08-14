@@ -173,7 +173,8 @@ describe("CampaignList - Search & URL sync", () => {
     const Wrapper = makeWrapper();
     render(<CampaignList />, { wrapper: Wrapper });
 
-    fireEvent.change(screen.getByPlaceholderText(/Search campaigns/i), {
+    const searchInput = await screen.findByPlaceholderText(/Search campaigns/i);
+    fireEvent.change(searchInput, {
       target: { value: "flood" },
     });
 

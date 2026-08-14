@@ -7,7 +7,22 @@ vi.mock("next/dynamic", () => {
   return {
     default: (loader: any) => {
       const React = require("react");
-      const LazyComponent = React.lazy(loader);
+      const LazyComponent = React.lazy(() => {
+        let loadPromise;
+        if (typeof loader === "function") {
+          loadPromise = loader();
+        } else if (loader && typeof loader.loader === "function") {
+          loadPromise = loader.loader();
+        } else {
+          loadPromise = Promise.resolve(loader);
+        }
+        return loadPromise.then((module: any) => {
+          if (module && typeof module === "object" && "default" in module) {
+            return module;
+          }
+          return { default: module };
+        });
+      });
       return function DynamicComponent(props: any) {
         return React.createElement(
           React.Suspense,

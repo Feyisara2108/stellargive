@@ -14,9 +14,21 @@ import { setMockCampaigns } from "@/mocks/handlers";
 import React from "react";
 
 // ── mocks ──────────────────────────────────────────────────────────────────
+let currentStatus = "";
+
+const mockReplace = vi.fn((url: string) => {
+  const match = url.match(/status=([^&]+)/);
+  currentStatus = match ? match[1] : "";
+});
+
+const searchParamsObj = {
+  get: (key: string) => (key === "status" ? (currentStatus || null) : null),
+  toString: () => (currentStatus ? `status=${currentStatus}` : ""),
+};
+
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: vi.fn() }),
-  useSearchParams: () => new URLSearchParams(),
+  useRouter: () => ({ replace: mockReplace }),
+  useSearchParams: () => searchParamsObj,
   usePathname: () => "/explore",
 }));
 

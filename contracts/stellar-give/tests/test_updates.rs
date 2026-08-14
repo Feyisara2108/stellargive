@@ -104,8 +104,8 @@ fn test_add_update_emits_campaign_update_event() {
     set_timestamp(&env, 1_500);
     client.add_update(&campaign_id, &content);
 
-    let events = env.events().all();
-    let has_update_event = events.iter().any(|(addr, topics, data)| {
+    let events = helpers::get_events(&env);
+    let has_update_event = events.into_iter().any(|(addr, topics, data)| {
         if addr != client.address {
             return false;
         }

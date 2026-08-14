@@ -180,12 +180,12 @@ describe("format utils", () => {
     });
 
     it("returns the address string for a valid 56-char G-address", () => {
-      const valid = "GBWMCCC3NHSKLAOJDBKKYW7SSH2PFTTNVFKWKPKQZT4QDKXV4STPEQ";
+      const valid = "GBWMCCC3NHSKLAOJDBKKYW7SSH2PFTTNVFKWKPKQZT4QDKXV4STPEQAA";
       expect(normalizeAddress(valid)).toBe(valid);
     });
 
     it("coerces non-string inputs via toString before validating", () => {
-      const valid = "GBWMCCC3NHSKLAOJDBKKYW7SSH2PFTTNVFKWKPKQZT4QDKXV4STPEQ";
+      const valid = "GBWMCCC3NHSKLAOJDBKKYW7SSH2PFTTNVFKWKPKQZT4QDKXV4STPEQAA";
       const wrapper = { toString: () => valid };
       expect(normalizeAddress(wrapper)).toBe(valid);
     });

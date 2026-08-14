@@ -179,7 +179,16 @@ export async function getRecentCampaigns(limit = 20): Promise<Campaign[]> {
 
     try {
       const sim = await server.simulateTransaction(tx);
-      if (rpc.Api.isSimulationError(sim) || !sim.result) {
+      if (rpc.Api.isSimulationError(sim)) {
+        if (campaigns.length === 0) {
+          throw new Error(`Simulation failed: ${sim.error}`);
+        }
+        break;
+      }
+      if (!sim.result) {
+        if (campaigns.length === 0) {
+          throw new Error("Failed to get campaigns: no result");
+        }
         break;
       }
 
@@ -197,6 +206,9 @@ export async function getRecentCampaigns(limit = 20): Promise<Campaign[]> {
         break;
       }
     } catch (e) {
+      if (campaigns.length === 0) {
+        throw e;
+      }
       break;
     }
   }

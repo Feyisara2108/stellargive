@@ -167,6 +167,7 @@ export function useCreateCampaign() {
         hash: data?.hash,
       });
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+      queryClient.invalidateQueries({ queryKey: ["events"] });
     },
     onError: (error: any, variables: any, context: any) => {
       const mappedError = mapTransactionError(error);
@@ -439,8 +440,20 @@ export function useAddUpdate() {
 
       return submitTransaction(address, "add_update", args);
     },
-    onSuccess: (_: any, variables: any) => {
+    onMutate: () => {
+      const toastId = notify.loading();
+      return { toastId };
+    },
+    onSuccess: (data: any, variables: any, context: any) => {
+      notify.success("Transaction confirmed", {
+        id: context?.toastId,
+        hash: data?.hash,
+      });
       queryClient.invalidateQueries({ queryKey: ["updates", variables.campaignId.toString()] });
+    },
+    onError: (error: any, variables: any, context: any) => {
+      const mappedError = mapTransactionError(error);
+      notify.error(mappedError, { id: context?.toastId });
     },
   });
 }

@@ -6,7 +6,7 @@
 use soroban_sdk::{
     symbol_short,
     testutils::{Address as _, Ledger},
-    token, Address, Env, String, Vec,
+    token, Address, Env, String, TryFromVal, Vec,
 };
 use stellar_give::{StellarGiveContract, StellarGiveContractClient};
 
@@ -141,4 +141,22 @@ pub fn register_and_setup_without_auth_mock() -> (
         token_client,
         token_admin_client,
     )
+}
+
+/// Helper function to retrieve and parse event data in test environments.
+pub fn get_events(env: &Env) -> std::vec::Vec<(Address, Vec<soroban_sdk::Val>, soroban_sdk::Val)> {
+    use soroban_sdk::xdr;
+    use soroban_sdk::testutils::Events as _;
+    let mut result = std::vec::Vec::new();
+    for event in env.events().all().events() {
+        let contract_id = event.contract_id.clone().unwrap();
+        let sc_address = xdr::ScAddress::Contract(contract_id);
+        let addr = Address::try_from_val(env, &sc_address).unwrap();
+        if let xdr::ContractEventBody::V0(event_body) = &event.body {
+            let topics = Vec::try_from_val(env, &event_body.topics).unwrap();
+            let data = soroban_sdk::Val::try_from_val(env, &event_body.data).unwrap();
+            result.push((addr, topics, data));
+        }
+    }
+    result
 }

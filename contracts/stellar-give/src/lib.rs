@@ -1418,6 +1418,23 @@ mod tests {
         env.ledger().set(ledger);
     }
 
+    fn get_events(env: &Env) -> std::vec::Vec<(Address, Vec<Val>, Val)> {
+        use soroban_sdk::xdr;
+        use soroban_sdk::testutils::Events as _;
+        let mut result = std::vec::Vec::new();
+        for event in env.events().all().events() {
+            let contract_id = event.contract_id.clone().unwrap();
+            let sc_address = xdr::ScAddress::Contract(contract_id);
+            let addr = Address::try_from_val(env, &sc_address).unwrap();
+            if let xdr::ContractEventBody::V0(event_body) = &event.body {
+                let topics = Vec::try_from_val(env, &event_body.topics).unwrap();
+                let data = Val::try_from_val(env, &event_body.data).unwrap();
+                result.push((addr, topics, data));
+            }
+        }
+        result
+    }
+
     fn setup() -> (
         Env,
         StellarGiveContractClient<'static>,
@@ -1572,10 +1589,8 @@ mod tests {
             &None,
         );
 
-        let event = env
-            .events()
-            .all()
-            .iter()
+        let event = get_events(&env)
+            .into_iter()
             .find(|(addr, topics, _)| {
                 addr == &client.address
                     && topics
@@ -1715,13 +1730,8 @@ mod tests {
             )]
         );
 
-        let campaign = client.get_campaign(&campaign_id);
-        assert_eq!(campaign.status, CampaignStatus::Cancelled);
-
-        let event = env
-            .events()
-            .all()
-            .iter()
+        let event = get_events(&env)
+            .into_iter()
             .find(|(addr, topics, _)| {
                 addr == &client.address
                     && topics
@@ -1735,6 +1745,9 @@ mod tests {
             .expect("event data did not decode as CancelledEvent");
         assert_eq!(payload.id, campaign_id);
         assert_eq!(payload.creator, creator);
+
+        let campaign = client.get_campaign(&campaign_id);
+        assert_eq!(campaign.status, CampaignStatus::Cancelled);
     }
 
     #[test]
@@ -1867,10 +1880,8 @@ mod tests {
         client.cancel_campaign(&campaign_id);
         client.claim_refund(&donor, &campaign_id);
 
-        let event = env
-            .events()
-            .all()
-            .iter()
+        let event = get_events(&env)
+            .into_iter()
             .find(|(addr, topics, _)| {
                 addr == &client.address
                     && topics
@@ -2049,10 +2060,8 @@ mod tests {
 
         client.donate(&donor, &campaign_id, &10_000_000, &false, &None);
 
-        let goal_event = env
-            .events()
-            .all()
-            .iter()
+        let goal_event = get_events(&env)
+            .into_iter()
             .find(|(addr, topics, _)| {
                 addr == &client.address
                     && topics
@@ -2094,10 +2103,8 @@ mod tests {
 
         client.donate(&donor, &campaign_id, &11_000_000, &false, &None);
 
-        let goal_event_count = env
-            .events()
-            .all()
-            .iter()
+        let goal_event_count = get_events(&env)
+            .into_iter()
             .filter(|(addr, topics, _)| {
                 addr == &client.address
                     && topics
@@ -2109,10 +2116,8 @@ mod tests {
 
         assert_eq!(goal_event_count, 1);
 
-        let goal_event = env
-            .events()
-            .all()
-            .iter()
+        let goal_event = get_events(&env)
+            .into_iter()
             .find(|(addr, topics, _)| {
                 addr == &client.address
                     && topics
@@ -2856,19 +2861,10 @@ mod tests {
 
         let before_bal = token_client.balance(&donor);
         client.donate(&donor, &campaign_id, &1_000_000, &true, &None);
-        let after_bal = token_client.balance(&donor);
-
-        // Funds must be debited correctly from the donor's address.
-        assert_eq!(before_bal - after_bal, 1_000_000);
-
-        let after_donate = client.get_campaign(&campaign_id);
-        assert_eq!(after_donate.raised_amount, 1_000_000);
 
         // Verify the emitted event uses the masked address.
-        let event = env
-            .events()
-            .all()
-            .iter()
+        let event = get_events(&env)
+            .into_iter()
             .find(|(addr, topics, _)| {
                 addr == &client.address
                     && topics
@@ -2877,6 +2873,14 @@ mod tests {
                         == Some(symbol_short!("donation"))
             })
             .expect("Donation event was not emitted");
+
+        let after_bal = token_client.balance(&donor);
+
+        // Funds must be debited correctly from the donor's address.
+        assert_eq!(before_bal - after_bal, 1_000_000);
+
+        let after_donate = client.get_campaign(&campaign_id);
+        assert_eq!(after_donate.raised_amount, 1_000_000);
 
         let payload = DonationEvent::try_from_val(&env, &event.2)
             .expect("event data did not decode as DonationEvent");
@@ -2926,10 +2930,8 @@ mod tests {
 
         client.donate(&donor, &campaign_id, &1_000_000, &false, &None);
 
-        let event = env
-            .events()
-            .all()
-            .iter()
+        let event = get_events(&env)
+            .into_iter()
             .find(|(addr, topics, _)| {
                 addr == &client.address
                     && topics
@@ -3069,10 +3071,8 @@ mod tests {
             &Some(comment_str.clone()),
         );
 
-        let event = env
-            .events()
-            .all()
-            .iter()
+        let event = get_events(&env)
+            .into_iter()
             .find(|(addr, topics, _)| {
                 addr == &client.address
                     && topics
@@ -3110,10 +3110,8 @@ mod tests {
 
         client.donate(&donor, &campaign_id, &1_000_000, &false, &None);
 
-        let event = env
-            .events()
-            .all()
-            .iter()
+        let event = get_events(&env)
+            .into_iter()
             .find(|(addr, topics, _)| {
                 addr == &client.address
                     && topics
@@ -3811,10 +3809,8 @@ mod tests {
                 &None,
             );
 
-            let event = env
-                .events()
-                .all()
-                .iter()
+            let event = get_events(&env)
+                .into_iter()
                 .find(|(addr, topics, _)| {
                     addr == &client.address
                         && topics
@@ -3925,10 +3921,8 @@ mod tests {
 
             client.donate(&donor, &campaign_id, &5_000_000, &false, &None);
 
-            let donation_event = env
-                .events()
-                .all()
-                .iter()
+            let donation_event = get_events(&env)
+                .into_iter()
                 .find(|(addr, topics, _)| {
                     addr == &client.address
                         && topics
@@ -3954,10 +3948,8 @@ mod tests {
 
             client.donate(&donor, &campaign_id, &10_000_000, &false, &None);
 
-            let goal_event = env
-                .events()
-                .all()
-                .iter()
+            let goal_event = get_events(&env)
+                .into_iter()
                 .find(|(addr, topics, _)| {
                     addr == &client.address
                         && topics
@@ -4036,10 +4028,8 @@ mod tests {
 
             client.donate(&donor, &campaign_id, &10_000_000, &true, &None);
 
-            let donation_event = env
-                .events()
-                .all()
-                .iter()
+            let donation_event = get_events(&env)
+                .into_iter()
                 .find(|(addr, topics, _)| {
                     addr == &client.address
                         && topics
@@ -4373,7 +4363,7 @@ mod tests {
             let claimed = client.claim_funds(&creator, &campaign_id);
             assert_eq!(claimed, 5_000_000);
 
-            let events = env.events().all();
+            let events = get_events(&env);
             let claimed_event_exists = events.iter().any(|event| {
                 event
                     .1
@@ -4558,10 +4548,8 @@ mod tests {
             client.donate(&donor, &campaign_id, &10_000_000, &false, &None);
 
             // Check for AutoClaimed event
-            let auto_claimed_event = env
-                .events()
-                .all()
-                .iter()
+            let auto_claimed_event = get_events(&env)
+                .into_iter()
                 .find(|(addr, topics, _)| {
                     addr == &client.address
                         && topics
@@ -5155,7 +5143,7 @@ mod tests {
                     (new_owner.clone(),).into_val(&env)
                 )])
                 .set_owner(&new_owner);
-            let found = env.events().all().iter().any(|(addr, topics, _)| {
+            let found = get_events(&env).into_iter().any(|(addr, topics, _)| {
                 addr == client.address
                     && topics
                         .get(0)

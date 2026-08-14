@@ -35,7 +35,7 @@ fn test_create_event_topic_is_created_symbol() {
         &None,
     );
 
-    let all_events = env.events().all();
+    let all_events = helpers::get_events(&env);
     let contract_event_count = all_events
         .iter()
         .filter(|(addr, _, _)| addr == &client.address)
@@ -91,9 +91,7 @@ fn test_create_event_payload_exact_match() {
         &None,
     );
 
-    let event = env
-        .events()
-        .all()
+    let event = helpers::get_events(&env)
         .into_iter()
         .find(|(addr, topics, _)| {
             addr == &client.address
@@ -135,9 +133,7 @@ fn test_donation_event_has_two_ordered_topics() {
 
     client.donate(&donor, &id, &1_000_000_i128, &false, &None);
 
-    let event = env
-        .events()
-        .all()
+    let event = helpers::get_events(&env)
         .into_iter()
         .find(|(addr, topics, _)| {
             addr == &client.address
@@ -196,9 +192,7 @@ fn test_donation_event_payload_exact_match() {
         &Some(comment.clone()),
     );
 
-    let event = env
-        .events()
-        .all()
+    let event = helpers::get_events(&env)
         .into_iter()
         .find(|(addr, topics, _)| {
             addr == &client.address
@@ -240,10 +234,10 @@ fn test_create_and_donate_both_events_emitted() {
         &token_client.address,
         &None,
     );
+    let mut all_events = helpers::get_events(&env);
 
     client.donate(&donor, &id, &1_000_000_i128, &false, &None);
-
-    let all_events = env.events().all();
+    all_events.extend(helpers::get_events(&env));
 
     let contract_event_count = all_events
         .iter()
@@ -255,14 +249,14 @@ fn test_create_and_donate_both_events_emitted() {
     );
 
     let has_created = all_events.iter().any(|(addr, topics, _)| {
-        addr == client.address
+        addr == &client.address
             && topics
                 .get(0)
                 .and_then(|t| Symbol::try_from_val(&env, &t).ok())
                 == Some(symbol_short!("created"))
     });
     let has_donation = all_events.iter().any(|(addr, topics, _)| {
-        addr == client.address
+        addr == &client.address
             && topics
                 .get(0)
                 .and_then(|t| Symbol::try_from_val(&env, &t).ok())
@@ -296,20 +290,20 @@ fn test_events_ordered_create_before_donation() {
         &token_client.address,
         &None,
     );
+    let mut all_events = helpers::get_events(&env);
 
     client.donate(&donor, &id, &1_000_000_i128, &false, &None);
-
-    let all_events = env.events().all();
+    all_events.extend(helpers::get_events(&env));
 
     let created_idx = all_events.iter().position(|(addr, topics, _)| {
-        addr == client.address
+        addr == &client.address
             && topics
                 .get(0)
                 .and_then(|t| Symbol::try_from_val(&env, &t).ok())
                 == Some(symbol_short!("created"))
     });
     let donation_idx = all_events.iter().position(|(addr, topics, _)| {
-        addr == client.address
+        addr == &client.address
             && topics
                 .get(0)
                 .and_then(|t| Symbol::try_from_val(&env, &t).ok())
@@ -347,7 +341,7 @@ fn test_add_update_event_topic_is_update_symbol() {
     let content = String::from_str(&env, "New update content");
     client.add_update(&campaign_id, &content);
 
-    let all_events = env.events().all();
+    let all_events = helpers::get_events(&env);
 
     let event = all_events
         .into_iter()
@@ -385,9 +379,7 @@ fn test_add_update_event_payload_exact_match() {
     let content = String::from_str(&env, "Progress update #1");
     client.add_update(&campaign_id, &content);
 
-    let event = env
-        .events()
-        .all()
+    let event = helpers::get_events(&env)
         .into_iter()
         .find(|(addr, topics, _)| {
             addr == &client.address
@@ -424,7 +416,7 @@ fn test_refund_event_topic_is_refund_symbol() {
     set_timestamp(&env, 3_000);
     client.refund(&campaign_id, &donor);
 
-    let all_events = env.events().all();
+    let all_events = helpers::get_events(&env);
 
     let event = all_events
         .into_iter()
@@ -464,9 +456,7 @@ fn test_refund_event_payload_exact_match() {
     set_timestamp(&env, 3_000);
     client.refund(&campaign_id, &donor);
 
-    let event = env
-        .events()
-        .all()
+    let event = helpers::get_events(&env)
         .into_iter()
         .find(|(addr, topics, _)| {
             addr == &client.address
@@ -501,9 +491,7 @@ fn test_add_update_emits_only_one_event() {
 
     client.add_update(&campaign_id, &String::from_str(&env, "Update content"));
 
-    let update_event_count = env
-        .events()
-        .all()
+    let update_event_count = helpers::get_events(&env)
         .into_iter()
         .filter(|(addr, topics, _)| {
             addr == &client.address
@@ -547,9 +535,7 @@ fn test_anonymous_donation_event_donor_is_sentinel() {
 
     client.donate(&donor, &id, &1_000_000_i128, &true, &None);
 
-    let event = env
-        .events()
-        .all()
+    let event = helpers::get_events(&env)
         .into_iter()
         .find(|(addr, topics, _)| {
             addr == &client.address
@@ -597,9 +583,7 @@ fn test_donation_event_without_comment() {
 
     client.donate(&donor, &id, &1_000_000_i128, &false, &None);
 
-    let event = env
-        .events()
-        .all()
+    let event = helpers::get_events(&env)
         .into_iter()
         .find(|(addr, topics, _)| {
             addr == &client.address
@@ -641,7 +625,7 @@ fn test_goal_crossing_donation_emits_goal_reached_and_autoclaimed() {
     // Donate exactly the target — triggers goal_reached + auto-claim
     client.donate(&donor, &id, &target, &false, &None);
 
-    let all_events = env.events().all();
+    let all_events = helpers::get_events(&env);
 
     // Verify GoalReachedEvent
     let goal_event = all_events
@@ -706,9 +690,7 @@ fn test_donation_event_all_fields_decoded() {
     let comment = String::from_str(&env, "great cause!");
     client.donate(&donor, &id, &2_000_000_i128, &false, &Some(comment.clone()));
 
-    let event = env
-        .events()
-        .all()
+    let event = helpers::get_events(&env)
         .into_iter()
         .find(|(addr, topics, _)| {
             addr == &client.address

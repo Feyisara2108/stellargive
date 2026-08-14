@@ -22,7 +22,7 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("@stellar/freighter-api", () => ({
-  signTransaction: vi.fn().mockResolvedValue({ signedTxXdr: "mock_xdr" }),
+  signTransaction: vi.fn((xdr: any) => Promise.resolve({ signedTxXdr: xdr })),
 }));
 
 // ─── Imports (after mocks) ───────────────────────────────────────────────────
@@ -68,7 +68,7 @@ function makeWrapper() {
 
 describe("useSoroban", () => {
   beforeEach(() => {
-    vi.resetAllMocks();
+    vi.clearAllMocks();
     vi.mocked(toast.loading).mockReturnValue("test-toast-id" as any);
     vi.mocked(useWallet).mockReturnValue({
       address: WALLET,

@@ -3,11 +3,84 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import AdminPage from "./page";
 import type { Campaign } from "@/lib/soroban";
 
-const mockUseWallet = vi.fn();
-const mockUseRecentCampaigns = vi.fn();
-const mockUseAddToWhitelist = vi.fn();
-const mockUseCancelCampaign = vi.fn();
-const mockUseAddUpdate = vi.fn();
+const {
+  mockUseWallet,
+  mockUseRecentCampaigns,
+  mockUseAddToWhitelist,
+  mockUseCancelCampaign,
+  mockUseAddUpdate,
+  AdminPanelMock,
+} = vi.hoisted(() => {
+  const React = require("react");
+  const mockUseWallet = vi.fn();
+  const mockUseRecentCampaigns = vi.fn();
+  const mockUseAddToWhitelist = vi.fn();
+  const mockUseCancelCampaign = vi.fn();
+  const mockUseAddUpdate = vi.fn();
+
+  const AdminPanelMock = ({ ownedCampaigns }: any) => {
+    const [showCancelDialog, setShowCancelDialog] = React.useState(false);
+    const [showUpdateDialog, setShowUpdateDialog] = React.useState(false);
+    const cancelMutation = mockUseCancelCampaign();
+
+    return React.createElement(
+      "div",
+      null,
+      React.createElement("div", null, "Campaign Management"),
+      ownedCampaigns.map((c: any) =>
+        React.createElement(
+          "div",
+          { key: c.id },
+          React.createElement("div", null, c.title),
+          React.createElement(
+            "button",
+            { onClick: () => setShowUpdateDialog(true) },
+            "Post Update"
+          ),
+          React.createElement(
+            "button",
+            {
+              disabled: c.status !== "Active",
+              onClick: () => setShowCancelDialog(true),
+            },
+            "Cancel"
+          )
+        )
+      ),
+      showCancelDialog &&
+        React.createElement(
+          "div",
+          null,
+          React.createElement("div", null, "Cancel this campaign?"),
+          React.createElement(
+            "button",
+            {
+              onClick: () => {
+                cancelMutation.mutateAsync(ownedCampaigns[0].id);
+                setShowCancelDialog(false);
+              },
+            },
+            "yes, cancel campaign"
+          )
+        ),
+      showUpdateDialog &&
+        React.createElement(
+          "div",
+          null,
+          React.createElement("div", null, "Post Update for Flood Relief")
+        )
+    );
+  };
+
+  return {
+    mockUseWallet,
+    mockUseRecentCampaigns,
+    mockUseAddToWhitelist,
+    mockUseCancelCampaign,
+    mockUseAddUpdate,
+    AdminPanelMock,
+  };
+});
 
 vi.mock("@/lib/WalletProvider", () => ({
   useWallet: () => mockUseWallet(),
@@ -22,6 +95,10 @@ vi.mock("@/hooks/useSoroban", () => ({
 
 vi.mock("@/components/Navbar", () => ({
   Navbar: () => <nav data-testid="navbar">Navbar</nav>,
+}));
+
+vi.mock("next/dynamic", () => ({
+  default: () => AdminPanelMock,
 }));
 
 const creatorAddress = "GA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVSGZ";

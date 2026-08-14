@@ -624,8 +624,8 @@ fn test_pause_emits_paused_event() {
 
     client.pause();
 
-    let events = env.events().all();
-    let has_paused = events.iter().any(|(addr, topics, _)| {
+    let events = helpers::get_events(&env);
+    let has_paused = events.into_iter().any(|(addr, topics, _)| {
         addr == client.address
             && topics
                 .get(0)
@@ -643,8 +643,8 @@ fn test_unpause_emits_unpaused_event() {
     client.pause();
     client.unpause();
 
-    let events = env.events().all();
-    let has_unpaused = events.iter().any(|(addr, topics, _)| {
+    let events = helpers::get_events(&env);
+    let has_unpaused = events.into_iter().any(|(addr, topics, _)| {
         addr == client.address
             && topics
                 .get(0)

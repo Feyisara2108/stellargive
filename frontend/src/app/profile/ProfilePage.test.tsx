@@ -63,7 +63,7 @@ describe("ProfilePage - Empty States", () => {
     expect(screen.getByText(/Create your first campaign/i)).toBeInTheDocument();
 
     expect(screen.getByText(/You haven't donated to any campaigns yet/i)).toBeInTheDocument();
-    expect(screen.getByText(/Explore campaigns/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Explore campaigns/i)[0]).toBeInTheDocument();
   });
 });
 
@@ -84,7 +84,7 @@ describe("ProfilePage - malformed event payloads", () => {
 
     render(<ProfilePage />);
 
-    fireEvent.click(screen.getByRole("button", { name: /My Donations/i }));
+    fireEvent.click(screen.getByRole("tab", { name: /My Donations/i }));
 
     expect(screen.getAllByText(/— Donated/)).toHaveLength(2);
     expect(screen.getAllByText(/To campaign ID: —/)).toHaveLength(2);
@@ -96,7 +96,7 @@ describe("ProfilePage - malformed event payloads", () => {
 
     render(<ProfilePage />);
 
-    fireEvent.click(screen.getByRole("button", { name: /My Donations/i }));
+    fireEvent.click(screen.getByRole("tab", { name: /My Donations/i }));
 
     expect(screen.getByText(/You haven't made any donations yet/i)).toBeInTheDocument();
   });

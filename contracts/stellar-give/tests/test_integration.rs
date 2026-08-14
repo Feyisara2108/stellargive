@@ -1,5 +1,5 @@
 use soroban_sdk::testutils::{Address as _, Events as _, Ledger};
-use soroban_sdk::{symbol_short, Address, BytesN, IntoVal, String, Symbol, TryFromVal, Vec};
+use soroban_sdk::{symbol_short, Address, BytesN, Env, IntoVal, String, Symbol, TryFromVal, Vec};
 
 mod helpers;
 use helpers::{
@@ -7,6 +7,23 @@ use helpers::{
     set_timestamp, single_ben,
 };
 use stellar_give::{CampaignStatus, ContractError, RefundEvent};
+
+fn get_events(env: &soroban_sdk::Env) -> std::vec::Vec<(soroban_sdk::Address, soroban_sdk::Vec<soroban_sdk::Val>, soroban_sdk::Val)> {
+    use soroban_sdk::xdr;
+    use soroban_sdk::testutils::Events as _;
+    let mut result = std::vec::Vec::new();
+    for event in env.events().all().events() {
+        let contract_id = event.contract_id.clone().unwrap();
+        let sc_address = xdr::ScAddress::Contract(contract_id);
+        let addr = soroban_sdk::Address::try_from_val(env, &sc_address).unwrap();
+        if let xdr::ContractEventBody::V0(event_body) = &event.body {
+            let topics = soroban_sdk::Vec::try_from_val(env, &event_body.topics).unwrap();
+            let data = soroban_sdk::Val::try_from_val(env, &event_body.data).unwrap();
+            result.push((addr, topics, data));
+        }
+    }
+    result
+}
 
 // =============================================================================
 // claim_refund on cancelled campaigns / refund on expired campaigns
@@ -97,10 +114,8 @@ fn test_claim_refund_emits_event() {
     client.cancel_campaign(&campaign_id);
     client.claim_refund(&donor, &campaign_id);
 
-    let event = env
-        .events()
-        .all()
-        .iter()
+    let event = get_events(&env)
+        .into_iter()
         .find(|(addr, topics, _)| {
             addr == &client.address
                 && topics
@@ -346,7 +361,7 @@ fn test_pause_emits_event() {
 
     client.pause();
 
-    let has_paused = env.events().all().iter().any(|(addr, topics, _)| {
+    let has_paused = get_events(&env).into_iter().any(|(addr, topics, _)| {
         addr == client.address
             && topics
                 .get(0)
@@ -364,7 +379,7 @@ fn test_unpause_emits_event() {
     client.pause();
     client.unpause();
 
-    let has_unpaused = env.events().all().iter().any(|(addr, topics, _)| {
+    let has_unpaused = get_events(&env).into_iter().any(|(addr, topics, _)| {
         addr == client.address
             && topics
                 .get(0)
@@ -380,7 +395,7 @@ fn test_unpause_emits_event() {
 
 #[test]
 fn test_add_to_whitelist_allows_private_campaign_donation() {
-    let (env, client, creator, beneficiary, donor, _admin, token_client, _) =
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, token_admin) =
         register_and_setup();
     set_timestamp(&env, 1_000);
 
@@ -399,15 +414,15 @@ fn test_add_to_whitelist_allows_private_campaign_donation() {
     );
 
     env.as_contract(&client.address, || {
-        let mut campaign =
-            stellar_give::Campaign::try_from_val(&env, &client.get_campaign(&campaign_id))
-                .unwrap();
-        campaign.is_private = true;
         let key = (symbol_short!("CMP"), campaign_id);
+        let mut campaign: stellar_give::Campaign = env.storage().persistent().get(&key).unwrap();
+        campaign.is_private = true;
         env.storage().persistent().set(&key, &campaign);
     });
 
     let unwhitelisted = Address::generate(&env);
+    token_admin.mint(&unwhitelisted, &10_000_000);
+
     let result = client.try_donate(&unwhitelisted, &campaign_id, &1_000_000, &false, &None);
     assert_eq!(result, Err(Ok(ContractError::NotWhitelisted)));
 
@@ -573,7 +588,7 @@ fn test_set_owner_emits_event() {
         }])
         .set_owner(&new_owner);
 
-    let has_event = env.events().all().iter().any(|(addr, topics, _)| {
+    let has_event = get_events(&env).into_iter().any(|(addr, topics, _)| {
         addr == client.address
             && topics
                 .get(0)
@@ -682,9 +697,10 @@ fn test_get_time_left_at_deadline_returns_zero() {
         &creator,
         &beneficiary,
         &token_client.address,
-        1_000,
+        2_000,
     );
 
+    set_timestamp(&env, 2_000);
     let time_left = client.get_time_left(&campaign_id);
     assert_eq!(time_left, 0);
 }
@@ -733,7 +749,7 @@ fn test_get_campaigns_by_creator_returns_own_campaigns() {
     let campaigns = client.get_campaigns_by_creator(&creator);
     assert_eq!(campaigns.len(), 2);
 
-    let ids: Vec<u64> = campaigns.iter().map(|c| c.id).collect();
+    let ids: std::vec::Vec<u64> = campaigns.iter().map(|c| c.id).collect();
     assert!(ids.contains(&id1));
     assert!(ids.contains(&id2));
 }

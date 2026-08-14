@@ -77,10 +77,16 @@ export const handlers = [
           cpuInsns: "1689904",
           memBytes: "1289276",
         },
+        results: [
+          {
+            xdr: "AAAAAQ==",
+            auth: [],
+          },
+        ],
       };
 
       if (xdrResult) {
-        resultObj.results = [{ xdr: xdrResult }];
+        resultObj.results = [{ xdr: xdrResult, auth: [] }];
         try {
           resultObj.retval = xdr.ScVal.fromXDR(xdrResult, "base64");
         } catch {}
@@ -103,6 +109,9 @@ export const handlers = [
           latestLedgerCloseTime: "1234567890",
           oldestLedger: 1,
           oldestLedgerCloseTime: "1000000000",
+          resultMetaXdr: "AAAAAAAAAAA=",
+          resultXdr: "AAAAAAAAAGQAAAAAAAAAAAAAAAA=",
+          envelopeXdr: "AAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGQAAAAAAAAAAQAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAJiWgAAAAAAAAAAA",
           tx: {
             hash: body.params?.[0] || "0x" + "a".repeat(64),
             ledger: 123000,
@@ -178,8 +187,8 @@ export const handlers = [
               contractId: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
               id: "0-0",
               pagingToken: "0-0",
-              topic: ["AAAADwAAAARoZWxsbw==", "AAAAEQAAAADSuZLn4FkGFx3d5GhFE"],
-              value: "AAAADwAAAARoZWxsbw==",
+              topic: ["AAAADwAAAAhjYW1wYWlnbg==", "AAAADwAAAAhyZWNlaXZlZA=="],
+              value: "AAAAEAAAAAEAAAADAAAABQAAAAAAAAADAAAADgAAADhHQlJQWUhJTDJDSTNXSFpEVE9PUUZDNkVCNENHUU9GTjRMNU1IWjVSV0JOUlVCQUxYQVM1RjNCMgAAAAUAAAAAAExLQA==",
               inSuccessfulContractInvocation: true,
               txn_result_code: "txSUCCESS",
               tx_set_operation_count: 0,

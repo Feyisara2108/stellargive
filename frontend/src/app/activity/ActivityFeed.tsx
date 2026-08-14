@@ -24,85 +24,90 @@ function ledgerLabel(ledger: unknown): string {
 // ---------------------------------------------------------------------------
 
 function useActivityData(event: any) {
-  const id = getCampaignId(event);
-  const ledger = ledgerLabel(event?.ledger);
-  const createdAt = event?.createdAt ? new Date(event.createdAt) : null;
-  const when =
-    createdAt && !Number.isNaN(createdAt.getTime()) ? (
-      <RelativeTime date={createdAt} fallback={`Ledger ${ledger}`} />
-    ) : (
-      `Ledger ${ledger}`
-    );
+  try {
+    const id = getCampaignId(event);
+    const ledger = ledgerLabel(event?.ledger);
+    const createdAt = event?.createdAt ? new Date(event.createdAt) : null;
+    const when =
+      createdAt && !Number.isNaN(createdAt.getTime()) ? (
+        <RelativeTime date={createdAt} fallback={`Ledger ${ledger}`} />
+      ) : (
+        `Ledger ${ledger}`
+      );
 
-  let icon = <Megaphone className="w-4 h-4 text-blue-500" />;
-  let iconBg = "bg-blue-500/10";
-  let label = event?.topic ?? MISSING_FIELD;
-  let body: React.ReactNode = null;
+    let icon = <Megaphone className="w-4 h-4 text-blue-500" />;
+    let iconBg = "bg-blue-500/10";
+    let label = event?.topic ?? MISSING_FIELD;
+    let body: React.ReactNode = null;
 
-  if (event?.topic === "received") {
-    const donor = normalizeAddress(getEventField(event, 1));
-    icon = <ArrowUpRight className="w-4 h-4 text-green-500" />;
-    iconBg = "bg-green-500/10";
-    label = "Donated";
-    body = (
-      <>
-        <span className="font-bold">{formatEventAmount(event, 2)}</span> donated
-        {donor ? (
-          <>
-            {" "}
-            by <AddressLink address={donor} className="text-muted-foreground" />
-          </>
-        ) : (
-          <>
-            {" "}
-            by <span className="text-muted-foreground">Anonymous</span>
-          </>
-        )}
-        {id && <> to Campaign #{id}</>}
-      </>
-    );
-  } else if (event?.topic === "created") {
-    label = "Created";
-    body = (
-      <>
-        New campaign{id && <> #{id}</>} created with a target of{" "}
-        <span className="font-bold">{formatEventAmount(event, 3)}</span>
-      </>
-    );
-  } else if (event?.topic === "claimed") {
-    const beneficiary = normalizeAddress(getEventField(event, 1));
-    icon = <Trophy className="w-4 h-4 text-purple-500" />;
-    iconBg = "bg-purple-500/10";
-    label = "Claimed";
-    body = (
-      <>
-        <span className="font-bold">{formatEventAmount(event, 3)}</span> claimed
-        {beneficiary ? (
-          <>
-            {" "}
-            by <AddressLink address={beneficiary} className="text-muted-foreground" />
-          </>
-        ) : (
-          <> by beneficiary</>
-        )}
-        {id && <> from Campaign #{id}</>}
-      </>
-    );
-  } else {
-    body = <span className="text-muted-foreground">{label}</span>;
+    if (event?.topic === "received") {
+      const donor = normalizeAddress(getEventField(event, 1));
+      icon = <ArrowUpRight className="w-4 h-4 text-green-500" />;
+      iconBg = "bg-green-500/10";
+      label = "Donated";
+      body = (
+        <>
+          <span className="font-bold">{formatEventAmount(event, 2)}</span> donated
+          {donor ? (
+            <>
+              {" "}
+              by <AddressLink address={donor} className="text-muted-foreground" />
+            </>
+          ) : (
+            <>
+              {" "}
+              by <span className="text-muted-foreground">Anonymous</span>
+            </>
+          )}
+          {id && <> to Campaign #{id}</>}
+        </>
+      );
+    } else if (event?.topic === "created") {
+      label = "Created";
+      body = (
+        <>
+          New campaign{id && <> #{id}</>} created with a target of{" "}
+          <span className="font-bold">{formatEventAmount(event, 3)}</span>
+        </>
+      );
+    } else if (event?.topic === "claimed") {
+      const beneficiary = normalizeAddress(getEventField(event, 1));
+      icon = <Trophy className="w-4 h-4 text-purple-500" />;
+      iconBg = "bg-purple-500/10";
+      label = "Claimed";
+      body = (
+        <>
+          <span className="font-bold">{formatEventAmount(event, 3)}</span> claimed
+          {beneficiary ? (
+            <>
+              {" "}
+              by <AddressLink address={beneficiary} className="text-muted-foreground" />
+            </>
+          ) : (
+            <> by beneficiary</>
+          )}
+          {id && <> from Campaign #{id}</>}
+        </>
+      );
+    } else {
+      body = <span className="text-muted-foreground">{label}</span>;
+    }
+
+    return {
+      id,
+      when,
+      ledger,
+      icon,
+      iconBg,
+      label,
+      body,
+      txHash: event?.txHash,
+      txLabel: formatTxHash(event?.txHash),
+    };
+  } catch (err) {
+    console.error("CRASH IN USEACTIVITYDATA:", err);
+    throw err;
   }
-
-  return {
-    id,
-    when,
-    ledger,
-    icon,
-    iconBg,
-    label,
-    body,
-    txHash: event?.txHash,
-    txLabel: formatTxHash(event?.txHash),
-  };
 }
 
 // ---------------------------------------------------------------------------
