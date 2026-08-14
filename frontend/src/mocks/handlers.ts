@@ -27,7 +27,7 @@ export function generateUpdatesArrayXdr() {
 }
 
 export const handlers = [
-  http.post("/rpc", async ({ request }) => {
+  http.post("*/rpc", async ({ request }) => {
     const body = (await request.json()) as any;
     const method = body.method;
 
@@ -151,6 +151,17 @@ export const handlers = [
       });
     }
 
+    if (method === "sendTransaction") {
+      return HttpResponse.json({
+        id: body.id,
+        jsonrpc: "2.0",
+        result: {
+          status: "PENDING",
+          hash: "mock_tx_hash",
+        },
+      });
+    }
+
     if (method === "getEvents") {
       return HttpResponse.json({
         id: body.id,
@@ -218,13 +229,13 @@ export const handlers = [
 
 export const errorHandlers = {
   nodeTimeout: [
-    http.post("/rpc", () => {
+    http.post("*/rpc", () => {
       return HttpResponse.error();
     }),
   ],
 
   transactionFailed: [
-    http.post("/rpc", async ({ request }) => {
+    http.post("*/rpc", async ({ request }) => {
       const body = (await request.json()) as any;
       const method = body.method;
 
