@@ -97,7 +97,7 @@ export function Navbar() {
         {/* Desktop navigation */}
         <div className="hidden md:flex items-center gap-4">
           {NAV_LINKS.map((link) => {
-            const isActive = pathname === link.href || pathname.startsWith(`${link.href}/`);
+            const isActive = pathname ? (pathname === link.href || pathname.startsWith(`${link.href}/`)) : false;
             return (
               <Link
                 key={link.href}
@@ -159,7 +159,7 @@ export function Navbar() {
         </div>
         <nav className="flex flex-col p-4 space-y-4" aria-label="Mobile navigation">
           {NAV_LINKS.map((link) => {
-            const isActive = pathname === link.href || pathname.startsWith(`${link.href}/`);
+            const isActive = pathname ? (pathname === link.href || pathname.startsWith(`${link.href}/`)) : false;
             return (
               <Link
                 key={link.href}
