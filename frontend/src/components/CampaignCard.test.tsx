@@ -33,25 +33,25 @@ vi.mock("@/lib/soroban", () => ({
 }));
 
 // Mock child components that depend on wallet context / blockchain
-vi.mock("./DonateModal", () => ({
+vi.mock("@/components/DonateModal", () => ({
   DonateModal: ({ campaign }: { campaign: Campaign }) => (
     <button data-testid="donate-modal">Donate to {campaign.title}</button>
   ),
 }));
 
-vi.mock("./ClaimButton", () => ({
+vi.mock("@/components/ClaimButton", () => ({
   ClaimButton: ({ campaign }: { campaign: Campaign }) => (
     <button data-testid="claim-button">Claim {campaign.title}</button>
   ),
 }));
 
-vi.mock("./ShareButton", () => ({
+vi.mock("@/components/ShareButton", () => ({
   ShareButton: ({ campaign }: { campaign: { id: bigint; title: string } }) => (
     <button data-testid="share-button">Share {campaign.title}</button>
   ),
 }));
 
-vi.mock("./AddressLink", () => ({
+vi.mock("@/components/AddressLink", () => ({
   AddressLink: ({ address }: { address: string }) => (
     <span data-testid="address-link">{address}</span>
   ),

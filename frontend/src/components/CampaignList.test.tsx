@@ -15,12 +15,12 @@ vi.mock("@sentry/nextjs", () => ({
 }));
 
 // Mock CampaignCard to keep it simple
-vi.mock("./CampaignCard", () => ({
+vi.mock("@/components/CampaignCard", () => ({
   CampaignCard: ({ campaign }: any) => <div data-testid="campaign-card">{campaign.title}</div>,
 }));
 
 // Mock CampaignSkeletonGrid for loading state assertions
-vi.mock("./CampaignSkeleton", () => ({
+vi.mock("@/components/CampaignSkeleton", () => ({
   CampaignSkeletonGrid: ({ count }: { count?: number }) => (
     <div data-testid="skeleton-grid" data-count={count ?? 6}>
       {Array.from({ length: count ?? 6 }).map((_, i) => (
