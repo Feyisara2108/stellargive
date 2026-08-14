@@ -16,6 +16,13 @@ vi.mock("@/components/AddressLink", () => ({
   AddressLink: ({ address }: { address: string }) => <span>{address}</span>,
 }));
 
+vi.mock("next/dynamic", () => ({
+  default: () => {
+    const { ActivityFeed } = require("./ActivityFeed");
+    return ActivityFeed;
+  },
+}));
+
 import { useEvents } from "@/hooks/useSoroban";
 
 const DONOR = "G" + "B".repeat(55);

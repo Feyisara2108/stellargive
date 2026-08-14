@@ -31,12 +31,17 @@ vi.mock("./CampaignSkeleton", () => ({
 }));
 
 // Dynamic mock for useRecentCampaigns — tests can override via mockRecentCampaignsReturn
-let mockRecentCampaignsReturn: any = { data: undefined, isLoading: true, error: null };
+let mockRecentCampaignsReturn: any = null;
 vi.mock("@/hooks/useSoroban", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/hooks/useSoroban")>();
   return {
     ...actual,
-    useRecentCampaigns: () => mockRecentCampaignsReturn,
+    useRecentCampaigns: () => {
+      if (mockRecentCampaignsReturn !== null) {
+        return mockRecentCampaignsReturn;
+      }
+      return actual.useRecentCampaigns();
+    },
   };
 });
 
@@ -71,7 +76,7 @@ beforeEach(() => {
   replaceMock.mockClear();
   currentParams = new URLSearchParams();
   setMockCampaigns([]);
-  mockRecentCampaignsReturn = { data: undefined, isLoading: true, error: null };
+  mockRecentCampaignsReturn = null;
   vi.resetAllMocks();
 });
 

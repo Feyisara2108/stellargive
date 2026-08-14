@@ -6,6 +6,8 @@ import {
   formatTokenAmount,
   formatBasisPoints,
   toRawAmount,
+  normalizeAddress,
+  ZERO_ADDRESS,
 } from "./format";
 
 describe("format utils", () => {

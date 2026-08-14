@@ -24,6 +24,13 @@ vi.mock("@/components/Navbar", () => ({
   Navbar: () => <nav data-testid="navbar">Navbar</nav>,
 }));
 
+vi.mock("next/dynamic", () => ({
+  default: () => {
+    const { AdminPanel } = require("./AdminPanel");
+    return AdminPanel;
+  },
+}));
+
 const creatorAddress = "GA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVSGZ";
 
 const activeCampaign: Campaign = {

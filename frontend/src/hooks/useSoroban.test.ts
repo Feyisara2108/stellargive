@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
+import { server as rpcServer } from "@/lib/soroban";
+import { Account } from "@stellar/stellar-sdk";
 import { http, HttpResponse } from "msw";
 import { server, errorHandlers } from "../mocks/setup";
 
@@ -74,6 +76,9 @@ describe("useSoroban", () => {
       connect: vi.fn(),
       disconnect: vi.fn(),
     } as any);
+    vi.spyOn(rpcServer, "getAccount").mockResolvedValue(
+      new Account(WALLET, "1")
+    );
   });
 
   describe("Queries", () => {
@@ -131,9 +136,10 @@ describe("useSoroban", () => {
         await result.current.mutateAsync({
           beneficiary: WALLET,
           title: "Test",
+          description: "Test description",
           targetAmount: "100",
           deadline: 1234567890,
-          acceptedToken: "CDLZS3ZCDY7SF3SIVR6Y7I6SN636O27T7G5MKSUIU22ZS76E55WJIPZ4",
+          acceptedToken: "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
         });
       });
 
@@ -210,9 +216,10 @@ describe("useSoroban", () => {
         result.current.mutate({
           beneficiary: WALLET,
           title: "Test",
+          description: "Test description",
           targetAmount: "100",
           deadline: 1234567890,
-          acceptedToken: "CDLZS3ZCDY7SF3SIVR6Y7I6SN636O27T7G5MKSUIU22ZS76E55WJIPZ4",
+          acceptedToken: "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
         });
       });
 
