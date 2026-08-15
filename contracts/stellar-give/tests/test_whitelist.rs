@@ -10,8 +10,7 @@ use stellar_give::ContractError;
 
 #[test]
 fn test_non_whitelisted_donor_rejected() {
-    let (env, client, creator, beneficiary, donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
     let bens = single_ben(&env, &beneficiary);
@@ -30,8 +29,7 @@ fn test_non_whitelisted_donor_rejected() {
 
     let key = (symbol_short!("CMP"), campaign_id);
     env.as_contract(&client.address, || {
-        let mut campaign: stellar_give::Campaign =
-            env.storage().persistent().get(&key).unwrap();
+        let mut campaign: stellar_give::Campaign = env.storage().persistent().get(&key).unwrap();
         campaign.is_private = true;
         env.storage().persistent().set(&key, &campaign);
     });
@@ -42,8 +40,7 @@ fn test_non_whitelisted_donor_rejected() {
 
 #[test]
 fn test_whitelisted_donor_can_donate() {
-    let (env, client, creator, beneficiary, donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
     let bens = single_ben(&env, &beneficiary);
@@ -62,8 +59,7 @@ fn test_whitelisted_donor_can_donate() {
 
     let key = (symbol_short!("CMP"), campaign_id);
     env.as_contract(&client.address, || {
-        let mut campaign: stellar_give::Campaign =
-            env.storage().persistent().get(&key).unwrap();
+        let mut campaign: stellar_give::Campaign = env.storage().persistent().get(&key).unwrap();
         campaign.is_private = true;
         env.storage().persistent().set(&key, &campaign);
     });

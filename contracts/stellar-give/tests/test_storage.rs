@@ -110,9 +110,15 @@ fn test_persistent_storage_ttl_extended_by_write() {
     );
 }
 
-fn get_events(env: &Env) -> std::vec::Vec<(soroban_sdk::Address, soroban_sdk::Vec<soroban_sdk::Val>, soroban_sdk::Val)> {
-    use soroban_sdk::xdr;
+fn get_events(
+    env: &Env,
+) -> std::vec::Vec<(
+    soroban_sdk::Address,
+    soroban_sdk::Vec<soroban_sdk::Val>,
+    soroban_sdk::Val,
+)> {
     use soroban_sdk::testutils::Events as _;
+    use soroban_sdk::xdr;
     let mut result = std::vec::Vec::new();
     for event in env.events().all().events() {
         let contract_id = event.contract_id.clone().unwrap();
@@ -273,20 +279,28 @@ fn test_next_id_migration_from_persistent() {
     set_timestamp(&env, 1_000);
 
     env.as_contract(&client.address, || {
-        env.storage().persistent().set(&symbol_short!("NEXT"), &42_u64);
+        env.storage()
+            .persistent()
+            .set(&symbol_short!("NEXT"), &42_u64);
     });
 
     client.get_total_campaigns();
 
     let migrated: u64 = env.as_contract(&client.address, || {
-        env.storage().instance().get(&symbol_short!("NEXT")).unwrap()
+        env.storage()
+            .instance()
+            .get(&symbol_short!("NEXT"))
+            .unwrap()
     });
     assert_eq!(migrated, 42);
 
     let persisted = env.as_contract(&client.address, || {
         env.storage().persistent().has(&symbol_short!("NEXT"))
     });
-    assert!(!persisted, "persistent NEXT must be removed after migration");
+    assert!(
+        !persisted,
+        "persistent NEXT must be removed after migration"
+    );
 
     let campaign_id = create_default_campaign(
         &env,

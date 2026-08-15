@@ -199,7 +199,10 @@ fn test_add_update_9th_succeeds_10th_is_boundary() {
     // Add 9 updates
     for i in 0..9 {
         set_timestamp(&env, 1_000 + i);
-        client.add_update(&campaign_id, &String::from_str(&env, &format!("Update {}", i)));
+        client.add_update(
+            &campaign_id,
+            &String::from_str(&env, &format!("Update {}", i)),
+        );
     }
 
     // 10th should succeed (cap is 10)
@@ -209,4 +212,3 @@ fn test_add_update_9th_succeeds_10th_is_boundary() {
     let updates = client.get_updates(&campaign_id);
     assert_eq!(updates.len(), 10);
 }
-

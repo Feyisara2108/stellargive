@@ -8,9 +8,15 @@ use helpers::{
 };
 use stellar_give::{CampaignStatus, ContractError, RefundEvent};
 
-fn get_events(env: &soroban_sdk::Env) -> std::vec::Vec<(soroban_sdk::Address, soroban_sdk::Vec<soroban_sdk::Val>, soroban_sdk::Val)> {
-    use soroban_sdk::xdr;
+fn get_events(
+    env: &soroban_sdk::Env,
+) -> std::vec::Vec<(
+    soroban_sdk::Address,
+    soroban_sdk::Vec<soroban_sdk::Val>,
+    soroban_sdk::Val,
+)> {
     use soroban_sdk::testutils::Events as _;
+    use soroban_sdk::xdr;
     let mut result = std::vec::Vec::new();
     for event in env.events().all().events() {
         let contract_id = event.contract_id.clone().unwrap();
@@ -31,8 +37,7 @@ fn get_events(env: &soroban_sdk::Env) -> std::vec::Vec<(soroban_sdk::Address, so
 
 #[test]
 fn test_claim_refund_exact_contribution_donor_made_whole() {
-    let (env, client, creator, beneficiary, donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
     let campaign_id = create_default_campaign(
@@ -58,8 +63,7 @@ fn test_claim_refund_exact_contribution_donor_made_whole() {
 
 #[test]
 fn test_claim_refund_rejects_active_campaign() {
-    let (env, client, creator, beneficiary, donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
     let campaign_id = create_default_campaign(
@@ -78,8 +82,7 @@ fn test_claim_refund_rejects_active_campaign() {
 
 #[test]
 fn test_claim_refund_rejects_nothing_to_refund() {
-    let (env, client, creator, beneficiary, donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
     let campaign_id = create_default_campaign(
@@ -98,8 +101,7 @@ fn test_claim_refund_rejects_nothing_to_refund() {
 
 #[test]
 fn test_claim_refund_emits_event() {
-    let (env, client, creator, beneficiary, donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
     let campaign_id = create_default_campaign(
@@ -125,8 +127,8 @@ fn test_claim_refund_emits_event() {
         })
         .expect("RefundEvent must be emitted");
 
-    let payload = RefundEvent::try_from_val(&env, &event.2)
-        .expect("event data must decode as RefundEvent");
+    let payload =
+        RefundEvent::try_from_val(&env, &event.2).expect("event data must decode as RefundEvent");
     assert_eq!(payload.campaign_id, campaign_id);
     assert_eq!(payload.donor, donor);
     assert_eq!(payload.amount, 3_000_000);
@@ -134,8 +136,7 @@ fn test_claim_refund_emits_event() {
 
 #[test]
 fn test_refund_on_expired_campaign_releases_funds() {
-    let (env, client, creator, beneficiary, donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
     let campaign_id = create_default_campaign(
@@ -160,8 +161,7 @@ fn test_refund_on_expired_campaign_releases_funds() {
 
 #[test]
 fn test_refund_rejects_nothing_to_claim() {
-    let (env, client, creator, beneficiary, donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
     let campaign_id = create_default_campaign(
@@ -180,8 +180,7 @@ fn test_refund_rejects_nothing_to_claim() {
 
 #[test]
 fn test_refund_rejects_active_campaign() {
-    let (env, client, creator, beneficiary, donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
     let campaign_id = create_default_campaign(
@@ -204,8 +203,7 @@ fn test_refund_rejects_active_campaign() {
 
 #[test]
 fn test_add_update_and_get_updates_roundtrip() {
-    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
     let campaign_id = create_default_campaign(
@@ -228,8 +226,7 @@ fn test_add_update_and_get_updates_roundtrip() {
 
 #[test]
 fn test_get_updates_empty_for_new_campaign() {
-    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
     let campaign_id = create_default_campaign(
@@ -247,8 +244,7 @@ fn test_get_updates_empty_for_new_campaign() {
 
 #[test]
 fn test_add_update_multiple_increments_count() {
-    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
     let campaign_id = create_default_campaign(
@@ -310,8 +306,7 @@ fn test_add_update_rejects_non_creator() {
 
 #[test]
 fn test_pause_then_unpause_restores_functionality() {
-    let (env, client, creator, beneficiary, donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
     let campaign_id = create_default_campaign(
@@ -334,8 +329,7 @@ fn test_pause_then_unpause_restores_functionality() {
 
 #[test]
 fn test_pause_blocks_claim_funds() {
-    let (env, client, creator, beneficiary, donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
     let campaign_id = create_default_campaign(
@@ -604,8 +598,7 @@ fn test_set_owner_emits_event() {
 
 #[test]
 fn test_get_total_campaigns_counts_all() {
-    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
     assert_eq!(client.get_total_campaigns(), 0);
@@ -632,8 +625,7 @@ fn test_get_total_campaigns_counts_all() {
 
 #[test]
 fn test_get_total_campaigns_includes_cancelled() {
-    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
     let bens = single_ben(&env, &beneficiary);
@@ -668,8 +660,7 @@ fn test_get_total_campaigns_includes_cancelled() {
 
 #[test]
 fn test_get_time_left_before_deadline() {
-    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
     let campaign_id = create_default_campaign(
@@ -687,8 +678,7 @@ fn test_get_time_left_before_deadline() {
 
 #[test]
 fn test_get_time_left_at_deadline_returns_zero() {
-    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
     let campaign_id = create_default_campaign(
@@ -716,8 +706,7 @@ fn test_get_time_left_rejects_nonexistent() {
 
 #[test]
 fn test_get_campaigns_by_creator_returns_own_campaigns() {
-    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
     let bens = single_ben(&env, &beneficiary);
@@ -756,8 +745,7 @@ fn test_get_campaigns_by_creator_returns_own_campaigns() {
 
 #[test]
 fn test_get_campaigns_by_creator_empty_for_unknown() {
-    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
     let bens = single_ben(&env, &beneficiary);
@@ -781,8 +769,7 @@ fn test_get_campaigns_by_creator_empty_for_unknown() {
 
 #[test]
 fn test_get_campaigns_batch_returns_multiple() {
-    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
     let bens = single_ben(&env, &beneficiary);
@@ -825,7 +812,7 @@ fn test_get_campaigns_batch_returns_multiple() {
 
 #[test]
 fn test_get_campaigns_batch_returns_none_for_missing() {
-    let (env, client, _creator, _beneficiary, _donor, _admin, token_client, _) =
+    let (env, client, _creator, _beneficiary, _donor, _admin, _token_client, _) =
         register_and_setup();
 
     let mut ids = Vec::new(&env);

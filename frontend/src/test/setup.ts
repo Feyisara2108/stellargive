@@ -27,7 +27,7 @@ vi.mock("next/dynamic", () => {
         return React.createElement(
           React.Suspense,
           { fallback: null },
-          React.createElement(LazyComponent, props)
+          React.createElement(LazyComponent, props),
         );
       };
     },

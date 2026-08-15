@@ -59,11 +59,15 @@ const ActivityFeedMock = vi.hoisted(() => {
             "tr",
             { key: event?.id || idx },
             React.createElement("td", null, amountStr),
-            React.createElement("td", null, event?.ledger !== undefined && event?.ledger !== null ? String(event.ledger) : "—"),
-            React.createElement("td", null, txLabel)
+            React.createElement(
+              "td",
+              null,
+              event?.ledger !== undefined && event?.ledger !== null ? String(event.ledger) : "—",
+            ),
+            React.createElement("td", null, txLabel),
           );
-        })
-      )
+        }),
+      ),
     );
   };
   DynamicActivityFeed.displayName = "DynamicActivityFeed";

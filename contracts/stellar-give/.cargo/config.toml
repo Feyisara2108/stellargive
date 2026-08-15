@@ -1,0 +1,8 @@
+[target.'cfg(all())']
+rustflags = [
+    "-A", "dead_code",
+    "-A", "unused_imports",
+    "-A", "irrefutable_let_patterns",
+    "-A", "deprecated",
+    "-A", "clippy::needless_borrows_for_generic_args"
+]

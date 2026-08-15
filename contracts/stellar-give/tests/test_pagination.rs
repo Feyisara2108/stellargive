@@ -54,7 +54,14 @@ fn test_paged_limit_clamped_to_20() {
         register_and_setup();
     set_timestamp(&env, 1_000);
 
-    create_n_campaigns(&env, &client, &beneficiary, &token_client.address, &token_admin_client, 25);
+    create_n_campaigns(
+        &env,
+        &client,
+        &beneficiary,
+        &token_client.address,
+        &token_admin_client,
+        25,
+    );
 
     // Request limit=50, should be clamped to 20
     let page = client.get_campaigns_paged(&0, &50);
@@ -67,7 +74,14 @@ fn test_paged_offset_returns_correct_page() {
         register_and_setup();
     set_timestamp(&env, 1_000);
 
-    create_n_campaigns(&env, &client, &beneficiary, &token_client.address, &token_admin_client, 10);
+    create_n_campaigns(
+        &env,
+        &client,
+        &beneficiary,
+        &token_client.address,
+        &token_admin_client,
+        10,
+    );
 
     // offset=0, limit=5 → ids 1..=5
     let page = client.get_campaigns_paged(&0, &5);
@@ -86,10 +100,18 @@ fn test_paged_offset_returns_correct_page() {
 
 #[test]
 fn test_paged_offset_at_last_id_returns_one() {
-    let (env, client, _creator, beneficiary, _donor, _admin, token_client, token_admin_client) = register_and_setup();
+    let (env, client, _creator, beneficiary, _donor, _admin, token_client, token_admin_client) =
+        register_and_setup();
     set_timestamp(&env, 1_000);
 
-    create_n_campaigns(&env, &client, &beneficiary, &token_client.address, &token_admin_client, 5);
+    create_n_campaigns(
+        &env,
+        &client,
+        &beneficiary,
+        &token_client.address,
+        &token_admin_client,
+        5,
+    );
 
     // offset=4 (last id is 5, so start_id=5) → returns 1 campaign
     let page = client.get_campaigns_paged(&4, &10);
@@ -99,10 +121,18 @@ fn test_paged_offset_at_last_id_returns_one() {
 
 #[test]
 fn test_paged_offset_beyond_last_id_returns_empty() {
-    let (env, client, _creator, beneficiary, _donor, _admin, token_client, token_admin_client) = register_and_setup();
+    let (env, client, _creator, beneficiary, _donor, _admin, token_client, token_admin_client) =
+        register_and_setup();
     set_timestamp(&env, 1_000);
 
-    create_n_campaigns(&env, &client, &beneficiary, &token_client.address, &token_admin_client, 5);
+    create_n_campaigns(
+        &env,
+        &client,
+        &beneficiary,
+        &token_client.address,
+        &token_admin_client,
+        5,
+    );
 
     // offset=100 is way past the last id (5) → empty vec, no panic
     let page = client.get_campaigns_paged(&100, &10);
@@ -122,10 +152,18 @@ fn test_paged_empty_ledger_returns_empty() {
 
 #[test]
 fn test_paged_returns_derived_status() {
-    let (env, client, _creator, beneficiary, _donor, _admin, token_client, token_admin_client) = register_and_setup();
+    let (env, client, _creator, beneficiary, _donor, _admin, token_client, token_admin_client) =
+        register_and_setup();
     set_timestamp(&env, 1_000);
 
-    create_n_campaigns(&env, &client, &beneficiary, &token_client.address, &token_admin_client, 3);
+    create_n_campaigns(
+        &env,
+        &client,
+        &beneficiary,
+        &token_client.address,
+        &token_admin_client,
+        3,
+    );
 
     // Advance past all deadlines
     set_timestamp(&env, 50_000);
@@ -139,15 +177,26 @@ fn test_paged_returns_derived_status() {
 
 #[test]
 fn test_paged_ordering_is_ascending_by_id() {
-    let (env, client, _creator, beneficiary, _donor, _admin, token_client, token_admin_client) = register_and_setup();
+    let (env, client, _creator, beneficiary, _donor, _admin, token_client, token_admin_client) =
+        register_and_setup();
     set_timestamp(&env, 1_000);
 
-    create_n_campaigns(&env, &client, &beneficiary, &token_client.address, &token_admin_client, 10);
+    create_n_campaigns(
+        &env,
+        &client,
+        &beneficiary,
+        &token_client.address,
+        &token_admin_client,
+        10,
+    );
 
     let page = client.get_campaigns_paged(&0, &10);
     let len = page.len();
     for i in 0..len - 1 {
-        assert!(page.get(i).unwrap().id < page.get(i + 1).unwrap().id, "ids must be ascending");
+        assert!(
+            page.get(i).unwrap().id < page.get(i + 1).unwrap().id,
+            "ids must be ascending"
+        );
     }
 }
 
@@ -172,10 +221,18 @@ fn test_get_campaigns_51_ids_returns_limit_exceeded() {
 
 #[test]
 fn test_get_campaigns_50_ids_succeeds() {
-    let (env, client, _creator, beneficiary, _donor, _admin, token_client, token_admin_client) = register_and_setup();
+    let (env, client, _creator, beneficiary, _donor, _admin, token_client, token_admin_client) =
+        register_and_setup();
     set_timestamp(&env, 1_000);
 
-    create_n_campaigns(&env, &client, &beneficiary, &token_client.address, &token_admin_client, 50);
+    create_n_campaigns(
+        &env,
+        &client,
+        &beneficiary,
+        &token_client.address,
+        &token_admin_client,
+        50,
+    );
 
     let mut ids = Vec::new(&env);
     for i in 1..=50 {
@@ -185,17 +242,28 @@ fn test_get_campaigns_50_ids_succeeds() {
     let result = client.get_campaigns(&ids);
     assert_eq!(result.len(), 50);
     for i in 0..result.len() {
-        assert!(result.get(i).unwrap().is_some(), "all 50 campaigns should exist");
+        assert!(
+            result.get(i).unwrap().is_some(),
+            "all 50 campaigns should exist"
+        );
     }
 }
 
 #[test]
 fn test_get_campaigns_missing_ids_return_none() {
-    let (env, client, _creator, beneficiary, _donor, _admin, token_client, token_admin_client) = register_and_setup();
+    let (env, client, _creator, beneficiary, _donor, _admin, token_client, token_admin_client) =
+        register_and_setup();
     set_timestamp(&env, 1_000);
 
     // Create only 3 campaigns (ids 1, 2, 3)
-    create_n_campaigns(&env, &client, &beneficiary, &token_client.address, &token_admin_client, 3);
+    create_n_campaigns(
+        &env,
+        &client,
+        &beneficiary,
+        &token_client.address,
+        &token_admin_client,
+        3,
+    );
 
     // Request ids including non-existent ones
     let mut ids = Vec::new(&env);
@@ -217,14 +285,22 @@ fn test_get_campaigns_missing_ids_return_none() {
 
 #[test]
 fn test_get_campaigns_preserves_order_with_nones() {
-    let (env, client, _creator, beneficiary, _donor, _admin, token_client, token_admin_client) = register_and_setup();
+    let (env, client, _creator, beneficiary, _donor, _admin, token_client, token_admin_client) =
+        register_and_setup();
     set_timestamp(&env, 1_000);
 
-    create_n_campaigns(&env, &client, &beneficiary, &token_client.address, &token_admin_client, 2);
+    create_n_campaigns(
+        &env,
+        &client,
+        &beneficiary,
+        &token_client.address,
+        &token_admin_client,
+        2,
+    );
 
     let mut ids = Vec::new(&env);
     ids.push_back(50_u64); // missing
-    ids.push_back(1_u64);  // exists
+    ids.push_back(1_u64); // exists
     ids.push_back(99_u64); // missing
 
     let result = client.get_campaigns(&ids);
@@ -237,10 +313,18 @@ fn test_get_campaigns_preserves_order_with_nones() {
 
 #[test]
 fn test_get_campaigns_derives_status_for_present_ids() {
-    let (env, client, _creator, beneficiary, _donor, _admin, token_client, token_admin_client) = register_and_setup();
+    let (env, client, _creator, beneficiary, _donor, _admin, token_client, token_admin_client) =
+        register_and_setup();
     set_timestamp(&env, 1_000);
 
-    create_n_campaigns(&env, &client, &beneficiary, &token_client.address, &token_admin_client, 3);
+    create_n_campaigns(
+        &env,
+        &client,
+        &beneficiary,
+        &token_client.address,
+        &token_admin_client,
+        3,
+    );
 
     // Advance past deadlines
     set_timestamp(&env, 50_000);

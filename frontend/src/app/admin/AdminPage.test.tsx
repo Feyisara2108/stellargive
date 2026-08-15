@@ -35,7 +35,7 @@ const {
           React.createElement(
             "button",
             { onClick: () => setShowUpdateDialog(true) },
-            "Post Update"
+            "Post Update",
           ),
           React.createElement(
             "button",
@@ -43,9 +43,9 @@ const {
               disabled: c.status !== "Active",
               onClick: () => setShowCancelDialog(true),
             },
-            "Cancel"
-          )
-        )
+            "Cancel",
+          ),
+        ),
       ),
       showCancelDialog &&
         React.createElement(
@@ -60,15 +60,15 @@ const {
                 setShowCancelDialog(false);
               },
             },
-            "yes, cancel campaign"
-          )
+            "yes, cancel campaign",
+          ),
         ),
       showUpdateDialog &&
         React.createElement(
           "div",
           null,
-          React.createElement("div", null, "Post Update for Flood Relief")
-        )
+          React.createElement("div", null, "Post Update for Flood Relief"),
+        ),
     );
   };
 

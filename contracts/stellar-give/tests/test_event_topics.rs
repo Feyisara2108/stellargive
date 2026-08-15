@@ -597,7 +597,10 @@ fn test_donation_event_without_comment() {
     let payload = DonationEvent::try_from_val(&env, &event.2)
         .expect("event data must decode as DonationEvent");
 
-    assert_eq!(payload.comment, None, "donation without comment must have comment: None");
+    assert_eq!(
+        payload.comment, None,
+        "donation without comment must have comment: None"
+    );
 }
 
 /// A goal-crossing donation emits `GoalReachedEvent` then `AutoClaimedEvent`

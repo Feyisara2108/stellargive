@@ -80,7 +80,7 @@ jobs:
       - name: Install Soroban CLI
         uses: taiki-e/install-action@v2 # v2.4.4
         with:
-          tool: soroban-cli@21.6.0
+          tool: soroban-cli@27.1.0
 
       - name: Rust Build
         working-directory: contracts/stellar-give

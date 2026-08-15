@@ -145,8 +145,8 @@ pub fn register_and_setup_without_auth_mock() -> (
 
 /// Helper function to retrieve and parse event data in test environments.
 pub fn get_events(env: &Env) -> std::vec::Vec<(Address, Vec<soroban_sdk::Val>, soroban_sdk::Val)> {
-    use soroban_sdk::xdr;
     use soroban_sdk::testutils::Events as _;
+    use soroban_sdk::xdr;
     let mut result = std::vec::Vec::new();
     for event in env.events().all().events() {
         let contract_id = event.contract_id.clone().unwrap();

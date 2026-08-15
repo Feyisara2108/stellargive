@@ -22,7 +22,7 @@ const mockReplace = vi.fn((url: string) => {
 });
 
 const searchParamsObj = {
-  get: (key: string) => (key === "status" ? (currentStatus || null) : null),
+  get: (key: string) => (key === "status" ? currentStatus || null : null),
   toString: () => (currentStatus ? `status=${currentStatus}` : ""),
 };
 

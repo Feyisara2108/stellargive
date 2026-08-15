@@ -121,7 +121,10 @@ fn test_refund_succeeds_only_when_expired_below_target() {
     assert!(campaign.raised_amount < campaign.target_amount);
 
     let result = client.try_refund(&campaign_id, &donor);
-    assert!(result.is_ok(), "refund must succeed for expired below-target campaign");
+    assert!(
+        result.is_ok(),
+        "refund must succeed for expired below-target campaign"
+    );
 }
 
 // ── claim_refund: status guards ────────────────────────────────────────────
@@ -285,7 +288,10 @@ fn test_refund_clears_raised_amount() {
     client.refund(&campaign_id, &donor);
 
     let c_after = client.get_campaign(&campaign_id);
-    assert_eq!(c_after.raised_amount, 0, "raised_amount must be zeroed after refund");
+    assert_eq!(
+        c_after.raised_amount, 0,
+        "raised_amount must be zeroed after refund"
+    );
 }
 
 #[test]
@@ -312,5 +318,8 @@ fn test_claim_refund_clears_raised_amount() {
     client.claim_refund(&donor, &campaign_id);
 
     let c_after = client.get_campaign(&campaign_id);
-    assert_eq!(c_after.raised_amount, 0, "raised_amount must be zeroed after claim_refund");
+    assert_eq!(
+        c_after.raised_amount, 0,
+        "raised_amount must be zeroed after claim_refund"
+    );
 }
