@@ -94,26 +94,13 @@ jobs:
               --body "⏰ Still unhealthy as of $(date -u '+%Y-%m-%d %H:%M UTC')."
           else
             echo "Creating new outage tracking issue…"
+            BODY=$(printf '## Production Frontend Outage\n\n**URL:** `%s`\n**Detected at:** %s\n**Triggered by:** [workflow run](%s/%s/actions/runs/%s)\n\n### What this means\nThe scheduled uptime check could not reach the production frontend.\n\n### Next steps\n1. Check the Vercel deployment dashboard for build/runtime errors.\n2. Verify DNS and TLS certificate status for the production domain.\n3. Check recent deploys for a regression.\n\n---\n_This issue is managed automatically. It will be closed when the site recovers._' \
+              "$SITE_URL" "$(date -u '+%Y-%m-%d %H:%M UTC')" "${{ github.server_url }}" "${{ github.repository }}" "${{ github.run_id }}")
             gh issue create \
               --repo "$REPO" \
               --title "$TITLE" \
               --label "$LABEL" \
-              --body "## Production Frontend Outage
-
-**URL:** \`$SITE_URL\`
-**Detected at:** $(date -u '+%Y-%m-%d %H:%M UTC')
-**Triggered by:** [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
-
-### What this means
-The scheduled uptime check could not reach the production frontend or received an unexpected response.
-
-### Next steps
-1. Check the Vercel deployment dashboard for build/runtime errors.
-2. Verify DNS and TLS certificate status for the production domain.
-3. Check recent deploys for a regression.
-
----
-_This issue is managed automatically. It will be closed when the site recovers._"
+              --body "$BODY"
           fi
 
       # ── On recovery: close any open tracking issue ───────────────────────────

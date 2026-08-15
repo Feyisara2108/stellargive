@@ -9,7 +9,7 @@ module.exports = {
       url: [
         "http://localhost:3000",
         "http://localhost:3000/explore",
-        "http://localhost:3000/campaigns/1",
+        "http://localhost:3000/campaign/1",
       ],
       numberOfRuns: 2,
       settings: {

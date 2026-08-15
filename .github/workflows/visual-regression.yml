@@ -30,17 +30,16 @@ jobs:
           cache: "npm"
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install root dependencies
-        run: npm ci
-
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
 
       - name: Install Playwright browsers
+        working-directory: frontend
         run: npx playwright install --with-deps chromium firefox webkit
 
       - name: Run visual regression tests
+        working-directory: frontend
         run: npx playwright test --project=desktop --project=firefox --project=webkit --project=mobile --project=mobile-safari
         env:
           CI: true

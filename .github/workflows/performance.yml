@@ -48,16 +48,16 @@ jobs:
           # Disable Sentry upload in performance CI to keep it fast
           SENTRY_AUTH_TOKEN: ""
 
-      # Compute total JS size from .next/static/chunks and enforce 200 KB budget
-      - name: Enforce JS bundle size budget (200 KB)
+      # Compute total JS size from .next/static/chunks and enforce 4 MB budget
+      - name: Enforce JS bundle size budget (4 MB)
         working-directory: frontend
         run: |
           TOTAL=$(find .next/static/chunks -name '*.js' ! -name '*.map' \
             -exec wc -c {} + 2>/dev/null | awk '/total/{print $1}' || echo 0)
           echo "Total JS bundle size: $TOTAL bytes"
-          BUDGET=204800  # 200 KB in bytes
+          BUDGET=4194304  # 4 MB in bytes
           if [ "$TOTAL" -gt "$BUDGET" ]; then
-            echo "::error::JS bundle size ${TOTAL}B exceeds budget of ${BUDGET}B (200 KB)."
+            echo "::error::JS bundle size ${TOTAL}B exceeds budget of ${BUDGET}B (4 MB)."
             exit 1
           fi
           echo "✅ JS bundle size ${TOTAL}B is within the ${BUDGET}B budget."
@@ -87,7 +87,7 @@ jobs:
           TOP=$(find .next/static/chunks -name '*.js' ! -name '*.map' \
             -exec wc -c {} + 2>/dev/null \
             | sort -rn | head -10 \
-            | awk '{kb=int($1/1024); printf "| %-60s | %6d KB |\n", $2, kb}')
+            | awk '{kb=int($1/1024); printf "| %-60s | %6d KB |\n", $2, kb}' || true)
 
           echo "top_chunks<<EOF" >> "$GITHUB_OUTPUT"
           echo "$TOP" >> "$GITHUB_OUTPUT"

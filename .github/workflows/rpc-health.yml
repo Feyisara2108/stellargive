@@ -76,26 +76,13 @@ jobs:
               --body "⏰ Still unhealthy as of $(date -u '+%Y-%m-%d %H:%M UTC')."
           else
             echo "Creating new outage tracking issue…"
+            BODY=$(printf '## Soroban RPC Outage\n\n**Endpoint:** `%s`\n**Detected at:** %s\n**Triggered by:** [workflow run](%s/%s/actions/runs/%s)\n\n### What this means\nThe scheduled RPC health check could not reach the endpoint or received an unhealthy status.\n\n### Next steps\n1. Check the [Stellar status page](https://status.stellar.org/) for known incidents.\n2. Verify `SOROBAN_RPC_URL` in repo secrets points to the correct endpoint.\n3. Consider switching to a backup RPC node until the primary recovers.\n\n---\n_This issue is managed automatically. It will be closed when the RPC recovers._' \
+              "$RPC_URL" "$(date -u '+%Y-%m-%d %H:%M UTC')" "${{ github.server_url }}" "${{ github.repository }}" "${{ github.run_id }}")
             gh issue create \
               --repo "$REPO" \
               --title "$TITLE" \
               --label "$LABEL" \
-              --body "## Soroban RPC Outage
-
-**Endpoint:** \`$RPC_URL\`
-**Detected at:** $(date -u '+%Y-%m-%d %H:%M UTC')
-**Triggered by:** [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
-
-### What this means
-The scheduled RPC health check could not reach the endpoint or received an unhealthy status.
-
-### Next steps
-1. Check the [Stellar status page](https://status.stellar.org/) for known incidents.
-2. Verify \`SOROBAN_RPC_URL\` in repo secrets points to the correct endpoint.
-3. Consider switching to a backup RPC node until the primary recovers.
-
----
-_This issue is managed automatically. It will be closed when the RPC recovers._"
+              --body "$BODY"
           fi
 
       # ── On recovery: close any open tracking issue ───────────────────────────
