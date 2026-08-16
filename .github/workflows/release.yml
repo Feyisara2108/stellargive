@@ -23,6 +23,10 @@ jobs:
         with:
           config-file: .release-please-config.json
           manifest-file: .release-please-manifest.json
+          # Branch protection prevents GitHub Actions from creating PRs directly.
+          # skip-github-pull-request still creates a release and tag when a PR
+          # lands via the manifest, but won't fail if PR creation is restricted.
+          skip-github-pull-request: true
 
       - name: Log Release Creation
         if: ${{ steps.release.outputs.release_created }}

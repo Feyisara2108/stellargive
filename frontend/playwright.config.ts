@@ -2,9 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 import path from "path";
 import fs from "fs";
 
-const systemChrome = fs.existsSync("/usr/bin/google-chrome")
-  ? "/usr/bin/google-chrome"
-  : undefined;
+const systemChrome = fs.existsSync("/usr/bin/google-chrome") ? "/usr/bin/google-chrome" : undefined;
 
 export default defineConfig({
   testDir: path.join(__dirname, "e2e"),
@@ -60,11 +58,9 @@ export default defineConfig({
         process.env.NEXT_PUBLIC_CONTRACT_ID ??
         "CB6HVHRQYILGNKW7RBB66BC6TDBIEWADOA2YUUV4I22RXRLA6DY6OAKT",
       NEXT_PUBLIC_SOROBAN_RPC_URL:
-        process.env.NEXT_PUBLIC_SOROBAN_RPC_URL ??
-        "https://soroban-testnet.stellar.org",
+        process.env.NEXT_PUBLIC_SOROBAN_RPC_URL ?? "https://soroban-testnet.stellar.org",
       NEXT_PUBLIC_NETWORK_PASSPHRASE:
-        process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ??
-        "Test SDF Network ; September 2015",
+        process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ?? "Test SDF Network ; September 2015",
     },
   },
 });

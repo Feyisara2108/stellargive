@@ -33,7 +33,8 @@ ENV PORT=3000
 # Create a non-root user
 RUN addgroup -S nextjs && adduser -S nextjs -G nextjs
 
-COPY --from=builder /app/public ./public
+RUN mkdir -p /app/public
+COPY --from=builder /app/public/ ./public/
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
