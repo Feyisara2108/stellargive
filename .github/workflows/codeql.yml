@@ -26,7 +26,7 @@ jobs:
           - language: javascript-typescript
             build-mode: none
           - language: rust
-            build-mode: manual
+            build-mode: none
 
     steps:
       - name: Checkout
@@ -40,22 +40,13 @@ jobs:
           queries: security-extended
           config-file: ./.github/codeql/codeql-config.yml
 
-      - name: Install Rust toolchain
-        if: matrix.language == 'rust'
-        uses: dtolnay/rust-toolchain@stable # stable
-        with:
-          targets: wasm32v1-none
-
       - name: Cache cargo
         if: matrix.language == 'rust'
         uses: Swatinem/rust-cache@v2.7.3 # v2.7.3
         with:
           workspaces: contracts/stellar-give
 
-      - name: Build contract
-        if: matrix.language == 'rust'
-        working-directory: contracts/stellar-give
-        run: cargo build --release --target wasm32v1-none
+      # build-mode: none – CodeQL auto-extracts Rust without a manual build step
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4 # v4 – required for Rust language support
