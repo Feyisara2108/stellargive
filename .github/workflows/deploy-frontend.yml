@@ -34,7 +34,7 @@ jobs:
 
       - name: Deploy via SSH
         if: ${{ secrets.SSH_HOST != '' }}
-        uses: appleboy/ssh-action@v1.2.2 # v1.2.2
+        uses: appleboy/ssh-action@v1.2.5 # v1.2.2
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}

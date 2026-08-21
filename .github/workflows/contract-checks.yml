@@ -17,7 +17,7 @@ jobs:
           targets: wasm32v1-none
 
       - name: Cache cargo
-        uses: Swatinem/rust-cache@v2.7.3 # v2.7.3
+        uses: Swatinem/rust-cache@v2.9.2 # v2.7.3
         with:
           workspaces: contracts/stellar-give
 
