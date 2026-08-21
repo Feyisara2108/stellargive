@@ -64,7 +64,7 @@ jobs:
 
       # Persist bundle stats for trend tracking across runs
       - name: Upload bundle stats artifact
-        uses: actions/upload-artifact@v4.3.0 # v4.3.0
+        uses: actions/upload-artifact@v7.0.1 # v4.3.0
         with:
           name: bundle-stats-${{ github.sha }}
           path: |
@@ -188,7 +188,7 @@ jobs:
 
       - name: Upload Lighthouse results
         if: always()
-        uses: actions/upload-artifact@v4.3.0 # v4.3.0
+        uses: actions/upload-artifact@v7.0.1 # v4.3.0
         with:
           name: lighthouse-results-${{ github.sha }}
           path: frontend/.lighthouseci/
