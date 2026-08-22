@@ -8,7 +8,10 @@ const withBundleAnalyzer = bundleAnalyzer({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: "standalone",
+  // 'standalone' output is required for Docker self-hosting.
+  // Vercel manages its own output — using 'standalone' on Vercel causes a 404.
+  // The Dockerfile sets NEXT_BUILD_TARGET=docker to enable this mode.
+  ...(process.env.NEXT_BUILD_TARGET === "docker" ? { output: "standalone" } : {}),
   swcMinify: false,
 };
 
