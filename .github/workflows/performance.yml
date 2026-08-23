@@ -171,6 +171,9 @@ jobs:
           NEXT_PUBLIC_SOROBAN_RPC_URL: "https://soroban-testnet.stellar.org"
           NEXT_PUBLIC_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015"
           SENTRY_AUTH_TOKEN: ""
+          # Standalone mode is required — the Lighthouse job starts the app via
+          # .next/standalone/server.js and the copy step below populates it.
+          NEXT_BUILD_TARGET: "docker"
 
       # Copy static assets into the standalone output so the server can serve them
       - name: Prepare standalone output
