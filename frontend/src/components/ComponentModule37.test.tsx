@@ -88,7 +88,7 @@ describe("ComponentModule37 — CategorySelector Unit Tests", () => {
       <div>
         <div data-testid="outside-element">Outside</div>
         <CategorySelector {...defaultProps} />
-      </div>
+      </div>,
     );
 
     // Open dropdown
