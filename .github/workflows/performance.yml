@@ -99,7 +99,7 @@ jobs:
         with:
           script: |
             const totalKb = '${{ steps.bundle-report.outputs.total_kb }}';
-            const topChunks = `${{ steps.bundle-report.outputs.top_chunks }}`;
+            const topChunks = $(${{ steps.bundle-report.outputs.top_chunks }});
             const budget = 200;
             const status = parseFloat(totalKb) <= budget ? '✅' : '❌';
             const body = [

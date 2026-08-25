@@ -2,9 +2,9 @@ name: "Workflow Step 8"
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   optimize-step-8:
@@ -26,3 +26,4 @@ jobs:
         with:
           level: warning
           reporter: github-pr-check
+          actionlint_flags: .github/workflows/workflow-step-8.yml
