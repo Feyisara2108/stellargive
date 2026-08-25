@@ -10,10 +10,6 @@ on:
     paths:
       - "frontend/**"
 
-permissions:
-  contents: read
-  pull-requests: write
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -23,6 +19,10 @@ jobs:
     name: Bundle Analysis
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
 
     steps:
       - name: Checkout
@@ -100,8 +100,8 @@ jobs:
       - name: Post bundle size comment
         if: github.event_name == 'pull_request' && github.event.pull_request != null
         uses: actions/github-script@v7.0.1 # v7.0.1
+        continue-on-error: true
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const totalKb = '${{ steps.bundle-report.outputs.total_kb }}';
             const topChunks = `${{ steps.bundle-report.outputs.top_chunks }}`;
