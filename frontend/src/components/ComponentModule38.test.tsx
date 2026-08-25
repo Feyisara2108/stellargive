@@ -20,7 +20,7 @@ describe("ComponentModule38 — ConsentBanner Unit Tests", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByText("Cookie & Analytics Consent")).toBeInTheDocument();
     expect(
-      screen.getByText(/We use cookies and analytics to improve your experience/i)
+      screen.getByText(/We use cookies and analytics to improve your experience/i),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Accept" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Decline" })).toBeInTheDocument();

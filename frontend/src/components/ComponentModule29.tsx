@@ -4,15 +4,15 @@ import { useQuery } from "@tanstack/react-query";
 
 export const ComponentModule29 = () => {
   const { isConnected, address } = useWallet();
-  const [inputValue, setInputValue] = useState('');
+  const [inputValue, setInputValue] = useState("");
   const [isFocused, setIsFocused] = useState(false);
   const [clicked, setClicked] = useState(false);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['module29Data'],
+    queryKey: ["module29Data"],
     queryFn: async () => {
-      return { message: 'Hello from query 29' };
-    }
+      return { message: "Hello from query 29" };
+    },
   });
 
   return (
@@ -20,15 +20,17 @@ export const ComponentModule29 = () => {
       <h1>Module 29</h1>
       {isConnected ? <p>Connected as {address}</p> : <p>Not connected</p>}
       {isLoading ? <p>Loading...</p> : <p>{data?.message}</p>}
-      <input 
+      <input
         data-testid="mod29-input"
-        value={inputValue} 
-        onChange={(e) => setInputValue(e.target.value)} 
+        value={inputValue}
+        onChange={(e) => setInputValue(e.target.value)}
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
       />
       {isFocused && <span>Input is focused</span>}
-      <button data-testid="mod29-button" onClick={() => setClicked(true)}>Click Me 29</button>
+      <button data-testid="mod29-button" onClick={() => setClicked(true)}>
+        Click Me 29
+      </button>
       {clicked && <span>Button was clicked</span>}
     </div>
   );
