@@ -1,9 +1,9 @@
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, it, expect, beforeEach } from 'vitest';
-import { ComponentModule32 } from './ComponentModule32';
-import { WalletContext } from '@/lib/WalletProvider';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import React from "react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { describe, it, expect, beforeEach } from "vitest";
+import { ComponentModule32 } from "./ComponentModule32";
+import { WalletContext } from "@/lib/WalletProvider";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const queryClient = new QueryClient();
 

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { useWallet } from '@/lib/WalletProvider';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState } from "react";
+import { useWallet } from "@/lib/WalletProvider";
+import { useQuery } from "@tanstack/react-query";
 
 export const ComponentModule30 = () => {
   const { isConnected, address } = useWallet();
