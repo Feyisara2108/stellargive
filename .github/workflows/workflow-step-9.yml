@@ -1,0 +1,28 @@
+name: "Workflow Step 9"
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  optimize-step-9:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Cache Policy for Step 9
+        uses: actions/cache@v4
+        with:
+          path: ~/.docker
+          key: ${{ runner.os }}-docker-${{ github.sha }}-step9
+          restore-keys: |
+            ${{ runner.os }}-docker-
+
+      - name: Actionlint Validation
+        uses: reviewdog/action-actionlint@v1
+        with:
+          level: warning
+          reporter: github-pr-check
