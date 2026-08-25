@@ -94,6 +94,44 @@ describe("ClaimButton — visibility", () => {
   });
 });
 
+describe("ClaimButton — tooltip rendering", () => {
+  it("shows the disabled-reason tooltip on hover for an Active campaign", async () => {
+    render(<ClaimButton campaign={{ ...baseCampaign, status: "Active" }} />);
+
+    const button = screen.getByRole("button", { name: /Claim Funds/i });
+    fireEvent.mouseEnter(button.parentElement as HTMLElement);
+
+    expect(
+      await screen.findByText(/Campaign must be fully funded or expired before claiming/i),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the 'nothing to claim' tooltip when raised_amount is 0", async () => {
+    render(<ClaimButton campaign={{ ...baseCampaign, status: "Funded", raised_amount: 0n }} />);
+
+    const button = screen.getByRole("button", { name: /Claim Funds/i });
+    fireEvent.mouseEnter(button.parentElement as HTMLElement);
+
+    expect(
+      await screen.findByText(/Nothing to claim — no funds have been raised/i),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the 'already claimed' tooltip for a Claimed campaign", async () => {
+    render(<ClaimButton campaign={{ ...baseCampaign, status: "Claimed" }} />);
+
+    const button = screen.getByRole("button", { name: /Claimed/i });
+    fireEvent.mouseEnter(button.parentElement as HTMLElement);
+
+    expect(await screen.findByText(/Funds have already been claimed/i)).toBeInTheDocument();
+  });
+
+  it("renders no tooltip content when the button is enabled", () => {
+    render(<ClaimButton campaign={{ ...baseCampaign, status: "Funded" }} />);
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  });
+});
+
 describe("ClaimButton — canClaim logic", () => {
   it("enables the button for a Funded campaign with raised_amount > 0", () => {
     render(<ClaimButton campaign={{ ...baseCampaign, status: "Funded" }} />);
@@ -133,6 +171,16 @@ describe("ClaimButton — pending state", () => {
     vi.mocked(useClaimFunds).mockReturnValue(mockClaim({ isPending: false }) as any);
     const { container } = render(<ClaimButton campaign={baseCampaign} />);
     expect(container.querySelector(".animate-spin")).not.toBeInTheDocument();
+  });
+});
+
+describe("ClaimButton — mutation success flag", () => {
+  it("renders a disabled 'Claimed' button once the mutation reports isSuccess", () => {
+    vi.mocked(useClaimFunds).mockReturnValue(mockClaim({ isSuccess: true }) as any);
+    render(<ClaimButton campaign={baseCampaign} />);
+
+    const button = screen.getByRole("button", { name: /^Claimed$/i });
+    expect(button).toBeDisabled();
   });
 });
 
