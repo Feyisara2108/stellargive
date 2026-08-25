@@ -1,0 +1,112 @@
+name: Pipeline Step 23
+
+# Pipeline step 23 — Soroban contract toolchain and build.
+#
+# Same shape as step 22, scoped to the Rust side of the pipeline: the expensive
+# part here is the cargo registry and target directory, not node_modules.
+# Scoped to its own definition file so it never adds load to the main CI fan-out.
+
+on:
+  workflow_dispatch:
+  workflow_call:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/workflow-step-23.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/workflow-step-23.yml
+
+# Least privilege: this pipeline only ever reads the repository.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ACTIONLINT_VERSION: 1.7.7
+  # Soft budget in seconds. Exceeding it warns rather than fails so a cold
+  # cache on a first run never blocks a merge.
+  BUILD_BUDGET_SECONDS: 900
+  # Cargo settings that only make sense on a disposable CI runner.
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  CARGO_NET_RETRY: 3
+  RUSTUP_MAX_RETRIES: 3
+
+jobs:
+  actionlint:
+    name: Validate workflow syntax
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2 # v4.2.2
+
+      - name: Install actionlint
+        run: |
+          curl -sSLo actionlint.tar.gz \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          tar -xzf actionlint.tar.gz actionlint
+          sudo install -m 0755 actionlint /usr/local/bin/actionlint
+
+      - name: Run actionlint
+        run: actionlint -color .github/workflows/workflow-step-23.yml
+
+  build:
+    name: Cached contract build
+    needs: actionlint
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2 # v4.2.2
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable # stable
+        with:
+          targets: wasm32v1-none
+
+      # Caches ~/.cargo (registry + git checkouts) and the workspace target
+      # directory, keyed on Cargo.lock and the resolved toolchain. This is the
+      # single biggest lever on contract build time.
+      - name: Cache cargo registry and target directory
+        id: cargo-cache
+        uses: Swatinem/rust-cache@v2.7.3 # v2.7.3
+        with:
+          workspaces: contracts/stellar-give
+          prefix-key: step23
+          # Keep the cache warm across branches instead of only on main.
+          save-if: ${{ github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' }}
+
+      - name: Build (timed)
+        id: build
+        working-directory: contracts/stellar-give
+        run: |
+          start=$(date +%s)
+          cargo build --locked --target wasm32v1-none --release
+          echo "duration=$(( $(date +%s) - start ))" >> "$GITHUB_OUTPUT"
+
+      - name: Report build duration
+        env:
+          DURATION: ${{ steps.build.outputs.duration }}
+          CACHE_HIT: ${{ steps.cargo-cache.outputs.cache-hit == 'true' }}
+        run: |
+          {
+            echo "### Pipeline step 23 — build duration"
+            echo ""
+            echo "| Metric | Value |"
+            echo "| --- | --- |"
+            echo "| Cargo cache hit | ${CACHE_HIT} |"
+            echo "| Build duration | ${DURATION}s |"
+            echo "| Budget | ${BUILD_BUDGET_SECONDS}s |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${DURATION}" -gt "${BUILD_BUDGET_SECONDS}" ]; then
+            echo "::warning::Step 23 build took ${DURATION}s, above the ${BUILD_BUDGET_SECONDS}s budget."
+          else
+            echo "Step 23 build took ${DURATION}s (budget ${BUILD_BUDGET_SECONDS}s)."
+          fi
