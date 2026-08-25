@@ -1,0 +1,117 @@
+name: Pipeline Step 22
+
+# Pipeline step 22 — frontend dependency install and Next.js build.
+#
+# Scoped to its own definition file so it never adds load to the main CI fan-out:
+# it runs on demand, when this file itself changes, or when called by another
+# workflow. Every job is validated by actionlint before any build work starts.
+
+on:
+  workflow_dispatch:
+  workflow_call:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/workflow-step-22.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/workflow-step-22.yml
+
+# Least privilege: this pipeline only ever reads the repository.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ACTIONLINT_VERSION: 1.7.7
+  # Soft budget in seconds. Exceeding it warns rather than fails so a cold
+  # cache on a first run never blocks a merge.
+  BUILD_BUDGET_SECONDS: 600
+
+jobs:
+  actionlint:
+    name: Validate workflow syntax
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2 # v4.2.2
+
+      - name: Install actionlint
+        run: |
+          curl -sSLo actionlint.tar.gz \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          tar -xzf actionlint.tar.gz actionlint
+          sudo install -m 0755 actionlint /usr/local/bin/actionlint
+
+      - name: Run actionlint
+        run: actionlint -color .github/workflows/workflow-step-22.yml
+
+  build:
+    name: Cached frontend build
+    needs: actionlint
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2 # v4.2.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4 # v4.0.2
+        with:
+          node-version-file: frontend/.nvmrc
+          # Restores the npm download cache keyed on the lockfile, so `npm ci`
+          # resolves from disk instead of the registry.
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # Separate from the npm cache above: this is the Next.js compiler cache,
+      # which is what actually shortens the build itself.
+      - name: Restore Next.js build cache
+        id: next-cache
+        uses: actions/cache@v4 # v4.0.2
+        with:
+          path: frontend/.next/cache
+          key: ${{ runner.os }}-step22-nextjs-${{ hashFiles('frontend/package-lock.json') }}-${{ hashFiles('frontend/src/**/*.[jt]s', 'frontend/src/**/*.[jt]sx') }}
+          restore-keys: |
+            ${{ runner.os }}-step22-nextjs-${{ hashFiles('frontend/package-lock.json') }}-
+            ${{ runner.os }}-step22-nextjs-
+
+      - name: Install dependencies
+        working-directory: frontend
+        # --prefer-offline uses the restored cache; --no-audit and --no-fund
+        # drop two network round trips that add nothing in CI.
+        run: npm ci --prefer-offline --no-audit --no-fund
+
+      - name: Build (timed)
+        id: build
+        working-directory: frontend
+        run: |
+          start=$(date +%s)
+          npm run build
+          echo "duration=$(( $(date +%s) - start ))" >> "$GITHUB_OUTPUT"
+
+      - name: Report build duration
+        env:
+          DURATION: ${{ steps.build.outputs.duration }}
+          CACHE_HIT: ${{ steps.next-cache.outputs.cache-hit == 'true' }}
+        run: |
+          {
+            echo "### Pipeline step 22 — build duration"
+            echo ""
+            echo "| Metric | Value |"
+            echo "| --- | --- |"
+            echo "| Next.js cache hit | ${CACHE_HIT} |"
+            echo "| Build duration | ${DURATION}s |"
+            echo "| Budget | ${BUILD_BUDGET_SECONDS}s |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${DURATION}" -gt "${BUILD_BUDGET_SECONDS}" ]; then
+            echo "::warning::Step 22 build took ${DURATION}s, above the ${BUILD_BUDGET_SECONDS}s budget."
+          else
+            echo "Step 22 build took ${DURATION}s (budget ${BUILD_BUDGET_SECONDS}s)."
+          fi
