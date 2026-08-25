@@ -1,0 +1,131 @@
+name: Pipeline Step 24
+
+# Pipeline step 24 — frontend lint and unit test suite.
+#
+# Same shape as steps 22 and 23, scoped to the check phase: no build output is
+# produced, so the levers here are the npm download cache, the ESLint and
+# Vitest on-disk caches, and splitting lint from tests so both report
+# independently instead of the first failure masking the second.
+# Scoped to its own definition file so it never adds load to the main CI fan-out.
+
+on:
+  workflow_dispatch:
+  workflow_call:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/workflow-step-24.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/workflow-step-24.yml
+
+# Least privilege: this pipeline only ever reads the repository.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ACTIONLINT_VERSION: 1.7.7
+  # Soft budget in seconds. Exceeding it warns rather than fails so a cold
+  # cache on a first run never blocks a merge.
+  CHECK_BUDGET_SECONDS: 420
+
+jobs:
+  actionlint:
+    name: Validate workflow syntax
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2 # v4.2.2
+
+      - name: Install actionlint
+        run: |
+          curl -sSLo actionlint.tar.gz \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          tar -xzf actionlint.tar.gz actionlint
+          sudo install -m 0755 actionlint /usr/local/bin/actionlint
+
+      - name: Run actionlint
+        run: actionlint -color .github/workflows/workflow-step-24.yml
+
+  check:
+    name: Cached ${{ matrix.task }}
+    needs: actionlint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      # Report lint and test results independently — a lint failure should not
+      # hide a test failure on the same run.
+      fail-fast: false
+      matrix:
+        task: [lint, test]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2 # v4.2.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4 # v4.0.2
+        with:
+          node-version-file: frontend/.nvmrc
+          # Restores the npm download cache keyed on the lockfile, so `npm ci`
+          # resolves from disk instead of the registry.
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # Tool-level caches. Keyed per matrix task so lint and test never evict
+      # each other's entries, and scoped to the sources each tool actually reads.
+      - name: Restore tool caches
+        id: tool-cache
+        uses: actions/cache@v4 # v4.0.2
+        with:
+          path: |
+            frontend/.eslintcache
+            frontend/node_modules/.cache
+          key: ${{ runner.os }}-step24-${{ matrix.task }}-${{ hashFiles('frontend/package-lock.json') }}-${{ hashFiles('frontend/src/**/*.[jt]s', 'frontend/src/**/*.[jt]sx') }}
+          restore-keys: |
+            ${{ runner.os }}-step24-${{ matrix.task }}-${{ hashFiles('frontend/package-lock.json') }}-
+            ${{ runner.os }}-step24-${{ matrix.task }}-
+
+      - name: Install dependencies
+        working-directory: frontend
+        # --prefer-offline uses the restored cache; --no-audit and --no-fund
+        # drop two network round trips that add nothing in CI.
+        run: npm ci --prefer-offline --no-audit --no-fund
+
+      - name: Run ${{ matrix.task }} (timed)
+        id: check
+        working-directory: frontend
+        env:
+          TASK: ${{ matrix.task }}
+        run: |
+          start=$(date +%s)
+          npm run "${TASK}"
+          echo "duration=$(( $(date +%s) - start ))" >> "$GITHUB_OUTPUT"
+
+      - name: Report check duration
+        if: always() && steps.check.outputs.duration != ''
+        env:
+          TASK: ${{ matrix.task }}
+          DURATION: ${{ steps.check.outputs.duration }}
+          CACHE_HIT: ${{ steps.tool-cache.outputs.cache-hit == 'true' }}
+        run: |
+          {
+            echo "### Pipeline step 24 — ${TASK} duration"
+            echo ""
+            echo "| Metric | Value |"
+            echo "| --- | --- |"
+            echo "| Tool cache hit | ${CACHE_HIT} |"
+            echo "| ${TASK} duration | ${DURATION}s |"
+            echo "| Budget | ${CHECK_BUDGET_SECONDS}s |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${DURATION}" -gt "${CHECK_BUDGET_SECONDS}" ]; then
+            echo "::warning::Step 24 ${TASK} took ${DURATION}s, above the ${CHECK_BUDGET_SECONDS}s budget."
+          else
+            echo "Step 24 ${TASK} took ${DURATION}s (budget ${CHECK_BUDGET_SECONDS}s)."
+          fi
