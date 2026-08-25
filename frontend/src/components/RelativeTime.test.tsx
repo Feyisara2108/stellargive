@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { RelativeTime } from "./RelativeTime";
 import "@testing-library/jest-dom";
@@ -18,7 +18,7 @@ describe("RelativeTime", () => {
     vi.useRealTimers();
   });
 
-  it('renders immediate state ("just now" / "less than a minute ago")', async () => {
+  it('renders immediate state ("just now" / "less than a minute ago")', () => {
     // Pass a timestamp just 5 seconds behind the locked system time
     const date = new Date(SYSTEM_TIME.getTime() - 5 * 1000);
     render(<RelativeTime date={date} />);
@@ -27,8 +27,15 @@ describe("RelativeTime", () => {
     expect(screen.getByText(/less than a minute ago|just now/i)).toBeInTheDocument();
   });
 
+  it("renders custom fallback text when provided", () => {
+    const date = new Date(SYSTEM_TIME.getTime() - 5 * 1000);
+    render(<RelativeTime date={date} fallback="Loading time..." />);
+
+    expect(screen.getByText(/less than a minute ago|just now/i)).toBeInTheDocument();
+  });
+
   describe("Minute Range & Bound Check", () => {
-    it("renders exactly 1 minute ago", async () => {
+    it("renders exactly 1 minute ago", () => {
       // Exactly 60 seconds older
       const date = new Date(SYSTEM_TIME.getTime() - 60 * 1000);
       render(<RelativeTime date={date} />);
@@ -36,7 +43,7 @@ describe("RelativeTime", () => {
       expect(screen.getByText(/1 minute ago/i)).toBeInTheDocument();
     });
 
-    it("renders multiple minutes ago", async () => {
+    it("renders multiple minutes ago", () => {
       // 15 minutes older
       const date = new Date(SYSTEM_TIME.getTime() - 15 * 60 * 1000);
       render(<RelativeTime date={date} />);
@@ -46,7 +53,7 @@ describe("RelativeTime", () => {
   });
 
   describe("Hour Range & Bound Check", () => {
-    it("renders exactly 1 hour ago", async () => {
+    it("renders exactly 1 hour ago", () => {
       // Exactly 60 minutes older
       const date = new Date(SYSTEM_TIME.getTime() - 60 * 60 * 1000);
       render(<RelativeTime date={date} />);
@@ -55,7 +62,7 @@ describe("RelativeTime", () => {
       expect(screen.getByText(/about 1 hour ago|1 hour ago/i)).toBeInTheDocument();
     });
 
-    it("renders multiple hours ago", async () => {
+    it("renders multiple hours ago", () => {
       // 5 hours older
       const date = new Date(SYSTEM_TIME.getTime() - 5 * 60 * 60 * 1000);
       render(<RelativeTime date={date} />);
@@ -65,7 +72,7 @@ describe("RelativeTime", () => {
   });
 
   describe("Day Range", () => {
-    it("renders multiple days ago", async () => {
+    it("renders multiple days ago", () => {
       // 3 days older
       const date = new Date(SYSTEM_TIME.getTime() - 3 * 24 * 60 * 60 * 1000);
       render(<RelativeTime date={date} />);
@@ -75,12 +82,46 @@ describe("RelativeTime", () => {
   });
 
   describe("Future Timestamps", () => {
-    it("handles future timestamps correctly (e.g., in 10 minutes)", async () => {
+    it("handles future timestamps correctly (e.g., in 10 minutes)", () => {
       // 10 minutes into the future
       const date = new Date(SYSTEM_TIME.getTime() + 10 * 60 * 1000);
       render(<RelativeTime date={date} />);
 
       expect(screen.getByText(/in 10 minutes/i)).toBeInTheDocument();
+    });
+  });
+
+  describe("Interval Timer Updates", () => {
+    it("updates relative time string as time advances", () => {
+      const date = new Date(SYSTEM_TIME.getTime() - 5 * 1000); // 5s ago
+      render(<RelativeTime date={date} intervalMs={30000} />);
+
+      expect(screen.getByText(/less than a minute ago/i)).toBeInTheDocument();
+
+      // Advance time by 60s
+      act(() => {
+        vi.advanceTimersByTime(60000);
+      });
+
+      expect(screen.getByText(/1 minute ago/i)).toBeInTheDocument();
+
+      // Advance time by 10 minutes
+      act(() => {
+        vi.advanceTimersByTime(10 * 60 * 1000);
+      });
+
+      expect(screen.getByText(/11 minutes ago/i)).toBeInTheDocument();
+    });
+
+    it("clears interval timer on unmount without memory leaks", () => {
+      const clearIntervalSpy = vi.spyOn(global, "clearInterval");
+      const date = new Date(SYSTEM_TIME.getTime() - 30 * 1000);
+      const { unmount } = render(<RelativeTime date={date} intervalMs={10000} />);
+
+      unmount();
+
+      expect(clearIntervalSpy).toHaveBeenCalled();
+      clearIntervalSpy.mockRestore();
     });
   });
 });
