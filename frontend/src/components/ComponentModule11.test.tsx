@@ -1,7 +1,7 @@
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, beforeEach } from "vitest";
-import { ComponentModule36 } from "./ComponentModule36";
+import { ComponentModule11 } from "./ComponentModule11";
 import { WalletContext } from "@/lib/WalletProvider";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -15,26 +15,26 @@ const renderWithProviders = (ui: React.ReactElement, walletValue: any) => {
   );
 };
 
-describe("ComponentModule36", () => {
+describe("ComponentModule11", () => {
   beforeEach(() => {
     queryClient.clear();
   });
 
   it("renders correctly when not connected", async () => {
-    renderWithProviders(<ComponentModule36 />, { isConnected: false, address: null });
-    expect(screen.getByText("Module 36")).toBeInTheDocument();
+    renderWithProviders(<ComponentModule11 />, { isConnected: false, address: null });
+    expect(screen.getByText("Module 11")).toBeInTheDocument();
     expect(screen.getByText("Not connected")).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText("Hello from query 36")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Hello from query 11")).toBeInTheDocument());
   });
 
   it("renders correctly when connected", async () => {
-    renderWithProviders(<ComponentModule36 />, { isConnected: true, address: "G123" });
+    renderWithProviders(<ComponentModule11 />, { isConnected: true, address: "G123" });
     expect(screen.getByText("Connected as G123")).toBeInTheDocument();
   });
 
   it("handles focus and input interactions", async () => {
-    renderWithProviders(<ComponentModule36 />, { isConnected: true, address: "G123" });
-    const input = screen.getByTestId("mod36-input");
+    renderWithProviders(<ComponentModule11 />, { isConnected: true, address: "G123" });
+    const input = screen.getByTestId("mod11-input");
 
     fireEvent.focus(input);
     expect(screen.getByText("Input is focused")).toBeInTheDocument();
@@ -47,8 +47,8 @@ describe("ComponentModule36", () => {
   });
 
   it("handles button click interaction", async () => {
-    renderWithProviders(<ComponentModule36 />, { isConnected: true, address: "G123" });
-    const button = screen.getByTestId("mod36-button");
+    renderWithProviders(<ComponentModule11 />, { isConnected: true, address: "G123" });
+    const button = screen.getByTestId("mod11-button");
 
     fireEvent.click(button);
     expect(screen.getByText("Button was clicked")).toBeInTheDocument();
