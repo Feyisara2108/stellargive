@@ -34,6 +34,13 @@ describe("format utils", () => {
       expect(formatAddress("short")).toBe("short");
       expect(formatAddress("")).toBe("");
     });
+
+    it("truncates right at the 10-character boundary, leaves shorter strings untouched", () => {
+      // 9 chars: below the threshold, returned as-is.
+      expect(formatAddress("123456789")).toBe("123456789");
+      // 10 chars: at the threshold, gets truncated.
+      expect(formatAddress("1234567890")).toBe("1234...7890");
+    });
   });
 
   describe("formatXLM", () => {
@@ -89,6 +96,23 @@ describe("format utils", () => {
       // (the nearest float). Verify the new delegation path is exact:
       expect(formatStroop(large)).toBe("900719925.4740993");
     });
+
+    it("formats a 0-decimal token cleanly (no fractional part is ever produced)", () => {
+      expect(formatTokenAmount(0n, 0)).toBe("0");
+      expect(formatTokenAmount(42n, 0)).toBe("42");
+      expect(formatTokenAmount(-42n, 0)).toBe("-42");
+    });
+
+    it("formats a 14-decimal token, trimming trailing zeros correctly", () => {
+      // Whole amount: all 14 fractional digits are zero and get stripped.
+      expect(formatTokenAmount(100_000_000_000_000n, 14)).toBe("1");
+      // Fractional amount with trailing zeros to strip.
+      expect(formatTokenAmount(150_000_000_000_000n, 14)).toBe("1.5");
+      // Single unit of the smallest denomination — dust at 14 decimals.
+      expect(formatTokenAmount(1n, 14)).toBe("0.00000000000001");
+      // Value with a non-zero digit in every fractional place.
+      expect(formatTokenAmount(123_456_789_012_345n, 14)).toBe("1.23456789012345");
+    });
   });
 
   describe("toRawAmount", () => {
@@ -135,6 +159,33 @@ describe("format utils", () => {
       expect(toRawAmount("-5.", 7)).toBe(-50000000n);
       expect(toRawAmount("-.5", 7)).toBe(-5000000n);
       expect(toRawAmount("-12.34", 2)).toBe(-1234n);
+    });
+
+    it("should handle 0-decimal tokens, rejecting any fractional part", () => {
+      expect(toRawAmount("5", 0)).toBe(5n);
+      expect(toRawAmount("0", 0)).toBe(0n);
+      expect(() => toRawAmount("5.5", 0)).toThrow("Invalid amount: exceeds 0 decimal places");
+    });
+
+    it("should normalize negative zero to plain zero", () => {
+      expect(toRawAmount("-0", 7)).toBe(0n);
+      expect(toRawAmount("-0.0", 7)).toBe(0n);
+    });
+
+    it("should convert sub-stroop precision exactly, with no float rounding drift", () => {
+      // 0.1 cannot be represented exactly as a binary float; the bigint path
+      // must still produce the exact integer amount at every decimal count.
+      expect(toRawAmount("0.1", 7)).toBe(1_000_000n);
+      // Smallest possible unit at the target precision.
+      expect(toRawAmount("0.0000001", 7)).toBe(1n);
+      // Round-trips through formatTokenAmount without drift.
+      expect(formatTokenAmount(toRawAmount("123.4567891", 7), 7)).toBe("123.4567891");
+    });
+
+    it("should reject non-finite and empty numeric-looking inputs", () => {
+      expect(() => toRawAmount("NaN", 7)).toThrow("Invalid amount: not a number");
+      expect(() => toRawAmount("Infinity", 7)).toThrow("Invalid amount: not a number");
+      expect(() => toRawAmount(".", 7)).toThrow("Invalid amount: not a number");
     });
   });
 
@@ -193,6 +244,11 @@ describe("format utils", () => {
     it("returns null when toString produces the zero-address", () => {
       const wrapper = { toString: () => ZERO_ADDRESS };
       expect(normalizeAddress(wrapper)).toBeNull();
+    });
+
+    it("returns null for a non-zero numeric value coerced to a non-G string", () => {
+      // Truthy, non-zero-address, but toString() won't be a valid G-address.
+      expect(normalizeAddress(12345)).toBeNull();
     });
   });
 });

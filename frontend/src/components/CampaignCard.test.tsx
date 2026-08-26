@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { axe, toHaveNoViolations } from "jest-axe";
 import { CampaignCard } from "./CampaignCard";
 import type { Campaign } from "@/lib/soroban";
@@ -9,6 +10,17 @@ expect.extend(toHaveNoViolations);
 // ... rest of mocks ...
 vi.mock("@/hooks/useSoroban", () => ({
   useTokenMetadata: vi.fn().mockReturnValue({ data: undefined, isLoading: false }),
+}));
+
+// Deterministic relative-time formatting so countdown assertions don't
+// depend on wall-clock timing.
+vi.mock("date-fns", () => ({
+  formatDistanceToNow: (date: Date) => {
+    const diffMs = date.getTime() - Date.now();
+    const diffDays = Math.round(Math.abs(diffMs) / (1000 * 60 * 60 * 24));
+    const unit = `day${diffDays === 1 ? "" : "s"}`;
+    return diffMs >= 0 ? `in ${diffDays} ${unit}` : `${diffDays} ${unit} ago`;
+  },
 }));
 
 vi.mock("@/lib/soroban", () => ({
@@ -34,8 +46,22 @@ vi.mock("@/lib/soroban", () => ({
 
 // Mock child components that depend on wallet context / blockchain
 vi.mock("@/components/DonateModal", () => ({
-  DonateModal: ({ campaign }: { campaign: Campaign }) => (
-    <button data-testid="donate-modal">Donate to {campaign.title}</button>
+  DonateModal: ({
+    campaign,
+    open,
+    suggestedAmount,
+  }: {
+    campaign: Campaign;
+    open?: boolean;
+    suggestedAmount?: string;
+  }) => (
+    <button
+      data-testid="donate-modal"
+      data-open={open ? "true" : "false"}
+      data-suggested-amount={suggestedAmount ?? ""}
+    >
+      Donate to {campaign.title}
+    </button>
   ),
 }));
 
@@ -351,5 +377,116 @@ describe("CampaignCard", () => {
     const { container } = render(<CampaignCard campaign={baseCampaign} />);
     const results = await axe(container);
     expect(results).toHaveNoViolations();
+  });
+
+  // ------------------------------------------------------------------
+  // Progress bar fill percentage (visual assertion via indicator transform)
+  // ------------------------------------------------------------------
+
+  describe("progress bar fill percentage", () => {
+    const getIndicatorTransform = (container: HTMLElement) => {
+      const bar = container.querySelector('[role="progressbar"]');
+      const indicator = bar?.firstElementChild as HTMLElement | null;
+      return indicator?.style.transform;
+    };
+
+    it("fills 0% of the bar when nothing has been raised", () => {
+      const zero: Campaign = { ...baseCampaign, id: 10n, raised_amount: 0n };
+      const { container } = render(<CampaignCard campaign={zero} />);
+      expect(getIndicatorTransform(container)).toBe("translateX(-100%)");
+    });
+
+    it("fills 50% of the bar at half funded", () => {
+      const half: Campaign = {
+        ...baseCampaign,
+        id: 11n,
+        raised_amount: stroops(500_000),
+        target_amount: stroops(1_000_000),
+      };
+      const { container } = render(<CampaignCard campaign={half} />);
+      expect(getIndicatorTransform(container)).toBe("translateX(-50%)");
+    });
+
+    it("caps the bar fill at 100% when raised exceeds target", () => {
+      const overfunded: Campaign = {
+        ...baseCampaign,
+        id: 12n,
+        raised_amount: stroops(1_500_000),
+        target_amount: stroops(1_000_000),
+        status: "Funded",
+      };
+      const { container } = render(<CampaignCard campaign={overfunded} />);
+      expect(getIndicatorTransform(container)).toBe("translateX(-0%)");
+      expect(screen.getByText("100.0%")).toBeInTheDocument();
+    });
+  });
+
+  // ------------------------------------------------------------------
+  // Deadline countdown string rendering
+  // ------------------------------------------------------------------
+
+  describe("deadline countdown formatting", () => {
+    it("renders a future deadline as a forward-looking countdown", () => {
+      const upcoming: Campaign = {
+        ...baseCampaign,
+        id: 13n,
+        deadline: BigInt(nowSec() + 14 * ONE_DAY),
+      };
+      render(<CampaignCard campaign={upcoming} />);
+      expect(screen.getByText("Ends in 14 days")).toBeInTheDocument();
+    });
+
+    it("renders a past deadline as an elapsed countdown", () => {
+      const past: Campaign = {
+        ...baseCampaign,
+        id: 14n,
+        status: "Expired",
+        deadline: BigInt(nowSec() - 2 * ONE_DAY),
+      };
+      render(<CampaignCard campaign={past} />);
+      expect(screen.getByText("Ended 2 days ago")).toBeInTheDocument();
+    });
+  });
+
+  // ------------------------------------------------------------------
+  // "Fund the Gap" quick-donate button
+  // ------------------------------------------------------------------
+
+  describe("Fund the Gap button", () => {
+    const nearGoal: Campaign = {
+      ...baseCampaign,
+      id: 15n,
+      raised_amount: stroops(900_000),
+      target_amount: stroops(1_000_000),
+      status: "Active",
+    };
+
+    it("is shown once a campaign is 90%+ funded but not yet complete", () => {
+      render(<CampaignCard campaign={nearGoal} />);
+      expect(
+        screen.getByRole("button", { name: /Quick donate to fund the remaining/i }),
+      ).toBeInTheDocument();
+    });
+
+    it("is hidden below the 90% threshold", () => {
+      render(<CampaignCard campaign={baseCampaign} />);
+      expect(
+        screen.queryByRole("button", { name: /Quick donate to fund the remaining/i }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("opens the donate modal pre-filled with the remaining gap when clicked", async () => {
+      const user = userEvent.setup();
+      render(<CampaignCard campaign={nearGoal} />);
+
+      const gapButton = screen.getByRole("button", {
+        name: /Quick donate to fund the remaining/i,
+      });
+      await user.click(gapButton);
+
+      const modal = screen.getByTestId("donate-modal");
+      expect(modal).toHaveAttribute("data-open", "true");
+      expect(modal).toHaveAttribute("data-suggested-amount", "100000");
+    });
   });
 });
