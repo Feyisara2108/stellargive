@@ -24,12 +24,26 @@ const donateState = vi.hoisted(() => ({
   isSuccess: false,
 }));
 
+const walletBalanceState = vi.hoisted(() => ({
+  data: null as number | null,
+  isLoading: false,
+}));
+
+const crossedMilestonesState = vi.hoisted(() => ({
+  value: [] as number[],
+}));
+
 vi.mock("@/hooks/useSoroban", () => ({
   useDonate: () => donateState,
   useDonateFeeEstimate: () => ({ data: null }),
-  useWalletBalance: () => ({ data: null, isLoading: false }),
-  getCrossedMilestones: () => [],
+  useWalletBalance: () => walletBalanceState,
+  getCrossedMilestones: () => crossedMilestonesState.value,
   useTokenMetadata: vi.fn().mockReturnValue({ data: { decimals: 7, symbol: "XLM" } }),
+}));
+
+const toastSuccess = vi.hoisted(() => vi.fn());
+vi.mock("sonner", () => ({
+  toast: { success: toastSuccess, error: vi.fn() },
 }));
 
 import { makeCampaign } from "@/test/factories";
@@ -43,6 +57,10 @@ describe("DonateModal", () => {
     donateState.mutateAsync = vi.fn().mockResolvedValue({ hash: "abc123" });
     donateState.isPending = false;
     donateState.isSuccess = false;
+    walletBalanceState.data = null;
+    walletBalanceState.isLoading = false;
+    crossedMilestonesState.value = [];
+    toastSuccess.mockClear();
   });
 
   it("should have no accessibility violations in trigger state", async () => {
@@ -186,6 +204,182 @@ describe("DonateModal", () => {
       expect(confirmBtn).toBeDisabled();
       expect(await screen.findByLabelText(/Amount/i)).toBeDisabled();
       expect(screen.getByRole("button", { name: /Cancel/i })).toBeDisabled();
+    });
+
+    it("rejects an amount with too many decimal places for the token", async () => {
+      render(<DonateModal campaign={baseCampaign} open onOpenChange={() => {}} />);
+
+      const input = await screen.findByLabelText(/Amount/i);
+      fireEvent.change(input, { target: { value: "1.12345678" } });
+      fireEvent.blur(input);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Maximum 7 decimal places/i)).toBeInTheDocument();
+      });
+      expect(screen.getByRole("button", { name: /Confirm Donation/i })).toBeDisabled();
+    });
+  });
+
+  describe("preset amount and manual sync", () => {
+    it("shows a 'Fund the rest' shortcut and syncs the amount input when clicked", async () => {
+      render(<DonateModal campaign={baseCampaign} open onOpenChange={() => {}} />);
+
+      const shortcut = await screen.findByRole("button", { name: /Fund the rest/i });
+      fireEvent.click(shortcut);
+
+      const input = await screen.findByLabelText(/Amount/i);
+      await waitFor(() => {
+        expect(input).toHaveValue("65");
+      });
+    });
+
+    it("hides the 'Fund the rest' shortcut once the manual amount already covers the goal", async () => {
+      render(<DonateModal campaign={baseCampaign} open onOpenChange={() => {}} />);
+
+      const input = await screen.findByLabelText(/Amount/i);
+      fireEvent.change(input, { target: { value: "65" } });
+      fireEvent.blur(input);
+
+      await waitFor(() => {
+        expect(screen.queryByRole("button", { name: /Fund the rest/i })).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("successful submission", () => {
+    it("shows the success dialog with the tx hash and closes the donate dialog", async () => {
+      const onOpenChange = vi.fn();
+      donateState.mutateAsync = vi.fn().mockResolvedValue({ hash: "deadbeef" });
+
+      render(<DonateModal campaign={baseCampaign} open onOpenChange={onOpenChange} />);
+
+      const input = await screen.findByLabelText(/Amount/i);
+      fireEvent.change(input, { target: { value: "10" } });
+
+      const confirmBtn = screen.getByRole("button", { name: /Confirm Donation/i });
+      await waitFor(() => expect(confirmBtn).toBeEnabled());
+      fireEvent.click(confirmBtn);
+
+      await waitFor(() => expect(donateState.mutateAsync).toHaveBeenCalled());
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+
+      expect(await screen.findByText(/Donation Successful!/i)).toBeInTheDocument();
+      expect(screen.getByText("deadbeef")).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /View on StellarExpert/i })).toHaveAttribute(
+        "href",
+        expect.stringContaining("deadbeef"),
+      );
+    });
+
+    it("dismisses the success dialog when Close is clicked", async () => {
+      donateState.mutateAsync = vi.fn().mockResolvedValue({ hash: "abc123" });
+
+      render(<DonateModal campaign={baseCampaign} open onOpenChange={() => {}} />);
+
+      const input = await screen.findByLabelText(/Amount/i);
+      fireEvent.change(input, { target: { value: "10" } });
+      const confirmBtn = screen.getByRole("button", { name: /Confirm Donation/i });
+      await waitFor(() => expect(confirmBtn).toBeEnabled());
+      fireEvent.click(confirmBtn);
+
+      const successDialog = await screen.findByText(/Donation Successful!/i);
+      expect(successDialog).toBeInTheDocument();
+
+      const closeButtons = screen.getAllByRole("button", { name: /^Close$/i });
+      fireEvent.click(closeButtons[0]);
+
+      await waitFor(() => {
+        expect(screen.queryByText(/Donation Successful!/i)).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("other interactions", () => {
+    it("toggles the anonymous checkbox and passes it through to the mutation", async () => {
+      render(<DonateModal campaign={baseCampaign} open onOpenChange={() => {}} />);
+
+      const checkbox = screen.getByLabelText(/Donate anonymously/i);
+      expect(checkbox).not.toBeChecked();
+      fireEvent.click(checkbox);
+      expect(checkbox).toBeChecked();
+
+      const input = await screen.findByLabelText(/Amount/i);
+      fireEvent.change(input, { target: { value: "10" } });
+      const confirmBtn = screen.getByRole("button", { name: /Confirm Donation/i });
+      await waitFor(() => expect(confirmBtn).toBeEnabled());
+      fireEvent.click(confirmBtn);
+
+      await waitFor(() => {
+        expect(donateState.mutateAsync).toHaveBeenCalledWith(
+          expect.objectContaining({ isAnonymous: true }),
+        );
+      });
+    });
+
+    it("closes the modal via the Cancel button", async () => {
+      const onOpenChange = vi.fn();
+      render(<DonateModal campaign={baseCampaign} open onOpenChange={onOpenChange} />);
+
+      fireEvent.click(screen.getByRole("button", { name: /Cancel/i }));
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+
+    it("flags an amount that exceeds the wallet balance", async () => {
+      // 5 XLM available (raw units, 7 decimals)
+      walletBalanceState.data = 5_0000000;
+
+      render(<DonateModal campaign={baseCampaign} open onOpenChange={() => {}} />);
+
+      expect(await screen.findByText(/Balance: 5 XLM/i)).toBeInTheDocument();
+
+      const input = await screen.findByLabelText(/Amount/i);
+      fireEvent.change(input, { target: { value: "10" } });
+      fireEvent.blur(input);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Insufficient balance — you have 5 XLM/i)).toBeInTheDocument();
+      });
+      expect(screen.getByRole("button", { name: /Confirm Donation/i })).toBeDisabled();
+    });
+
+    it("shows a loading skeleton while the wallet balance is resolving", async () => {
+      walletBalanceState.isLoading = true;
+
+      render(<DonateModal campaign={baseCampaign} open onOpenChange={() => {}} />);
+
+      expect(await screen.findByLabelText(/Loading balance/i)).toBeInTheDocument();
+    });
+
+    it("fires a milestone celebration toast when the donation crosses a threshold", async () => {
+      crossedMilestonesState.value = [50];
+
+      render(<DonateModal campaign={baseCampaign} open onOpenChange={() => {}} />);
+
+      const input = await screen.findByLabelText(/Amount/i);
+      fireEvent.change(input, { target: { value: "10" } });
+      const confirmBtn = screen.getByRole("button", { name: /Confirm Donation/i });
+      await waitFor(() => expect(confirmBtn).toBeEnabled());
+      fireEvent.click(confirmBtn);
+
+      await waitFor(() => {
+        expect(toastSuccess).toHaveBeenCalledWith(
+          expect.stringContaining("Halfway there!"),
+          expect.objectContaining({ description: expect.any(String) }),
+        );
+      });
+    });
+
+    it("pre-fills the amount from suggestedAmount when the modal opens", async () => {
+      const { rerender } = render(
+        <DonateModal campaign={baseCampaign} open={false} onOpenChange={() => {}} suggestedAmount="25" />,
+      );
+
+      rerender(
+        <DonateModal campaign={baseCampaign} open onOpenChange={() => {}} suggestedAmount="25" />,
+      );
+
+      const input = await screen.findByLabelText(/Amount/i);
+      await waitFor(() => expect(input).toHaveValue("25"));
     });
   });
 
