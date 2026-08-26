@@ -4,7 +4,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ErrorBoundary } from "./ErrorBoundary";
 
 // Helper component that throws an error when trigger is set
-function ProblemChild({ shouldThrow, message = "Test render crash" }: { shouldThrow: boolean; message?: string }) {
+function ProblemChild({
+  shouldThrow,
+  message = "Test render crash",
+}: {
+  shouldThrow: boolean;
+  message?: string;
+}) {
   if (shouldThrow) {
     throw new Error(message);
   }
@@ -12,7 +18,13 @@ function ProblemChild({ shouldThrow, message = "Test render crash" }: { shouldTh
 }
 
 // Stateful wrapper to test retry / reset functionality
-function ErrorBoundaryWrapper({ heading, fallback }: { heading?: string; fallback?: React.ReactNode }) {
+function ErrorBoundaryWrapper({
+  heading,
+  fallback,
+}: {
+  heading?: string;
+  fallback?: React.ReactNode;
+}) {
   const [shouldThrow, setShouldThrow] = useState(true);
 
   return (
@@ -41,7 +53,7 @@ describe("ErrorBoundary", () => {
     render(
       <ErrorBoundary>
         <ProblemChild shouldThrow={false} />
-      </ErrorBoundary>
+      </ErrorBoundary>,
     );
 
     expect(screen.getByText("Child content rendered successfully")).toBeInTheDocument();
@@ -52,18 +64,16 @@ describe("ErrorBoundary", () => {
     render(
       <ErrorBoundary>
         <ProblemChild shouldThrow={true} message="Crash in child" />
-      </ErrorBoundary>
+      </ErrorBoundary>,
     );
 
     expect(screen.getByRole("alert")).toBeInTheDocument();
     expect(screen.getByText("Something went wrong")).toBeInTheDocument();
-    expect(
-      screen.getByText(/An unexpected error occurred in this section/i)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/An unexpected error occurred in this section/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /browse campaigns/i })).toHaveAttribute(
       "href",
-      "/explore"
+      "/explore",
     );
     expect(consoleErrorSpy).toHaveBeenCalled();
   });
@@ -72,7 +82,7 @@ describe("ErrorBoundary", () => {
     render(
       <ErrorBoundary heading="Campaign Details">
         <ProblemChild shouldThrow={true} />
-      </ErrorBoundary>
+      </ErrorBoundary>,
     );
 
     expect(screen.getByText("Campaign Details couldn't load")).toBeInTheDocument();
@@ -82,7 +92,7 @@ describe("ErrorBoundary", () => {
     render(
       <ErrorBoundary fallback={<div data-testid="custom-fallback">Custom Error View</div>}>
         <ProblemChild shouldThrow={true} />
-      </ErrorBoundary>
+      </ErrorBoundary>,
     );
 
     expect(screen.getByTestId("custom-fallback")).toBeInTheDocument();
@@ -94,7 +104,7 @@ describe("ErrorBoundary", () => {
     render(
       <ErrorBoundary>
         <ProblemChild shouldThrow={true} message="Detailed dev error message" />
-      </ErrorBoundary>
+      </ErrorBoundary>,
     );
 
     expect(screen.getByText("Error details (dev only)")).toBeInTheDocument();

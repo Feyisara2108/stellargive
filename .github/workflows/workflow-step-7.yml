@@ -1,0 +1,29 @@
+name: "Workflow Step 7"
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  optimize-step-7:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Cache Policy for Step 7
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}-step7
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Actionlint Validation
+        uses: reviewdog/action-actionlint@v1
+        with:
+          level: warning
+          reporter: github-pr-check
+          actionlint_flags: .github/workflows/workflow-step-7.yml

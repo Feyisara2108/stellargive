@@ -56,10 +56,10 @@ jobs:
         if: steps.config.outputs.has_url == 'true'
         continue-on-error: true
         env:
-          PRODUCTION_URL:      ${{ vars.PRODUCTION_URL }}
-          EXPECTED_CONTENT:    ${{ vars.EXPECTED_CONTENT }}
-          SITE_TIMEOUT_MS:     ${{ vars.SITE_TIMEOUT_MS || '10000' }}
-          SLACK_WEBHOOK_URL:   ${{ secrets.SLACK_WEBHOOK_URL }}
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+          EXPECTED_CONTENT: ${{ vars.EXPECTED_CONTENT }}
+          SITE_TIMEOUT_MS: ${{ vars.SITE_TIMEOUT_MS || '10000' }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: node scripts/monitor-site.js
 
@@ -68,7 +68,7 @@ jobs:
         if: steps.config.outputs.has_url == 'true' && steps.site.outcome == 'failure'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO:     ${{ github.repository }}
+          REPO: ${{ github.repository }}
           SITE_URL: ${{ vars.PRODUCTION_URL }}
         run: |
           TITLE="🚨 Production Outage Detected: $SITE_URL"
@@ -94,7 +94,7 @@ jobs:
               --body "⏰ Still unhealthy as of $(date -u '+%Y-%m-%d %H:%M UTC')."
           else
             echo "Creating new outage tracking issue…"
-            BODY=$(printf '## Production Frontend Outage\n\n**URL:** `%s`\n**Detected at:** %s\n**Triggered by:** [workflow run](%s/%s/actions/runs/%s)\n\n### What this means\nThe scheduled uptime check could not reach the production frontend.\n\n### Next steps\n1. Check the Vercel deployment dashboard for build/runtime errors.\n2. Verify DNS and TLS certificate status for the production domain.\n3. Check recent deploys for a regression.\n\n---\n_This issue is managed automatically. It will be closed when the site recovers._' \
+            BODY=$(printf '## Production Frontend Outage\n\n**URL:** $(%s)\n**Detected at:** %s\n**Triggered by:** [workflow run](%s/%s/actions/runs/%s)\n\n### What this means\nThe scheduled uptime check could not reach the production frontend.\n\n### Next steps\n1. Check the Vercel deployment dashboard for build/runtime errors.\n2. Verify DNS and TLS certificate status for the production domain.\n3. Check recent deploys for a regression.\n\n---\n_This issue is managed automatically. It will be closed when the site recovers._' \
               "$SITE_URL" "$(date -u '+%Y-%m-%d %H:%M UTC')" "${{ github.server_url }}" "${{ github.repository }}" "${{ github.run_id }}")
             gh issue create \
               --repo "$REPO" \
@@ -108,7 +108,7 @@ jobs:
         if: steps.config.outputs.has_url == 'true' && steps.site.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO:     ${{ github.repository }}
+          REPO: ${{ github.repository }}
           SITE_URL: ${{ vars.PRODUCTION_URL }}
         run: |
           TITLE="🚨 Production Outage Detected: $SITE_URL"

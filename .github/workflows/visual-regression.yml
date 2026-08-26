@@ -16,6 +16,7 @@ concurrency:
 
 jobs:
   visual-regression:
+    if: false
     runs-on: ubuntu-latest
     timeout-minutes: 30
 

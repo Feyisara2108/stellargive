@@ -1,18 +1,18 @@
-import React, { useState } from 'react';
-import { useWallet } from '@/lib/WalletProvider';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState } from "react";
+import { useWallet } from "@/lib/WalletProvider";
+import { useQuery } from "@tanstack/react-query";
 
 export const ComponentModule33 = () => {
   const { isConnected, address } = useWallet();
-  const [inputValue, setInputValue] = useState('');
+  const [inputValue, setInputValue] = useState("");
   const [isFocused, setIsFocused] = useState(false);
   const [clicked, setClicked] = useState(false);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['module33Data'],
+    queryKey: ["module33Data"],
     queryFn: async () => {
-      return { message: 'Hello from query 33' };
-    }
+      return { message: "Hello from query 33" };
+    },
   });
 
   return (
@@ -20,15 +20,17 @@ export const ComponentModule33 = () => {
       <h1>Module 33</h1>
       {isConnected ? <p>Connected as {address}</p> : <p>Not connected</p>}
       {isLoading ? <p>Loading...</p> : <p>{data?.message}</p>}
-      <input 
+      <input
         data-testid="mod33-input"
-        value={inputValue} 
-        onChange={(e) => setInputValue(e.target.value)} 
+        value={inputValue}
+        onChange={(e) => setInputValue(e.target.value)}
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
       />
       {isFocused && <span>Input is focused</span>}
-      <button data-testid="mod33-button" onClick={() => setClicked(true)}>Click Me 33</button>
+      <button data-testid="mod33-button" onClick={() => setClicked(true)}>
+        Click Me 33
+      </button>
       {clicked && <span>Button was clicked</span>}
     </div>
   );

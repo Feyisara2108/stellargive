@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - '.all-contributorsrc'
+      - ".all-contributorsrc"
   workflow_dispatch:
 
 jobs:
@@ -23,7 +23,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4 # v4.0.2
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: Generate Contributors Table
         run: npx all-contributors-cli generate

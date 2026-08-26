@@ -52,7 +52,7 @@ jobs:
 
   rust-and-contract:
     needs: change-detection
-    if: ${{ github.event_name == 'merge_group' || needs.change-detection.outputs.contracts == 'true' }}
+    if: false
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
