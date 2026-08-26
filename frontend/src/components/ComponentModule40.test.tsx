@@ -81,7 +81,7 @@ describe("ComponentModule40 — SortSelector Unit Tests", () => {
       <div>
         <div data-testid="outside-area">Outside</div>
         <SortSelector {...defaultProps} />
-      </div>
+      </div>,
     );
 
     // Open dropdown
