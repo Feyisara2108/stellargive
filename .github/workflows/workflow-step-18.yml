@@ -1,0 +1,62 @@
+name: Workflow Step 18
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/workflow-step-18.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/workflow-step-18.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: workflow-step-18-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci --no-audit --prefer-offline
+
+      - name: Build frontend bundle
+        working-directory: frontend
+        run: npm run build
+        env:
+          NEXT_PUBLIC_USE_MOCK_WALLET: "true"
+          NEXT_PUBLIC_CONTRACT_ID: "CB6HVHRQYILGNKW7RBB66BC6TDBIEWADOA2YUUV4I22RXRLA6DY6OAKT"
+          NEXT_PUBLIC_SOROBAN_RPC_URL: "https://soroban-testnet.stellar.org"
+          NEXT_PUBLIC_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015"
+          SENTRY_AUTH_TOKEN: ""
+
+      - name: Upload build artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: workflow-step-18-build
+          path: frontend/.next
+          if-no-files-found: error
+          retention-days: 7
