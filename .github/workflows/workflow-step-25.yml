@@ -1,0 +1,155 @@
+name: Pipeline Step 25
+
+# Pipeline step 25 — Playwright end-to-end suite.
+#
+# Same shape as steps 22-24, scoped to the e2e phase. The dominant cost here is
+# neither npm nor compilation but the browser binaries: a cold
+# `playwright install` downloads several hundred MB of Chromium, Firefox and
+# WebKit on every run. Caching them keyed on the resolved Playwright version is
+# the whole optimization.
+# Scoped to its own definition file so it never adds load to the main CI fan-out.
+
+on:
+  workflow_dispatch:
+  workflow_call:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/workflow-step-25.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/workflow-step-25.yml
+
+# Least privilege: this pipeline only ever reads the repository.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ACTIONLINT_VERSION: 1.7.7
+  # Soft budget in seconds. Exceeding it warns rather than fails so a cold
+  # cache on a first run never blocks a merge.
+  E2E_BUDGET_SECONDS: 900
+  # Canonical browser download location, cached below.
+  PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.cache/ms-playwright
+
+jobs:
+  actionlint:
+    name: Validate workflow syntax
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2 # v4.2.2
+
+      - name: Install actionlint
+        run: |
+          curl -sSLo actionlint.tar.gz \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          tar -xzf actionlint.tar.gz actionlint
+          sudo install -m 0755 actionlint /usr/local/bin/actionlint
+
+      - name: Run actionlint
+        run: actionlint -color .github/workflows/workflow-step-25.yml
+
+  e2e:
+    name: Cached end-to-end suite
+    needs: actionlint
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2 # v4.2.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4 # v4.0.2
+        with:
+          node-version-file: frontend/.nvmrc
+          # Restores the npm download cache keyed on the lockfile, so `npm ci`
+          # resolves from disk instead of the registry.
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        # --prefer-offline uses the restored cache; --no-audit and --no-fund
+        # drop two network round trips that add nothing in CI.
+        run: npm ci --prefer-offline --no-audit --no-fund
+
+      # Key the browser cache on the resolved Playwright version, not the
+      # lockfile hash: unrelated dependency bumps must not evict several
+      # hundred MB of browser binaries.
+      - name: Resolve Playwright version
+        id: playwright
+        run: |
+          version=$(node -p "require('./frontend/node_modules/@playwright/test/package.json').version")
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "Resolved Playwright ${version}."
+
+      - name: Cache Playwright browsers
+        id: browser-cache
+        uses: actions/cache@v4 # v4.0.2
+        with:
+          path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
+          key: ${{ runner.os }}-step25-playwright-${{ steps.playwright.outputs.version }}
+
+      # On a hit the binaries are already on disk, so only the system libraries
+      # they link against need installing — that alone saves the bulk download.
+      - name: Install Playwright system dependencies
+        if: steps.browser-cache.outputs.cache-hit == 'true'
+        working-directory: frontend
+        run: npx playwright install-deps chromium firefox webkit
+
+      - name: Install Playwright browsers
+        if: steps.browser-cache.outputs.cache-hit != 'true'
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium firefox webkit
+
+      - name: Run end-to-end suite (timed)
+        id: e2e
+        env:
+          CI: true
+        run: |
+          start=$(date +%s)
+          ./frontend/node_modules/.bin/playwright test --config playwright.config.ts
+          echo "duration=$(( $(date +%s) - start ))" >> "$GITHUB_OUTPUT"
+
+      - name: Report end-to-end duration
+        if: always() && steps.e2e.outputs.duration != ''
+        env:
+          DURATION: ${{ steps.e2e.outputs.duration }}
+          CACHE_HIT: ${{ steps.browser-cache.outputs.cache-hit == 'true' }}
+          PLAYWRIGHT_VERSION: ${{ steps.playwright.outputs.version }}
+        run: |
+          {
+            echo "### Pipeline step 25 — end-to-end duration"
+            echo ""
+            echo "| Metric | Value |"
+            echo "| --- | --- |"
+            echo "| Playwright version | ${PLAYWRIGHT_VERSION} |"
+            echo "| Browser cache hit | ${CACHE_HIT} |"
+            echo "| Suite duration | ${DURATION}s |"
+            echo "| Budget | ${E2E_BUDGET_SECONDS}s |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${DURATION}" -gt "${E2E_BUDGET_SECONDS}" ]; then
+            echo "::warning::Step 25 end-to-end suite took ${DURATION}s, above the ${E2E_BUDGET_SECONDS}s budget."
+          else
+            echo "Step 25 end-to-end suite took ${DURATION}s (budget ${E2E_BUDGET_SECONDS}s)."
+          fi
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4.3.0 # v4.3.0
+        with:
+          name: step25-playwright-report-${{ github.run_id }}
+          path: playwright-report/
+          if-no-files-found: ignore
+          # Retention policy:
+          #   7 days — failure triage only; the long-lived baseline report is
+          #            owned by the Visual Regression workflow.
+          retention-days: 7
