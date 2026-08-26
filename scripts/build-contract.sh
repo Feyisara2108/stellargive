@@ -26,18 +26,42 @@ fi
 OPTIMIZED_SIZE=$(stat -c%s "$OPTIMIZED_WASM" 2>/dev/null || stat -f%z "$OPTIMIZED_WASM")
 
 REDUCTION=$(( 100 - (OPTIMIZED_SIZE * 100 / ORIGINAL_SIZE) ))
+# 50 KiB release footprint budget (fails the build if exceeded).
+# Measured 2026-08-26: unoptimized 58103 bytes, wasm-opt -Oz 39749 bytes.
+MAX_WASM_BYTES=51200
 
 echo ""
 echo "WASM size:"
 echo "Original: $ORIGINAL_SIZE bytes"
 echo "Optimized: $OPTIMIZED_SIZE bytes"
 echo "Reduction: $REDUCTION%"
+echo "Budget: $MAX_WASM_BYTES bytes (50 KB)"
 echo ""
 
-if [ "$OPTIMIZED_SIZE" -gt 65536 ]; then
-    echo "Error: Optimized WASM size ($OPTIMIZED_SIZE bytes) exceeds the 64KB limit (65536 bytes)!"
+if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+    {
+        echo "## WASM footprint"
+        echo ""
+        echo "| Artifact | Size |"
+        echo "|---|---|"
+        echo "| Original | ${ORIGINAL_SIZE} bytes |"
+        echo "| Optimized | ${OPTIMIZED_SIZE} bytes |"
+        echo "| Budget | ${MAX_WASM_BYTES} bytes (50 KB) |"
+        echo "| Reduction | ${REDUCTION}% |"
+        echo ""
+    } >> "$GITHUB_STEP_SUMMARY"
+fi
+
+if [ "$OPTIMIZED_SIZE" -gt "$MAX_WASM_BYTES" ]; then
+    echo "Error: Optimized WASM size ($OPTIMIZED_SIZE bytes) exceeds the 50KB budget ($MAX_WASM_BYTES bytes)!"
+    if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+        echo "**Status:** FAIL — binary exceeds size budget." >> "$GITHUB_STEP_SUMMARY"
+    fi
     exit 1
 fi
 
 echo "WASM size is within limits."
+if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+    echo "**Status:** PASS" >> "$GITHUB_STEP_SUMMARY"
+fi
 exit 0

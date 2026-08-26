@@ -110,8 +110,8 @@ jobs:
             echo "Original:  ${ORIG} bytes"
             echo "Optimized: ${OPT} bytes"
             echo "Reduction: ${REDUCTION}%"
-            echo "Budget:    65536 bytes (64 KB)"
-            echo "Status:    $([ $OPT -le 65536 ] && echo 'PASS' || echo 'FAIL')"
+            echo "Budget:    51200 bytes (50 KB)"
+            echo "Status:    $([ $OPT -le 51200 ] && echo 'PASS' || echo 'FAIL')"
           } > wasm-size-report.txt
           cat wasm-size-report.txt
 

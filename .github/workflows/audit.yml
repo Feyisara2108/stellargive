@@ -41,10 +41,149 @@ jobs:
 
       - name: Run cargo audit
         working-directory: contracts/stellar-give
-        # cargo audit exits non-zero for vulnerabilities and unmaintained advisories.
-        # Yanked crate warnings (e.g. spin 0.9.8 from soroban-sdk) do not cause a
-        # non-zero exit and are acceptable until the SDK bumps its dependencies.
-        run: cargo audit
+        # Do not pass --deny flags: cargo-audit 0.22 treats yanked/unmaintained
+        # as warnings (not high/critical vulns). Invalid deny values also break
+        # the job. Vulnerabilities still appear in JSON and are gated below.
+        run: cargo audit --json > "${{ github.workspace }}/cargo-audit.json" || true
+
+      - name: Summarize cargo audit
+        run: |
+          python3 <<'PY'
+          import json, os, sys
+          from pathlib import Path
+
+          report_path = Path("cargo-audit.json")
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          if not report_path.exists() or report_path.stat().st_size == 0:
+              msg = "## Cargo audit\n\nFailed to produce a JSON report.\n"
+              if summary_path:
+                  Path(summary_path).open("a").write(msg)
+              print(msg, file=sys.stderr)
+              sys.exit(1)
+
+          try:
+              data = json.loads(report_path.read_text())
+          except json.JSONDecodeError as exc:
+              msg = f"## Cargo audit\n\nCould not parse JSON report: {exc}\n"
+              if summary_path:
+                  Path(summary_path).open("a").write(msg)
+              print(msg, file=sys.stderr)
+              sys.exit(1)
+
+          vulns = data.get("vulnerabilities", {})
+          items = vulns.get("list") or []
+          warnings = data.get("warnings") or {}
+
+          def cvss_score(advisory):
+              cvss = advisory.get("cvss") or ""
+              # CVSS:3.1/AV:N/.../S:U/C:H/I:H/A:H  — parse numeric if present
+              if isinstance(cvss, (int, float)):
+                  return float(cvss)
+              if isinstance(cvss, dict) and "score" in cvss:
+                  try:
+                      return float(cvss["score"])
+                  except (TypeError, ValueError):
+                      return None
+              if isinstance(cvss, str) and cvss.startswith("CVSS:"):
+                  return None
+              try:
+                  return float(cvss) if cvss else None
+              except ValueError:
+                  return None
+
+          def severity_of(item):
+              adv = item.get("advisory") or {}
+              explicit = (adv.get("severity") or "").lower()
+              if explicit in {"critical", "high", "medium", "moderate", "low", "info", "informational", "none"}:
+                  return "medium" if explicit == "moderate" else ("info" if explicit in {"informational", "none"} else explicit)
+              score = cvss_score(adv)
+              if score is None:
+                  return "high"
+              if score >= 9.0:
+                  return "critical"
+              if score >= 7.0:
+                  return "high"
+              if score >= 4.0:
+                  return "medium"
+              return "low"
+
+          buckets = {"critical": [], "high": [], "medium": [], "low": [], "info": []}
+          for item in items:
+              adv = item.get("advisory") or {}
+              pkg = item.get("package") or {}
+              row = {
+                  "id": adv.get("id", "unknown"),
+                  "title": adv.get("title", ""),
+                  "package": f"{pkg.get('name', '?')} {pkg.get('version', '')}".strip(),
+                  "severity": severity_of(item),
+              }
+              buckets[row["severity"]].append(row)
+
+          warn_rows = []
+          if isinstance(warnings, dict):
+              for kind, entries in warnings.items():
+                  for entry in entries or []:
+                      adv = (entry.get("advisory") or {}) if isinstance(entry, dict) else {}
+                      pkg = (entry.get("package") or {}) if isinstance(entry, dict) else {}
+                      warn_rows.append({
+                          "kind": kind,
+                          "id": adv.get("id", ""),
+                          "package": f"{pkg.get('name', '?')} {pkg.get('version', '')}".strip(),
+                      })
+
+          lines = [
+              "## Cargo audit",
+              "",
+              "Findings categorized by severity. The build fails only on **high** or **critical** vulnerabilities.",
+              "",
+              "| Severity | Count |",
+              "|---|---:|",
+              f"| Critical | {len(buckets['critical'])} |",
+              f"| High | {len(buckets['high'])} |",
+              f"| Medium | {len(buckets['medium'])} |",
+              f"| Low | {len(buckets['low'])} |",
+              f"| Info / warnings | {len(warn_rows) + len(buckets['info'])} |",
+              "",
+          ]
+
+          def emit(title, rows):
+              if not rows:
+                  return
+              lines.append(f"### {title}")
+              lines.append("")
+              lines.append("| Advisory | Package | Title |")
+              lines.append("|---|---|---|")
+              for r in rows:
+                  lines.append(f"| `{r['id']}` | `{r['package']}` | {r['title'].replace('|', '/')} |")
+              lines.append("")
+
+          emit("Critical", buckets["critical"])
+          emit("High", buckets["high"])
+          emit("Medium", buckets["medium"])
+          emit("Low", buckets["low"])
+
+          if warn_rows or buckets["info"]:
+              lines.append("### Info / warnings (non-blocking)")
+              lines.append("")
+              for r in buckets["info"]:
+                  lines.append(f"- `{r['id']}` `{r['package']}` — {r['title']}")
+              for w in warn_rows:
+                  lines.append(f"- `{w['kind']}` `{w['id']}` `{w['package']}`")
+              lines.append("")
+
+          blocking = buckets["critical"] + buckets["high"]
+          if blocking:
+              lines.append("**Status:** FAIL — high/critical vulnerabilities present.")
+          else:
+              lines.append("**Status:** PASS — no high/critical vulnerabilities.")
+
+          text = "\n".join(lines) + "\n"
+          print(text)
+          if summary_path:
+              Path(summary_path).open("a").write(text)
+
+          sys.exit(1 if blocking else 0)
+          PY
 
   npm-audit:
     name: NPM Audit
@@ -66,9 +205,121 @@ jobs:
 
       - name: Run npm audit
         working-directory: frontend
-        # Scope to production deps (dev/build tooling like vite, eslint, storybook
-        # never ships to users) and fail on critical. The remaining high advisories
-        # (axios via @stellar/stellar-sdk, next) only have fixes behind breaking
-        # major upgrades (@stellar/stellar-sdk v15, next 16) tracked as a separate
-        # dependency-modernization task; the critical Next.js advisory is already patched.
-        run: npm audit --omit=dev --audit-level=critical
+        # Production deps only. JSON is always written; severity gating is the
+        # next step (--audit-level is not used here so the report is complete).
+        run: npm audit --omit=dev --json > "${{ github.workspace }}/npm-audit.json" || true
+
+      - name: Summarize npm audit
+        run: |
+          python3 <<'PY'
+          import json, os, sys
+          from pathlib import Path
+
+          report_path = Path("npm-audit.json")
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          if not report_path.exists() or report_path.stat().st_size == 0:
+              msg = "## NPM audit\n\nFailed to produce a JSON report.\n"
+              if summary_path:
+                  Path(summary_path).open("a").write(msg)
+              print(msg, file=sys.stderr)
+              sys.exit(1)
+
+          try:
+              data = json.loads(report_path.read_text())
+          except json.JSONDecodeError as exc:
+              msg = f"## NPM audit\n\nCould not parse JSON report: {exc}\n"
+              if summary_path:
+                  Path(summary_path).open("a").write(msg)
+              print(msg, file=sys.stderr)
+              sys.exit(1)
+
+          meta = (data.get("metadata") or {}).get("vulnerabilities") or {}
+          counts = {
+              "critical": int(meta.get("critical") or 0),
+              "high": int(meta.get("high") or 0),
+              "moderate": int(meta.get("moderate") or 0),
+              "low": int(meta.get("low") or 0),
+              "info": int(meta.get("info") or 0),
+          }
+
+          vulns = data.get("vulnerabilities") or {}
+          by_sev = {k: [] for k in ("critical", "high", "moderate", "low", "info")}
+          deferred_major = []
+          blocking_rows = []
+          if isinstance(vulns, dict):
+              for name, info in vulns.items():
+                  if not isinstance(info, dict):
+                      continue
+                  sev = (info.get("severity") or "info").lower()
+                  if sev not in by_sev:
+                      sev = "info"
+                  via = info.get("via") or []
+                  titles = []
+                  for item in via:
+                      if isinstance(item, dict):
+                          titles.append(item.get("title") or item.get("url") or "")
+                  title_text = "; ".join(t for t in titles if t)[:180]
+                  by_sev[sev].append((name, title_text))
+                  if sev == "critical":
+                      blocking_rows.append(name)
+                  elif sev == "high":
+                      fix = info.get("fixAvailable")
+                      # Highs whose only fix is a breaking major (Next 16, etc.)
+                      # stay visible in the summary but do not fail the build.
+                      if isinstance(fix, dict) and fix.get("isSemVerMajor"):
+                          deferred_major.append((name, fix.get("name"), fix.get("version")))
+                      else:
+                          blocking_rows.append(name)
+
+          lines = [
+              "## NPM audit",
+              "",
+              "Production dependencies only (`--omit=dev`). High/critical fail the build unless the only fix is a breaking major upgrade.",
+              "",
+              "| Severity | Count |",
+              "|---|---:|",
+              f"| Critical | {counts['critical']} |",
+              f"| High | {counts['high']} |",
+              f"| Moderate | {counts['moderate']} |",
+              f"| Low | {counts['low']} |",
+              f"| Info | {counts['info']} |",
+              "",
+          ]
+
+          def emit(title, key):
+              rows = by_sev.get(key) or []
+              if not rows:
+                  return
+              lines.append(f"### {title}")
+              lines.append("")
+              for name, title_text in rows:
+                  suffix = f" — {title_text}" if title_text else ""
+                  lines.append(f"- `{name}`{suffix}")
+              lines.append("")
+
+          emit("Critical", "critical")
+          emit("High", "high")
+          emit("Moderate (non-blocking)", "moderate")
+          emit("Low (non-blocking)", "low")
+          emit("Info (non-blocking)", "info")
+
+          if deferred_major:
+              lines.append("### Deferred breaking upgrades (non-blocking)")
+              lines.append("")
+              for name, pkg, ver in deferred_major:
+                  lines.append(f"- `{name}` — fix requires `{pkg}@{ver}` (semver major)")
+              lines.append("")
+
+          blocking = bool(blocking_rows)
+          lines.append(
+              "**Status:** FAIL — actionable high/critical vulnerabilities present."
+              if blocking
+              else "**Status:** PASS — no actionable high/critical vulnerabilities."
+          )
+          text = "\n".join(lines) + "\n"
+          print(text)
+          if summary_path:
+              Path(summary_path).open("a").write(text)
+
+          sys.exit(1 if blocking else 0)
+          PY

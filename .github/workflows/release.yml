@@ -98,7 +98,19 @@ jobs:
         run: bash scripts/build-contract.sh
 
       - name: Copy optimized WASM for release
-        run: cp contracts/stellar-give/target/wasm32v1-none/release/stellar_give.optimized.wasm ./stellar_give.optimized.wasm
+        run: |
+          cp contracts/stellar-give/target/wasm32v1-none/release/stellar_give.optimized.wasm ./stellar_give.optimized.wasm
+          cp stellar_give.optimized.wasm ./stellar_give.wasm
+
+      - name: Upload optimized WASM artifact
+        uses: actions/upload-artifact@v4.3.0 # v4.3.0
+        with:
+          name: stellar_give.wasm
+          path: |
+            stellar_give.wasm
+            stellar_give.optimized.wasm
+          retention-days: 90
+          if-no-files-found: error
 
       # ── Sign SBOMs (Sigstore/cosign, keyless) ─────────────────────────────
       - name: Install cosign
@@ -122,6 +134,7 @@ jobs:
           subject-path: |
             sbom-frontend.cdx.json
             sbom-contracts.cdx.json
+            stellar_give.wasm
             stellar_give.optimized.wasm
 
       # ── Attach everything to the GitHub Release ───────────────────────────
@@ -136,6 +149,7 @@ jobs:
             sbom-contracts.cdx.json \
             sbom-contracts.cdx.json.sig \
             sbom-contracts.cdx.json.pem \
+            stellar_give.wasm \
             stellar_give.optimized.wasm \
             --clobber
 

@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # -----------------------
 # Dependency Stage
 # -----------------------
@@ -6,7 +7,8 @@ FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb836
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci
 
 # -----------------------
 # Build Stage
@@ -18,7 +20,8 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-RUN NEXT_BUILD_TARGET=docker npm run build
+RUN --mount=type=cache,target=/app/.next/cache \
+    NEXT_BUILD_TARGET=docker npm run build
 
 # -----------------------
 # Runtime Stage
