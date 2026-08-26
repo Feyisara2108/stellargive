@@ -50,19 +50,37 @@ jobs:
         uses: actions/upload-artifact@v4.3.0 # v4.3.0
         with:
           name: playwright-report
-          path: playwright-report/
+          path: frontend/playwright-report/
           # Retention policy:
-          #   30 days — primary test report; kept long enough for cross-PR
-          #             baseline comparison and post-merge review.
+          #   30 days — primary HTML report (includes visual diffs in the UI).
           retention-days: 30
+          if-no-files-found: ignore
 
       - name: Upload failed screenshot diffs
         if: failure()
         uses: actions/upload-artifact@v4.3.0 # v4.3.0
         with:
           name: failed-screenshot-diffs
-          path: test-results/
+          path: frontend/test-results/
           # Retention policy:
-          #   7 days — short-lived debugging artifact; diffs are only useful
-          #             while the failing PR is open and being fixed.
-          retention-days: 7
+          #   14 days — expected/actual/diff PNGs for failing visual assertions.
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Visual regression summary
+        if: always()
+        working-directory: frontend
+        run: |
+          {
+            echo "## Visual regression"
+            echo ""
+            echo "HTML report artifact: \`playwright-report\` (30 days)."
+            echo "On failure, download \`failed-screenshot-diffs\` (\`test-results/\`, **14-day** retention) for expected / actual / diff PNGs."
+            echo ""
+            if [ -d test-results ]; then
+              echo "### Captured files"
+              echo ""
+              find test-results -type f \( -name '*diff*' -o -name '*actual*' -o -name '*expected*' -o -name '*.png' \) \
+                | sort | sed 's/^/- `/' | sed 's/$/`/' || true
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
