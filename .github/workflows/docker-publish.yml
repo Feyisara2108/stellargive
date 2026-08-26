@@ -12,9 +12,11 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write
+      actions: write
 
     steps:
       - name: Checkout repository
@@ -49,5 +51,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # GitHub Actions cache backend: layer cache plus Dockerfile cache
+          # mounts for npm (`/root/.npm`) and Next.js (`/app/.next/cache`).
+          cache-from: type=gha,scope=stellargive-frontend
+          cache-to: type=gha,mode=max,scope=stellargive-frontend
