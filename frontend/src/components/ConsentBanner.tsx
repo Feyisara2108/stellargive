@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
 
-const CONSENT_KEY = "stellargive_analytics_consent";
+const CONSENT_KEY = "stellargive_consent";
 
 export function ConsentBanner() {
   const [isVisible, setIsVisible] = useState(false);
@@ -19,9 +19,6 @@ export function ConsentBanner() {
   const handleAccept = () => {
     localStorage.setItem(CONSENT_KEY, "accepted");
     setIsVisible(false);
-    if (typeof window !== "undefined") {
-      window.location.reload();
-    }
   };
 
   const handleDecline = () => {
