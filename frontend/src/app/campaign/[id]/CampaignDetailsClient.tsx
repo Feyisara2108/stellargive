@@ -236,7 +236,12 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
           <div className="flex items-center gap-3">
             <h1 className="text-3xl font-bold">{campaign?.title || `Campaign #${params.id}`}</h1>
             {campaign && (
-              <CampaignStatusBadge status={campaign.status} deadline={campaign.deadline} />
+              <CampaignStatusBadge
+                status={campaign.status}
+                deadline={campaign.deadline}
+                raisedAmount={campaign.raised_amount}
+                targetAmount={campaign.target_amount}
+              />
             )}
           </div>
           {campaign && (
@@ -363,6 +368,13 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
                   <Progress
                     value={calculateProgress(campaign.raised_amount, campaign.target_amount)}
                     className="h-3"
+                    indicatorClassName={
+                      progressPercent >= 100
+                        ? "bg-emerald-600 dark:bg-emerald-400"
+                        : progressPercent >= 50
+                          ? "bg-amber-500 dark:bg-amber-400"
+                          : "bg-primary"
+                    }
                     aria-label="Campaign progress"
                     showValueLabel={true}
                   />

@@ -292,6 +292,7 @@ export function DonateModal({
                 inputMode="decimal"
                 autoComplete="off"
                 placeholder="10.0"
+                autoFocus
                 aria-invalid={errors.amount ? "true" : "false"}
                 aria-describedby={errors.amount ? "amount-error" : "amount-hint"}
                 {...register("amount", {
