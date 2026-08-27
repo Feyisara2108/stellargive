@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useCampaign, useCancelCampaign, useEvents } from "@/hooks/useSoroban";
@@ -151,6 +151,21 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
   const progressPercent = campaign
     ? Math.min(100, Math.max(0, calculateProgress(campaign.raised_amount, campaign.target_amount)))
     : 0;
+
+  // IntersectionObserver: hide sticky bar when the main donate header is visible
+  const headerDonateRef = useRef<HTMLDivElement>(null);
+  const [headerVisible, setHeaderVisible] = useState(true);
+
+  useEffect(() => {
+    const el = headerDonateRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setHeaderVisible(entry.isIntersecting),
+      { threshold: 0 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [campaign]);
   const categoryLabel =
     campaign?.category && campaign.category !== "other" ? campaign.category : "Uncategorized";
 
@@ -216,7 +231,7 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
           { label: campaign?.title || `Campaign #${params.id}`, href: `/campaign/${params.id}` },
         ]}
       />
-      <div className="flex justify-between items-start">
+      <div ref={headerDonateRef} className="flex justify-between items-start">
         <div className="space-y-2">
           <div className="flex items-center gap-3">
             <h1 className="text-3xl font-bold">{campaign?.title || `Campaign #${params.id}`}</h1>
@@ -478,6 +493,9 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
               setDonateOpen(true);
             }}
             disabled={!address || isWrongNetwork}
+            hidden={headerVisible}
+            title={campaign.title}
+            progressPercent={progressPercent}
           />
         </>
       )}
