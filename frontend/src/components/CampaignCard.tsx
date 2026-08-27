@@ -32,9 +32,11 @@ const progressIndicatorVariants: Record<ProgressVariant, string> = {
 function CampaignCardComponent({
   campaign,
   preloadedTokenMeta,
+  detailHrefSearch,
 }: {
   campaign: Campaign;
   preloadedTokenMeta?: any;
+  detailHrefSearch?: string;
 }) {
   const [imgError, setImgError] = useState(false);
   const [donateOpen, setDonateOpen] = useState(false);
@@ -66,6 +68,9 @@ function CampaignCardComponent({
   const gap = Number(gapRaw) / 10 ** decimals;
   const showFundTheGap =
     campaign.status === "Active" && progress >= 90 && progress < 100 && gap > 0;
+  const detailHref = detailHrefSearch
+    ? `/campaign/${campaign.id.toString()}?${detailHrefSearch}`
+    : `/campaign/${campaign.id.toString()}`;
 
   return (
     <Card className="flex flex-col group hover:border-primary/50 transition-all duration-300 overflow-hidden">
@@ -105,7 +110,7 @@ function CampaignCardComponent({
         </div>
         <CardTitle className="line-clamp-1 transition-colors">
           <Link
-            href={`/campaign/${campaign.id.toString()}`}
+            href={detailHref}
             className="hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm p-1 -m-1"
           >
             {campaign.title}
@@ -214,6 +219,7 @@ export const CampaignCard = React.memo(CampaignCardComponent, (prevProps, nextPr
   return (
     prevProps.campaign.id === nextProps.campaign.id &&
     prevProps.campaign.status === nextProps.campaign.status &&
-    prevProps.campaign.raised_amount === nextProps.campaign.raised_amount
+    prevProps.campaign.raised_amount === nextProps.campaign.raised_amount &&
+    prevProps.detailHrefSearch === nextProps.detailHrefSearch
   );
 });

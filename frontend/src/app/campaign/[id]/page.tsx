@@ -3,8 +3,32 @@ import { notFound } from "next/navigation";
 import { getCampaign, fromStroops } from "@/lib/soroban";
 import { formatBasisPoints } from "@/utils/format";
 import { CampaignDetailsClient } from "./CampaignDetailsClient";
+import type { BreadcrumbItem } from "@/components/Breadcrumbs";
 
-type Props = { params: { id: string } };
+type Props = {
+  params: { id: string };
+};
+
+type SearchParams = Record<string, string | string[] | undefined>;
+
+function buildExploreHref(searchParams?: SearchParams) {
+  if (!searchParams) return "/explore";
+
+  const query = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(searchParams)) {
+    if (Array.isArray(value)) {
+      value.forEach((entry) => {
+        if (entry) query.append(key, entry);
+      });
+    } else if (value) {
+      query.set(key, value);
+    }
+  }
+
+  const serialized = query.toString();
+  return serialized ? `/explore?${serialized}` : "/explore";
+}
 
 function getImageUrl(metadataUri?: string) {
   if (!metadataUri) return undefined;
@@ -76,13 +100,29 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
-export default async function CampaignPage({ params }: Props) {
+export default async function CampaignPage({
+  params,
+  searchParams,
+}: Props & { searchParams?: SearchParams }) {
+  let campaignTitle: string | undefined;
+
   try {
-    await getCampaign(BigInt(params.id));
+    const campaign = await getCampaign(BigInt(params.id));
+    campaignTitle = campaign.title;
   } catch {
     if (process.env.NEXT_PUBLIC_USE_MOCK_WALLET !== "true") {
       notFound();
     }
   }
-  return <CampaignDetailsClient params={params} />;
+
+  const breadcrumbs: BreadcrumbItem[] = [
+    { label: "Home", href: "/" },
+    { label: "Explore", href: buildExploreHref(searchParams) },
+    {
+      label: campaignTitle || `Campaign #${params.id}`,
+      href: `/campaign/${params.id}`,
+    },
+  ];
+
+  return <CampaignDetailsClient params={params} breadcrumbs={breadcrumbs} />;
 }
