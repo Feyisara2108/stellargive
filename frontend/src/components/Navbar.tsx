@@ -10,9 +10,10 @@ const CreateCampaignForm = dynamic(
 );
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { IconButton } from "@/components/ui/icon-button";
-import { Heart, Menu, X } from "lucide-react";
+import { Heart, Menu, X, Search } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
+import { CommandPalette } from "@/components/CommandPalette";
 
 const NAV_LINKS = [
   { href: "/explore", label: "Explore" },
@@ -24,11 +25,19 @@ const NAV_LINKS = [
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const prefersReducedMotion = usePrefersReducedMotion();
   const hadOpen = useRef(false);
   const pathname = usePathname();
+
+  // Detect Mac vs Windows/Linux for the shortcut badge.
+  const [isMac, setIsMac] = useState(false);
+  useEffect(() => {
+    setIsMac(/Mac|iPhone|iPad|iPod/.test(navigator.platform));
+  }, []);
+  const shortcutLabel = isMac ? "⌘K" : "Ctrl+K";
 
   // Focus trap + ESC close
   useEffect(() => {
@@ -113,6 +122,30 @@ export function Navbar() {
           })}
           <CreateCampaignForm />
           <div className="h-6 w-px bg-border mx-2" />
+          {/* Command palette trigger */}
+          <button
+            type="button"
+            onClick={() => setPaletteOpen(true)}
+            aria-label={`Search campaigns (${shortcutLabel})`}
+            aria-keyshortcuts={isMac ? "Meta+k" : "Control+k"}
+            className="hidden lg:flex items-center gap-2 rounded-md border border-input bg-background px-3 h-9 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Search className="w-3.5 h-3.5" aria-hidden="true" />
+            <span>Search campaigns...</span>
+            <kbd className="pointer-events-none ml-1 inline-flex h-5 select-none items-center rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+              {shortcutLabel}
+            </kbd>
+          </button>
+          {/* Compact icon-only trigger for medium screens */}
+          <IconButton
+            className="lg:hidden"
+            onClick={() => setPaletteOpen(true)}
+            aria-label={`Search campaigns (${shortcutLabel})`}
+            aria-keyshortcuts={isMac ? "Meta+k" : "Control+k"}
+          >
+            <Search size={18} />
+          </IconButton>
+          <div className="h-6 w-px bg-border mx-2" />
           <ThemeToggle />
           <div className="h-6 w-px bg-border mx-2" />
           <WalletConnect />
@@ -179,6 +212,19 @@ export function Navbar() {
           <div className="pt-2 border-t">
             <CreateCampaignForm />
           </div>
+          {/* Search trigger in mobile drawer */}
+          <button
+            type="button"
+            onClick={() => {
+              closeMenu();
+              setPaletteOpen(true);
+            }}
+            className="flex items-center gap-2 text-base font-medium text-muted-foreground hover:text-foreground transition-colors py-1"
+            aria-label={`Search campaigns (${shortcutLabel})`}
+          >
+            <Search className="w-4 h-4" aria-hidden="true" />
+            Search campaigns
+          </button>
           <div className="flex items-center gap-3">
             <ThemeToggle />
           </div>
@@ -187,6 +233,9 @@ export function Navbar() {
           </div>
         </nav>
       </div>
+
+      {/* Command palette — controlled from Navbar so the trigger button works */}
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
     </nav>
   );
 }
