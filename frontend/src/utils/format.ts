@@ -107,3 +107,17 @@ export const toRawAmount = (amount: string | number, decimals: number = 7): bigi
 
   return isNegative ? -raw : raw;
 };
+
+/**
+ * Formats a numeric value as a standard USD currency string (e.g. $1,234.56).
+ */
+export const formatUSD = (amount: number): string => {
+  if (isNaN(amount) || !isFinite(amount)) return "$0.00";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+};
+

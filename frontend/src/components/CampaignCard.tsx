@@ -4,8 +4,8 @@
 import React, { useState } from "react";
 import Image from "next/image";
 import { Campaign } from "@/lib/soroban";
-import { formatTokenAmount } from "@/utils/format";
-import { useTokenMetadata } from "@/hooks/useSoroban";
+import { formatTokenAmount, formatUSD } from "@/utils/format";
+import { useTokenMetadata, useXlmPrice } from "@/hooks/useSoroban";
 import { calculateProgress, getCampaignImageUrl, CAMPAIGN_IMAGE_BLUR_DATA_URL } from "@/lib/utils";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress, type ProgressVariant } from "@/components/ui/progress";
@@ -39,6 +39,8 @@ function CampaignCardComponent({
   const [imgError, setImgError] = useState(false);
   const [donateOpen, setDonateOpen] = useState(false);
   const [donateAmount, setDonateAmount] = useState<string | undefined>(undefined);
+  const [showUSD, setShowUSD] = useState(false);
+  const { data: xlmPrice } = useXlmPrice();
   const { data: fetchedMeta } = useTokenMetadata(
     preloadedTokenMeta ? null : campaign.accepted_token,
   );
@@ -89,7 +91,12 @@ function CampaignCardComponent({
       </div>
       <CardHeader>
         <div className="flex justify-between items-center gap-2 mb-2">
-          <CampaignStatusBadge status={campaign.status} deadline={campaign.deadline} />
+          <CampaignStatusBadge
+            status={campaign.status}
+            deadline={campaign.deadline}
+            raisedAmount={campaign.raised_amount}
+            targetAmount={campaign.target_amount}
+          />
           <Badge variant="secondary" className="capitalize text-[10px] font-bold px-2 py-1">
             {campaign.category && campaign.category !== "other"
               ? campaign.category
@@ -107,13 +114,28 @@ function CampaignCardComponent({
       </CardHeader>
       <CardContent className="flex-1 space-y-4">
         <div className="space-y-2">
-          <div className="flex justify-between text-sm">
+          <div className="flex justify-between items-center text-sm">
             <span className="text-muted-foreground flex items-center gap-1">
               <TrendingUp className="w-3 h-3" /> Raised
             </span>
-            <span className="font-bold">
-              {raised} {symbol}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="font-bold">
+                {showUSD && xlmPrice !== null && xlmPrice !== undefined
+                  ? formatUSD(Number(raised) * xlmPrice)
+                  : `${raised} ${symbol}`}
+              </span>
+              {xlmPrice !== null && xlmPrice !== undefined && (
+                <button
+                  type="button"
+                  onClick={() => setShowUSD(!showUSD)}
+                  className="text-[10px] font-semibold px-1.5 py-0.5 rounded border border-muted-foreground/30 hover:bg-muted text-muted-foreground transition-colors"
+                  title="Toggle currency display"
+                  aria-label={`Switch display to ${showUSD ? "XLM" : "USD"}`}
+                >
+                  {showUSD ? "XLM" : "USD"}
+                </button>
+              )}
+            </div>
           </div>
           <Progress
             value={progress}
@@ -124,7 +146,10 @@ function CampaignCardComponent({
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>{progress.toFixed(1)}%</span>
             <span className="flex items-center gap-1">
-              <Target className="w-3 h-3" /> Target: {target} {symbol}
+              <Target className="w-3 h-3" /> Target:{" "}
+              {showUSD && xlmPrice !== null && xlmPrice !== undefined
+                ? formatUSD(Number(target) * xlmPrice)
+                : `${target} ${symbol}`}
             </span>
           </div>
         </div>

@@ -637,3 +637,50 @@ export function useTokenMetadataBatch(contractIds: string[]) {
     staleTime: 1000 * 60 * 60 * 24,
   });
 }
+
+/**
+ * Fetches the live XLM/USD exchange rate from CoinGecko, falling back to Stellar Expert.
+ */
+export async function fetchXlmPriceInUsd(): Promise<number | null> {
+  try {
+    const res = await fetch(
+      "https://api.coingecko.com/api/v3/simple/price?ids=stellar&vs_currencies=usd",
+      { headers: { Accept: "application/json" } },
+    );
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.stellar?.usd && typeof data.stellar.usd === "number") {
+        return data.stellar.usd;
+      }
+    }
+  } catch {
+    // Fall through to secondary API
+  }
+
+  try {
+    const res = await fetch("https://api.stellar.expert/explorer/directory/price?asset=XLM");
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.price && typeof data.price === "number") {
+        return data.price;
+      }
+    }
+  } catch {
+    // Return null if all endpoints fail
+  }
+
+  return null;
+}
+
+/**
+ * Hook to query live XLM/USD exchange rate with 5-minute cache stale time.
+ */
+export function useXlmPrice() {
+  return useQuery({
+    queryKey: ["xlm-price-usd"],
+    queryFn: fetchXlmPriceInUsd,
+    staleTime: 5 * 60 * 1000, // 5 minutes stale time
+    retry: 2,
+  });
+}
+
