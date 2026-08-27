@@ -4,8 +4,10 @@ import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Plus, Check, ChevronDown, Coins } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, Plus, Check, ChevronDown, Coins, AlertTriangle, ShieldCheck } from "lucide-react";
 import { getTokenMetadata, TokenMetadata } from "@/lib/soroban";
+import { useTokenMetadata } from "@/hooks/useSoroban";
 import { toast } from "sonner";
 
 // Predefined tokens for campaign creation
@@ -48,12 +50,26 @@ export function TokenSelector({ value, onChange, label, allowCustom = true }: To
   const [validationError, setValidationError] = useState<string | null>(null);
   const [customTokenMeta, setCustomTokenMeta] = useState<TokenMetadata | null>(null);
 
+  // Dynamically fetch token metadata via hook for non-predefined or custom tokens
+  const { data: dynamicMeta, isLoading: isMetaLoading, isError: isMetaError } = useTokenMetadata(
+    value && !PREDEFINED_TOKENS.some((t) => t.address === value) ? value : null,
+  );
+
   // Selected token label resolution
-  const selectedToken =
-    PREDEFINED_TOKENS.find((t) => t.address === value) ||
-    (tokenMetadataCache[value]
-      ? { symbol: tokenMetadataCache[value].symbol, address: value }
-      : null);
+  const predefinedToken = PREDEFINED_TOKENS.find((t) => t.address === value);
+  const cachedMeta = tokenMetadataCache[value];
+
+  const resolvedMeta =
+    predefinedToken ||
+    (dynamicMeta
+      ? { symbol: dynamicMeta.symbol, name: dynamicMeta.name || "SAC Token", address: value, decimals: dynamicMeta.decimals }
+      : cachedMeta
+        ? { symbol: cachedMeta.symbol, name: cachedMeta.name || "SAC Token", address: value, decimals: cachedMeta.decimals }
+        : null);
+
+  const isInvalidSAC = !!value && !predefinedToken && (isMetaError || (!isMetaLoading && !resolvedMeta));
+  const decimals = resolvedMeta?.decimals ?? 7;
+  const decimalPlaceholder = `e.g. ${(10).toFixed(Math.min(decimals, 7))}`;
 
   const handleSelect = (address: string) => {
     onChange(address);
@@ -129,15 +145,32 @@ export function TokenSelector({ value, onChange, label, allowCustom = true }: To
           onClick={() => setIsOpen(!isOpen)}
         >
           <span className="flex items-center gap-2">
-            <Coins className="h-4 w-4 text-primary" />
-            {selectedToken ? (
-              <span className="font-medium text-foreground">
-                {selectedToken.symbol}{" "}
-                {selectedToken.address && (
+            <Coins className="h-4 w-4 text-primary shrink-0" />
+            {resolvedMeta ? (
+              <span className="font-medium text-foreground flex items-center gap-1.5 flex-wrap">
+                <span>{resolvedMeta.symbol}</span>
+                <Badge variant="secondary" className="text-[10px] px-1 py-0 font-normal bg-emerald-500/10 text-emerald-600 border-emerald-500/20 flex items-center gap-0.5">
+                  <ShieldCheck className="h-2.5 w-2.5" /> SAC
+                </Badge>
+                {resolvedMeta.address && (
                   <span className="text-xs text-muted-foreground font-mono">
-                    ({selectedToken.address.slice(0, 6)}...{selectedToken.address.slice(-6)})
+                    ({resolvedMeta.address.slice(0, 6)}...{resolvedMeta.address.slice(-6)})
                   </span>
                 )}
+              </span>
+            ) : isInvalidSAC ? (
+              <span className="flex items-center gap-1.5 text-foreground">
+                <span className="text-xs font-mono">
+                  ({value.slice(0, 6)}...{value.slice(-6)})
+                </span>
+                <Badge variant="destructive" className="text-[10px] px-1 py-0 flex items-center gap-1">
+                  <AlertTriangle className="h-2.5 w-2.5" /> Invalid SAC
+                </Badge>
+              </span>
+            ) : isMetaLoading ? (
+              <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                Resolving token metadata...
               </span>
             ) : (
               <span className="text-muted-foreground">
@@ -145,7 +178,7 @@ export function TokenSelector({ value, onChange, label, allowCustom = true }: To
               </span>
             )}
           </span>
-          <ChevronDown className="h-4 w-4 opacity-50" />
+          <ChevronDown className="h-4 w-4 opacity-50 shrink-0" />
         </Button>
 
         {isOpen && (
@@ -169,7 +202,12 @@ export function TokenSelector({ value, onChange, label, allowCustom = true }: To
                   className="w-full flex items-center justify-between px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground transition-colors"
                 >
                   <div className="flex flex-col text-left">
-                    <span className="font-semibold">{token.symbol}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-semibold">{token.symbol}</span>
+                      <Badge variant="outline" className="text-[9px] px-1 py-0 text-emerald-600 bg-emerald-500/10 border-emerald-500/20">
+                        SAC
+                      </Badge>
+                    </div>
                     <span className="text-xs text-muted-foreground">{token.name}</span>
                   </div>
                   {value === token.address && <Check className="h-4 w-4 text-primary" />}
@@ -196,7 +234,7 @@ export function TokenSelector({ value, onChange, label, allowCustom = true }: To
                 {showCustom && (
                   <div className="p-2 space-y-2 bg-muted/40 rounded mt-1">
                     <Input
-                      placeholder="Contract ID (C...)"
+                      placeholder={`Contract ID (C...) — ${decimalPlaceholder}`}
                       value={customAddress}
                       onChange={handleCustomAddressChange}
                       className="h-8 text-xs font-mono"
@@ -210,8 +248,9 @@ export function TokenSelector({ value, onChange, label, allowCustom = true }: To
                     )}
 
                     {validationError && (
-                      <div className="text-xs text-destructive bg-destructive/10 p-1.5 rounded">
-                        {validationError}
+                      <div className="flex items-center gap-1.5 text-xs text-destructive bg-destructive/10 p-1.5 rounded">
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                        <span>{validationError}</span>
                       </div>
                     )}
 

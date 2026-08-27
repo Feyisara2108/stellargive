@@ -41,6 +41,7 @@ function sortCampaigns(campaigns: Campaign[], sortBy: SortKey): Campaign[] {
       return sorted.sort((a, b) => Number(b.deadline) - Number(a.deadline));
     case "ending-soon":
       return sorted.sort((a, b) => Number(a.deadline) - Number(b.deadline));
+    case "most-funded":
     case "near-goal": {
       const progress = (c: Campaign) =>
         c.target_amount === 0n ? 0 : Number((c.raised_amount * 10_000n) / c.target_amount);
