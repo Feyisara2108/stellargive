@@ -45,24 +45,29 @@ export function ProjectUpdates({ campaignId }: { campaignId: bigint }) {
       isOptimistic: true,
     };
 
+    // Prepend optimistically to local state and query cache immediately.
     setOptimisticUpdates((prev) => [optimisticUpdate, ...prev]);
     queryClient.setQueryData(["updates", campaignId.toString()], (old: any[] = []) => [
       optimisticUpdate,
       ...old,
     ]);
 
+    // Close the form right away — the update is already visible in the timeline.
+    setShowForm(false);
+
     try {
       await addUpdate.mutateAsync({ campaignId, content: trimmedContent });
+      // Reconcile: replace optimistic entry with the confirmed on-chain data.
       await queryClient.invalidateQueries({ queryKey: ["updates", campaignId.toString()] });
-      setOptimisticUpdates((prev) => prev.filter((update) => update.id !== optimisticUpdate.id));
+      setOptimisticUpdates((prev) => prev.filter((u) => u.id !== optimisticUpdate.id));
       notify.success("Update posted successfully");
-      setShowForm(false);
     } catch (error: any) {
-      setOptimisticUpdates((prev) => prev.filter((update) => update.id !== optimisticUpdate.id));
+      // Rollback: remove optimistic entry from both local state and query cache.
+      setOptimisticUpdates((prev) => prev.filter((u) => u.id !== optimisticUpdate.id));
       queryClient.setQueryData(["updates", campaignId.toString()], (old: any[] = []) =>
-        old.filter((update: any) => {
-          if (typeof update?.id === "string" && update.id) {
-            return update.id !== optimisticUpdate.id;
+        old.filter((u: any) => {
+          if (typeof u?.id === "string" && u.id) {
+            return u.id !== optimisticUpdate.id;
           }
           return true;
         }),
@@ -94,7 +99,11 @@ export function ProjectUpdates({ campaignId }: { campaignId: bigint }) {
         {showForm && (
           <PostUpdateForm
             campaignId={campaignId.toString()}
-            onSuccess={() => setShowForm(false)}
+            onSuccess={() => {
+              // Form closure is handled optimistically in handleSubmit above.
+              // This fallback fires only on the non-optimistic path.
+              setShowForm(false);
+            }}
             addUpdateMutation={async (id, content) => {
               await addUpdate.mutateAsync({ campaignId: BigInt(id), content });
             }}
