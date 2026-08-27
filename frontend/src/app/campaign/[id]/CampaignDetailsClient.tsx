@@ -426,6 +426,14 @@ export function CampaignDetailsClient({
                     }
                   : undefined
               }
+              onDonate={
+                campaign?.status === "Active"
+                  ? () => {
+                      setDonateAmount(undefined);
+                      setDonateOpen(true);
+                    }
+                  : undefined
+              }
             />
           </ErrorBoundary>
         </div>
