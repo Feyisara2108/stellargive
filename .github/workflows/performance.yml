@@ -187,13 +187,35 @@ jobs:
           cp -r .next/static .next/standalone/.next/static
           cp -r public .next/standalone/public 2>/dev/null || true
 
-      - name: Run Lighthouse CI
-        working-directory: frontend
-        run: npx --yes @lhci/cli@0.14.x autorun
+      # LHCI posts PR status checks only when LHCI_GITHUB_APP_TOKEN is set.
+      # An empty secret makes the CLI warn / fail status posting; detect it first
+      # so autorun always completes cleanly and artifacts still upload below.
+      - name: Check LHCI_GITHUB_APP_TOKEN
+        id: lhci-token
         env:
           LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
-          PORT: 3000
+        run: |
+          if [ -n "$LHCI_GITHUB_APP_TOKEN" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "LHCI_GITHUB_APP_TOKEN is configured — PR status comments enabled."
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=LHCI PR comments skipped::Repository secret LHCI_GITHUB_APP_TOKEN is not set. Lighthouse still runs and uploads artifacts; automated PR comments are disabled. See docs/CONTRIBUTING.md#lighthouse-ci-pr-comments for setup."
+          fi
 
+      - name: Run Lighthouse CI
+        working-directory: frontend
+        env:
+          # Only forward the secret when present so LHCI does not treat "" as a bad token.
+          LHCI_GITHUB_APP_TOKEN: ${{ steps.lhci-token.outputs.available == 'true' && secrets.LHCI_GITHUB_APP_TOKEN || '' }}
+          PORT: 3000
+        run: |
+          if [ "${{ steps.lhci-token.outputs.available }}" != "true" ]; then
+            unset LHCI_GITHUB_APP_TOKEN
+          fi
+          npx --yes @lhci/cli@0.14.x autorun
+
+      # Always retain the report so reviewers can download results even without the token.
       - name: Upload Lighthouse results
         if: always()
         uses: actions/upload-artifact@v4.3.0 # v4.3.0
@@ -201,3 +223,4 @@ jobs:
           name: lighthouse-results-${{ github.sha }}
           path: frontend/.lighthouseci/
           retention-days: 30
+          if-no-files-found: warn

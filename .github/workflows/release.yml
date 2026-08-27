@@ -102,6 +102,18 @@ jobs:
           cp contracts/stellar-give/target/wasm32v1-none/release/stellar_give.optimized.wasm ./stellar_give.optimized.wasm
           cp stellar_give.optimized.wasm ./stellar_give.wasm
 
+      # Defense-in-depth: build-contract.sh already enforces 50KB; re-check the
+      # copied release artifact so a bad path/copy cannot ship an oversized binary.
+      - name: Assert release WASM size budget (50KB)
+        run: |
+          MAX_WASM_BYTES=51200
+          SIZE=$(stat -c%s stellar_give.wasm)
+          echo "Release artifact stellar_give.wasm: ${SIZE} bytes (budget ${MAX_WASM_BYTES})"
+          if [ "$SIZE" -gt "$MAX_WASM_BYTES" ]; then
+            echo "::error::stellar_give.wasm (${SIZE} bytes) exceeds the 50KB budget (${MAX_WASM_BYTES} bytes)."
+            exit 1
+          fi
+
       - name: Upload optimized WASM artifact
         uses: actions/upload-artifact@v4.3.0 # v4.3.0
         with:
