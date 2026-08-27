@@ -1,0 +1,64 @@
+name: Pipeline Step 10
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/workflow-step-10.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/workflow-step-10.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-workflow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+
+      - name: Validate workflow syntax with actionlint
+        uses: reviewdog/action-actionlint@v1.49.0
+        with:
+          fail_level: error
+
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+
+      - name: Record start time
+        id: timer
+        run: echo "start=$(date +%s)" >> "$GITHUB_OUTPUT"
+
+      # Built-in npm caching on actions/setup-node eliminates separate actions/cache steps
+      # and caches ~/.npm automatically, saving ~30-50% on dependency installation time.
+      - name: Setup Node.js
+        uses: actions/setup-node@v4.1.0
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+      - name: Report build duration
+        run: |
+          end=$(date +%s)
+          echo "Build duration: $((end - ${{ steps.timer.outputs.start }}))s"
