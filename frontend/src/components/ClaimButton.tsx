@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { Loader2, CheckCircle2 } from "lucide-react";
 
 export function ClaimButton({ campaign }: { campaign: Campaign }) {
-  const { address } = useWallet();
+  const { address, isWrongNetwork } = useWallet();
   const claim = useClaimFunds();
 
   const isCreatorOrBeneficiary = address === campaign.creator || address === campaign.beneficiary;
@@ -44,26 +44,35 @@ export function ClaimButton({ campaign }: { campaign: Campaign }) {
   };
 
   // Derive a hint for the disabled state so users understand why they can't claim yet.
-  const disabledReason = !canClaim
-    ? campaign.status === "Active"
-      ? "Campaign must be fully funded or expired before claiming"
-      : "Nothing to claim — no funds have been raised"
-    : null;
+  const disabledReason = isWrongNetwork
+    ? "Please switch wallet network to Stellar Testnet"
+    : !canClaim
+      ? campaign.status === "Active"
+        ? "Campaign must be fully funded or expired before claiming"
+        : "Nothing to claim — no funds have been raised"
+      : null;
 
   return (
     <Tooltip>
-      <TooltipTrigger className="relative">
-        <Button
-          variant="outline"
-          onClick={handleClaim}
-          disabled={claim.isPending || claim.isSuccess || !canClaim}
-          className="border-primary text-primary hover:bg-primary/10"
-        >
-          {claim.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {claim.isSuccess ? "Claimed" : "Claim Funds"}
-        </Button>
+      <TooltipTrigger asChild>
+        <span className="relative">
+          <Button
+            variant="outline"
+            onClick={handleClaim}
+            disabled={claim.isPending || claim.isSuccess || !canClaim || isWrongNetwork}
+            className="border-primary text-primary hover:bg-primary/10"
+            aria-describedby={disabledReason ? "claim-disabled-reason" : undefined}
+          >
+            {claim.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {claim.isSuccess ? "Claimed" : "Claim Funds"}
+          </Button>
+        </span>
       </TooltipTrigger>
-      {disabledReason && <TooltipContent side="top">{disabledReason}</TooltipContent>}
+      {disabledReason && (
+        <TooltipContent side="top" id="claim-disabled-reason">
+          {disabledReason}
+        </TooltipContent>
+      )}
     </Tooltip>
   );
 }

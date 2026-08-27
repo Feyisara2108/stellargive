@@ -45,9 +45,12 @@ export function NetworkMismatchBanner() {
               size="sm"
               className="h-8 text-xs font-medium"
               onClick={() => {
-                // Freighter doesn't have a direct 'switch network' API,
-                // but we can suggest the user open it.
-                window.open("https://freighter.app/", "_blank");
+                // Link directly to Freighter's network configuration guide
+                window.open(
+                  "https://developers.stellar.org/docs/tools/freighter/freighter-extension#network-configuration",
+                  "_blank",
+                  "noopener,noreferrer",
+                );
               }}
             >
               Switch Network
