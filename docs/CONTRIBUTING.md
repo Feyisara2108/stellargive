@@ -240,11 +240,14 @@ Our CI workflow automatically uploads these reports to our Codecov dashboard to 
 
 ### Automated WASM Optimization
 
-Contract builds are strictly validated in CI. We enforce a 64KB maximum limit on optimized .wasm files.
+Contract builds are strictly validated in CI. We enforce a **50KB** maximum limit
+(51200 bytes) on optimized `.wasm` files. The release workflow uploads
+`stellar_give.wasm` as a GitHub Actions artifact and attaches it to release tags.
 You can run the optimization check locally using:
-`ash
+
+```bash
 bash scripts/build-contract.sh
-`
+```
 
 ### Dependabot Maintenance
 
@@ -324,3 +327,22 @@ On recovery it automatically closes the tracking issue.
 | `DISCORD_WEBHOOK_URL` | Discord incoming webhook (optional) |
 
 See `.env.example` for all available configuration variables.
+
+---
+
+## Lighthouse CI PR comments
+
+The `Performance` workflow (`.github/workflows/performance.yml`) runs Lighthouse CI
+on frontend changes and always uploads the `.lighthouseci/` report as a workflow
+artifact (`lighthouse-results-<sha>`).
+
+Automated PR status comments require a Lighthouse CI GitHub App token:
+
+1. Install the [Lighthouse CI GitHub App](https://github.com/apps/lighthouse-ci)
+   on the `Feyisara2108/stellargive` repository (or your fork).
+2. Copy the app token from the Lighthouse CI dashboard.
+3. In the repo: **Settings → Secrets and variables → Actions → New repository secret**.
+4. Name the secret exactly `LHCI_GITHUB_APP_TOKEN` and paste the token value.
+
+If the secret is missing, the workflow still builds, audits, and uploads artifacts —
+it only skips GitHub status/comment posting (no hard failure from an empty token).

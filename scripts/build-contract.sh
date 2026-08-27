@@ -54,6 +54,7 @@ fi
 
 if [ "$OPTIMIZED_SIZE" -gt "$MAX_WASM_BYTES" ]; then
     echo "Error: Optimized WASM size ($OPTIMIZED_SIZE bytes) exceeds the 50KB budget ($MAX_WASM_BYTES bytes)!"
+    echo "::error::Optimized WASM size ($OPTIMIZED_SIZE bytes) exceeds the 50KB budget ($MAX_WASM_BYTES bytes)."
     if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
         echo "**Status:** FAIL — binary exceeds size budget." >> "$GITHUB_STEP_SUMMARY"
     fi

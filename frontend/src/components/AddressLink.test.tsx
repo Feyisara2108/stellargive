@@ -135,6 +135,7 @@ describe("AddressLink — copy interaction", () => {
   });
 
   it("writes the address to the clipboard when the copy button is clicked", async () => {
+    const { toast } = await import("sonner");
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.assign(navigator, { clipboard: { writeText } });
     render(<AddressLink address={FULL_ADDRESS} />);
@@ -143,9 +144,15 @@ describe("AddressLink — copy interaction", () => {
 
     // On success the handler resolves and flips into the "copied" (Check) state.
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(FULL_ADDRESS));
+    expect(toast.success).toHaveBeenCalledWith("Address copied to clipboard");
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /address copied/i })).toBeInTheDocument(),
+    );
+    expect(screen.getByText("Copied")).toBeInTheDocument();
   });
 
   it("handles a failed clipboard write without throwing", async () => {
+    const { toast } = await import("sonner");
     const writeText = vi.fn().mockRejectedValue(new Error("denied"));
     Object.assign(navigator, { clipboard: { writeText } });
     render(<AddressLink address={FULL_ADDRESS} />);
@@ -153,6 +160,7 @@ describe("AddressLink — copy interaction", () => {
     fireEvent.click(screen.getByRole("button", { name: /copy address/i }));
 
     await waitFor(() => expect(writeText).toHaveBeenCalled());
+    expect(toast.error).toHaveBeenCalledWith("Failed to copy address");
   });
 
   it("copies when Enter is pressed on the copy button", async () => {

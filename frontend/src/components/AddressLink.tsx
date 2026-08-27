@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ExternalLink, Copy, Check } from "lucide-react";
 import { formatAddress } from "@/utils/format";
 import { useResolvedName } from "@/hooks/useSoroban";
@@ -14,10 +14,19 @@ type AddressLinkProps = {
 
 export function AddressLink({ address, network = "testnet", className }: AddressLinkProps) {
   const [copied, setCopied] = useState(false);
+  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const href = `https://stellar.expert/explorer/${network}/account/${address}`;
   const { data: resolvedName } = useResolvedName(address);
 
   const displayText = resolvedName || formatAddress(address);
+
+  useEffect(() => {
+    return () => {
+      if (resetTimerRef.current !== null) {
+        clearTimeout(resetTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleCopy = useCallback(
     async (e: React.MouseEvent | React.KeyboardEvent) => {
@@ -27,7 +36,10 @@ export function AddressLink({ address, network = "testnet", className }: Address
         await navigator.clipboard.writeText(address);
         setCopied(true);
         toast.success("Address copied to clipboard");
-        setTimeout(() => setCopied(false), 2000);
+        if (resetTimerRef.current !== null) {
+          clearTimeout(resetTimerRef.current);
+        }
+        resetTimerRef.current = setTimeout(() => setCopied(false), 2000);
       } catch {
         toast.error("Failed to copy address");
       }
@@ -58,8 +70,8 @@ export function AddressLink({ address, network = "testnet", className }: Address
         onClick={handleCopy}
         onKeyDown={handleKeyDown}
         className="inline-flex items-center justify-center rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        aria-label={`Copy address to clipboard`}
-        title="Copy address"
+        aria-label={copied ? "Address copied" : "Copy address to clipboard"}
+        title={copied ? "Copied" : "Copy address"}
       >
         {copied ? (
           <Check className="h-3.5 w-3.5 text-green-500" aria-hidden="true" />
@@ -67,6 +79,9 @@ export function AddressLink({ address, network = "testnet", className }: Address
           <Copy className="h-3.5 w-3.5" aria-hidden="true" />
         )}
       </button>
+      <span className="sr-only" aria-live="polite">
+        {copied ? "Copied" : ""}
+      </span>
     </span>
   );
 }
