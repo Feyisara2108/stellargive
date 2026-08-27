@@ -70,7 +70,7 @@ export function AddressLink({ address, network = "testnet", className }: Address
         onClick={handleCopy}
         onKeyDown={handleKeyDown}
         className="inline-flex items-center justify-center rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        aria-label={copied ? "Address copied" : "Copy address to clipboard"}
+        aria-label="Copy address"
         title={copied ? "Copied" : "Copy address"}
       >
         {copied ? (

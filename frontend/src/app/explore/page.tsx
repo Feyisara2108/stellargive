@@ -68,6 +68,7 @@ const RESULTS_PANEL_ID = "campaign-results-panel";
 function ExploreContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const detailHrefSearch = searchParams.toString();
   const [limit, setLimit] = useState(PAGE_SIZE);
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get("q") ?? "");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "funded">(() => {
@@ -443,6 +444,7 @@ function ExploreContent() {
                     key={campaign.id.toString()}
                     campaign={campaign}
                     preloadedTokenMeta={tokenMetas?.[campaign.accepted_token]}
+                    detailHrefSearch={detailHrefSearch}
                   />
                 ))}
               </div>

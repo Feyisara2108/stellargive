@@ -42,7 +42,7 @@ import { StickyDonateBar } from "@/components/StickyDonateBar";
 import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
 import { Badge } from "@/components/ui/badge";
 import { useCountdown } from "@/hooks/useCountdown";
-import { Breadcrumbs } from "@/components/Breadcrumbs";
+import { Breadcrumbs, type BreadcrumbItem } from "@/components/Breadcrumbs";
 import { CampaignDetailSkeleton } from "@/components/CampaignSkeleton";
 
 function TopDonors({ campaignId }: { campaignId: bigint }) {
@@ -137,7 +137,13 @@ function CampaignTimeline({ campaign }: { campaign: any }) {
   );
 }
 
-export function CampaignDetailsClient({ params }: { params: { id: string } }) {
+export function CampaignDetailsClient({
+  params,
+  breadcrumbs,
+}: {
+  params: { id: string };
+  breadcrumbs: BreadcrumbItem[];
+}) {
   const [imgError, setImgError] = useState(false);
   const { address, isWrongNetwork } = useWallet();
   const { data: campaign, isLoading, isError, refetch } = useCampaign(BigInt(params.id));
@@ -180,11 +186,7 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
     return (
       <div className="p-8 max-w-4xl mx-auto">
         <Breadcrumbs
-          items={[
-            { label: "Home", href: "/" },
-            { label: "Explore", href: "/explore" },
-            { label: `Campaign #${params.id}`, href: `/campaign/${params.id}` },
-          ]}
+          items={breadcrumbs}
         />
         <div
           role="alert"
@@ -225,11 +227,7 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-6">
       <Breadcrumbs
-        items={[
-          { label: "Home", href: "/" },
-          { label: "Explore", href: "/explore" },
-          { label: campaign?.title || `Campaign #${params.id}`, href: `/campaign/${params.id}` },
-        ]}
+        items={breadcrumbs}
       />
       <div ref={headerDonateRef} className="flex justify-between items-start">
         <div className="space-y-2">
