@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { AlertCircle, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -40,13 +40,25 @@ function DefaultLoading() {
 
 function DefaultError({
   onRetry,
-  title = "Failed to load data",
+  title = "Something went wrong",
   message = "We encountered an error while fetching this data. Please check your connection and try again.",
 }: {
   onRetry?: () => void;
   title?: string;
   message?: string;
 }) {
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const handleRetry = async () => {
+    if (!onRetry) return;
+    setIsRetrying(true);
+    try {
+      await onRetry();
+    } finally {
+      setTimeout(() => setIsRetrying(false), 500);
+    }
+  };
+
   return (
     <div className="rounded-lg border border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/30 p-6 space-y-4">
       <div className="flex items-start gap-3">
@@ -57,9 +69,15 @@ function DefaultError({
         </div>
       </div>
       {onRetry && (
-        <Button onClick={onRetry} variant="outline" size="sm" className="w-full sm:w-auto">
-          <RotateCw className="mr-2 h-4 w-4" />
-          Retry
+        <Button
+          onClick={handleRetry}
+          disabled={isRetrying}
+          variant="outline"
+          size="sm"
+          className="w-full sm:w-auto"
+        >
+          <RotateCw className={`mr-2 h-4 w-4 ${isRetrying ? "animate-spin" : ""}`} />
+          {isRetrying ? "Retrying..." : "Retry"}
         </Button>
       )}
     </div>
