@@ -239,17 +239,21 @@ export function DonateModal({
           <TooltipTrigger asChild>
             <span className="relative flex-1 block">
               <DialogTrigger asChild>
-                <Button className="w-full" disabled={!address || isWrongNetwork}>
+                <Button
+                  className="w-full"
+                  disabled={!address || isWrongNetwork}
+                  aria-describedby={(!address || isWrongNetwork) ? "donate-disabled-reason" : undefined}
+                >
                   Donate Now
                 </Button>
               </DialogTrigger>
             </span>
           </TooltipTrigger>
           {(!address || isWrongNetwork) && (
-            <TooltipContent side="top">
+            <TooltipContent side="top" id="donate-disabled-reason">
               {!address
                 ? "Connect your wallet to donate"
-                : "Switch to the correct network to donate"}
+                : "Please switch wallet network to Stellar Testnet"}
             </TooltipContent>
           )}
         </Tooltip>

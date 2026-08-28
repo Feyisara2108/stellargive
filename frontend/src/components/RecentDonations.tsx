@@ -5,13 +5,14 @@ import { formatTokenAmount } from "@/utils/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Heart, ArrowUpRight, RotateCcw } from "lucide-react";
+import { Heart, ArrowUpRight, RotateCcw, HeartHandshake } from "lucide-react";
 import { AddressLink } from "@/components/AddressLink";
 import { RelativeTime } from "@/components/RelativeTime";
 
 export function RecentDonations({
   campaignId,
   onDonateAgain,
+  onDonate,
 }: {
   campaignId: bigint;
   /**
@@ -20,6 +21,11 @@ export function RecentDonations({
    * campaigns, so the action is hidden once a campaign is no longer donatable.
    */
   onDonateAgain?: (amountXLM: string) => void;
+  /**
+   * When provided, the empty-state CTA button calls this to open the donate
+   * modal. Only passed for active campaigns.
+   */
+  onDonate?: () => void;
 }) {
   const { data: allEvents, isLoading, isError } = useEvents();
 
@@ -151,10 +157,23 @@ export function RecentDonations({
           <div
             role="status"
             aria-live="polite"
-            className="text-center py-12 text-muted-foreground space-y-1 bg-muted/20 rounded-lg border border-dashed"
+            className="flex flex-col items-center text-center py-10 gap-4"
           >
-            <p className="text-sm font-medium">No donations yet</p>
-            <p className="text-xs">Be the first to support this campaign.</p>
+            <div className="flex items-center justify-center w-14 h-14 rounded-full bg-primary/10">
+              <HeartHandshake className="w-7 h-7 text-primary" aria-hidden="true" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-foreground">Be the first donor!</p>
+              <p className="text-xs text-muted-foreground">
+                No donations yet. Your support can make it happen.
+              </p>
+            </div>
+            {onDonate && (
+              <Button size="sm" onClick={onDonate} className="gap-2 mt-1">
+                <Heart className="w-3.5 h-3.5 fill-current" aria-hidden="true" />
+                Donate Now
+              </Button>
+            )}
           </div>
         )}
       </CardContent>
