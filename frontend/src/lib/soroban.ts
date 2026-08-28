@@ -452,6 +452,7 @@ export async function getSACBalance(contractId: string, userAddress: string): Pr
 export interface TokenMetadata {
   symbol: string;
   decimals: number;
+  name?: string;
 }
 
 export async function getTokenMetadata(contractId: string): Promise<TokenMetadata> {
