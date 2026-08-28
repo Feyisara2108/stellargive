@@ -218,7 +218,9 @@ function ActivityContent() {
               {isSearching
                 ? "No activity matches your search."
                 : `No ${
-                    filter === "all" ? "" : FILTERS.find((f) => f.key === filter)?.label.toLowerCase()
+                    filter === "all"
+                      ? ""
+                      : FILTERS.find((f) => f.key === filter)?.label.toLowerCase()
                   } events found yet.`}
             </p>
             {isSearching && (
