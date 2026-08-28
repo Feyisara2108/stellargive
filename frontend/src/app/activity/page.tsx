@@ -1,14 +1,20 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useEvents } from "@/hooks/useSoroban";
-import { Activity, Loader2, AlertTriangle, RotateCw } from "lucide-react";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { Activity, Loader2, AlertTriangle, RotateCw, Search, X } from "lucide-react";
+import { getCampaignId, getEventField } from "@/lib/eventData";
+import { normalizeAddress } from "@/utils/format";
 import dynamic from "next/dynamic";
 
 const HISTORY_LIMIT = 50;
+const SEARCH_DEBOUNCE_MS = 300;
 
 type FilterKey = "all" | "created" | "received" | "claimed";
 
@@ -18,6 +24,16 @@ const FILTERS: { key: FilterKey; label: string }[] = [
   { key: "received", label: "Donated" },
   { key: "claimed", label: "Claimed" },
 ];
+
+/** True when the event's donor/beneficiary address or campaign id contains `query`. */
+function eventMatchesSearch(event: any, query: string): boolean {
+  if (!query) return true;
+  const campaignId = getCampaignId(event);
+  if (campaignId && campaignId.includes(query)) return true;
+  const participant = normalizeAddress(getEventField(event, 1));
+  if (participant && participant.toLowerCase().includes(query)) return true;
+  return false;
+}
 
 // ---------------------------------------------------------------------------
 // Code-split: the table + card renderers are the heaviest part of this route.
@@ -52,12 +68,17 @@ function ActivityFeedSkeleton() {
   );
 }
 
-export default function ActivityPage() {
+function ActivityContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [limit, setLimit] = useState(HISTORY_LIMIT);
   const { data: fetchedEvents, isLoading, isError, refetch } = useEvents(limit);
   const [filter, setFilter] = useState<FilterKey>("all");
+  const [searchTerm, setSearchTerm] = useState(() => searchParams.get("search") ?? "");
   const [events, setEvents] = useState<any[]>([]);
   const [showIndicator, setShowIndicator] = useState(false);
+
+  const debouncedSearch = useDebouncedValue(searchTerm.trim().toLowerCase(), SEARCH_DEBOUNCE_MS);
 
   useEffect(() => {
     if (Array.isArray(fetchedEvents)) {
@@ -80,17 +101,35 @@ export default function ActivityPage() {
     }
   }, [fetchedEvents]);
 
+  // Keep the ?search= URL parameter in sync with the input (without a reload).
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams.toString());
+    if (searchTerm.trim()) {
+      next.set("search", searchTerm);
+    } else {
+      next.delete("search");
+    }
+    const query = next.toString();
+    if (query !== searchParams.toString()) {
+      router.replace(query ? `/activity?${query}` : "/activity", { scroll: false });
+    }
+  }, [router, searchParams, searchTerm]);
+
   const sorted = useMemo(
     () => events.slice().sort((a: any, b: any) => Number(b.ledger) - Number(a.ledger)),
     [events],
   );
 
-  const visible = useMemo(
-    () => (filter === "all" ? sorted : sorted.filter((e: any) => e.topic === filter)),
-    [sorted, filter],
-  );
+  const visible = useMemo(() => {
+    const byFilter = filter === "all" ? sorted : sorted.filter((e: any) => e.topic === filter);
+    if (!debouncedSearch) return byFilter;
+    return byFilter.filter((e: any) => eventMatchesSearch(e, debouncedSearch));
+  }, [sorted, filter, debouncedSearch]);
+
   const canLoadMore =
     Array.isArray(fetchedEvents) && fetchedEvents.length >= limit && limit >= HISTORY_LIMIT;
+
+  const isSearching = debouncedSearch.length > 0;
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -104,6 +143,35 @@ export default function ActivityPage() {
           <p className="text-muted-foreground">
             The most recent {limit} on-chain events from the StellarGive contract.
           </p>
+        </div>
+
+        <div className="relative max-w-sm">
+          <label htmlFor="activity-search" className="sr-only">
+            Search activity by donor address or campaign ID
+          </label>
+          <Search
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <Input
+            id="activity-search"
+            type="search"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search by donor address or campaign ID"
+            autoComplete="off"
+            className="pl-9 pr-9"
+          />
+          {searchTerm && (
+            <button
+              type="button"
+              onClick={() => setSearchTerm("")}
+              aria-label="Clear search input"
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-accent"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-2" role="tablist" aria-label="Event type filters">
@@ -145,9 +213,20 @@ export default function ActivityPage() {
             </Button>
           </div>
         ) : visible.length === 0 ? (
-          <div className="text-center py-20 text-muted-foreground">
-            No {filter === "all" ? "" : FILTERS.find((f) => f.key === filter)?.label.toLowerCase()}{" "}
-            events found yet.
+          <div className="flex flex-col items-center gap-4 py-20 text-center">
+            <p className="text-muted-foreground">
+              {isSearching
+                ? "No activity matches your search."
+                : `No ${
+                    filter === "all" ? "" : FILTERS.find((f) => f.key === filter)?.label.toLowerCase()
+                  } events found yet.`}
+            </p>
+            {isSearching && (
+              <Button variant="outline" onClick={() => setSearchTerm("")}>
+                <X className="mr-2 h-4 w-4" aria-hidden="true" />
+                Clear search
+              </Button>
+            )}
           </div>
         ) : (
           <>
@@ -167,5 +246,15 @@ export default function ActivityPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function ActivityPage() {
+  // useSearchParams (used in ActivityContent) requires a Suspense boundary above
+  // it so Next.js can statically render the route without bailing out of CSR.
+  return (
+    <Suspense>
+      <ActivityContent />
+    </Suspense>
   );
 }
