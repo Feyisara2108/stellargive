@@ -32,6 +32,7 @@ import { Loader2, Check, AlertCircle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 const FIRED_MILESTONES = new Set<string>();
 const milestoneKey = (campaignId: bigint, m: MilestonePercent) => `${campaignId.toString()}:${m}`;
@@ -151,12 +152,19 @@ export function DonateModal({
   }, [amount]);
 
   // Pre-fill a suggested amount when the modal opens (e.g. the "Donate again"
-  // shortcut passes the donor's previous amount). Only applied on the open
-  // transition so it never overwrites what the user is typing.
+  // shortcut passes the donor's previous amount, or return visits suggest last donated amount).
+  // Only applied on the open transition so it never overwrites what the user is typing.
   const prevOpenRef = React.useRef(false);
   useEffect(() => {
-    if (isOpen && !prevOpenRef.current && suggestedAmount) {
-      setValue("amount", suggestedAmount, { shouldValidate: true });
+    if (isOpen && !prevOpenRef.current) {
+      const initialAmount =
+        suggestedAmount ||
+        (typeof window !== "undefined"
+          ? localStorage.getItem("stellargive_last_donated_amount") || ""
+          : "");
+      if (initialAmount) {
+        setValue("amount", initialAmount, { shouldValidate: true });
+      }
     }
     prevOpenRef.current = isOpen;
   }, [isOpen, suggestedAmount, setValue]);
@@ -210,6 +218,13 @@ export function DonateModal({
       setSuccessAmount(data.amount);
       setSuccessTxHash((result as any).hash || "");
       setSuccessAnnouncement(`Donation of ${data.amount} ${symbol} confirmed`);
+      try {
+        if (typeof window !== "undefined") {
+          localStorage.setItem("stellargive_last_donated_amount", data.amount);
+        }
+      } catch (storageErr) {
+        console.error("Failed to save last donated amount to localStorage", storageErr);
+      }
       setShowSuccess(true);
       setIsOpen(false);
       setValue("amount", "");
@@ -321,6 +336,58 @@ export function DonateModal({
                 })}
                 disabled={donate.isPending}
               />
+              <div className="flex flex-wrap gap-1.5 pt-1" role="group" aria-label="Preset donation values">
+                {[10, 50, 100].map((presetVal) => {
+                  const isActive =
+                    !!amount && !isNaN(Number(amount)) && Number(amount) === presetVal;
+                  return (
+                    <Button
+                      key={presetVal}
+                      type="button"
+                      variant={isActive ? "default" : "outline"}
+                      size="sm"
+                      className={cn(
+                        "h-7 px-3 text-xs rounded-full transition-colors",
+                        isActive && "font-semibold shadow-sm",
+                      )}
+                      onClick={() =>
+                        setValue("amount", presetVal.toString(), { shouldValidate: true })
+                      }
+                      disabled={donate.isPending}
+                    >
+                      {presetVal} {symbol}
+                    </Button>
+                  );
+                })}
+                {remaining > 0 && (
+                  <Button
+                    type="button"
+                    variant={
+                      !!amount &&
+                      !isNaN(Number(amount)) &&
+                      Number(amount) > 0 &&
+                      Math.abs(Number(amount) - remaining) < 0.0000001
+                        ? "default"
+                        : "outline"
+                    }
+                    size="sm"
+                    className={cn(
+                      "h-7 px-3 text-xs rounded-full transition-colors",
+                      !!amount &&
+                        !isNaN(Number(amount)) &&
+                        Number(amount) > 0 &&
+                        Math.abs(Number(amount) - remaining) < 0.0000001 &&
+                        "font-semibold shadow-sm",
+                    )}
+                    onClick={() =>
+                      setValue("amount", formatNum(remaining), { shouldValidate: true })
+                    }
+                    disabled={donate.isPending}
+                  >
+                    Fund Remaining
+                  </Button>
+                )}
+              </div>
               <div className="flex items-center justify-between">
                 <span
                   id="amount-hint"
@@ -418,15 +485,16 @@ export function DonateModal({
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={showSuccess}
-        onOpenChange={(open) => {
-          setShowSuccess(open);
-          if (!open) {
-            setSuccessAnnouncement("");
-          }
-        }}
-      >
+      {showSuccess && (
+        <Dialog
+          open={showSuccess}
+          onOpenChange={(open) => {
+            setShowSuccess(open);
+            if (!open) {
+              setSuccessAnnouncement("");
+            }
+          }}
+        >
         <DialogContent
           className="max-w-md text-center p-6 gap-6"
           aria-labelledby="donate-success-title"
@@ -475,6 +543,7 @@ export function DonateModal({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    )}
 
       {/* Screen Reader Announcements */}
       <div aria-live="polite" className="sr-only">

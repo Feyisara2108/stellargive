@@ -303,35 +303,44 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
         <FormField
           control={form.control}
           name="description"
-          render={({ field }) => (
-            <FormItem>
-              <div className="flex items-center justify-between">
+          render={({ field }) => {
+            const descValue = field.value ?? "";
+            const descLength = descValue.length;
+            const remaining = 500 - descLength;
+            const isWarning = remaining < 20 && descLength <= 500;
+            const isOverLimit = descLength > 500;
+
+            return (
+              <FormItem>
                 <FormLabel>Campaign Description</FormLabel>
-                <span
-                  aria-live="polite"
-                  className={cn(
-                    "text-xs tabular-nums",
-                    (form.watch("description")?.length ?? 0) > 500
-                      ? "text-destructive"
-                      : "text-muted-foreground",
-                  )}
-                >
-                  {form.watch("description")?.length ?? 0}/500
-                </span>
-              </div>
-              <FormControl>
-                <textarea
-                  placeholder="Provide a detailed description of the campaign..."
-                  maxLength={500}
-                  rows={3}
-                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
-                  {...field}
-                  disabled={createCampaign.isPending}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
+                <FormControl>
+                  <textarea
+                    placeholder="Provide a detailed description of the campaign..."
+                    rows={3}
+                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+                    {...field}
+                    disabled={createCampaign.isPending}
+                  />
+                </FormControl>
+                <div className="flex items-center justify-between text-xs">
+                  <FormMessage />
+                  <span
+                    aria-live="polite"
+                    className={cn(
+                      "tabular-nums transition-colors ml-auto",
+                      isOverLimit
+                        ? "text-destructive font-semibold"
+                        : isWarning
+                          ? "text-amber-600 dark:text-amber-400 font-medium"
+                          : "text-muted-foreground",
+                    )}
+                  >
+                    {descLength} / 500 characters
+                  </span>
+                </div>
+              </FormItem>
+            );
+          }}
         />
         <FormField
           control={form.control}
@@ -515,7 +524,12 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
         <Button
           type="submit"
           className="w-full"
-          disabled={createCampaign.isPending || isUploadingImage || !form.formState.isValid}
+          disabled={
+            createCampaign.isPending ||
+            isUploadingImage ||
+            !form.formState.isValid ||
+            (form.watch("description")?.length ?? 0) > 500
+          }
         >
           {createCampaign.isPending ? (
             <>

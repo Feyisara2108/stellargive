@@ -221,28 +221,57 @@ describe("DonateModal", () => {
   });
 
   describe("preset amount and manual sync", () => {
-    it("shows a 'Fund the rest' shortcut and syncs the amount input when clicked", async () => {
+    it("shows preset chips (10 XLM, 50 XLM, 100 XLM, Fund Remaining) and populates input on click", async () => {
       render(<DonateModal campaign={baseCampaign} open onOpenChange={() => {}} />);
 
-      const shortcut = await screen.findByRole("button", { name: /Fund the rest/i });
-      fireEvent.click(shortcut);
+      const chip10 = await screen.findByRole("button", { name: "10 XLM" });
+      const chip50 = screen.getByRole("button", { name: "50 XLM" });
+      const chip100 = screen.getByRole("button", { name: "100 XLM" });
+      const fundRemainingChip = screen.getByRole("button", { name: /Fund Remaining/i });
 
-      const input = await screen.findByLabelText(/Amount/i);
+      expect(chip10).toBeInTheDocument();
+      expect(chip50).toBeInTheDocument();
+      expect(chip100).toBeInTheDocument();
+      expect(fundRemainingChip).toBeInTheDocument();
+
+      const input = screen.getByLabelText(/Amount/i);
+
+      // Click preset 10 XLM chip
+      fireEvent.click(chip10);
+      await waitFor(() => {
+        expect(input).toHaveValue("10");
+      });
+
+      // Click preset Fund Remaining chip (remaining = 100 - 35 = 65)
+      fireEvent.click(fundRemainingChip);
       await waitFor(() => {
         expect(input).toHaveValue("65");
       });
     });
 
-    it("hides the 'Fund the rest' shortcut once the manual amount already covers the goal", async () => {
+    it("highlights active chip when input matches preset amount", async () => {
       render(<DonateModal campaign={baseCampaign} open onOpenChange={() => {}} />);
 
       const input = await screen.findByLabelText(/Amount/i);
-      fireEvent.change(input, { target: { value: "65" } });
-      fireEvent.blur(input);
+      fireEvent.change(input, { target: { value: "50" } });
 
       await waitFor(() => {
-        expect(screen.queryByRole("button", { name: /Fund the rest/i })).not.toBeInTheDocument();
+        const chip50 = screen.getByRole("button", { name: "50 XLM" });
+        expect(chip50.className).toContain("bg-primary");
       });
+    });
+
+    it("remembers user's last donated amount in localStorage and pre-fills on return visits", async () => {
+      localStorage.setItem("stellargive_last_donated_amount", "50");
+
+      render(<DonateModal campaign={baseCampaign} open onOpenChange={() => {}} />);
+
+      const input = await screen.findByLabelText(/Amount/i);
+      await waitFor(() => {
+        expect(input).toHaveValue("50");
+      });
+
+      localStorage.removeItem("stellargive_last_donated_amount");
     });
   });
 
