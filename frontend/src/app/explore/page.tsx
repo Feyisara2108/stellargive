@@ -353,7 +353,7 @@ function ExploreContent() {
                 tabIndex={isSelected ? 0 : -1}
                 onClick={() => setStatusFilter(tab.value)}
                 onKeyDown={(e) => handleTabKeyDown(e, i)}
-                className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded"
+                className="focus:outline-none focus-visible:outline-none ring-offset-background focus:ring-2 focus:ring-primary focus:ring-offset-2 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded transition-all"
               >
                 <CampaignStatusBadge
                   status={tab.badgeStatus}

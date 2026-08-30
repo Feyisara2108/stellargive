@@ -173,6 +173,32 @@ describe("CreateCampaignForm", () => {
       expect(screen.getByRole("button", { name: /Launch Campaign/i })).toBeDisabled();
     });
 
+    it("updates character counter in real time, applies warning style near cap, and disables submit when over 500 characters", async () => {
+      renderForm();
+      await openForm();
+
+      const description = screen.getByPlaceholderText(/Provide a detailed description/i);
+      
+      // Real-time counter update
+      fireEvent.change(description, { target: { value: "Short description" } });
+      expect(screen.getByText("17 / 500 characters")).toBeInTheDocument();
+
+      // Warning style near cap (remaining < 20, e.g. 485 characters)
+      const warningText = "A".repeat(485);
+      fireEvent.change(description, { target: { value: warningText } });
+      const counterEl = screen.getByText("485 / 500 characters");
+      expect(counterEl).toBeInTheDocument();
+      expect(counterEl.className).toContain("text-amber-600");
+
+      // Over limit (e.g. 505 characters)
+      const overLimitText = "A".repeat(505);
+      fireEvent.change(description, { target: { value: overLimitText } });
+      const overLimitCounter = screen.getByText("505 / 500 characters");
+      expect(overLimitCounter).toBeInTheDocument();
+      expect(overLimitCounter.className).toContain("text-destructive");
+      expect(screen.getByRole("button", { name: /Launch Campaign/i })).toBeDisabled();
+    });
+
     it("rejects a deadline duration beyond the 365-day maximum", async () => {
       renderForm();
       await openForm();
