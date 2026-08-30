@@ -15,6 +15,7 @@ import { CategorySelector, CATEGORIES, type CategoryKey } from "@/components/Cat
 import { SortSelector, SORT_OPTIONS, type SortKey } from "@/components/SortSelector";
 import { Search, Compass, Loader2, AlertTriangle, RotateCw } from "lucide-react";
 import { CampaignSkeletonGrid } from "@/components/CampaignSkeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 import type { Campaign } from "@/lib/soroban";
 
 const PAGE_SIZE = 9;
@@ -404,25 +405,17 @@ function ExploreContent() {
               </Button>
             </div>
           ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center gap-4 py-20 text-center">
-              <div>
-                <p className="font-medium text-foreground">No campaigns found</p>
-                <p className="text-muted-foreground">{emptyMessage}</p>
-              </div>
-              {debouncedSearch ? (
-                <Button variant="outline" onClick={() => setSearchTerm("")}>
-                  Clear search
-                </Button>
-              ) : categoryFilter !== "all" ? (
-                <Button variant="outline" onClick={() => setCategoryFilter("all")}>
-                  Show all categories
-                </Button>
-              ) : (
-                <Button asChild>
-                  <Link href="/create">Create the first one</Link>
-                </Button>
-              )}
-            </div>
+            <EmptyState
+              message={emptyMessage}
+              onClear={
+                debouncedSearch || categoryFilter !== "all"
+                  ? () => {
+                      setSearchTerm("");
+                      setCategoryFilter("all");
+                    }
+                  : undefined
+              }
+            />
           ) : (
             // `relative` anchors the floating "Updating…" pill so showing it never
             // reflows the grid below.
