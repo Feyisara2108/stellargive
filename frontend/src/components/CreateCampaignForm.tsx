@@ -65,8 +65,10 @@ const formSchema = z.object({
   ),
   deadlineDays: z.string().refine((val) => {
     const n = Number(val);
-    return Number.isInteger(n) && n >= 1 && n <= MAX_DURATION_DAYS;
-  }, `Deadline must be between 1 and ${MAX_DURATION_DAYS} days`),
+    if (!Number.isInteger(n) || n < 1 || n > MAX_DURATION_DAYS) return false;
+    const deadlineSec = Math.floor(Date.now() / 1000) + n * 24 * 60 * 60;
+    return deadlineSec > Math.floor(Date.now() / 1000) + 3600;
+  }, `Deadline must be between 1 and ${MAX_DURATION_DAYS} days and at least 1 hour in the future`),
   acceptedToken: z.string().regex(/^C[A-Z0-9]{55}$|^G[A-Z0-9]{55}$/, "Invalid Token address"),
   website: z
     .string()

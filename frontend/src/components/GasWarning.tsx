@@ -1,22 +1,40 @@
 "use client";
 
-import { MAX_SIMULATION_FEE_STROOPS, fromStroops } from "@/lib/soroban";
+import { MAX_SIMULATION_FEE_STROOPS } from "@/lib/soroban";
 import { useWalletBalance } from "@/hooks/useSoroban";
 import { useWallet } from "@/lib/WalletProvider";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const NATIVE_XLM = "CDLZS3ZCDY7SF3SIVR6Y7I6SN636O27T7G5MKSUIU22ZS76E55WJIPZ4";
 
 interface GasWarningProps {
   feeStroops?: number;
   estimatedFeeStroops?: number | null;
+  feeLoading?: boolean;
+  feeError?: boolean;
+  onRetry?: () => void;
   onDismiss?: () => void;
+}
+
+function formatFeeXlm(stroops: number): string {
+  const n = BigInt(stroops);
+  const intPart = (n / 10_000_000n).toString();
+  const decRaw = (n % 10_000_000n).toString().padStart(7, "0");
+  return `${intPart}.${decRaw}`;
 }
 
 /**
  * Shows an estimated fee preview before signing, and/or a warning when
  * a transaction's simulated resource fee exceeds MAX_SIMULATION_FEE_STROOPS.
  */
-export function GasWarning({ feeStroops, estimatedFeeStroops, onDismiss }: GasWarningProps) {
+export function GasWarning({
+  feeStroops,
+  estimatedFeeStroops,
+  feeLoading = false,
+  feeError = false,
+  onRetry,
+  onDismiss,
+}: GasWarningProps) {
   const { address, walletNetwork } = useWallet();
   const { data: balance } = useWalletBalance(NATIVE_XLM, address);
 
@@ -26,6 +44,41 @@ export function GasWarning({ feeStroops, estimatedFeeStroops, onDismiss }: GasWa
 
   const isHighFee = feeStroops != null && feeStroops > MAX_SIMULATION_FEE_STROOPS;
   const showEstimate = estimatedFeeStroops != null && !isHighFee;
+
+  if (feeLoading) {
+    return (
+      <div
+        role="status"
+        aria-label="Loading fee estimate"
+        className="rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground"
+      >
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-3 w-32" />
+        </div>
+      </div>
+    );
+  }
+
+  if (feeError) {
+    return (
+      <div
+        role="alert"
+        className="rounded-lg border border-yellow-400 bg-yellow-50 p-3 text-sm text-yellow-800 dark:border-yellow-800 dark:bg-yellow-950/30 dark:text-yellow-300"
+      >
+        <div className="flex items-center justify-between">
+          <span>Could not estimate network fee.</span>
+          {onRetry && (
+            <button
+              onClick={onRetry}
+              className="text-xs underline text-yellow-700 hover:text-yellow-900 dark:text-yellow-400 dark:hover:text-yellow-200"
+            >
+              Retry
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   if (!isHighFee && !showEstimate && !isLowBalance) return null;
 
@@ -41,8 +94,8 @@ export function GasWarning({ feeStroops, estimatedFeeStroops, onDismiss }: GasWa
             <p className="font-semibold">Insufficient XLM Balance</p>
             <p className="mt-1">
               You do not have enough XLM to cover the network fee. Estimated fee is{" "}
-              <span className="font-mono">{fromStroops(estimatedFeeStroops!)} XLM</span>, but your
-              balance is <span className="font-mono">{fromStroops(balanceStroops)} XLM</span>.
+              <span className="font-mono">{formatFeeXlm(estimatedFeeStroops!)} XLM</span>, but your
+              balance is <span className="font-mono">{formatFeeXlm(Number(balanceStroops))} XLM</span>.
             </p>
             {network === "testnet" && (
               <p className="mt-2 text-xs">
@@ -81,7 +134,7 @@ export function GasWarning({ feeStroops, estimatedFeeStroops, onDismiss }: GasWa
       >
         <p className="font-medium">
           Estimated network fee:{" "}
-          <span className="font-mono">{fromStroops(estimatedFeeStroops)} XLM</span>
+          <span className="font-mono">{formatFeeXlm(estimatedFeeStroops)} XLM</span>
         </p>
         <p className="mt-0.5 text-xs text-blue-600 dark:text-blue-400">
           Approximate fee charged by the Stellar network to process your transaction.

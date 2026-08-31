@@ -244,6 +244,11 @@ export function useDonate() {
         id: context?.toastId,
         hash: data?.hash,
       });
+      queryClient.invalidateQueries({
+        queryKey: ["campaign", variables.campaignId.toString()],
+      });
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+      queryClient.invalidateQueries({ queryKey: ["events"] });
     },
     onError: (error: any, variables: any, context: any) => {
       if (context?.previousCampaign) {

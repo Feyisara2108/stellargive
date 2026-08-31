@@ -457,6 +457,8 @@ export function DonateModal({
                 <Loader2 className="h-3 w-3 animate-spin shrink-0" aria-hidden="true" />
                 <span>Estimating network fee…</span>
               </div>
+            ) : feeEstimate.isError && feeEstimate.data == null ? (
+              <GasWarning feeError onRetry={() => feeEstimate.refetch()} />
             ) : feeEstimate.data != null ? (
               <GasWarning estimatedFeeStroops={feeEstimate.data} />
             ) : null}
