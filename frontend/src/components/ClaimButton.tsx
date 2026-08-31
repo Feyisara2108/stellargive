@@ -6,30 +6,48 @@ import { Campaign } from "@/lib/soroban";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { toast } from "sonner";
-import { Loader2, CheckCircle2 } from "lucide-react";
+import { Loader2, CheckCircle2, Info } from "lucide-react";
 
 export function ClaimButton({ campaign }: { campaign: Campaign }) {
   const { address, isWrongNetwork } = useWallet();
   const claim = useClaimFunds();
 
-  const isCreatorOrBeneficiary = address === campaign.creator || address === campaign.beneficiary;
+  const isBeneficiary = address === campaign.beneficiary;
+  const isCreator = address === campaign.creator;
 
   const canClaim =
     (campaign.status === "Funded" || campaign.status === "Expired") && campaign.raised_amount > 0n;
 
-  if (!isCreatorOrBeneficiary || campaign.status === "Claimed") {
-    if (campaign.status === "Claimed") {
-      return (
-        <Tooltip>
-          <TooltipTrigger className="relative">
-            <Button variant="ghost" disabled className="text-green-500 gap-2">
-              <CheckCircle2 className="w-4 h-4" /> Claimed
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="top">Funds have already been claimed</TooltipContent>
-        </Tooltip>
-      );
-    }
+  if (campaign.status === "Claimed") {
+    return (
+      <Tooltip>
+        <TooltipTrigger className="relative">
+          <Button variant="ghost" disabled className="text-green-500 gap-2">
+            <CheckCircle2 className="w-4 h-4" /> Claimed
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="top">Funds have already been claimed</TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  if (isCreator && !isBeneficiary) {
+    return (
+      <Tooltip>
+        <TooltipTrigger className="relative">
+          <Button variant="outline" disabled className="gap-2 text-muted-foreground border-muted">
+            <Info className="h-4 w-4" /> Claim Funds
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="top">
+          Only the designated beneficiary can claim campaign funds. Contact the beneficiary to
+          initiate the claim.
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  if (!isBeneficiary) {
     return null;
   }
 
@@ -38,12 +56,10 @@ export function ClaimButton({ campaign }: { campaign: Campaign }) {
     try {
       await claim.mutateAsync(campaign.id);
     } catch (e: any) {
-      // Errors are now handled internally by useClaimFunds toast lifecycle
       console.error(e);
     }
   };
 
-  // Derive a hint for the disabled state so users understand why they can't claim yet.
   const disabledReason = isWrongNetwork
     ? "Please switch wallet network to Stellar Testnet"
     : !canClaim
