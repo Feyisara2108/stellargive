@@ -120,7 +120,7 @@ jobs:
       #             (optimized WASM, size report).
       - name: Upload optimized WASM artifact
         if: always()
-        uses: actions/upload-artifact@v4.3.0 # v4.3.0
+        uses: actions/upload-artifact@v7 # v4.3.0
         with:
           name: stellar-give-wasm-${{ github.sha }}
           path: |

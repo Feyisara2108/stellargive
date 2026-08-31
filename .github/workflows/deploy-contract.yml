@@ -99,7 +99,7 @@ jobs:
           EOF
 
       - name: Upload WASM artifact
-        uses: actions/upload-artifact@v4.3.0 # v4.3.0
+        uses: actions/upload-artifact@v7 # v4.3.0
         with:
           name: stellar-give-wasm-${{ github.sha }}
           path: contracts/stellar-give/target/wasm32v1-none/release/stellar_give.wasm

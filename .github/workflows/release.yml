@@ -115,7 +115,7 @@ jobs:
           fi
 
       - name: Upload optimized WASM artifact
-        uses: actions/upload-artifact@v4.3.0 # v4.3.0
+        uses: actions/upload-artifact@v7 # v4.3.0
         with:
           name: stellar_give.wasm
           path: |
