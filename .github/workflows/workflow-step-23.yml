@@ -75,7 +75,7 @@ jobs:
       # single biggest lever on contract build time.
       - name: Cache cargo registry and target directory
         id: cargo-cache
-        uses: Swatinem/rust-cache@v2.7.3 # v2.7.3
+        uses: Swatinem/rust-cache@v2.9.2 # v2.7.3
         with:
           workspaces: contracts/stellar-give
           prefix-key: step23
