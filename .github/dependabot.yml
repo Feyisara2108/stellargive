@@ -1,4 +1,9 @@
 version: 2
+
+# Every ecosystem groups ALL update types (major, minor, patch) into a single
+# PR per week. Omitting `update-types` from a group makes it catch everything,
+# so a weekly run opens at most one grouped PR per ecosystem instead of a
+# separate PR for each major bump. Keeps the PR list small and reviewable.
 updates:
   - package-ecosystem: "cargo"
     directory: "/contracts/stellar-give"
@@ -11,9 +16,6 @@ updates:
       cargo-deps:
         patterns:
           - "*"
-        update-types:
-          - "minor"
-          - "patch"
 
   - package-ecosystem: "npm"
     directory: "/frontend"
@@ -26,9 +28,6 @@ updates:
       frontend-npm-deps:
         patterns:
           - "*"
-        update-types:
-          - "minor"
-          - "patch"
 
   - package-ecosystem: "npm"
     directory: "/"
@@ -41,9 +40,6 @@ updates:
       root-npm-deps:
         patterns:
           - "*"
-        update-types:
-          - "minor"
-          - "patch"
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -56,6 +52,3 @@ updates:
       actions-deps:
         patterns:
           - "*"
-        update-types:
-          - "minor"
-          - "patch"
