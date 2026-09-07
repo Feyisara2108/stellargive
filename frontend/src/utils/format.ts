@@ -120,4 +120,3 @@ export const formatUSD = (amount: number): string => {
     maximumFractionDigits: 2,
   }).format(amount);
 };
-

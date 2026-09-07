@@ -95,7 +95,8 @@ export function GasWarning({
             <p className="mt-1">
               You do not have enough XLM to cover the network fee. Estimated fee is{" "}
               <span className="font-mono">{formatFeeXlm(estimatedFeeStroops!)} XLM</span>, but your
-              balance is <span className="font-mono">{formatFeeXlm(Number(balanceStroops))} XLM</span>.
+              balance is{" "}
+              <span className="font-mono">{formatFeeXlm(Number(balanceStroops))} XLM</span>.
             </p>
             {network === "testnet" && (
               <p className="mt-2 text-xs">

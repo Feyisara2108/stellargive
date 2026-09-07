@@ -257,7 +257,9 @@ export function DonateModal({
                 <Button
                   className="w-full"
                   disabled={!address || isWrongNetwork}
-                  aria-describedby={(!address || isWrongNetwork) ? "donate-disabled-reason" : undefined}
+                  aria-describedby={
+                    !address || isWrongNetwork ? "donate-disabled-reason" : undefined
+                  }
                 >
                   Donate Now
                 </Button>
@@ -336,7 +338,11 @@ export function DonateModal({
                 })}
                 disabled={donate.isPending}
               />
-              <div className="flex flex-wrap gap-1.5 pt-1" role="group" aria-label="Preset donation values">
+              <div
+                className="flex flex-wrap gap-1.5 pt-1"
+                role="group"
+                aria-label="Preset donation values"
+              >
                 {[10, 50, 100].map((presetVal) => {
                   const isActive =
                     !!amount && !isNaN(Number(amount)) && Number(amount) === presetVal;
@@ -497,55 +503,55 @@ export function DonateModal({
             }
           }}
         >
-        <DialogContent
-          className="max-w-md text-center p-6 gap-6"
-          aria-labelledby="donate-success-title"
-        >
-          <DialogHeader className="items-center">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 mb-2">
-              <Check className="h-6 w-6" />
-            </div>
-            <DialogTitle id="donate-success-title" className="text-2xl font-bold">
-              Donation Successful!
-            </DialogTitle>
-            <DialogDescription className="text-center mt-2 text-slate-500 dark:text-slate-400">
-              Thank you support for supporting <strong>{campaign.title}</strong>! Your contribution
-              makes a big difference.
-            </DialogDescription>
-          </DialogHeader>
+          <DialogContent
+            className="max-w-md text-center p-6 gap-6"
+            aria-labelledby="donate-success-title"
+          >
+            <DialogHeader className="items-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 mb-2">
+                <Check className="h-6 w-6" />
+              </div>
+              <DialogTitle id="donate-success-title" className="text-2xl font-bold">
+                Donation Successful!
+              </DialogTitle>
+              <DialogDescription className="text-center mt-2 text-slate-500 dark:text-slate-400">
+                Thank you support for supporting <strong>{campaign.title}</strong>! Your
+                contribution makes a big difference.
+              </DialogDescription>
+            </DialogHeader>
 
-          <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-4 my-2 border border-slate-100 dark:border-slate-800 text-left space-y-3">
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-muted-foreground">Amount Donated</span>
-              <span className="font-semibold text-lg text-primary">
-                {successAmount} {symbol}
-              </span>
+            <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-4 my-2 border border-slate-100 dark:border-slate-800 text-left space-y-3">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-muted-foreground">Amount Donated</span>
+                <span className="font-semibold text-lg text-primary">
+                  {successAmount} {symbol}
+                </span>
+              </div>
+              <div className="border-t border-slate-100 dark:border-slate-800/80 pt-3">
+                <span className="block text-xs text-muted-foreground mb-1">Transaction Hash</span>
+                <span className="font-mono text-xs block bg-white dark:bg-slate-950 p-2 rounded border border-slate-100 dark:border-slate-800/80 break-all select-all">
+                  {successTxHash}
+                </span>
+              </div>
             </div>
-            <div className="border-t border-slate-100 dark:border-slate-800/80 pt-3">
-              <span className="block text-xs text-muted-foreground mb-1">Transaction Hash</span>
-              <span className="font-mono text-xs block bg-white dark:bg-slate-950 p-2 rounded border border-slate-100 dark:border-slate-800/80 break-all select-all">
-                {successTxHash}
-              </span>
-            </div>
-          </div>
 
-          <DialogFooter className="sm:flex-col gap-2">
-            <Button className="w-full" asChild>
-              <a
-                href={`https://stellar.expert/explorer/testnet/tx/${successTxHash}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                View on StellarExpert
-              </a>
-            </Button>
-            <Button variant="outline" onClick={() => setShowSuccess(false)} className="w-full">
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    )}
+            <DialogFooter className="sm:flex-col gap-2">
+              <Button className="w-full" asChild>
+                <a
+                  href={`https://stellar.expert/explorer/testnet/tx/${successTxHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  View on StellarExpert
+                </a>
+              </Button>
+              <Button variant="outline" onClick={() => setShowSuccess(false)} className="w-full">
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Screen Reader Announcements */}
       <div aria-live="polite" className="sr-only">

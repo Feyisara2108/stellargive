@@ -688,4 +688,3 @@ export function useXlmPrice() {
     retry: 2,
   });
 }
-

@@ -17,7 +17,8 @@ describe("CategorySelector", () => {
     render(<CategorySelector {...defaultProps} />);
 
     expect(screen.getByText("Category")).toBeInTheDocument();
-    expect(screen.getByText("All Categories")).toBeInTheDocument();
+    // Label appears in both the mobile <select> and the desktop tablist.
+    expect(screen.getAllByText("All Categories").length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: /medical/i })).not.toBeInTheDocument();
   });
 
@@ -29,10 +30,11 @@ describe("CategorySelector", () => {
 
   it("displays correct text for uncategorized and standard categories", () => {
     const { rerender } = render(<CategorySelector {...defaultProps} value="uncategorized" />);
-    expect(screen.getByText("Uncategorized")).toBeInTheDocument();
+    expect(screen.getAllByText("Uncategorized").length).toBeGreaterThan(0);
 
     rerender(<CategorySelector {...defaultProps} value="medical" />);
-    expect(screen.getByText("medical")).toBeInTheDocument();
+    // Standard categories are title-cased for display ("medical" -> "Medical").
+    expect(screen.getAllByText(/medical/i).length).toBeGreaterThan(0);
   });
 
   it("toggles dropdown visibility on main button click", () => {

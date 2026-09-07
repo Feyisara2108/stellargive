@@ -19,6 +19,8 @@ export function ConsentBanner() {
   const handleAccept = () => {
     localStorage.setItem(CONSENT_KEY, "accepted");
     setIsVisible(false);
+    // Reload so analytics that are gated on consent initialize for this session.
+    window.location.reload();
   };
 
   const handleDecline = () => {

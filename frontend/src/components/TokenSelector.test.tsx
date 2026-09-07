@@ -12,10 +12,17 @@ vi.mock("lucide-react", () => ({
   Check: () => <div data-testid="check-icon" />,
   ChevronDown: () => <div data-testid="chevron-down-icon" />,
   Coins: () => <div data-testid="coins-icon" />,
+  ShieldCheck: () => <div data-testid="shield-check-icon" />,
 }));
 
 vi.mock("@/lib/soroban", () => ({
   getTokenMetadata: vi.fn(),
+}));
+
+// TokenSelector calls useTokenMetadata (react-query) for non-predefined tokens.
+// Mock the hook so the component renders without a QueryClientProvider.
+vi.mock("@/hooks/useSoroban", () => ({
+  useTokenMetadata: vi.fn().mockReturnValue({ data: undefined, isLoading: false }),
 }));
 
 vi.mock("sonner", () => ({

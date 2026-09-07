@@ -51,9 +51,11 @@ export function TokenSelector({ value, onChange, label, allowCustom = true }: To
   const [customTokenMeta, setCustomTokenMeta] = useState<TokenMetadata | null>(null);
 
   // Dynamically fetch token metadata via hook for non-predefined or custom tokens
-  const { data: dynamicMeta, isLoading: isMetaLoading, isError: isMetaError } = useTokenMetadata(
-    value && !PREDEFINED_TOKENS.some((t) => t.address === value) ? value : null,
-  );
+  const {
+    data: dynamicMeta,
+    isLoading: isMetaLoading,
+    isError: isMetaError,
+  } = useTokenMetadata(value && !PREDEFINED_TOKENS.some((t) => t.address === value) ? value : null);
 
   // Selected token label resolution
   const predefinedToken = PREDEFINED_TOKENS.find((t) => t.address === value);
@@ -62,12 +64,23 @@ export function TokenSelector({ value, onChange, label, allowCustom = true }: To
   const resolvedMeta =
     predefinedToken ||
     (dynamicMeta
-      ? { symbol: dynamicMeta.symbol, name: dynamicMeta.name || "SAC Token", address: value, decimals: dynamicMeta.decimals }
+      ? {
+          symbol: dynamicMeta.symbol,
+          name: dynamicMeta.name || "SAC Token",
+          address: value,
+          decimals: dynamicMeta.decimals,
+        }
       : cachedMeta
-        ? { symbol: cachedMeta.symbol, name: cachedMeta.name || "SAC Token", address: value, decimals: cachedMeta.decimals }
+        ? {
+            symbol: cachedMeta.symbol,
+            name: cachedMeta.name || "SAC Token",
+            address: value,
+            decimals: cachedMeta.decimals,
+          }
         : null);
 
-  const isInvalidSAC = !!value && !predefinedToken && (isMetaError || (!isMetaLoading && !resolvedMeta));
+  const isInvalidSAC =
+    !!value && !predefinedToken && (isMetaError || (!isMetaLoading && !resolvedMeta));
   const decimals = resolvedMeta?.decimals ?? 7;
   const decimalPlaceholder = `e.g. ${(10).toFixed(Math.min(decimals, 7))}`;
 
@@ -149,7 +162,10 @@ export function TokenSelector({ value, onChange, label, allowCustom = true }: To
             {resolvedMeta ? (
               <span className="font-medium text-foreground flex items-center gap-1.5 flex-wrap">
                 <span>{resolvedMeta.symbol}</span>
-                <Badge variant="secondary" className="text-[10px] px-1 py-0 font-normal bg-emerald-500/10 text-emerald-600 border-emerald-500/20 flex items-center gap-0.5">
+                <Badge
+                  variant="secondary"
+                  className="text-[10px] px-1 py-0 font-normal bg-emerald-500/10 text-emerald-600 border-emerald-500/20 flex items-center gap-0.5"
+                >
                   <ShieldCheck className="h-2.5 w-2.5" /> SAC
                 </Badge>
                 {resolvedMeta.address && (
@@ -163,7 +179,10 @@ export function TokenSelector({ value, onChange, label, allowCustom = true }: To
                 <span className="text-xs font-mono">
                   ({value.slice(0, 6)}...{value.slice(-6)})
                 </span>
-                <Badge variant="destructive" className="text-[10px] px-1 py-0 flex items-center gap-1">
+                <Badge
+                  variant="destructive"
+                  className="text-[10px] px-1 py-0 flex items-center gap-1"
+                >
                   <AlertTriangle className="h-2.5 w-2.5" /> Invalid SAC
                 </Badge>
               </span>
@@ -204,7 +223,10 @@ export function TokenSelector({ value, onChange, label, allowCustom = true }: To
                   <div className="flex flex-col text-left">
                     <div className="flex items-center gap-1.5">
                       <span className="font-semibold">{token.symbol}</span>
-                      <Badge variant="outline" className="text-[9px] px-1 py-0 text-emerald-600 bg-emerald-500/10 border-emerald-500/20">
+                      <Badge
+                        variant="outline"
+                        className="text-[9px] px-1 py-0 text-emerald-600 bg-emerald-500/10 border-emerald-500/20"
+                      >
                         SAC
                       </Badge>
                     </div>

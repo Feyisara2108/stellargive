@@ -10,6 +10,7 @@ expect.extend(toHaveNoViolations);
 // ... rest of mocks ...
 vi.mock("@/hooks/useSoroban", () => ({
   useTokenMetadata: vi.fn().mockReturnValue({ data: undefined, isLoading: false }),
+  useXlmPrice: vi.fn().mockReturnValue({ data: undefined, isLoading: false }),
 }));
 
 // Deterministic relative-time formatting so countdown assertions don't
@@ -433,7 +434,14 @@ describe("CampaignCard", () => {
         deadline: BigInt(nowSec() + 14 * ONE_DAY),
       };
       render(<CampaignCard campaign={upcoming} />);
-      expect(screen.getByText("Ends in 14 days")).toBeInTheDocument();
+      // "Ends " is a text node and the countdown renders in a child <span>,
+      // so match the wrapping span by its combined text content.
+      expect(
+        screen.getByText(
+          (_content, element) =>
+            element?.tagName === "SPAN" && element.textContent === "Ends in 14 days",
+        ),
+      ).toBeInTheDocument();
     });
 
     it("renders a past deadline as an elapsed countdown", () => {
@@ -444,7 +452,12 @@ describe("CampaignCard", () => {
         deadline: BigInt(nowSec() - 2 * ONE_DAY),
       };
       render(<CampaignCard campaign={past} />);
-      expect(screen.getByText("Ended 2 days ago")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          (_content, element) =>
+            element?.tagName === "SPAN" && element.textContent === "Ended 2 days ago",
+        ),
+      ).toBeInTheDocument();
     });
   });
 
