@@ -400,7 +400,12 @@ describe("DonateModal", () => {
 
     it("pre-fills the amount from suggestedAmount when the modal opens", async () => {
       const { rerender } = render(
-        <DonateModal campaign={baseCampaign} open={false} onOpenChange={() => {}} suggestedAmount="25" />,
+        <DonateModal
+          campaign={baseCampaign}
+          open={false}
+          onOpenChange={() => {}}
+          suggestedAmount="25"
+        />,
       );
 
       rerender(

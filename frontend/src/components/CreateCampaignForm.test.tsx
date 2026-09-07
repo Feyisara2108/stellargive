@@ -103,9 +103,7 @@ describe("CreateCampaignForm", () => {
       fireEvent.change(title, { target: { value: "Ab" } });
       fireEvent.blur(title);
 
-      expect(
-        await screen.findByText(/Title must be at least 5 characters/i),
-      ).toBeInTheDocument();
+      expect(await screen.findByText(/Title must be at least 5 characters/i)).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /Launch Campaign/i })).toBeDisabled();
     });
 
@@ -178,7 +176,7 @@ describe("CreateCampaignForm", () => {
       await openForm();
 
       const description = screen.getByPlaceholderText(/Provide a detailed description/i);
-      
+
       // Real-time counter update
       fireEvent.change(description, { target: { value: "Short description" } });
       expect(screen.getByText("17 / 500 characters")).toBeInTheDocument();

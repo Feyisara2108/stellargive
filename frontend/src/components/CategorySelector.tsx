@@ -76,7 +76,11 @@ export function CategorySelector({ value, onChange, label }: CategorySelectorPro
       </div>
 
       {/* Desktop horizontal tab list (md+ viewports) */}
-      <div className="hidden md:flex flex-wrap gap-2 items-center" role="tablist" aria-label="Category tabs">
+      <div
+        className="hidden md:flex flex-wrap gap-2 items-center"
+        role="tablist"
+        aria-label="Category tabs"
+      >
         {CATEGORIES.map((cat) => {
           const isSelected = value === cat;
           return (

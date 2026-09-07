@@ -165,10 +165,9 @@ export function CampaignDetailsClient({
   useEffect(() => {
     const el = headerDonateRef.current;
     if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => setHeaderVisible(entry.isIntersecting),
-      { threshold: 0 },
-    );
+    const observer = new IntersectionObserver(([entry]) => setHeaderVisible(entry.isIntersecting), {
+      threshold: 0,
+    });
     observer.observe(el);
     return () => observer.disconnect();
   }, [campaign]);
@@ -185,9 +184,7 @@ export function CampaignDetailsClient({
   if (isError || !campaign) {
     return (
       <div className="p-8 max-w-4xl mx-auto">
-        <Breadcrumbs
-          items={breadcrumbs}
-        />
+        <Breadcrumbs items={breadcrumbs} />
         <div
           role="alert"
           className="mt-8 flex flex-col items-center justify-center gap-4 rounded-lg border border-destructive/30 bg-destructive/5 px-6 py-16 text-center"
@@ -226,9 +223,7 @@ export function CampaignDetailsClient({
 
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-6">
-      <Breadcrumbs
-        items={breadcrumbs}
-      />
+      <Breadcrumbs items={breadcrumbs} />
       <div ref={headerDonateRef} className="flex justify-between items-start">
         <div className="space-y-2">
           <div className="flex items-center gap-3">

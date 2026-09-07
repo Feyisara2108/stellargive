@@ -113,7 +113,7 @@ describe("full donation flow with mock wallet provider", () => {
     expect(donateButton).toBeEnabled();
 
     expect(screen.getByTestId("campaign-stats")).toHaveTextContent(
-      `Raised: ${(20_0000000n).toString()}`,
+      `Raised: ${20_0000000n.toString()}`,
     );
 
     // Simulate the user opening the donation modal.
@@ -136,7 +136,7 @@ describe("full donation flow with mock wallet provider", () => {
     // — 20 XLM + 10 XLM raised, in raw stroop units (7 decimals).
     await waitFor(() => {
       expect(screen.getByTestId("campaign-stats")).toHaveTextContent(
-        `Raised: ${(30_0000000n).toString()}`,
+        `Raised: ${30_0000000n.toString()}`,
       );
     });
 
@@ -182,7 +182,7 @@ describe("full donation flow with mock wallet provider", () => {
     // Rolled back to the pre-mutation raised total once the error settles.
     await waitFor(() => {
       expect(screen.getByTestId("campaign-stats")).toHaveTextContent(
-        `Raised: ${(20_0000000n).toString()}`,
+        `Raised: ${20_0000000n.toString()}`,
       );
     });
   });

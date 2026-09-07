@@ -51,11 +51,7 @@ export function CampaignStatusBadge({
   }
 
   let effectiveProgress = progress;
-  if (
-    effectiveProgress === undefined &&
-    raisedAmount !== undefined &&
-    targetAmount !== undefined
-  ) {
+  if (effectiveProgress === undefined && raisedAmount !== undefined && targetAmount !== undefined) {
     effectiveProgress = calculateProgress(raisedAmount, targetAmount);
   } else if (effectiveProgress === undefined && (status === "Funded" || status === "Claimed")) {
     effectiveProgress = 100;
@@ -132,4 +128,3 @@ export function CampaignStatusBadge({
     </div>
   );
 }
-

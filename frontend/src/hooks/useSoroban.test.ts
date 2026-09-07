@@ -310,11 +310,7 @@ describe("useSoroban", () => {
       const { result } = renderHook(() => useEvents(20), { wrapper: Wrapper });
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-      expect(result.current.data?.map((e) => e.topic)).toEqual([
-        "created",
-        "received",
-        "claimed",
-      ]);
+      expect(result.current.data?.map((e) => e.topic)).toEqual(["created", "received", "claimed"]);
       expect(result.current.data?.map((e) => e.id)).toEqual(["0-1", "0-2", "0-3"]);
     });
 

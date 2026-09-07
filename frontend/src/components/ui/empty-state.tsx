@@ -16,7 +16,8 @@ export function EmptyState({ onClear, message = "No campaigns found" }: EmptySta
       <div>
         <p className="font-medium text-foreground text-lg">{message}</p>
         <p className="text-muted-foreground text-sm max-w-sm mt-1">
-          Try adjusting your search or filters to find what you&apos;re looking for, or create a new campaign.
+          Try adjusting your search or filters to find what you&apos;re looking for, or create a new
+          campaign.
         </p>
       </div>
       <div className="flex items-center gap-4 mt-2">
