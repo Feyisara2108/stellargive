@@ -16,6 +16,14 @@ jobs:
       url: ${{ vars.PRODUCTION_URL }}
     concurrency: production
 
+    # `secrets` is not allowed in step-level `if:` conditions — referencing it
+    # there makes the whole workflow invalid and it fails at startup on every
+    # push. Expose the host as a job-level env var and gate the deploy on that
+    # instead, so the workflow is valid and the SSH deploy simply skips when the
+    # host secret isn't configured.
+    env:
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7.0.1 # v4.2.2
@@ -33,7 +41,7 @@ jobs:
           docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}
 
       - name: Deploy via SSH
-        if: ${{ secrets.SSH_HOST != '' }}
+        if: ${{ env.SSH_HOST != '' }}
         uses: appleboy/ssh-action@v1.2.5 # v1.2.2
         with:
           host: ${{ secrets.SSH_HOST }}
