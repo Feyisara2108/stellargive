@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ConsentBanner, getAnalyticsConsent } from "./ConsentBanner";
 
-const CONSENT_KEY = "stellargive_analytics_consent";
+const CONSENT_KEY = "stellargive_consent";
 
 describe("ConsentBanner", () => {
   const originalLocation = window.location;

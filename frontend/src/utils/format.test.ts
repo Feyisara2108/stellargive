@@ -7,6 +7,7 @@ import {
   formatBasisPoints,
   toRawAmount,
   normalizeAddress,
+  formatUSD,
   ZERO_ADDRESS,
 } from "./format";
 

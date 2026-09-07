@@ -78,7 +78,7 @@ function makeRawEvent(id: string, topicSymbol: string) {
     type: "contract",
     ledger: 123000,
     ledgerClosedAt: "2024-01-01T00:00:00Z",
-    contractId: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+    contractId: "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
     id,
     pagingToken: id,
     topic: [encodeSymbol("campaign"), encodeSymbol(topicSymbol)],
