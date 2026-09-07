@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4.2.2 # v4.2.2
+        uses: actions/checkout@v7.0.1 # v4.2.2
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable # stable
@@ -99,7 +99,7 @@ jobs:
           EOF
 
       - name: Upload WASM artifact
-        uses: actions/upload-artifact@v4.3.0 # v4.3.0
+        uses: actions/upload-artifact@v7.0.1 # v4.3.0
         with:
           name: stellar-give-wasm-${{ github.sha }}
           path: contracts/stellar-give/target/wasm32v1-none/release/stellar_give.wasm
