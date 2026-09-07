@@ -42,13 +42,13 @@
     "react-hook-form": "^7.75.0",
     "sonner": "^2.0.7",
     "tailwind-merge": "^2.6.1",
-    "tailwindcss-animate": "^1.0.7",
     "@emnapi/core": "^1.11.2",
     "@emnapi/runtime": "^1.11.2",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@next/bundle-analyzer": "^16.2.6",
+    "tailwindcss-animate": "^1.0.7",
     "@playwright/test": "^1.61.1",
     "@storybook/addon-a11y": "^8.6.18",
     "@storybook/addon-essentials": "^8.4.0",
