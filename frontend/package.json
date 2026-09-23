@@ -41,7 +41,7 @@
     "react-dom": "^18",
     "react-hook-form": "^7.75.0",
     "sonner": "^2.0.7",
-    "tailwind-merge": "^2.6.1",
+    "tailwind-merge": "^3.7.0",
     "@emnapi/core": "^1.11.2",
     "@emnapi/runtime": "^1.11.2",
     "zod": "^4.4.3"
