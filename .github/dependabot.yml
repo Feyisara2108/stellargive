@@ -1,9 +1,12 @@
 version: 2
 
-# Every ecosystem groups ALL update types (major, minor, patch) into a single
-# PR per week. Omitting `update-types` from a group makes it catch everything,
-# so a weekly run opens at most one grouped PR per ecosystem instead of a
-# separate PR for each major bump. Keeps the PR list small and reviewable.
+# Grouping strategy: per ecosystem, minor + patch updates are grouped into a single
+# low-risk PR per week, while MAJOR updates are excluded from the group so each
+# arrives as its own PR. This keeps the routine weekly bump small and reliably
+# mergeable, and isolates breaking major upgrades so one bad major can't block the
+# rest. (A dependency matching a group's patterns but NOT its update-types is
+# emitted as an individual PR.) npm limits are raised to leave headroom for the
+# separate major PRs.
 updates:
   - package-ecosystem: "cargo"
     directory: "/contracts/stellar-give"
@@ -13,33 +16,42 @@ updates:
     commit-message:
       prefix: "chore(deps/cargo)"
     groups:
-      cargo-deps:
+      cargo-minor-patch:
         patterns:
           - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
   - package-ecosystem: "npm"
     directory: "/frontend"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 10
     commit-message:
       prefix: "chore(deps/npm)"
     groups:
-      frontend-npm-deps:
+      frontend-npm-minor-patch:
         patterns:
           - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 10
     commit-message:
       prefix: "chore(deps/npm)"
     groups:
-      root-npm-deps:
+      root-npm-minor-patch:
         patterns:
           - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -49,6 +61,9 @@ updates:
     commit-message:
       prefix: "chore(deps/actions)"
     groups:
-      actions-deps:
+      actions-minor-patch:
         patterns:
           - "*"
+        update-types:
+          - "minor"
+          - "patch"
