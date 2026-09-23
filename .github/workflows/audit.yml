@@ -260,12 +260,12 @@ jobs:
                           titles.append(item.get("title") or item.get("url") or "")
                   title_text = "; ".join(t for t in titles if t)[:180]
                   by_sev[sev].append((name, title_text))
-                  if sev == "critical":
-                      blocking_rows.append(name)
-                  elif sev == "high":
+                  if sev in ("critical", "high"):
                       fix = info.get("fixAvailable")
-                      # Highs whose only fix is a breaking major (Next 16, etc.)
-                      # stay visible in the summary but do not fail the build.
+                      # High/critical whose only fix is a breaking major (Next 16,
+                      # etc.) stay visible in the summary but do not fail the build,
+                      # matching the documented policy above. The breaking upgrade
+                      # is tracked separately and scheduled deliberately.
                       if isinstance(fix, dict) and fix.get("isSemVerMajor"):
                           deferred_major.append((name, fix.get("name"), fix.get("version")))
                       else:
