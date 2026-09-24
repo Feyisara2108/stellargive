@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 type ProgressVariant = "default" | "success" | "warning";
 
-const indicatorVariants: Record<ProgressVariant, string> = {
+export const progressIndicatorVariants: Record<ProgressVariant, string> = {
   default: "bg-primary",
   success: "bg-emerald-600 dark:bg-emerald-400",
   warning: "bg-amber-500 dark:bg-amber-400",
@@ -26,7 +26,11 @@ const Progress = React.forwardRef<
       {...props}
     >
       <ProgressPrimitive.Indicator
-        className={cn("h-full w-full flex-1 bg-primary transition-all", indicatorClassName)}
+        className={cn(
+          "h-full w-full flex-1 transition-all",
+          progressIndicatorVariants.default,
+          indicatorClassName,
+        )}
         style={{ transform: `translateX(-${100 - (value || 0)}%)` }}
       />
     </ProgressPrimitive.Root>
