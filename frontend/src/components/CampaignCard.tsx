@@ -20,7 +20,7 @@ const DonateModal = dynamic(
   { ssr: false },
 );
 import { ClaimButton } from "@/components/ClaimButton";
-import { Calendar, Target, TrendingUp, Image as ImageIcon, Zap } from "lucide-react";
+import { Calendar, Target, TrendingUp, Image as ImageIcon, Zap, Ban } from "lucide-react";
 import { ShareButton } from "@/components/ShareButton";
 import { AddressLink } from "@/components/AddressLink";
 import { RelativeTime } from "@/components/RelativeTime";
@@ -71,7 +71,11 @@ function CampaignCardComponent({
     : `/campaign/${campaign.id.toString()}`;
 
   return (
-    <Card className="flex flex-col group hover:border-primary/50 transition-all duration-300 overflow-hidden">
+    <Card
+      className={`flex flex-col group hover:border-primary/50 transition-all duration-300 overflow-hidden${
+        isExpired ? " grayscale opacity-90" : ""
+      }`}
+    >
       <div className="relative aspect-video w-full bg-muted flex items-center justify-center overflow-hidden">
         {getCampaignImageUrl(campaign.metadata_uri) && !imgError ? (
           <Image
@@ -90,6 +94,12 @@ function CampaignCardComponent({
             <ImageIcon className="w-8 h-8 opacity-40" />
             <span className="text-[10px] uppercase tracking-widest">No Image</span>
           </div>
+        )}
+        {isExpired && (
+          <span className="absolute top-2 right-2 z-10 inline-flex items-center gap-1 rounded bg-black/70 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm backdrop-blur-sm">
+            <Ban className="h-3 w-3" aria-hidden="true" />
+            Campaign expired
+          </span>
         )}
       </div>
       <CardHeader>
