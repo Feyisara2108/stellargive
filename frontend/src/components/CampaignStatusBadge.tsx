@@ -84,7 +84,7 @@ export function CampaignStatusBadge({
       label: "🎉 Goal Reached",
       tooltipText: "100% funded — Goal Reached!",
       className:
-        "bg-gradient-to-r from-amber-500 via-emerald-500 to-teal-500 text-white font-extrabold border-transparent shadow-sm hover:brightness-110 animate-pulse",
+        "bg-gradient-to-r from-amber-500 via-emerald-500 to-teal-500 text-white font-extrabold border-transparent shadow-sm hover:brightness-110 animate-pulse motion-reduce:animate-none",
     },
   ];
 
