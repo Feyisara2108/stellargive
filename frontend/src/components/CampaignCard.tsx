@@ -8,7 +8,11 @@ import { formatTokenAmount, formatUSD } from "@/utils/format";
 import { useTokenMetadata, useXlmPrice } from "@/hooks/useSoroban";
 import { calculateProgress, getCampaignImageUrl, CAMPAIGN_IMAGE_BLUR_DATA_URL } from "@/lib/utils";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress, type ProgressVariant } from "@/components/ui/progress";
+import {
+  Progress,
+  progressIndicatorVariants,
+  type ProgressVariant,
+} from "@/components/ui/progress";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 const DonateModal = dynamic(
@@ -22,12 +26,6 @@ import { AddressLink } from "@/components/AddressLink";
 import { RelativeTime } from "@/components/RelativeTime";
 import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
 import { Badge } from "@/components/ui/badge";
-
-const progressIndicatorVariants: Record<ProgressVariant, string> = {
-  default: "bg-primary",
-  success: "bg-emerald-600 dark:bg-emerald-400",
-  warning: "bg-amber-500 dark:bg-amber-400",
-};
 
 function CampaignCardComponent({
   campaign,
