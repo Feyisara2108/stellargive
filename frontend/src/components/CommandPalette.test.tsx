@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { CommandPalette } from "./CommandPalette";
 
@@ -58,7 +58,40 @@ describe("CommandPalette", () => {
     fireEvent.change(input, { target: { value: "nonexistentquery12345" } });
 
     expect(screen.getByText("No results found")).toBeInTheDocument();
+    expect(screen.getByText("Try a different search term.")).toBeInTheDocument();
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
+
+  it("announces the result count to screen readers after typing settles", async () => {
+    render(<CommandPalette />);
+    fireEvent.keyDown(document, { key: "k", ctrlKey: true });
+
+    const status = screen.getByRole("status");
+    expect(status).toHaveAttribute("aria-live", "polite");
+    await waitFor(() => expect(status).toHaveTextContent("4 results available"));
+
+    const input = screen.getByPlaceholderText("Search navigation...");
+    fireEvent.change(input, { target: { value: "c" } });
+    fireEvent.change(input, { target: { value: "cr" } });
+    fireEvent.change(input, { target: { value: "create" } });
+
+    expect(status).toHaveTextContent("4 results available");
+
+    await waitFor(() => expect(status).toHaveTextContent("1 result available"));
+  });
+
+  it("announces a zero-result summary when nothing matches the query", async () => {
+    render(<CommandPalette />);
+    fireEvent.keyDown(document, { key: "k", ctrlKey: true });
+
+    const input = screen.getByPlaceholderText("Search navigation...");
+    fireEvent.change(input, { target: { value: "nonexistentquery12345" } });
+
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+
+    const status = screen.getByRole("status");
+    await waitFor(() => expect(status).toHaveTextContent("No results found"));
+    expect(screen.getByText("Try a different search term.")).toBeInTheDocument();
   });
 
   it("navigates to selected item on option button click", () => {
