@@ -212,9 +212,12 @@ describe("useCampaignSearch", () => {
   });
 
   it("respects a custom debounce delay", () => {
-    const { result, rerender } = renderHook(({ term }) => useCampaignSearch(campaigns, term, 1000), {
-      initialProps: { term: "" },
-    });
+    const { result, rerender } = renderHook(
+      ({ term }) => useCampaignSearch(campaigns, term, 1000),
+      {
+        initialProps: { term: "" },
+      },
+    );
 
     rerender({ term: "water" });
 
@@ -230,10 +233,9 @@ describe("useCampaignSearch", () => {
   });
 
   it("re-filters when the campaign list itself changes, without waiting on the debounce", () => {
-    const { result, rerender } = renderHook(
-      ({ list, term }) => useCampaignSearch(list, term),
-      { initialProps: { list: campaigns, term: "water" } },
-    );
+    const { result, rerender } = renderHook(({ list, term }) => useCampaignSearch(list, term), {
+      initialProps: { list: campaigns, term: "water" },
+    });
 
     act(() => {
       vi.advanceTimersByTime(CAMPAIGN_SEARCH_DEBOUNCE_MS);
