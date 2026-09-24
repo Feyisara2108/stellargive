@@ -6,23 +6,38 @@ import { Button } from "@/components/ui/button";
 import { AlertCircle, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+const DISMISSAL_KEY_PREFIX = "network-banner-dismissed";
+
+function dismissalKey(network: string) {
+  return `${DISMISSAL_KEY_PREFIX}:${network}`;
+}
+
 export function NetworkMismatchBanner() {
   const { isWrongNetwork, walletNetwork } = useWallet();
-  const [isDismissed, setIsDismissed] = useState(false);
+  const [checked, setChecked] = useState<{ network: string | null; dismissed: boolean } | null>(
+    null,
+  );
 
   useEffect(() => {
-    const dismissed = sessionStorage.getItem("network-banner-dismissed");
-    if (dismissed === "true") {
-      setIsDismissed(true);
-    }
-  }, []);
+    const dismissed =
+      walletNetwork !== null && sessionStorage.getItem(dismissalKey(walletNetwork)) === "true";
+    setChecked({ network: walletNetwork, dismissed });
+  }, [walletNetwork]);
 
   const handleDismiss = () => {
-    setIsDismissed(true);
-    sessionStorage.setItem("network-banner-dismissed", "true");
+    if (walletNetwork === null) return;
+    sessionStorage.setItem(dismissalKey(walletNetwork), "true");
+    setChecked({ network: walletNetwork, dismissed: true });
   };
 
-  if (!isWrongNetwork || isDismissed) return null;
+  if (
+    !isWrongNetwork ||
+    checked === null ||
+    checked.network !== walletNetwork ||
+    checked.dismissed
+  ) {
+    return null;
+  }
 
   const expectedNetwork = process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE;
 
