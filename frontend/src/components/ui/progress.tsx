@@ -19,6 +19,7 @@ const Progress = React.forwardRef<
     showValueLabel?: boolean;
   }
 >(({ className, value, indicatorClassName, showValueLabel, ...props }, ref) => {
+  const clampedValue = Math.min(Math.max(value || 0, 0), 100);
   const progress = (
     <ProgressPrimitive.Root
       ref={ref}
@@ -31,7 +32,7 @@ const Progress = React.forwardRef<
           progressIndicatorVariants.default,
           indicatorClassName,
         )}
-        style={{ transform: `translateX(-${100 - (value || 0)}%)` }}
+        style={{ transform: `translateX(-${100 - clampedValue}%)` }}
       />
     </ProgressPrimitive.Root>
   );
@@ -41,7 +42,7 @@ const Progress = React.forwardRef<
       <div className="w-full">
         {progress}
         <div className="text-xs font-medium text-right mt-1 text-muted-foreground">
-          {Math.round(value || 0)}%
+          {Math.round(clampedValue)}%
         </div>
       </div>
     );
