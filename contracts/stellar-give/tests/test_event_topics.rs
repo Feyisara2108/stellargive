@@ -714,3 +714,236 @@ fn test_donation_event_all_fields_decoded() {
     assert_eq!(payload.accepted_token, token_client.address);
     assert_eq!(payload.comment, Some(comment));
 }
+
+// =============================================================================
+// Issue #902 — Snapshot tests for event topic and data schemas
+// =============================================================================
+
+#[test]
+fn test_donate_event_snapshot() {
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let bens = single_ben(&env, &beneficiary);
+    let campaign_id = client.create_campaign(
+        &creator,
+        &bens,
+        &String::from_str(&env, "Snapshot Campaign"),
+        &String::from_str(&env, "Snapshot desc"),
+        &String::from_str(&env, "meta"),
+        &symbol_short!("relief"),
+        &10_000_000,
+        &2_000,
+        &token_client.address,
+        &None,
+    );
+
+    client.donate(&donor, &campaign_id, &1_000_000, &false, &None);
+
+    let event = helpers::get_events(&env)
+        .into_iter()
+        .find(|(addr, topics, _)| {
+            addr == &client.address
+                && topics
+                    .get(0)
+                    .and_then(|t| Symbol::try_from_val(&env, &t).ok())
+                    == Some(symbol_short!("donation"))
+        })
+        .expect("DonationEvent missing");
+
+    let topics = &event.1;
+    assert_eq!(topics.len(), 2);
+    assert_eq!(
+        Symbol::try_from_val(&env, &topics.get(0).unwrap()).unwrap(),
+        symbol_short!("donation")
+    );
+    assert_eq!(
+        Symbol::try_from_val(&env, &topics.get(1).unwrap()).unwrap(),
+        symbol_short!("received")
+    );
+
+    use soroban_sdk::IntoVal;
+    let expected_payload = DonationEvent {
+        campaign_id,
+        donor: donor.clone(),
+        amount: 1_000_000,
+        total_raised: 1_000_000,
+        accepted_token: token_client.address.clone(),
+        comment: None,
+    };
+    assert_eq!(
+        event.2,
+        expected_payload.into_val(&env),
+        "Donation event snapshot mismatch"
+    );
+}
+
+#[test]
+fn test_claim_event_snapshot() {
+    use stellar_give::ClaimedEvent;
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let bens = single_ben(&env, &beneficiary);
+    let campaign_id = client.create_campaign(
+        &creator,
+        &bens,
+        &String::from_str(&env, "Snapshot Campaign"),
+        &String::from_str(&env, "Snapshot desc"),
+        &String::from_str(&env, "meta"),
+        &symbol_short!("relief"),
+        &10_000_000,
+        &2_000,
+        &token_client.address,
+        &None,
+    );
+
+    // Donate enough to just under target so we can claim manually later
+    client.donate(&donor, &campaign_id, &9_000_000, &false, &None);
+    set_timestamp(&env, 3_000); // expire it
+
+    // claim manually
+    client.claim_funds(&beneficiary, &campaign_id);
+
+    let event = helpers::get_events(&env)
+        .into_iter()
+        .find(|(addr, topics, _)| {
+            addr == &client.address
+                && topics
+                    .get(0)
+                    .and_then(|t| Symbol::try_from_val(&env, &t).ok())
+                    == Some(symbol_short!("claimed"))
+        })
+        .expect("ClaimedEvent missing");
+
+    let topics = &event.1;
+    assert_eq!(topics.len(), 2);
+    assert_eq!(
+        Symbol::try_from_val(&env, &topics.get(0).unwrap()).unwrap(),
+        symbol_short!("claimed")
+    );
+    assert_eq!(
+        u64::try_from_val(&env, &topics.get(1).unwrap()).unwrap(),
+        campaign_id
+    );
+
+    use soroban_sdk::IntoVal;
+    let expected_payload = ClaimedEvent {
+        campaign_id,
+        amount: 9_000_000,
+        beneficiary: beneficiary.clone(),
+    };
+    assert_eq!(
+        event.2,
+        expected_payload.into_val(&env),
+        "Claimed event snapshot mismatch"
+    );
+}
+
+#[test]
+fn test_refund_event_snapshot() {
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let bens = single_ben(&env, &beneficiary);
+    let campaign_id = client.create_campaign(
+        &creator,
+        &bens,
+        &String::from_str(&env, "Snapshot Campaign"),
+        &String::from_str(&env, "Snapshot desc"),
+        &String::from_str(&env, "meta"),
+        &symbol_short!("relief"),
+        &10_000_000,
+        &2_000,
+        &token_client.address,
+        &None,
+    );
+
+    client.donate(&donor, &campaign_id, &1_000_000, &false, &None);
+    set_timestamp(&env, 3_000); // expire it
+    client.refund(&campaign_id, &donor);
+
+    let event = helpers::get_events(&env)
+        .into_iter()
+        .find(|(addr, topics, _)| {
+            addr == &client.address
+                && topics
+                    .get(0)
+                    .and_then(|t| Symbol::try_from_val(&env, &t).ok())
+                    == Some(symbol_short!("refund"))
+        })
+        .expect("RefundEvent missing");
+
+    let topics = &event.1;
+    assert_eq!(topics.len(), 1);
+    assert_eq!(
+        Symbol::try_from_val(&env, &topics.get(0).unwrap()).unwrap(),
+        symbol_short!("refund")
+    );
+
+    use soroban_sdk::IntoVal;
+    let expected_payload = RefundEvent {
+        campaign_id,
+        donor: donor.clone(),
+        amount: 1_000_000,
+    };
+    assert_eq!(
+        event.2,
+        expected_payload.into_val(&env),
+        "Refund event snapshot mismatch"
+    );
+}
+
+#[test]
+fn test_update_event_snapshot() {
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let bens = single_ben(&env, &beneficiary);
+    let campaign_id = client.create_campaign(
+        &creator,
+        &bens,
+        &String::from_str(&env, "Snapshot Campaign"),
+        &String::from_str(&env, "Snapshot desc"),
+        &String::from_str(&env, "meta"),
+        &symbol_short!("relief"),
+        &10_000_000,
+        &2_000,
+        &token_client.address,
+        &None,
+    );
+
+    let content = String::from_str(&env, "update content snapshot");
+    set_timestamp(&env, 1_500);
+    client.add_update(&campaign_id, &content);
+
+    let event = helpers::get_events(&env)
+        .into_iter()
+        .find(|(addr, topics, _)| {
+            addr == &client.address
+                && topics
+                    .get(0)
+                    .and_then(|t| Symbol::try_from_val(&env, &t).ok())
+                    == Some(symbol_short!("update"))
+        })
+        .expect("UpdateEvent missing");
+
+    let topics = &event.1;
+    assert_eq!(topics.len(), 1);
+    assert_eq!(
+        Symbol::try_from_val(&env, &topics.get(0).unwrap()).unwrap(),
+        symbol_short!("update")
+    );
+
+    use soroban_sdk::IntoVal;
+    let expected_payload = CampaignUpdateEvent {
+        campaign_id,
+        content: content.clone(),
+        timestamp: 1_500,
+    };
+    assert_eq!(
+        event.2,
+        expected_payload.into_val(&env),
+        "Update event snapshot mismatch"
+    );
+}
