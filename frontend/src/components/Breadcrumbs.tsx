@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
+import { absoluteUrl } from "@/lib/utils";
 
 export interface BreadcrumbItem {
   label: string;
@@ -20,7 +21,7 @@ export function Breadcrumbs({ items }: BreadcrumbsProps) {
       "@type": "ListItem",
       position: index + 1,
       name: item.label,
-      item: item.href,
+      item: absoluteUrl(item.href),
     })),
   };
 
