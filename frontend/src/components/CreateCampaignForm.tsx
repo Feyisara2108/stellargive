@@ -113,13 +113,13 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
   const [step, setStep] = useState(1);
   const totalSteps = 3;
 
+  const STEP_FIELDS: Record<number, any[]> = {
+    1: ["title", "description", "category", "website", "twitter", "metadataUri"],
+    2: ["beneficiary", "acceptedToken", "targetAmount", "deadlineDays"],
+  };
+
   const nextStep = async () => {
-    let fieldsToValidate: any[] = [];
-    if (step === 1) {
-      fieldsToValidate = ["title", "description", "category", "website", "twitter", "metadataUri"];
-    } else if (step === 2) {
-      fieldsToValidate = ["beneficiary", "acceptedToken", "targetAmount", "deadlineDays"];
-    }
+    const fieldsToValidate = STEP_FIELDS[step] || [];
     const isValid = await form.trigger(fieldsToValidate);
     if (isValid) {
       setStep((s) => Math.min(s + 1, totalSteps));
