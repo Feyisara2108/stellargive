@@ -205,6 +205,7 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
       setIsOpen(false);
       form.reset();
       setSelectedFileName("");
+      setStep(1);
       const campaignId =
         (result as { campaignId?: string | number } | undefined)?.campaignId ?? "1";
       router.push(`/campaign/${campaignId}`);
@@ -635,6 +636,7 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
             setUploadError("");
             setUploadProgress(0);
             setIsUploadingImage(false);
+            setStep(1);
           }
           setIsOpen(open);
         }
