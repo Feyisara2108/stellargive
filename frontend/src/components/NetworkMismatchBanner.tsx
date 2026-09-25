@@ -1,10 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useWallet } from "@/lib/WalletProvider";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, X } from "lucide-react";
-import { cn } from "@/lib/utils";
+
+export const FREIGHTER_NETWORK_GUIDE_URL =
+  "https://developers.stellar.org/docs/tools/freighter/freighter-extension#network-configuration";
+
+/** Dismissal is remembered per wallet network, so landing on a different wrong network re-shows the banner. */
+export const dismissKey = (network: string) => `network-banner-dismissed:${network}`;
+
+function isDismissedFor(network: string) {
+  try {
+    return sessionStorage.getItem(dismissKey(network)) === "true";
+  } catch {
+    return false;
+  }
+}
 
 const DISMISSAL_KEY_PREFIX = "network-banner-dismissed";
 
@@ -53,20 +66,28 @@ export function NetworkMismatchBanner() {
               StellarGive needs <span className="font-mono font-bold">{expectedNetwork}</span>.{" "}
               Please switch networks in your Freighter wallet.
             </p>
+            {showManualSteps && (
+              <p className="text-xs opacity-90" role="status">
+                Couldn&apos;t open the guide. In Freighter, open Settings &rarr; Network and select
+                the network above, or{" "}
+                <a
+                  href={FREIGHTER_NETWORK_GUIDE_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline font-medium"
+                >
+                  read the network guide
+                </a>
+                .
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Button
               variant="secondary"
               size="sm"
               className="h-8 text-xs font-medium"
-              onClick={() => {
-                // Link directly to Freighter's network configuration guide
-                window.open(
-                  "https://developers.stellar.org/docs/tools/freighter/freighter-extension#network-configuration",
-                  "_blank",
-                  "noopener,noreferrer",
-                );
-              }}
+              onClick={handleSwitch}
             >
               Switch Network
             </Button>
