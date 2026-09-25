@@ -13,8 +13,8 @@ interface BreadcrumbsProps {
   items: BreadcrumbItem[];
 }
 
-export function Breadcrumbs({ items }: BreadcrumbsProps) {
-  const jsonLd = {
+export function generateBreadcrumbJsonLd(items: BreadcrumbItem[]) {
+  return {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     itemListElement: items.map((item, index) => ({
@@ -24,6 +24,10 @@ export function Breadcrumbs({ items }: BreadcrumbsProps) {
       item: absoluteUrl(item.href),
     })),
   };
+}
+
+export function Breadcrumbs({ items }: BreadcrumbsProps) {
+  const jsonLd = generateBreadcrumbJsonLd(items);
 
   return (
     <>
