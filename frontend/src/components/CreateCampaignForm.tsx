@@ -110,6 +110,24 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
   const [uploadProgress, setUploadProgress] = useState(0);
   const createCampaign = useCreateCampaign();
 
+  const [step, setStep] = useState(1);
+  const totalSteps = 3;
+
+  const nextStep = async () => {
+    let fieldsToValidate: any[] = [];
+    if (step === 1) {
+      fieldsToValidate = ["title", "description", "category", "website", "twitter", "metadataUri"];
+    } else if (step === 2) {
+      fieldsToValidate = ["beneficiary", "acceptedToken", "targetAmount", "deadlineDays"];
+    }
+    const isValid = await form.trigger(fieldsToValidate);
+    if (isValid) {
+      setStep((s) => Math.min(s + 1, totalSteps));
+    }
+  };
+
+  const prevStep = () => setStep((s) => Math.max(s - 1, 1));
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     // Live validation so character counters, range errors, and the
@@ -273,6 +291,13 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
   const formContent = (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <div className="mb-4 space-y-2">
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>Step {step} of {totalSteps}</span>
+            <span>{step === 1 ? "Details" : step === 2 ? "Funding" : "Review"}</span>
+          </div>
+          <Progress value={(step / totalSteps) * 100} className="h-2" />
+        </div>
         <FormField
           control={form.control}
           name="title"
