@@ -136,3 +136,105 @@ fn test_no_cap_accepts_arbitrarily_large_donation() {
         "campaigns without max_per_donor must accept arbitrarily large donations"
     );
 }
+
+#[test]
+fn test_donor_cap_boundary_one_below_limit_succeeds() {
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _token_admin_client) =
+        register_and_setup();
+    set_timestamp(&env, 1_000);
+    let campaign_id =
+        create_capped_campaign(&env, &client, &creator, &beneficiary, &token_client.address);
+
+    let amount = CAP - 1;
+    let result = client.try_donate(&donor, &campaign_id, &amount, &false, &None);
+    assert!(
+        result.is_ok(),
+        "donating exactly one stroop below cap must succeed"
+    );
+}
+
+#[test]
+fn test_donor_cap_boundary_exact_limit_succeeds() {
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _token_admin_client) =
+        register_and_setup();
+    set_timestamp(&env, 1_000);
+    let campaign_id =
+        create_capped_campaign(&env, &client, &creator, &beneficiary, &token_client.address);
+
+    let result = client.try_donate(&donor, &campaign_id, &CAP, &false, &None);
+    assert!(
+        result.is_ok(),
+        "donating exactly the cap amount must succeed"
+    );
+}
+
+#[test]
+fn test_donor_cap_boundary_one_above_limit_fails() {
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _token_admin_client) =
+        register_and_setup();
+    set_timestamp(&env, 1_000);
+    let campaign_id =
+        create_capped_campaign(&env, &client, &creator, &beneficiary, &token_client.address);
+
+    let amount = CAP + 1;
+    let result = client.try_donate(&donor, &campaign_id, &amount, &false, &None);
+    assert_eq!(
+        result,
+        Err(Ok(ContractError::ExceedsDonorCap)),
+        "donating one stroop above cap must fail"
+    );
+}
+
+#[test]
+fn test_whitelisted_donor_still_subject_to_donor_cap() {
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _token_admin_client) =
+        register_and_setup();
+    set_timestamp(&env, 1_000);
+    let campaign_id =
+        create_capped_campaign(&env, &client, &creator, &beneficiary, &token_client.address);
+
+    let key = (symbol_short!("CMP"), campaign_id);
+    env.as_contract(&client.address, || {
+        let mut campaign: stellar_give::Campaign = env.storage().persistent().get(&key).unwrap();
+        campaign.is_private = true;
+        env.storage().persistent().set(&key, &campaign);
+    });
+
+    let mut addrs = soroban_sdk::Vec::new(&env);
+    addrs.push_back(donor.clone());
+    client.add_to_whitelist(&campaign_id, &addrs);
+
+    // Whitelisted donor should still hit the cap if they donate too much
+    let amount = CAP + 1;
+    let result = client.try_donate(&donor, &campaign_id, &amount, &false, &None);
+    assert_eq!(
+        result,
+        Err(Ok(ContractError::ExceedsDonorCap)),
+        "whitelisted donors are still subject to donor cap"
+    );
+}
+
+#[test]
+fn test_non_whitelisted_donor_rejected_even_under_cap() {
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _token_admin_client) =
+        register_and_setup();
+    set_timestamp(&env, 1_000);
+    let campaign_id =
+        create_capped_campaign(&env, &client, &creator, &beneficiary, &token_client.address);
+
+    let key = (symbol_short!("CMP"), campaign_id);
+    env.as_contract(&client.address, || {
+        let mut campaign: stellar_give::Campaign = env.storage().persistent().get(&key).unwrap();
+        campaign.is_private = true;
+        env.storage().persistent().set(&key, &campaign);
+    });
+
+    // Donor is NOT whitelisted. Attempting to donate an amount well under the cap.
+    let amount = CAP - 1_000_000;
+    let result = client.try_donate(&donor, &campaign_id, &amount, &false, &None);
+    assert_eq!(
+        result,
+        Err(Ok(ContractError::NotWhitelisted)),
+        "non-whitelisted donor must be rejected immediately, even if donation is below cap"
+    );
+}
