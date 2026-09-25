@@ -19,36 +19,40 @@ function isDismissedFor(network: string) {
   }
 }
 
+const DISMISSAL_KEY_PREFIX = "network-banner-dismissed";
+
+function dismissalKey(network: string) {
+  return `${DISMISSAL_KEY_PREFIX}:${network}`;
+}
+
 export function NetworkMismatchBanner() {
   const { isWrongNetwork, walletNetwork } = useWallet();
-  const [dismissedNetwork, setDismissedNetwork] = useState<string | null>(null);
-  const [showManualSteps, setShowManualSteps] = useState(false);
+  const [checked, setChecked] = useState<{ network: string | null; dismissed: boolean } | null>(
+    null,
+  );
 
-  if (!isWrongNetwork || !walletNetwork) return null;
-  if (dismissedNetwork === walletNetwork || isDismissedFor(walletNetwork)) return null;
-
-  const expectedNetwork = process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE;
+  useEffect(() => {
+    const dismissed =
+      walletNetwork !== null && sessionStorage.getItem(dismissalKey(walletNetwork)) === "true";
+    setChecked({ network: walletNetwork, dismissed });
+  }, [walletNetwork]);
 
   const handleDismiss = () => {
-    setDismissedNetwork(walletNetwork);
-    try {
-      sessionStorage.setItem(dismissKey(walletNetwork), "true");
-    } catch {
-      // Storage unavailable (e.g. private mode): dismissal lasts for this render tree only.
-    }
+    if (walletNetwork === null) return;
+    sessionStorage.setItem(dismissalKey(walletNetwork), "true");
+    setChecked({ network: walletNetwork, dismissed: true });
   };
 
-  const handleSwitch = () => {
-    // Freighter has no API to switch networks for the user, so link to its guide. Open
-    // without "noopener" (which always returns null) so a blocked popup can be detected,
-    // then sever the opener manually.
-    const guide = window.open(FREIGHTER_NETWORK_GUIDE_URL, "_blank");
-    if (guide) {
-      guide.opener = null;
-    } else {
-      setShowManualSteps(true);
-    }
-  };
+  if (
+    !isWrongNetwork ||
+    checked === null ||
+    checked.network !== walletNetwork ||
+    checked.dismissed
+  ) {
+    return null;
+  }
+
+  const expectedNetwork = process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE;
 
   return (
     <div className="fixed top-16 left-0 right-0 z-50 p-4 pointer-events-none">

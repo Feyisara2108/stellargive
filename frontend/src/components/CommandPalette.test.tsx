@@ -141,4 +141,44 @@ describe("CommandPalette", () => {
 
     expect(screen.queryByPlaceholderText("Search navigation...")).not.toBeInTheDocument();
   });
+
+  it("wraps ArrowDown navigation from the last item back to the first", () => {
+    render(<CommandPalette />);
+    fireEvent.keyDown(document, { key: "k", ctrlKey: true });
+
+    const dialogContent = screen.getByRole("dialog");
+    const options = screen.getAllByRole("option");
+
+    // Home(0) -> Explore(1) -> Create(2) -> Profile(3) -> wraps to Home(0)
+    fireEvent.keyDown(dialogContent, { key: "ArrowDown" });
+    fireEvent.keyDown(dialogContent, { key: "ArrowDown" });
+    fireEvent.keyDown(dialogContent, { key: "ArrowDown" });
+    expect(options[3]).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.keyDown(dialogContent, { key: "ArrowDown" });
+    expect(options[0]).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("defers to the open/onOpenChange props when used as a controlled component", () => {
+    const onOpenChange = vi.fn();
+    const { rerender } = render(<CommandPalette open={false} onOpenChange={onOpenChange} />);
+
+    expect(screen.queryByPlaceholderText("Search navigation...")).not.toBeInTheDocument();
+
+    // The internal Ctrl+K handler still fires, but in controlled mode it must
+    // report the intended state via onOpenChange instead of opening itself.
+    fireEvent.keyDown(document, { key: "k", ctrlKey: true });
+    expect(onOpenChange).toHaveBeenCalledWith(true);
+    expect(screen.queryByPlaceholderText("Search navigation...")).not.toBeInTheDocument();
+
+    rerender(<CommandPalette open={true} onOpenChange={onOpenChange} />);
+    expect(screen.getByPlaceholderText("Search navigation...")).toBeInTheDocument();
+  });
+
+  // NOTE: the "recently-viewed campaigns" and "quick actions" (Create /
+  // Connect Wallet / Toggle Theme) groups described in issue #884 are not
+  // present in the current CommandPalette implementation, which still
+  // renders a single flat navigationItems list. The tests above cover the
+  // component as it exists today; recents/quick-action coverage should be
+  // added once those groups are actually implemented.
 });
