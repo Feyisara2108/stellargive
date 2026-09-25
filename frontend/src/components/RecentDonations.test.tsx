@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { RecentDonations } from "./RecentDonations";
 
 vi.mock("@/hooks/useSoroban", () => ({
@@ -209,5 +209,84 @@ describe("RecentDonations — error state", () => {
     } as any);
     render(<RecentDonations campaignId={CAMPAIGN_ID} />);
     expect(screen.getByText(/Unable to load recent donations/i)).toBeInTheDocument();
+  });
+});
+
+describe("RecentDonations — load more pagination", () => {
+  it("does not show 'Load more' button when donations are 10 or fewer", () => {
+    const events = Array.from({ length: 10 }, (_, i) =>
+      makeDonationEvent(`0-${i}`, REAL_DONOR, BigInt((i + 1) * 10_000_000), CAMPAIGN_ID, i),
+    );
+    vi.mocked(useEvents).mockReturnValue({ data: events, isLoading: false, isError: false } as any);
+    render(<RecentDonations campaignId={CAMPAIGN_ID} />);
+    expect(screen.queryByRole("button", { name: /load more/i })).not.toBeInTheDocument();
+  });
+
+  it("shows 'Load more' button when there are more than 10 donations", () => {
+    const events = Array.from({ length: 15 }, (_, i) =>
+      makeDonationEvent(`0-${i}`, REAL_DONOR, BigInt((i + 1) * 10_000_000), CAMPAIGN_ID, i),
+    );
+    vi.mocked(useEvents).mockReturnValue({ data: events, isLoading: false, isError: false } as any);
+    render(<RecentDonations campaignId={CAMPAIGN_ID} />);
+
+    // Initially capped at 10 items
+    expect(screen.getByText(/15 XLM/)).toBeInTheDocument();
+    expect(screen.queryByText(/^5 XLM$/)).not.toBeInTheDocument();
+    const loadMoreBtn = screen.getByRole("button", { name: /load more/i });
+    expect(loadMoreBtn).toBeInTheDocument();
+
+    // Clicking reveals additional items
+    fireEvent.click(loadMoreBtn);
+    expect(screen.getByText(/^5 XLM$/)).toBeInTheDocument();
+    expect(screen.getByText(/^1 XLM$/)).toBeInTheDocument();
+
+    // When exhausted, button hides
+    expect(screen.queryByRole("button", { name: /load more/i })).not.toBeInTheDocument();
+  });
+
+  it("reveals donations in batches of 10 for larger lists", () => {
+    const events = Array.from({ length: 25 }, (_, i) =>
+      makeDonationEvent(`0-${i}`, REAL_DONOR, BigInt((i + 1) * 10_000_000), CAMPAIGN_ID, i),
+    );
+    vi.mocked(useEvents).mockReturnValue({ data: events, isLoading: false, isError: false } as any);
+    render(<RecentDonations campaignId={CAMPAIGN_ID} />);
+
+    // Initial batch: 10 items (ledgers 24 down to 15)
+    expect(screen.getByText(/25 XLM/)).toBeInTheDocument();
+    expect(screen.queryByText(/^15 XLM$/)).not.toBeInTheDocument();
+
+    // First click: reveals next 10 items (up to 20 total)
+    const loadMoreBtn = screen.getByRole("button", { name: /load more/i });
+    fireEvent.click(loadMoreBtn);
+    expect(screen.getByText(/^15 XLM$/)).toBeInTheDocument();
+    expect(screen.queryByText(/^5 XLM$/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /load more/i })).toBeInTheDocument();
+
+    // Second click: reveals remaining 5 items (25 total) and hides button
+    fireEvent.click(screen.getByRole("button", { name: /load more/i }));
+    expect(screen.getByText(/^5 XLM$/)).toBeInTheDocument();
+    expect(screen.getByText(/^1 XLM$/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /load more/i })).not.toBeInTheDocument();
+  });
+
+  it("resets visible count back to initial cap when campaignId changes", () => {
+    const events = [
+      ...Array.from({ length: 15 }, (_, i) =>
+        makeDonationEvent(`c1-${i}`, REAL_DONOR, BigInt((i + 1) * 10_000_000), 1n, i),
+      ),
+      ...Array.from({ length: 15 }, (_, i) =>
+        makeDonationEvent(`c2-${i}`, REAL_DONOR, BigInt((i + 1) * 10_000_000), 2n, i),
+      ),
+    ];
+    vi.mocked(useEvents).mockReturnValue({ data: events, isLoading: false, isError: false } as any);
+    const { rerender } = render(<RecentDonations campaignId={1n} />);
+
+    // Expand campaign 1
+    fireEvent.click(screen.getByRole("button", { name: /load more/i }));
+    expect(screen.queryByRole("button", { name: /load more/i })).not.toBeInTheDocument();
+
+    // Switch to campaign 2 -> should reset visible count to 10
+    rerender(<RecentDonations campaignId={2n} />);
+    expect(screen.getByRole("button", { name: /load more/i })).toBeInTheDocument();
   });
 });
