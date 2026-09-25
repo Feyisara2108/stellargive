@@ -20,12 +20,13 @@ const DonateModal = dynamic(
   { ssr: false },
 );
 import { ClaimButton } from "@/components/ClaimButton";
-import { Calendar, Target, TrendingUp, Image as ImageIcon, Zap } from "lucide-react";
+import { Calendar, Target, TrendingUp, Image as ImageIcon, Zap, Ban } from "lucide-react";
 import { ShareButton } from "@/components/ShareButton";
 import { AddressLink } from "@/components/AddressLink";
 import { RelativeTime } from "@/components/RelativeTime";
 import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 
 function CampaignCardComponent({
   campaign,
@@ -41,15 +42,16 @@ function CampaignCardComponent({
   const [donateAmount, setDonateAmount] = useState<string | undefined>(undefined);
   const [showUSD, setShowUSD] = useState(false);
   const { data: xlmPrice } = useXlmPrice();
-  const { data: fetchedMeta } = useTokenMetadata(
+  const { data: fetchedMeta, isLoading: isMetaLoading } = useTokenMetadata(
     preloadedTokenMeta ? null : campaign.accepted_token,
   );
   const tokenMeta = preloadedTokenMeta ?? fetchedMeta;
+  const isMetaPending = tokenMeta == null && isMetaLoading;
   const decimals = tokenMeta?.decimals ?? 7;
   const symbol = tokenMeta?.symbol ?? "XLM";
 
-  const raised = formatTokenAmount(campaign.raised_amount, decimals);
-  const target = formatTokenAmount(campaign.target_amount, decimals);
+  const raised = isMetaPending ? null : formatTokenAmount(campaign.raised_amount, decimals);
+  const target = isMetaPending ? null : formatTokenAmount(campaign.target_amount, decimals);
   const progress = calculateProgress(campaign.raised_amount, campaign.target_amount);
   const progressVariant: ProgressVariant =
     progress >= 100 ? "success" : progress >= 50 ? "warning" : "default";
@@ -65,13 +67,21 @@ function CampaignCardComponent({
       : 0n;
   const gap = Number(gapRaw) / 10 ** decimals;
   const showFundTheGap =
-    campaign.status === "Active" && progress >= 90 && progress < 100 && gap > 0;
+    !isMetaPending &&
+    campaign.status === "Active" &&
+    progress >= 90 &&
+    progress < 100 &&
+    gap > 0;
   const detailHref = detailHrefSearch
     ? `/campaign/${campaign.id.toString()}?${detailHrefSearch}`
     : `/campaign/${campaign.id.toString()}`;
 
   return (
-    <Card className="flex flex-col group hover:border-primary/50 transition-all duration-300 overflow-hidden">
+    <Card
+      className={`flex flex-col group hover:border-primary/50 transition-all duration-300 overflow-hidden${
+        isExpired ? " grayscale opacity-90" : ""
+      }`}
+    >
       <div className="relative aspect-video w-full bg-muted flex items-center justify-center overflow-hidden">
         {getCampaignImageUrl(campaign.metadata_uri) && !imgError ? (
           <Image
@@ -90,6 +100,12 @@ function CampaignCardComponent({
             <ImageIcon className="w-8 h-8 opacity-40" />
             <span className="text-[10px] uppercase tracking-widest">No Image</span>
           </div>
+        )}
+        {isExpired && (
+          <span className="absolute top-2 right-2 z-10 inline-flex items-center gap-1 rounded bg-black/70 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm backdrop-blur-sm">
+            <Ban className="h-3 w-3" aria-hidden="true" />
+            Campaign expired
+          </span>
         )}
       </div>
       <CardHeader>
@@ -122,12 +138,16 @@ function CampaignCardComponent({
               <TrendingUp className="w-3 h-3" /> Raised
             </span>
             <div className="flex items-center gap-2">
-              <span className="font-bold">
-                {showUSD && xlmPrice !== null && xlmPrice !== undefined
-                  ? formatUSD(Number(raised) * xlmPrice)
-                  : `${raised} ${symbol}`}
-              </span>
-              {xlmPrice !== null && xlmPrice !== undefined && (
+              {raised === null ? (
+                <Skeleton className="h-4 w-24" />
+              ) : (
+                <span className="font-bold">
+                  {showUSD && xlmPrice !== null && xlmPrice !== undefined
+                    ? formatUSD(Number(raised) * xlmPrice)
+                    : `${raised} ${symbol}`}
+                </span>
+              )}
+              {!isMetaPending && xlmPrice !== null && xlmPrice !== undefined && (
                 <button
                   type="button"
                   onClick={() => setShowUSD(!showUSD)}
@@ -148,12 +168,16 @@ function CampaignCardComponent({
           />
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>{progress.toFixed(1)}%</span>
-            <span className="flex items-center gap-1">
+            <div className="flex items-center gap-1">
               <Target className="w-3 h-3" /> Target:{" "}
-              {showUSD && xlmPrice !== null && xlmPrice !== undefined
-                ? formatUSD(Number(target) * xlmPrice)
-                : `${target} ${symbol}`}
-            </span>
+              {target === null ? (
+                <Skeleton className="h-3 w-16" />
+              ) : showUSD && xlmPrice !== null && xlmPrice !== undefined ? (
+                formatUSD(Number(target) * xlmPrice)
+              ) : (
+                `${target} ${symbol}`
+              )}
+            </div>
           </div>
         </div>
 
