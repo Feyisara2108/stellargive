@@ -39,6 +39,105 @@ describe("AsyncBoundary", () => {
     });
   });
 
+  describe("skeleton variants", () => {
+    it.each(["card", "list", "detail", "stat"] as const)(
+      "renders the built-in %s skeleton while loading",
+      (variant) => {
+        const { container } = render(
+          <AsyncBoundary isLoading isError={false} skeleton={variant}>
+            <p>Resolved content</p>
+          </AsyncBoundary>,
+        );
+
+        expect(container.querySelector(`[data-skeleton-variant="${variant}"]`)).not.toBeNull();
+        expect(container.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0);
+        expect(screen.queryByText("Resolved content")).not.toBeInTheDocument();
+      },
+    );
+
+    it("announces the loading state to assistive technology", () => {
+      render(
+        <AsyncBoundary isLoading isError={false} skeleton="list">
+          <p>Resolved content</p>
+        </AsyncBoundary>,
+      );
+
+      const status = screen.getByRole("status");
+      expect(status).toHaveAttribute("aria-busy", "true");
+      expect(status).toHaveTextContent("Loading…");
+    });
+
+    it("repeats items according to skeletonCount", () => {
+      const { container } = render(
+        <AsyncBoundary isLoading isError={false} skeleton="list" skeletonCount={7}>
+          <p>Resolved content</p>
+        </AsyncBoundary>,
+      );
+
+      expect(container.querySelectorAll('[data-skeleton-variant="list"] > li')).toHaveLength(7);
+    });
+
+    it("lets loadingSlot override the skeleton variant", () => {
+      const { container } = render(
+        <AsyncBoundary
+          isLoading
+          isError={false}
+          skeleton="card"
+          loadingSlot={<p>Loading campaigns…</p>}
+        >
+          <p>Resolved content</p>
+        </AsyncBoundary>,
+      );
+
+      expect(screen.getByText("Loading campaigns…")).toBeInTheDocument();
+      expect(container.querySelector("[data-skeleton-variant]")).toBeNull();
+    });
+
+    it("ignores the skeleton variant once content resolves", () => {
+      const { container } = render(
+        <AsyncBoundary isLoading={false} isError={false} skeleton="card">
+          <p>Resolved content</p>
+        </AsyncBoundary>,
+      );
+
+      expect(screen.getByText("Resolved content")).toBeInTheDocument();
+      expect(container.querySelector("[data-skeleton-variant]")).toBeNull();
+    });
+  });
+
+  describe("layout reservation", () => {
+    it("reserves the same minHeight while loading and after resolving", () => {
+      const { container, rerender } = render(
+        <AsyncBoundary isLoading isError={false} skeleton="stat" minHeight="12rem">
+          <p>Resolved content</p>
+        </AsyncBoundary>,
+      );
+
+      const loadingWrapper = container.firstElementChild as HTMLElement;
+      expect(loadingWrapper.style.minHeight).toBe("12rem");
+
+      rerender(
+        <AsyncBoundary isLoading={false} isError={false} skeleton="stat" minHeight="12rem">
+          <p>Resolved content</p>
+        </AsyncBoundary>,
+      );
+
+      const resolvedWrapper = container.firstElementChild as HTMLElement;
+      expect(resolvedWrapper.style.minHeight).toBe("12rem");
+      expect(resolvedWrapper).toContainElement(screen.getByText("Resolved content"));
+    });
+
+    it("does not add a wrapper element when minHeight is omitted", () => {
+      const { container } = render(
+        <AsyncBoundary isLoading={false} isError={false}>
+          <p>Resolved content</p>
+        </AsyncBoundary>,
+      );
+
+      expect(container.firstElementChild?.tagName).toBe("P");
+    });
+  });
+
   describe("error path", () => {
     it("renders the default error fallback when the fetch fails", () => {
       render(
