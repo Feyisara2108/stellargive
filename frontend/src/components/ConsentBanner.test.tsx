@@ -3,6 +3,13 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ConsentBanner, getAnalyticsConsent } from "./ConsentBanner";
 
+import * as sentryModule from "@/lib/sentry";
+
+vi.mock("@sentry/nextjs", () => ({
+  init: vi.fn(),
+  captureException: vi.fn(),
+}));
+
 const CONSENT_KEY = "stellargive_consent";
 
 describe("ConsentBanner", () => {
@@ -44,14 +51,25 @@ describe("ConsentBanner", () => {
     expect(screen.queryByText("Cookie & Analytics Consent")).not.toBeInTheDocument();
   });
 
-  it("handles Accept button click by updating localStorage and reloading window", () => {
+  it("handles Accept button click by updating localStorage without reloading window", () => {
+    const initSpy = vi.spyOn(sentryModule, "initAnalytics");
     render(<ConsentBanner />);
 
     const acceptButton = screen.getByRole("button", { name: "Accept" });
     fireEvent.click(acceptButton);
 
     expect(localStorage.getItem(CONSENT_KEY)).toBe("accepted");
-    expect(window.location.reload).toHaveBeenCalledTimes(1);
+    expect(window.location.reload).not.toHaveBeenCalled();
+    expect(initSpy).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Cookie & Analytics Consent")).not.toBeInTheDocument();
+  });
+
+  it("initializes analytics on mount if consent was already accepted", () => {
+    localStorage.setItem(CONSENT_KEY, "accepted");
+    const initSpy = vi.spyOn(sentryModule, "initAnalytics");
+    render(<ConsentBanner />);
+
+    expect(initSpy).toHaveBeenCalledTimes(1);
     expect(screen.queryByText("Cookie & Analytics Consent")).not.toBeInTheDocument();
   });
 
