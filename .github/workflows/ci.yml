@@ -309,6 +309,68 @@ jobs:
         working-directory: contracts/stellar-give
         run: cargo test --locked
 
+  # Reports how long each job in this run took. Runs last (even when jobs fail),
+  # writes a summary to the run page and exports the numbers as an artifact so
+  # durations can be tracked across runs.
+  job-metrics:
+    name: CI job duration metrics
+    needs: [change-detection, contract-checks, rust-and-contract, frontend, frontend-node-matrix, contract-msrv]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Collect per-job durations
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          RUN_NUMBER: ${{ github.run_number }}
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          SHA: ${{ github.sha }}
+        run: |
+          gh api --paginate "repos/$REPO/actions/runs/$RUN_ID/attempts/$RUN_ATTEMPT/jobs?per_page=100" --jq '.jobs[]' \
+            | jq -s '[.[]
+                | select(.completed_at != null and .conclusion != "skipped")
+                | {
+                    name,
+                    conclusion,
+                    started_at,
+                    completed_at,
+                    duration_seconds: ((.completed_at | fromdateiso8601) - (.started_at | fromdateiso8601))
+                  }]' > job-durations.json
+
+          jq -r --arg run "$RUN_ID" --arg num "$RUN_NUMBER" --arg sha "$SHA" --arg event "$EVENT" --arg ref "$REF" \
+            '["run_id","run_number","sha","event","ref","job","conclusion","duration_seconds"],
+             (.[] | [$run, $num, $sha, $event, $ref, .name, .conclusion, .duration_seconds])
+             | @csv' job-durations.json > job-durations.csv
+
+      - name: Emit duration summary
+        run: |
+          {
+            echo "## CI job durations"
+            echo
+            echo "| Job | Result | Duration |"
+            echo "| --- | --- | --- |"
+            jq -r 'sort_by(-.duration_seconds)[]
+              | "| \(.name) | \(.conclusion) | \(.duration_seconds / 60 | floor)m \(.duration_seconds % 60)s |"' job-durations.json
+            echo
+            jq -r '"Total job time: \((map(.duration_seconds) | add // 0) / 60 | floor) min across \(length) jobs"' job-durations.json
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Export job duration metrics
+        uses: actions/upload-artifact@v7.0.1 # v4.3.0
+        with:
+          name: ci-job-durations
+          path: |
+            job-durations.json
+            job-durations.csv
+          retention-days: 90
+
   notify:
     needs: [contract-checks, rust-and-contract, frontend]
     if: always() && failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
