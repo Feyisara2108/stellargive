@@ -7,6 +7,7 @@ import "@testing-library/jest-dom";
 const wallet = vi.hoisted(() => ({
   walletNetwork: null as string | null,
   isWrongNetwork: false,
+  switchNetwork: vi.fn(async () => ({ supported: false, success: false })),
 }));
 
 vi.mock("@/lib/WalletProvider", () => ({
@@ -31,6 +32,8 @@ const banner = () => screen.queryByText("Network Mismatch Detected");
 beforeEach(() => {
   sessionStorage.clear();
   setWalletNetwork(null);
+  wallet.switchNetwork.mockReset();
+  wallet.switchNetwork.mockResolvedValue({ supported: false, success: false });
 });
 
 afterEach(() => {
@@ -84,7 +87,17 @@ describe("NetworkMismatchBanner — switch network", () => {
     setWalletNetwork(TESTNET);
   });
 
-  it("opens Freighter's network guide in a new tab and severs the opener", async () => {
+  it("attempts a programmatic switch before falling back to the guide", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, "open").mockReturnValue({ opener: window } as unknown as Window);
+    render(<NetworkMismatchBanner />);
+
+    await user.click(screen.getByRole("button", { name: "Switch Network" }));
+
+    expect(wallet.switchNetwork).toHaveBeenCalledWith(APP_NETWORK);
+  });
+
+  it("opens Freighter's network guide in a new tab and severs the opener when switching is unsupported", async () => {
     const user = userEvent.setup();
     const guideWindow = { opener: window } as unknown as Window;
     const open = vi.spyOn(window, "open").mockReturnValue(guideWindow);
@@ -95,6 +108,29 @@ describe("NetworkMismatchBanner — switch network", () => {
     expect(open).toHaveBeenCalledWith(FREIGHTER_NETWORK_GUIDE_URL, "_blank");
     expect(guideWindow.opener).toBeNull();
     expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("does not fall back to the guide when the wallet switches the network successfully", async () => {
+    const user = userEvent.setup();
+    wallet.switchNetwork.mockResolvedValue({ supported: true, success: true });
+    const open = vi.spyOn(window, "open");
+    render(<NetworkMismatchBanner />);
+
+    await user.click(screen.getByRole("button", { name: "Switch Network" }));
+
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the guide when a supported wallet's switch attempt fails", async () => {
+    const user = userEvent.setup();
+    wallet.switchNetwork.mockResolvedValue({ supported: true, success: false });
+    const guideWindow = { opener: window } as unknown as Window;
+    const open = vi.spyOn(window, "open").mockReturnValue(guideWindow);
+    render(<NetworkMismatchBanner />);
+
+    await user.click(screen.getByRole("button", { name: "Switch Network" }));
+
+    expect(open).toHaveBeenCalledWith(FREIGHTER_NETWORK_GUIDE_URL, "_blank");
   });
 
   it("falls back to inline manual steps when the guide popup is blocked", async () => {
