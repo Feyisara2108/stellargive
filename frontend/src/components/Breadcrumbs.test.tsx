@@ -2,6 +2,7 @@ import React from "react";
 import { render, screen, within } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { Breadcrumbs, type BreadcrumbItem } from "./Breadcrumbs";
+import { absoluteUrl } from "@/lib/utils";
 
 vi.mock("next/link", () => ({
   default: ({
@@ -115,7 +116,7 @@ describe("Breadcrumbs", () => {
           "@type": "ListItem",
           position: index + 1,
           name: item.label,
-          item: item.href,
+          item: absoluteUrl(item.href),
         })),
       );
 

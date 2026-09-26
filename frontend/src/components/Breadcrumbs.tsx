@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
+import { absoluteUrl } from "@/lib/utils";
 
 export interface BreadcrumbItem {
   label: string;
@@ -12,17 +13,21 @@ interface BreadcrumbsProps {
   items: BreadcrumbItem[];
 }
 
-export function Breadcrumbs({ items }: BreadcrumbsProps) {
-  const jsonLd = {
+export function generateBreadcrumbJsonLd(items: BreadcrumbItem[]) {
+  return {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     itemListElement: items.map((item, index) => ({
       "@type": "ListItem",
       position: index + 1,
       name: item.label,
-      item: item.href,
+      item: absoluteUrl(item.href),
     })),
   };
+}
+
+export function Breadcrumbs({ items }: BreadcrumbsProps) {
+  const jsonLd = generateBreadcrumbJsonLd(items);
 
   return (
     <>
