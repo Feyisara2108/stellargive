@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe, toHaveNoViolations } from "jest-axe";
-import { CampaignCard } from "./CampaignCard";
+import { CampaignCard, getDeadlineUrgency } from "./CampaignCard";
 import type { Campaign } from "@/lib/soroban";
 
 expect.extend(toHaveNoViolations);
@@ -501,5 +501,30 @@ describe("CampaignCard", () => {
       expect(modal).toHaveAttribute("data-open", "true");
       expect(modal).toHaveAttribute("data-suggested-amount", "100000");
     });
+  });
+});
+
+describe("getDeadlineUrgency", () => {
+  const now = Date.UTC(2026, 5, 24, 12, 0, 0);
+  const inHours = (h: number) => now / 1000 + h * 3600;
+
+  it("is normal with no pill beyond 48 hours", () => {
+    expect(getDeadlineUrgency(inHours(72), now)).toEqual({ urgency: "normal", endingSoon: false });
+  });
+
+  it("is amber under 48 hours", () => {
+    expect(getDeadlineUrgency(inHours(30), now)).toEqual({ urgency: "soon", endingSoon: false });
+  });
+
+  it("is amber with the Ending soon pill under 24 hours", () => {
+    expect(getDeadlineUrgency(inHours(12), now)).toEqual({ urgency: "soon", endingSoon: true });
+  });
+
+  it("is red under 6 hours", () => {
+    expect(getDeadlineUrgency(inHours(3), now)).toEqual({ urgency: "critical", endingSoon: true });
+  });
+
+  it("is normal once the deadline has passed", () => {
+    expect(getDeadlineUrgency(inHours(-1), now)).toEqual({ urgency: "normal", endingSoon: false });
   });
 });
