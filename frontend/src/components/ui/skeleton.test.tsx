@@ -1,6 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { Skeleton } from "./skeleton";
+import {
+  Skeleton,
+  SkeletonCard,
+  SkeletonDetail,
+  SkeletonList,
+  SkeletonPreset,
+  SkeletonStat,
+} from "./skeleton";
 
 // Skeleton has no shape prop of its own — every consumer configures its
 // shape (line, circle, block) purely through className, e.g.
@@ -42,5 +49,48 @@ describe("Skeleton", () => {
   it("forwards arbitrary div props such as aria-hidden", () => {
     render(<Skeleton data-testid="skeleton" aria-hidden="true" />);
     expect(screen.getByTestId("skeleton")).toHaveAttribute("aria-hidden", "true");
+  });
+});
+
+describe("Skeleton presets", () => {
+  it("SkeletonCard renders the requested number of cards", () => {
+    const { container } = render(<SkeletonCard count={2} />);
+    const root = container.querySelector('[data-skeleton-variant="card"]')!;
+    expect(root.children).toHaveLength(2);
+  });
+
+  it("SkeletonList renders fixed-height rows to avoid layout shift", () => {
+    const { container } = render(<SkeletonList count={3} />);
+    const rows = container.querySelectorAll('[data-skeleton-variant="list"] > li');
+    expect(rows).toHaveLength(3);
+    rows.forEach((row) => expect(row).toHaveClass("h-16"));
+  });
+
+  it("SkeletonStat mirrors StatCard label and value heights", () => {
+    const { container } = render(<SkeletonStat count={1} />);
+    const tile = container.querySelector('[data-skeleton-variant="stat"] > div')!;
+    const [label, value] = Array.from(tile.children);
+    expect(label).toHaveClass("h-4");
+    expect(value).toHaveClass("h-8");
+  });
+
+  it("SkeletonDetail renders a heading, hero and body block", () => {
+    const { container } = render(<SkeletonDetail />);
+    expect(
+      container.querySelector('[data-skeleton-variant="detail"] .aspect-video'),
+    ).not.toBeNull();
+  });
+
+  it.each(["card", "list", "detail", "stat"] as const)(
+    "SkeletonPreset renders the %s variant",
+    (variant) => {
+      const { container } = render(<SkeletonPreset variant={variant} />);
+      expect(container.querySelector(`[data-skeleton-variant="${variant}"]`)).not.toBeNull();
+    },
+  );
+
+  it("applies a consumer className to the preset root", () => {
+    const { container } = render(<SkeletonPreset variant="stat" className="my-stats" />);
+    expect(container.querySelector('[data-skeleton-variant="stat"]')).toHaveClass("my-stats");
   });
 });
