@@ -44,11 +44,23 @@ export function CampaignStatusBadge({
       customClasses =
         "bg-destructive/20 text-destructive hover:bg-destructive/30 border-transparent";
       break;
+    case "Refunding":
+      customClasses =
+        "bg-orange-500/20 text-orange-700 dark:text-orange-400 hover:bg-orange-500/30 border-orange-500/40 border-dashed animate-pulse motion-reduce:animate-none";
+      break;
     case "Expired":
     default:
       customClasses = "bg-muted text-muted-foreground hover:bg-muted/80 border-transparent";
       break;
   }
+
+  const statusA11yProps =
+    displayStatus === "Refunding"
+      ? {
+          role: "status" as const,
+          "aria-label": "Campaign status: Refunding. Donors are currently being refunded.",
+        }
+      : {};
 
   let effectiveProgress = progress;
   if (effectiveProgress === undefined && raisedAmount !== undefined && targetAmount !== undefined) {
@@ -98,6 +110,7 @@ export function CampaignStatusBadge({
       <Badge
         variant="outline"
         className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${customClasses} ${className}`}
+        {...statusA11yProps}
       >
         {displayStatus}
       </Badge>
@@ -109,6 +122,7 @@ export function CampaignStatusBadge({
       <Badge
         variant="outline"
         className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${customClasses}`}
+        {...statusA11yProps}
       >
         {displayStatus}
       </Badge>

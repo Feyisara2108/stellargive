@@ -95,3 +95,22 @@ describe("CampaignStatusBadge — deadline override", () => {
     expect(screen.getByText("Active")).toBeInTheDocument();
   });
 });
+
+describe("CampaignStatusBadge — Refunding", () => {
+  it("renders a Refunding badge with an accessible status label", () => {
+    render(<CampaignStatusBadge status="Refunding" />);
+    const badge = screen.getByRole("status");
+    expect(badge).toHaveTextContent("Refunding");
+    expect(badge).toHaveAttribute("aria-label", expect.stringMatching(/refunding/i));
+  });
+
+  it("uses a distinct in-progress style", () => {
+    render(<CampaignStatusBadge status="Refunding" />);
+    expect(screen.getByRole("status").className).toContain("animate-pulse");
+  });
+
+  it("leaves other statuses without a status role", () => {
+    render(<CampaignStatusBadge status="Active" />);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+});
