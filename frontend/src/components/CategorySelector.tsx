@@ -20,13 +20,26 @@ interface CategorySelectorProps {
   value: CategoryKey;
   onChange: (value: CategoryKey) => void;
   label?: string;
+  /** Optional per-category counts to display next to each label. */
+  counts?: Partial<Record<CategoryKey, number>>;
 }
 
-export function CategorySelector({ value, onChange, label }: CategorySelectorProps) {
+export function CategorySelector({ value, onChange, label, counts }: CategorySelectorProps) {
   const getCategoryLabel = (cat: CategoryKey) => {
     if (cat === "all") return "All Categories";
     if (cat === "uncategorized") return "Uncategorized";
     return cat.charAt(0).toUpperCase() + cat.slice(1);
+  };
+
+  const formatCount = (cat: CategoryKey) => {
+    if (!counts) return null;
+    const n = counts[cat];
+    if (n === undefined) return null;
+    return (
+      <span className="ml-1 text-[0.65rem] font-normal opacity-70">
+        ({n})
+      </span>
+    );
   };
 
   return (
@@ -47,7 +60,7 @@ export function CategorySelector({ value, onChange, label }: CategorySelectorPro
         >
           {CATEGORIES.map((cat) => (
             <option key={cat} value={cat}>
-              {getCategoryLabel(cat)}
+              {getCategoryLabel(cat)}{counts?.[cat] !== undefined ? ` (${counts[cat]})` : ''}
             </option>
           ))}
         </select>
@@ -75,6 +88,7 @@ export function CategorySelector({ value, onChange, label }: CategorySelectorPro
               }`}
             >
               {getCategoryLabel(cat)}
+              {formatCount(cat)}
             </button>
           );
         })}
