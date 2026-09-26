@@ -186,6 +186,8 @@ export function useDonate() {
       amount: string;
       isAnonymous: boolean;
       decimals: number;
+      /** Optional dedication, passed to the contract's `comment: Option<String>` argument. */
+      message?: string;
     }) => {
       if (!address) throw new Error("Wallet not connected");
 
@@ -194,6 +196,7 @@ export function useDonate() {
         nativeToScVal(params.campaignId, { type: "u64" }),
         nativeToScVal(toRawAmount(params.amount, params.decimals), { type: "i128" }),
         nativeToScVal(params.isAnonymous, { type: "bool" }),
+        ...(params.message ? [nativeToScVal(params.message, { type: "string" })] : []),
       ];
 
       return submitTransaction(address, "donate", args);
