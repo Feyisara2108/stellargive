@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, onlineManager } from "@tanstack/react-query";
 import { server } from "@/lib/soroban";
 
 export type RpcStatus = "healthy" | "degraded" | "down" | "loading";
@@ -42,7 +42,12 @@ export function useRpcHealth(): RpcHealth {
     queryKey: ["rpc-health"],
     queryFn: pingRpc,
     refetchInterval: (query) => {
-      if (pausedRef.current || (typeof document !== "undefined" && document.hidden)) {
+      if (
+        pausedRef.current ||
+        (typeof document !== "undefined" && document.hidden) ||
+        (typeof navigator !== "undefined" && !navigator.onLine) ||
+        !onlineManager.isOnline()
+      ) {
         return false;
       }
       const status = query.state.data?.status;
@@ -53,6 +58,10 @@ export function useRpcHealth(): RpcHealth {
     staleTime: 25_000,
     retry: false,
   });
+
+  if ((typeof navigator !== "undefined" && !navigator.onLine) || !onlineManager.isOnline()) {
+    return { status: "down", latencyMs: null };
+  }
 
   if (isFetching && !data) {
     return { status: "loading", latencyMs: null };

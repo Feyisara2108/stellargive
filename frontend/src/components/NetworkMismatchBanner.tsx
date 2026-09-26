@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { useWallet } from "@/lib/WalletProvider";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, X } from "lucide-react";

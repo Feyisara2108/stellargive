@@ -4,6 +4,7 @@ const sonner = vi.hoisted(() => ({
   loading: vi.fn(() => "toast-1"),
   success: vi.fn(),
   error: vi.fn(),
+  info: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({ toast: sonner }));
@@ -74,6 +75,20 @@ describe("notify.error", () => {
     notify.error("Simulation failed", { id: "toast-1" });
 
     expect(sonner.error).toHaveBeenCalledWith("Simulation failed", { id: "toast-1" });
+  });
+});
+
+describe("notify.info", () => {
+  it("shows an info toast", () => {
+    notify.info("Wallet reconnected");
+
+    expect(sonner.info).toHaveBeenCalledWith("Wallet reconnected");
+  });
+
+  it("updates an existing toast in place when an id is given", () => {
+    notify.info("Wallet reconnected", { id: "toast-1" });
+
+    expect(sonner.info).toHaveBeenCalledWith("Wallet reconnected", { id: "toast-1" });
   });
 });
 
