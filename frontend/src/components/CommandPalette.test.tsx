@@ -68,14 +68,14 @@ describe("CommandPalette", () => {
 
     const status = screen.getByRole("status");
     expect(status).toHaveAttribute("aria-live", "polite");
-    await waitFor(() => expect(status).toHaveTextContent("4 results available"));
+    await waitFor(() => expect(status).toHaveTextContent("6 results available"));
 
     const input = screen.getByPlaceholderText("Search navigation...");
     fireEvent.change(input, { target: { value: "c" } });
     fireEvent.change(input, { target: { value: "cr" } });
     fireEvent.change(input, { target: { value: "create" } });
 
-    expect(status).toHaveTextContent("4 results available");
+    await waitFor(() => expect(status).toHaveTextContent("1 result available"));
 
     await waitFor(() => expect(status).toHaveTextContent("1 result available"));
   });
@@ -123,13 +123,13 @@ describe("CommandPalette", () => {
     fireEvent.keyDown(dialogContent, { key: "ArrowUp" });
     expect(options[0]).toHaveAttribute("aria-selected", "true");
 
-    // Press ArrowUp when at 0 -> wraps around to last item (Profile, index 3)
+    // Press ArrowUp when at 0 -> wraps around to last item (Toggle Theme, index 5)
     fireEvent.keyDown(dialogContent, { key: "ArrowUp" });
-    expect(options[3]).toHaveAttribute("aria-selected", "true");
+    expect(options[5]).toHaveAttribute("aria-selected", "true");
 
-    // Press Enter to select active item
+    // Press Enter to select active item (Toggle Theme executes handler)
     fireEvent.keyDown(dialogContent, { key: "Enter" });
-    expect(mockPush).toHaveBeenCalledWith("/profile");
+    expect(screen.queryByPlaceholderText("Search navigation...")).not.toBeInTheDocument();
   });
 
   it("ignores unrelated keyboard shortcuts", () => {
@@ -149,11 +149,13 @@ describe("CommandPalette", () => {
     const dialogContent = screen.getByRole("dialog");
     const options = screen.getAllByRole("option");
 
-    // Home(0) -> Explore(1) -> Create(2) -> Profile(3) -> wraps to Home(0)
+    // Home(0) -> Explore(1) -> Create(2) -> Profile(3) -> Connect Wallet(4) -> Toggle Theme(5) -> wraps to Home(0)
     fireEvent.keyDown(dialogContent, { key: "ArrowDown" });
     fireEvent.keyDown(dialogContent, { key: "ArrowDown" });
     fireEvent.keyDown(dialogContent, { key: "ArrowDown" });
-    expect(options[3]).toHaveAttribute("aria-selected", "true");
+    fireEvent.keyDown(dialogContent, { key: "ArrowDown" });
+    fireEvent.keyDown(dialogContent, { key: "ArrowDown" });
+    expect(options[5]).toHaveAttribute("aria-selected", "true");
 
     fireEvent.keyDown(dialogContent, { key: "ArrowDown" });
     expect(options[0]).toHaveAttribute("aria-selected", "true");

@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Command, Search, Home, PlusCircle, User, Compass } from "lucide-react";
+import { Command, Search, Home, PlusCircle, User, Compass, Wallet, Sun } from "lucide-react";
 
 interface CommandItem {
   id: string;
@@ -51,6 +51,24 @@ const navigationItems: CommandItem[] = [
   },
 ];
 
+const RECENT_CAMPAIGNS_KEY = "stellargive_recent_campaigns";
+
+function getRecentCampaigns(): { id: string; title: string }[] {
+  try {
+    return JSON.parse(localStorage.getItem(RECENT_CAMPAIGNS_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+export function trackRecentCampaign(id: string, title: string) {
+  try {
+    const recent = getRecentCampaigns().filter((c) => c.id !== id);
+    recent.unshift({ id, title });
+    localStorage.setItem(RECENT_CAMPAIGNS_KEY, JSON.stringify(recent.slice(0, 5)));
+  } catch {}
+}
+
 interface CommandPaletteProps {
   /** Allow a parent (e.g. Navbar) to control the open state externally. */
   open?: boolean;
@@ -78,6 +96,16 @@ export function CommandPalette({ open: openProp, onOpenChange }: CommandPaletteP
   const router = useRouter();
   const [activeIndex, setActiveIndex] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
+  const [recentCampaigns, setRecentCampaigns] = useState<{ id: string; title: string }[]>([]);
+
+  useEffect(() => {
+    if (open) setRecentCampaigns(getRecentCampaigns());
+  }, [open]);
+
+  const quickActions: CommandItem[] = useMemo(() => [
+    { id: "connect-wallet", label: "Connect Wallet", href: "#connect-wallet", icon: <Wallet className="w-4 h-4" />, keywords: ["connect", "wallet", "stellar"] },
+    { id: "toggle-theme", label: "Toggle Theme", href: "#toggle-theme", icon: <Sun className="w-4 h-4" />, keywords: ["toggle", "theme", "dark", "light", "mode"] },
+  ], []);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -94,17 +122,35 @@ export function CommandPalette({ open: openProp, onOpenChange }: CommandPaletteP
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
-  const filteredItems = useMemo(
-    () =>
-      navigationItems.filter((item) => {
-        const searchLower = search.toLowerCase();
-        return (
-          item.label.toLowerCase().includes(searchLower) ||
-          item.keywords.some((keyword) => keyword.includes(searchLower))
-        );
-      }),
-    [search],
-  );
+  const sections = useMemo(() => {
+    const searchLower = search.toLowerCase();
+    const recentItems: CommandItem[] = recentCampaigns
+      .filter((c) => c.title.toLowerCase().includes(searchLower))
+      .map((c) => ({
+        id: `recent-${c.id}`,
+        label: c.title,
+        href: `/campaign/${c.id}`,
+        icon: <Compass className="w-4 h-4" />,
+        keywords: ["recent", c.title.toLowerCase()],
+      }));
+    const navItems = navigationItems.filter(
+      (item) =>
+        item.label.toLowerCase().includes(searchLower) ||
+        item.keywords.some((kw) => kw.includes(searchLower)),
+    );
+    const actionItems = quickActions.filter(
+      (item) =>
+        item.label.toLowerCase().includes(searchLower) ||
+        item.keywords.some((kw) => kw.includes(searchLower)),
+    );
+    const result: { label: string; items: CommandItem[] }[] = [];
+    if (recentItems.length) result.push({ label: "Recent Campaigns", items: recentItems });
+    if (navItems.length) result.push({ label: "Navigation", items: navItems });
+    if (actionItems.length) result.push({ label: "Quick Actions", items: actionItems });
+    return result;
+  }, [search, recentCampaigns, quickActions]);
+
+  const filteredItems = useMemo(() => sections.flatMap((s) => s.items), [sections]);
 
   useEffect(() => {
     if (!open) {
@@ -123,10 +169,16 @@ export function CommandPalette({ open: openProp, onOpenChange }: CommandPaletteP
     return () => window.clearTimeout(timer);
   }, [open, filteredItems]);
 
-  const handleSelect = (href: string) => {
+  const handleSelect = (item: CommandItem) => {
     setOpen(false);
     setSearch("");
-    router.push(href);
+    if (item.href === "#toggle-theme") {
+      document.documentElement.classList.toggle("dark");
+    } else if (item.href === "#connect-wallet") {
+      document.querySelector<HTMLElement>("[data-connect-wallet]")?.click();
+    } else {
+      router.push(item.href);
+    }
   };
 
   useEffect(() => {
@@ -149,7 +201,7 @@ export function CommandPalette({ open: openProp, onOpenChange }: CommandPaletteP
       setActiveIndex((prev) => (prev - 1 + filteredItems.length) % filteredItems.length);
     } else if (e.key === "Enter" && filteredItems[activeIndex]) {
       e.preventDefault();
-      handleSelect(filteredItems[activeIndex].href);
+      handleSelect(filteredItems[activeIndex]);
     }
   };
 
@@ -192,18 +244,28 @@ export function CommandPalette({ open: openProp, onOpenChange }: CommandPaletteP
             </div>
           ) : (
             <div ref={listRef} role="listbox" aria-label="Command options">
-              {filteredItems.map((item, index) => (
-                <button
-                  key={item.id}
-                  role="option"
-                  aria-selected={index === activeIndex}
-                  data-index={index}
-                  onClick={() => handleSelect(item.href)}
-                  className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors focus:outline-none ${index === activeIndex ? "bg-muted" : "hover:bg-muted"}`}
-                >
-                  <span className="text-muted-foreground">{item.icon}</span>
-                  <span>{item.label}</span>
-                </button>
+              {sections.map((section) => (
+                <div key={section.label} className="mb-2">
+                  <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    {section.label}
+                  </p>
+                  {section.items.map((item) => {
+                    const index = filteredItems.indexOf(item);
+                    return (
+                      <button
+                        key={item.id}
+                        role="option"
+                        aria-selected={index === activeIndex}
+                        data-index={index}
+                        onClick={() => handleSelect(item)}
+                        className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors focus:outline-none ${index === activeIndex ? "bg-muted" : "hover:bg-muted"}`}
+                      >
+                        <span className="text-muted-foreground">{item.icon}</span>
+                        <span>{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               ))}
             </div>
           )}

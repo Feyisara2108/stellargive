@@ -6,13 +6,45 @@ import { formatTokenAmount } from "@/utils/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Heart, ArrowUpRight, RotateCcw, HeartHandshake } from "lucide-react";
+import { Heart, ArrowUpRight, RotateCcw, HeartHandshake, User } from "lucide-react";
 import { AddressLink } from "@/components/AddressLink";
 import { RelativeTime } from "@/components/RelativeTime";
 import { sanitizeMessage } from "@/lib/sanitize";
 
 const INITIAL_BATCH_SIZE = 10;
 const BATCH_SIZE = 10;
+
+function simpleHash(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash);
+}
+
+function DonorAvatar({ address, name }: { address: string | null; name: string }) {
+  if (!address) {
+    return (
+      <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0" role="img" aria-label={name}>
+        <User className="w-4 h-4 text-muted-foreground" />
+      </div>
+    );
+  }
+  const h = simpleHash(address);
+  const hue = h % 360;
+  const bg = `hsl(${hue}, 60%, 90%)`;
+  const fg = `hsl(${hue}, 70%, 40%)`;
+  return (
+    <div
+      className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold"
+      style={{ backgroundColor: bg, color: fg }}
+      role="img"
+      aria-label={name}
+    >
+      {address.slice(0, 2).toUpperCase()}
+    </div>
+  );
+}
 
 /** Reads the optional dedication (`data[5]`) from a `received` event payload. */
 function getDonationMessage(data: any): string {
@@ -137,9 +169,10 @@ export function RecentDonations({
                   key={event.id}
                   className="flex gap-3 items-center border-b last:border-0 pb-4 last:pb-0"
                 >
-                  <div className="p-2 rounded-full bg-green-500/10 shrink-0">
-                    <ArrowUpRight className="w-4 h-4 text-green-500" />
-                  </div>
+                  <DonorAvatar
+                    address={donorAddress}
+                    name={donorAddress ? `Donor ${donorAddress.slice(0, 8)}` : "Anonymous donor"}
+                  />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm truncate">
                       <span className="font-bold">{formatTokenAmount(event.data[2], 7)} XLM</span>{" "}
