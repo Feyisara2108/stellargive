@@ -10,6 +10,7 @@ import { formatDistanceToNow } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
 import { PostUpdateForm } from "./PostUpdateForm";
 import { notify } from "@/lib/toast";
+import { renderMarkdown } from "@/lib/sanitize";
 
 type OptimisticUpdate = {
   id: string;
@@ -122,7 +123,10 @@ export function ProjectUpdates({ campaignId }: { campaignId: bigint }) {
             key={update.id ?? `${update.content}-${i}`}
             className="space-y-1 pb-4 border-b last:border-0 last:pb-0"
           >
-            <p className="text-sm whitespace-pre-wrap">{update.content}</p>
+            <div
+              className="text-sm space-y-2 [&_a]:underline [&_a]:text-primary [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
+              dangerouslySetInnerHTML={{ __html: renderMarkdown(update.content) }}
+            />
             <p className="text-xs text-muted-foreground">
               {formatDistanceToNow(new Date(Number(update.timestamp) * 1000), { addSuffix: true })}
             </p>
