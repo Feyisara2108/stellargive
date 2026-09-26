@@ -19,12 +19,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useAddToWhitelist, useCancelCampaign, useAddUpdate } from "@/hooks/useSoroban";
+import { useAddToWhitelist, useCancelCampaign, useAddUpdate, usePauseContract, useUnpauseContract } from "@/hooks/useSoroban";
 import { toast } from "sonner";
 import { Campaign } from "@/lib/soroban";
 import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
 import { PostUpdateForm } from "@/components/PostUpdateForm";
-import { Shield, CheckCircle, AlertCircle, Loader2, Eye, FileText, XCircle } from "lucide-react";
+import { Shield, CheckCircle, AlertCircle, Loader2, Eye, FileText, XCircle, Pause, Play } from "lucide-react";
 
 interface AdminPanelProps {
   ownedCampaigns: Campaign[];
@@ -34,6 +34,8 @@ export function AdminPanel({ ownedCampaigns }: AdminPanelProps) {
   const addToWhitelist = useAddToWhitelist();
   const cancelCampaign = useCancelCampaign();
   const addUpdate = useAddUpdate();
+  const pauseContract = usePauseContract();
+  const unpauseContract = useUnpauseContract();
 
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>("");
   const [addressToWhitelist, setAddressToWhitelist] = useState<string>("");
@@ -44,6 +46,9 @@ export function AdminPanel({ ownedCampaigns }: AdminPanelProps) {
 
   const [campaignToCancel, setCampaignToCancel] = useState<Campaign | null>(null);
   const [updateCampaign, setUpdateCampaign] = useState<Campaign | null>(null);
+  const [showPauseConfirm, setShowPauseConfirm] = useState<boolean>(false);
+  const [showUnpauseConfirm, setShowUnpauseConfirm] = useState<boolean>(false);
+  const [pauseConfirmText, setPauseConfirmText] = useState<string>("");
 
   const handleSelectCampaign = (id: string) => {
     setSelectedCampaignId(id);
@@ -91,6 +96,38 @@ export function AdminPanel({ ownedCampaigns }: AdminPanelProps) {
 
   return (
     <div className="space-y-8">
+      {/* Contract Controls */}
+      <div className="border rounded-xl bg-card p-6 shadow-sm space-y-4">
+        <div className="space-y-2">
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <Shield className="w-5 h-5 text-primary" />
+            Contract Controls
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Emergency controls for the contract owner. Pausing the contract disables all donations and campaign creation.
+          </p>
+        </div>
+
+        <div className="flex gap-3">
+          <Button
+            variant="destructive"
+            onClick={() => setShowPauseConfirm(true)}
+            disabled={pauseContract.isPending}
+          >
+            <Pause className="w-4 h-4 mr-2" />
+            Pause Contract
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setShowUnpauseConfirm(true)}
+            disabled={unpauseContract.isPending}
+          >
+            <Play className="w-4 h-4 mr-2" />
+            Unpause Contract
+          </Button>
+        </div>
+      </div>
+
       {/* Campaign Management */}
       <div className="border rounded-xl bg-card p-6 shadow-sm space-y-6">
         <div className="space-y-2">
@@ -313,6 +350,123 @@ export function AdminPanel({ ownedCampaigns }: AdminPanelProps) {
               }}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Pause Confirmation Dialog */}
+      <Dialog
+        open={showPauseConfirm}
+        onOpenChange={(open) => {
+          if (!pauseContract.isPending && !open) {
+            setShowPauseConfirm(false);
+            setPauseConfirmText("");
+          }
+        }}
+      >
+        <DialogContent aria-labelledby="pause-dialog-title">
+          <DialogHeader>
+            <DialogTitle id="pause-dialog-title" className="text-destructive">
+              Pause Contract?
+            </DialogTitle>
+            <DialogDescription>
+              This will immediately disable all donations and campaign creation across the entire platform.
+              Only the contract owner can unpause.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">
+              Type <span className="font-bold">PAUSE</span> to confirm:
+            </label>
+            <input
+              type="text"
+              value={pauseConfirmText}
+              onChange={(e) => setPauseConfirmText(e.target.value)}
+              className="w-full px-3 py-2 border rounded-md text-sm"
+              placeholder="PAUSE"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowPauseConfirm(false);
+                setPauseConfirmText("");
+              }}
+              disabled={pauseContract.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={pauseContract.isPending || pauseConfirmText !== "PAUSE"}
+              onClick={async () => {
+                try {
+                  await pauseContract.mutateAsync();
+                  setShowPauseConfirm(false);
+                  setPauseConfirmText("");
+                } catch (err) {
+                  console.error("Failed to pause contract:", err);
+                }
+              }}
+            >
+              {pauseContract.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Pausing...
+                </>
+              ) : (
+                "Pause Contract"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Unpause Confirmation Dialog */}
+      <Dialog
+        open={showUnpauseConfirm}
+        onOpenChange={(open) => {
+          if (!unpauseContract.isPending && !open) setShowUnpauseConfirm(false);
+        }}
+      >
+        <DialogContent aria-labelledby="unpause-dialog-title">
+          <DialogHeader>
+            <DialogTitle id="unpause-dialog-title">
+              Unpause Contract?
+            </DialogTitle>
+            <DialogDescription>
+              This will re-enable all donations and campaign creation.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowUnpauseConfirm(false)}
+              disabled={unpauseContract.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={unpauseContract.isPending}
+              onClick={async () => {
+                try {
+                  await unpauseContract.mutateAsync();
+                  setShowUnpauseConfirm(false);
+                } catch (err) {
+                  console.error("Failed to unpause contract:", err);
+                }
+              }}
+            >
+              {unpauseContract.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Unpausing...
+                </>
+              ) : (
+                "Unpause Contract"
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

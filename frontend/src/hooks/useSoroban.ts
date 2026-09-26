@@ -637,3 +637,65 @@ export function useTokenMetadataBatch(contractIds: string[]) {
     staleTime: 1000 * 60 * 60 * 24,
   });
 }
+
+/**
+ * Hook to pause the contract (owner-only emergency control).
+ * Requires typed confirmation before execution.
+ */
+export function usePauseContract() {
+  const { address } = useWallet();
+
+  return useMutation({
+    mutationFn: async () => {
+      if (!address) throw new Error("Wallet not connected");
+
+      const args = [new Address(address).toScVal()];
+      return submitTransaction(address, "pause", args);
+    },
+    onMutate: () => {
+      const toastId = notify.loading("Pausing contract...");
+      return { toastId };
+    },
+    onSuccess: (data: any, _variables: any, context: any) => {
+      notify.success("Contract paused", {
+        id: context?.toastId,
+        hash: data?.hash,
+      });
+    },
+    onError: (error: any, _variables: any, context: any) => {
+      const mappedError = mapTransactionError(error);
+      notify.error(mappedError, { id: context?.toastId });
+    },
+  });
+}
+
+/**
+ * Hook to unpause the contract (owner-only).
+ * Requires typed confirmation before execution.
+ */
+export function useUnpauseContract() {
+  const { address } = useWallet();
+
+  return useMutation({
+    mutationFn: async () => {
+      if (!address) throw new Error("Wallet not connected");
+
+      const args = [new Address(address).toScVal()];
+      return submitTransaction(address, "unpause", args);
+    },
+    onMutate: () => {
+      const toastId = notify.loading("Unpausing contract...");
+      return { toastId };
+    },
+    onSuccess: (data: any, _variables: any, context: any) => {
+      notify.success("Contract unpaused", {
+        id: context?.toastId,
+        hash: data?.hash,
+      });
+    },
+    onError: (error: any, _variables: any, context: any) => {
+      const mappedError = mapTransactionError(error);
+      notify.error(mappedError, { id: context?.toastId });
+    },
+  });
+}

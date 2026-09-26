@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef, useCallback } from "react";
 import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Navbar } from "@/components/Navbar";
 import { AddressLink } from "@/components/AddressLink";
 import { Button } from "@/components/ui/button";
@@ -9,13 +10,16 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useEvents, useResolvedName } from "@/hooks/useSoroban";
 import { fromStroops } from "@/lib/soroban";
-import { Trophy } from "lucide-react";
+import { Trophy, ArrowDown, User } from "lucide-react";
+import { useWallet } from "@/lib/WalletProvider";
 
 /** How many on-chain events to aggregate the ranking from. */
 const EVENT_LIMIT = 200;
 
 /** Anonymous donations are recorded against the contract's zero placeholder. */
 const ZERO_ADDRESS = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
+
+type TimeRange = "all" | "monthly" | "weekly";
 
 interface DonorTotal {
   donor: string;
@@ -29,11 +33,27 @@ interface DonorTotal {
  * amount donated across all campaigns. Anonymous donations (the zero address)
  * are excluded so they can't occupy a rank.
  */
-function aggregateDonors(events: any[] | undefined): DonorTotal[] {
+function aggregateDonors(events: any[] | undefined, timeRange: TimeRange): DonorTotal[] {
   const totals = new Map<string, { total: bigint; donations: number; campaigns: Set<string> }>();
+
+  // Calculate time cutoff based on selected range
+  const now = Date.now();
+  let cutoffMs = 0;
+  if (timeRange === "weekly") {
+    cutoffMs = 7 * 24 * 60 * 60 * 1000;
+  } else if (timeRange === "monthly") {
+    cutoffMs = 30 * 24 * 60 * 60 * 1000;
+  }
+  const cutoff = cutoffMs > 0 ? now - cutoffMs : 0;
 
   for (const event of events ?? []) {
     if (event?.topic !== "received" || !event.data) continue;
+
+    // Filter by time range if not "all"
+    if (cutoff > 0 && event.timestamp) {
+      const eventTime = new Date(event.timestamp).getTime();
+      if (eventTime < cutoff) continue;
+    }
 
     const donor = event.data[1]?.toString();
     if (!donor || donor === ZERO_ADDRESS) continue;
@@ -83,16 +103,27 @@ function RankBadge({ rank }: { rank: number }) {
   );
 }
 
-function LeaderboardRow({ entry, rank }: { entry: DonorTotal; rank: number }) {
-  // Same resolver AddressLink uses — react-query dedupes the two calls, and it
-  // lets the row show a friendly name above the truncated address.
+function LeaderboardRow({
+  entry,
+  rank,
+  isCurrentUser,
+}: {
+  entry: DonorTotal;
+  rank: number;
+  isCurrentUser: boolean;
+}) {
   const { data: resolvedName } = useResolvedName(entry.donor);
 
   const donationLabel = `${entry.donations} donation${entry.donations === 1 ? "" : "s"}`;
   const campaignLabel = `${entry.campaigns} campaign${entry.campaigns === 1 ? "" : "s"}`;
 
   return (
-    <li className="flex items-center justify-between gap-4 px-4 py-3">
+    <li
+      id={`rank-${rank}`}
+      className={`flex items-center justify-between gap-4 px-4 py-3 ${
+        isCurrentUser ? "bg-primary/10 border-l-4 border-primary" : ""
+      }`}
+    >
       <div className="flex min-w-0 items-center gap-3">
         <RankBadge rank={rank} />
         <div className="min-w-0 space-y-0.5">
@@ -100,6 +131,9 @@ function LeaderboardRow({ entry, rank }: { entry: DonorTotal; rank: number }) {
             <p className="truncate text-sm font-medium text-foreground">{resolvedName}</p>
           )}
           <AddressLink address={entry.donor} className="text-xs text-muted-foreground" />
+          {isCurrentUser && (
+            <span className="text-xs text-primary font-medium">(You)</span>
+          )}
         </div>
       </div>
       <div className="shrink-0 text-right">
@@ -113,11 +147,34 @@ function LeaderboardRow({ entry, rank }: { entry: DonorTotal; rank: number }) {
 }
 
 export default function LeaderboardPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const { address } = useWallet();
   const { data: events, isLoading, isError } = useEvents(EVENT_LIMIT);
 
-  const donors = useMemo(() => aggregateDonors(events), [events]);
+  const timeRange = (searchParams.get("range") as TimeRange) || "all";
+
+  const donors = useMemo(() => aggregateDonors(events, timeRange), [events, timeRange]);
 
   const totalDonated = useMemo(() => donors.reduce((sum, d) => sum + d.total, 0n), [donors]);
+
+  const handleRangeChange = useCallback(
+    (range: TimeRange) => {
+      router.push(`/leaderboard?range=${range}`);
+    },
+    [router],
+  );
+
+  const scrollToMyRank = useCallback(() => {
+    if (!address) return;
+    const myIndex = donors.findIndex((d) => d.donor === address);
+    if (myIndex >= 0) {
+      const el = document.getElementById(`rank-${myIndex + 1}`);
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [address, donors]);
+
+  const myRank = address ? donors.findIndex((d) => d.donor === address) + 1 : null;
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -133,6 +190,33 @@ export default function LeaderboardPage() {
             Top supporters across every StellarGive campaign, ranked by total contribution.
             Anonymous donations aren&apos;t ranked.
           </p>
+        </div>
+
+        {/* Time Range Filter */}
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Time range:</span>
+          <div className="flex gap-1">
+            {([
+              { value: "all", label: "All Time" },
+              { value: "monthly", label: "Monthly" },
+              { value: "weekly", label: "Weekly" },
+            ] as const).map(({ value, label }) => (
+              <Button
+                key={value}
+                variant={timeRange === value ? "default" : "outline"}
+                size="sm"
+                onClick={() => handleRangeChange(value)}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+          {myRank && (
+            <Button variant="outline" size="sm" onClick={scrollToMyRank} className="ml-auto">
+              <ArrowDown className="w-4 h-4 mr-1.5" />
+              My Rank (#{myRank})
+            </Button>
+          )}
         </div>
 
         {isLoading ? (
@@ -167,12 +251,23 @@ export default function LeaderboardPage() {
                 <p className="text-muted-foreground">Total donated</p>
                 <p className="text-2xl font-bold tabular-nums">{fromStroops(totalDonated)} XLM</p>
               </div>
+              {myRank && (
+                <div>
+                  <p className="text-muted-foreground">Your rank</p>
+                  <p className="text-2xl font-bold tabular-nums text-primary">#{myRank}</p>
+                </div>
+              )}
             </div>
 
             <Card>
               <ol className="divide-y divide-border" aria-label="Donor leaderboard">
                 {donors.map((entry, index) => (
-                  <LeaderboardRow key={entry.donor} entry={entry} rank={index + 1} />
+                  <LeaderboardRow
+                    key={entry.donor}
+                    entry={entry}
+                    rank={index + 1}
+                    isCurrentUser={address ? entry.donor === address : false}
+                  />
                 ))}
               </ol>
             </Card>
