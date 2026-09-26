@@ -13,7 +13,7 @@ import { useCampaignSearch } from "@/hooks/useCampaignSearch";
 import { TokenSelector } from "@/components/TokenSelector";
 import { CategorySelector, CATEGORIES, type CategoryKey } from "@/components/CategorySelector";
 import { SortSelector, SORT_OPTIONS, type SortKey } from "@/components/SortSelector";
-import { Search, Compass, Loader2, AlertTriangle, RotateCw } from "lucide-react";
+import { Search, Compass, Loader2, AlertTriangle, RotateCw, LayoutGrid, List } from "lucide-react";
 import { CampaignSkeletonGrid } from "@/components/CampaignSkeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { Campaign } from "@/lib/soroban";
@@ -85,6 +85,7 @@ function ExploreContent() {
     return SORT_OPTIONS.some((o) => o.key === sort) ? (sort as SortKey) : "newest";
   });
   const [tokenFilter, setTokenFilter] = useState(() => searchParams.get("token") ?? "");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
   /** Ref to track the last search term synced to URL to prevent hydration from clobbering active typing */
   const lastSyncedSearchRef = useRef<string>(searchParams.get("q") ?? "");
@@ -119,6 +120,16 @@ function ExploreContent() {
   const { data, isLoading, isFetching, isError, refetch } = useCampaignsPaged(limit);
   const campaigns = data?.campaigns ?? EMPTY_CAMPAIGNS;
   const hasMore = data?.hasMore ?? false;
+
+  // Per-category campaign counts for the CategorySelector (#817).
+  const categoryCounts = useMemo(() => {
+    const counts: Partial<Record<CategoryKey, number>> = { all: campaigns.length };
+    for (const c of campaigns) {
+      const cat = (c.category || "uncategorized") as CategoryKey;
+      counts[cat] = (counts[cat] ?? 0) + 1;
+    }
+    return counts;
+  }, [campaigns]);
 
   // useCampaignsPaged keeps the previous page as placeholderData, so a fetch is
   // either "growing the list" (limit went up — append skeletons) or "refreshing
@@ -317,7 +328,11 @@ function ExploreContent() {
             />
           </div>
           <div className="w-full sm:w-auto min-w-[160px]">
-            <CategorySelector value={categoryFilter} onChange={setCategoryFilter} />
+            <CategorySelector
+              value={categoryFilter}
+              onChange={setCategoryFilter}
+              counts={categoryCounts}
+            />
           </div>
           <div className="w-full sm:w-auto min-w-[160px]">
             <TokenSelector
@@ -329,6 +344,34 @@ function ExploreContent() {
           </div>
           <div className="w-full sm:w-auto min-w-[160px]">
             <SortSelector value={sortBy} onChange={setSortBy} />
+          </div>
+          <div className="flex items-center gap-1 border rounded-md p-0.5">
+            <button
+              type="button"
+              onClick={() => setViewMode("grid")}
+              aria-label="Grid view"
+              aria-pressed={viewMode === "grid"}
+              className={`p-1.5 rounded transition-colors ${
+                viewMode === "grid"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("list")}
+              aria-label="List view"
+              aria-pressed={viewMode === "list"}
+              className={`p-1.5 rounded transition-colors ${
+                viewMode === "list"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <List className="h-4 w-4" />
+            </button>
           </div>
         </div>
 
@@ -427,8 +470,12 @@ function ExploreContent() {
                 </div>
               )}
               <div
-                className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 transition-opacity duration-200 ${
+                className={`transition-opacity duration-200 ${
                   isRefreshing ? "opacity-50" : "opacity-100"
+                } ${
+                  viewMode === "grid"
+                    ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                    : "flex flex-col gap-4"
                 }`}
                 aria-busy={isRefreshing}
               >
