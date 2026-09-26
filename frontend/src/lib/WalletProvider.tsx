@@ -3,8 +3,10 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { isConnected, getAddress, setAllowed, getNetwork } from "@stellar/freighter-api";
 import * as Sentry from "@sentry/nextjs";
+import { notify } from "@/lib/toast";
 
 const APP_NETWORK_PASSPHRASE = process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE!;
+export const WALLET_CONNECTED_KEY = "stellargive:wallet-previously-connected";
 
 interface WalletContextType {
   address: string | null;
@@ -47,14 +49,25 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const checkConnection = async () => {
-      const connected = await isConnected();
-      if (connected && connected.isConnected) {
-        const result = await getAddress();
-        if (result && "address" in result) {
-          setAddress(result.address);
-          setIsWalletConnected(true);
-          fetchWalletNetwork();
+      try {
+        const connected = await isConnected();
+        if (connected && connected.isConnected) {
+          const result = await getAddress();
+          if (result && "address" in result) {
+            setAddress(result.address);
+            setIsWalletConnected(true);
+            fetchWalletNetwork();
+
+            const wasConnected = localStorage.getItem(WALLET_CONNECTED_KEY) === "true";
+            if (wasConnected) {
+              notify.info("Wallet reconnected");
+            } else {
+              localStorage.setItem(WALLET_CONNECTED_KEY, "true");
+            }
+          }
         }
+      } catch {
+        // ignore
       }
     };
     checkConnection();
@@ -86,6 +99,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           setAddress(result.address);
           setIsWalletConnected(true);
           fetchWalletNetwork();
+          localStorage.setItem(WALLET_CONNECTED_KEY, "true");
         }
       }
     } catch (e) {
