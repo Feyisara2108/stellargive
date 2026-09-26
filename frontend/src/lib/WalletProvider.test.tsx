@@ -5,6 +5,17 @@ import * as freighterApi from "@stellar/freighter-api";
 import React from "react";
 import userEvent from "@testing-library/user-event";
 
+const notifyMock = vi.hoisted(() => ({
+  info: vi.fn(),
+  success: vi.fn(),
+  error: vi.fn(),
+  loading: vi.fn(),
+}));
+
+vi.mock("@/lib/toast", () => ({
+  notify: notifyMock,
+}));
+
 vi.mock("@stellar/freighter-api", () => ({
   isConnected: vi.fn(),
   getAddress: vi.fn(),
@@ -400,6 +411,63 @@ describe("WalletProvider", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
       expect(screen.getByTestId("address")).toHaveTextContent("none");
       expect(screen.getByTestId("is-connected")).toHaveTextContent("false");
+    });
+  });
+
+  describe("auto-reconnect toast", () => {
+    it("shows a reconnect toast when auto-connecting a previously connected wallet", async () => {
+      localStorage.setItem("stellargive:wallet-previously-connected", "true");
+      vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: true });
+      vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "G12345" });
+
+      render(
+        <WalletProvider>
+          <TestComponent />
+        </WalletProvider>,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId("is-connected")).toHaveTextContent("true");
+        expect(notifyMock.info).toHaveBeenCalledWith("Wallet reconnected");
+      });
+    });
+
+    it("suppresses the reconnect toast on the first ever connection", async () => {
+      localStorage.removeItem("stellargive:wallet-previously-connected");
+      vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: true });
+      vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "G12345" });
+
+      render(
+        <WalletProvider>
+          <TestComponent />
+        </WalletProvider>,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId("is-connected")).toHaveTextContent("true");
+      });
+      expect(notifyMock.info).not.toHaveBeenCalled();
+    });
+
+    it("does not trigger auto-reconnect toast on manual disconnect", async () => {
+      const user = userEvent.setup();
+      localStorage.setItem("stellargive:wallet-previously-connected", "true");
+      vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: true });
+      vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "G12345" });
+
+      render(
+        <WalletProvider>
+          <TestComponent />
+        </WalletProvider>,
+      );
+
+      await waitFor(() => expect(screen.getByTestId("is-connected")).toHaveTextContent("true"));
+      notifyMock.info.mockClear();
+
+      await user.click(screen.getByTestId("btn-disconnect"));
+      await waitFor(() => expect(screen.getByTestId("is-connected")).toHaveTextContent("false"));
+
+      expect(notifyMock.info).not.toHaveBeenCalled();
     });
   });
 });
