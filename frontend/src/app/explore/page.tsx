@@ -50,6 +50,15 @@ function sortCampaigns(campaigns: Campaign[], sortBy: SortKey): Campaign[] {
     }
     case "most-raised":
       return sorted.sort((a, b) => Number(b.raised_amount) - Number(a.raised_amount));
+    case "trending": {
+      const now = Date.now() / 1000;
+      const trendingScore = (c: Campaign) => {
+        const progress = c.target_amount === 0n ? 0 : Number(c.raised_amount) / Number(c.target_amount);
+        const daysLeft = Math.max((Number(c.deadline) - now) / 86400, 0.1);
+        return progress / daysLeft;
+      };
+      return sorted.sort((a, b) => trendingScore(b) - trendingScore(a));
+    }
     default:
       return sorted;
   }
