@@ -347,6 +347,8 @@ describe("Integration: refund flow (donate -> cancel -> refund)", () => {
     );
 
     fireEvent.click(claimRefundBtn);
+    // Refunds now require confirming the dialog before signing.
+    fireEvent.click(await screen.findByRole("button", { name: /Confirm refund/i }));
 
     // Button transitions to pending state with loading spinner & disabled
     await waitFor(() => {
@@ -500,6 +502,7 @@ describe("Integration: refund flow (donate -> cancel -> refund)", () => {
       expect(claimBtn).toBeEnabled();
 
       fireEvent.click(claimBtn);
+      fireEvent.click(await screen.findByRole("button", { name: /Confirm refund/i }));
 
       // Verifies mapped error toast is surfaced
       await waitFor(() => {
