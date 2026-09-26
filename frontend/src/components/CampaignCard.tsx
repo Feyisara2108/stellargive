@@ -1,9 +1,11 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import Image from "next/image";
-import { Campaign } from "@/lib/soroban";
+import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { Campaign, getCampaign } from "@/lib/soroban";
 import { formatTokenAmount, formatUSD } from "@/utils/format";
 import { useTokenMetadata, useXlmPrice } from "@/hooks/useSoroban";
 import { calculateProgress, getCampaignImageUrl, CAMPAIGN_IMAGE_BLUR_DATA_URL } from "@/lib/utils";
@@ -28,6 +30,10 @@ import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
+// Prefetch debounce timer map (shared across all card instances)
+const prefetchTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const PREFETCH_DEBOUNCE_MS = 150;
+
 function CampaignCardComponent({
   campaign,
   preloadedTokenMeta,
@@ -41,6 +47,36 @@ function CampaignCardComponent({
   const [donateOpen, setDonateOpen] = useState(false);
   const [donateAmount, setDonateAmount] = useState<string | undefined>(undefined);
   const [showUSD, setShowUSD] = useState(false);
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const prefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const campaignId = campaign.id.toString();
+  // Prefetch campaign route and data on hover/focus (#834)
+  const prefetchCampaign = useCallback(() => {
+    // Cancel any pending prefetch for this campaign
+    if (prefetchTimerRef.current) {
+      clearTimeout(prefetchTimerRef.current);
+    }
+
+    prefetchTimerRef.current = setTimeout(() => {
+      // Prefetch the route
+      router.prefetch(detailHref);
+
+      // Prefetch the campaign data query
+      queryClient.prefetchQuery({
+        queryKey: ["campaign", campaignId],
+        queryFn: () => getCampaign(campaign.id),
+        staleTime: 30_000,
+      });
+    }, PREFETCH_DEBOUNCE_MS);
+  }, [router, queryClient, detailHref, campaignId, campaign.id]);
+
+  const cancelPrefetch = useCallback(() => {
+    if (prefetchTimerRef.current) {
+      clearTimeout(prefetchTimerRef.current);
+      prefetchTimerRef.current = null;
+    }
+  }, []);
   const { data: xlmPrice } = useXlmPrice();
   const { data: fetchedMeta, isLoading: isMetaLoading } = useTokenMetadata(
     preloadedTokenMeta ? null : campaign.accepted_token,
@@ -81,6 +117,10 @@ function CampaignCardComponent({
       className={`flex flex-col group hover:border-primary/50 transition-all duration-300 overflow-hidden${
         isExpired ? " grayscale opacity-90" : ""
       }`}
+      onMouseEnter={prefetchCampaign}
+      onFocus={prefetchCampaign}
+      onMouseLeave={cancelPrefetch}
+      onBlur={cancelPrefetch}
     >
       <div className="relative aspect-video w-full bg-muted flex items-center justify-center overflow-hidden">
         {getCampaignImageUrl(campaign.metadata_uri) && !imgError ? (
