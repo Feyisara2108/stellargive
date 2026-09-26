@@ -37,49 +37,53 @@ describe("CategorySelector", () => {
     expect(screen.getAllByText(/medical/i).length).toBeGreaterThan(0);
   });
 
-  it("toggles dropdown visibility on main button click", () => {
+  it("does not render the redundant dropdown button", () => {
     render(<CategorySelector {...defaultProps} />);
 
-    const toggleButton = screen.getByRole("button", { name: /all categories/i });
-    expect(screen.queryByRole("button", { name: /^medical$/i })).not.toBeInTheDocument();
-
-    // Click to open
-    fireEvent.click(toggleButton);
-    expect(screen.getByRole("button", { name: /^medical$/i })).toBeInTheDocument();
-
-    // Click to close
-    fireEvent.click(toggleButton);
-    expect(screen.queryByRole("button", { name: /^medical$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /all categories/i })).not.toBeInTheDocument();
   });
 
-  it("calls onChange callback and closes dropdown when an option is selected", () => {
+  it("calls onChange callback when mobile select option changes", () => {
     const handleChange = vi.fn();
     render(<CategorySelector value="all" onChange={handleChange} />);
 
-    const toggleButton = screen.getByRole("button", { name: /all categories/i });
-    fireEvent.click(toggleButton);
-
-    const medicalOption = screen.getByRole("button", { name: /^medical$/i });
-    fireEvent.click(medicalOption);
+    const select = screen.getByLabelText("Select Category");
+    fireEvent.change(select, { target: { value: "medical" } });
 
     expect(handleChange).toHaveBeenCalledWith("medical");
-    expect(screen.queryByRole("button", { name: /^medical$/i })).not.toBeInTheDocument();
   });
 
-  it("closes dropdown when clicking outside of component container", () => {
-    render(
-      <div>
-        <div data-testid="outside-element">Outside</div>
-        <CategorySelector {...defaultProps} />
-      </div>,
-    );
+  it("calls onChange callback when a desktop tab is clicked", () => {
+    const handleChange = vi.fn();
+    render(<CategorySelector value="all" onChange={handleChange} />);
 
-    const toggleButton = screen.getByRole("button", { name: /all categories/i });
-    fireEvent.click(toggleButton);
-    expect(screen.getByRole("button", { name: /^medical$/i })).toBeInTheDocument();
+    const medicalTab = screen.getByRole("tab", { name: "Medical" });
+    fireEvent.click(medicalTab);
 
-    // Trigger mousedown outside
-    fireEvent.mouseDown(screen.getByTestId("outside-element"));
-    expect(screen.queryByRole("button", { name: /^medical$/i })).not.toBeInTheDocument();
+    expect(handleChange).toHaveBeenCalledWith("medical");
+  });
+
+  it("reflects selected state via aria-selected on desktop tabs", () => {
+    const { rerender } = render(<CategorySelector {...defaultProps} value="medical" />);
+
+    const medicalTab = screen.getByRole("tab", { name: "Medical" });
+    expect(medicalTab).toHaveAttribute("aria-selected", "true");
+
+    const allTab = screen.getByRole("tab", { name: "All Categories" });
+    expect(allTab).toHaveAttribute("aria-selected", "false");
+
+    rerender(<CategorySelector {...defaultProps} value="education" />);
+    expect(medicalTab).toHaveAttribute("aria-selected", "false");
+    expect(screen.getByRole("tab", { name: "Education" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("renders all categories in both mobile select options and desktop tabs", () => {
+    render(<CategorySelector {...defaultProps} />);
+
+    const tabs = screen.getAllByRole("tab");
+    expect(tabs).toHaveLength(CATEGORIES.length);
+
+    const select = screen.getByLabelText("Select Category") as HTMLSelectElement;
+    expect(select.options).toHaveLength(CATEGORIES.length);
   });
 });

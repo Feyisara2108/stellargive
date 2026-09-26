@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
-import { Button } from "@/components/ui/button";
+import React from "react";
 import { Label } from "@/components/ui/label";
-import { Check, ChevronDown, Folder } from "lucide-react";
+import { Folder } from "lucide-react";
 
 export const CATEGORIES = [
   "all",
@@ -24,35 +23,14 @@ interface CategorySelectorProps {
 }
 
 export function CategorySelector({ value, onChange, label }: CategorySelectorProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  // Close when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const handleSelect = (category: CategoryKey) => {
-    onChange(category);
-    setIsOpen(false);
-  };
-
   const getCategoryLabel = (cat: CategoryKey) => {
     if (cat === "all") return "All Categories";
     if (cat === "uncategorized") return "Uncategorized";
     return cat.charAt(0).toUpperCase() + cat.slice(1);
   };
 
-  const selectedDisplay = getCategoryLabel(value);
-
   return (
-    <div className="space-y-2" ref={containerRef}>
+    <div className="space-y-2">
       <Label>{label ?? "Category"}</Label>
 
       {/* Mobile compact select dropdown (< md viewports) */}
@@ -100,40 +78,6 @@ export function CategorySelector({ value, onChange, label }: CategorySelectorPro
             </button>
           );
         })}
-      </div>
-
-      {/* Dropdown component container maintained for dropdown button interaction */}
-      <div className="relative hidden sm:block md:hidden">
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full justify-between bg-background border-border hover:bg-accent hover:text-accent-foreground text-left font-normal"
-          onClick={() => setIsOpen(!isOpen)}
-        >
-          <span className="flex items-center gap-2">
-            <Folder className="h-4 w-4 text-primary" />
-            <span className="font-medium text-foreground capitalize">{selectedDisplay}</span>
-          </span>
-          <ChevronDown className="h-4 w-4 opacity-50" />
-        </Button>
-
-        {isOpen && (
-          <div className="absolute left-0 mt-1 w-full rounded-md border border-border bg-popover text-popover-foreground shadow-md z-50 p-2">
-            <div className="space-y-1">
-              {CATEGORIES.map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => handleSelect(cat)}
-                  className="w-full flex items-center justify-between px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground transition-colors capitalize"
-                >
-                  <span className="font-medium text-left">{getCategoryLabel(cat)}</span>
-                  {value === cat && <Check className="h-4 w-4 text-primary" />}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

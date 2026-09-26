@@ -63,43 +63,6 @@ export default function Home() {
           </div>
         </section>
       </main>
-
-      {/* Footer */}
-      <footer className="border-t py-12 bg-muted/30">
-        <div className="container flex flex-col md:flex-row justify-between items-center gap-8 text-sm text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <Heart className="w-4 h-4" />
-            <span>Built on Stellar Testnet for the community.</span>
-          </div>
-          <div className="flex gap-8">
-            <a
-              href="https://github.com/razeprasine/stellargive#readme"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-foreground transition-colors"
-            >
-              Documentation
-            </a>
-            <a
-              href="https://github.com/razeprasine/stellargive#contracts"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-foreground transition-colors"
-            >
-              Contracts
-            </a>
-            <a
-              href="https://github.com/razeprasine/stellargive"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-foreground transition-colors"
-            >
-              GitHub
-            </a>
-          </div>
-          <p>© {new Date().getFullYear()} stellarGive. Open source relief.</p>
-        </div>
-      </footer>
     </div>
   );
 }

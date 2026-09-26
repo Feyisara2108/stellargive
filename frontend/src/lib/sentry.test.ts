@@ -12,6 +12,9 @@ import {
   captureTransactionError,
   captureUnexpectedError,
   captureRouteError,
+  initAnalytics,
+  setAnalyticsConsent,
+  hasAnalyticsConsent,
 } from "./sentry";
 
 const CONSENT_KEY = "stellargive_analytics_consent";
@@ -47,17 +50,20 @@ describe("consent gating", () => {
     expect(sentry.captureException).not.toHaveBeenCalled();
   });
 
-  it.each(capturers)("%s reports with its feature tag once consent is accepted", (_, capture, feature) => {
-    localStorage.setItem(CONSENT_KEY, "accepted");
-    const error = new Error("boom");
+  it.each(capturers)(
+    "%s reports with its feature tag once consent is accepted",
+    (_, capture, feature) => {
+      localStorage.setItem(CONSENT_KEY, "accepted");
+      const error = new Error("boom");
 
-    capture(error, { campaignId: "1" });
+      capture(error, { campaignId: "1" });
 
-    expect(sentry.captureException).toHaveBeenCalledWith(error, {
-      tags: { feature },
-      extra: { campaignId: "1" },
-    });
-  });
+      expect(sentry.captureException).toHaveBeenCalledWith(error, {
+        tags: { feature },
+        extra: { campaignId: "1" },
+      });
+    },
+  );
 });
 
 describe("expected user errors", () => {
@@ -71,6 +77,66 @@ describe("expected user errors", () => {
       expect(sentry.captureException).not.toHaveBeenCalled();
     },
   );
+});
+
+describe("client-side analytics initialization", () => {
+  it("does not call Sentry.init when consent has not been granted", () => {
+    initAnalytics();
+    expect(sentry.init).not.toHaveBeenCalled();
+  });
+
+  it("does not call Sentry.init when consent was declined", () => {
+    localStorage.setItem(CONSENT_KEY, "declined");
+    initAnalytics();
+    expect(sentry.init).not.toHaveBeenCalled();
+  });
+
+  it("calls Sentry.init immediately when consent is accepted", () => {
+    localStorage.setItem(CONSENT_KEY, "accepted");
+    initAnalytics();
+    expect(sentry.init).toHaveBeenCalledTimes(1);
+  });
+
+  it("works with stellargive_consent key", () => {
+    localStorage.setItem("stellargive_consent", "accepted");
+    initAnalytics();
+    expect(sentry.init).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("preference changes take effect dynamically", () => {
+  it("respects later revocation of consent", () => {
+    localStorage.setItem(CONSENT_KEY, "accepted");
+    captureRpcError(new Error("err1"));
+    expect(sentry.captureException).toHaveBeenCalledTimes(1);
+
+    // Later change preference to declined
+    localStorage.setItem(CONSENT_KEY, "declined");
+    captureRpcError(new Error("err2"));
+    expect(sentry.captureException).toHaveBeenCalledTimes(1);
+  });
+
+  it("respects later granting of consent", () => {
+    localStorage.setItem(CONSENT_KEY, "declined");
+    captureRpcError(new Error("err1"));
+    expect(sentry.captureException).not.toHaveBeenCalled();
+
+    // Later change preference to accepted
+    localStorage.setItem(CONSENT_KEY, "accepted");
+    captureRpcError(new Error("err2"));
+    expect(sentry.captureException).toHaveBeenCalledTimes(1);
+  });
+
+  it("setAnalyticsConsent updates preferences and inits on accept", () => {
+    setAnalyticsConsent("accepted");
+    expect(localStorage.getItem("stellargive_consent")).toBe("accepted");
+    expect(localStorage.getItem("stellargive_analytics_consent")).toBe("accepted");
+    expect(sentry.init).toHaveBeenCalledTimes(1);
+
+    setAnalyticsConsent("declined");
+    expect(localStorage.getItem("stellargive_consent")).toBe("declined");
+    expect(localStorage.getItem("stellargive_analytics_consent")).toBe("declined");
+  });
 });
 
 describe("client initialization", () => {
