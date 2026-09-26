@@ -11,36 +11,44 @@ export const FREIGHTER_NETWORK_GUIDE_URL =
 /** Dismissal is remembered per wallet network, so landing on a different wrong network re-shows the banner. */
 export const dismissKey = (network: string) => `network-banner-dismissed:${network}`;
 
-function isDismissedFor(network: string) {
-  try {
-    return sessionStorage.getItem(dismissKey(network)) === "true";
-  } catch {
-    return false;
-  }
-}
-
-const DISMISSAL_KEY_PREFIX = "network-banner-dismissed";
-
-function dismissalKey(network: string) {
-  return `${DISMISSAL_KEY_PREFIX}:${network}`;
-}
-
 export function NetworkMismatchBanner() {
   const { isWrongNetwork, walletNetwork } = useWallet();
+  const [showManualSteps, setShowManualSteps] = useState(false);
   const [checked, setChecked] = useState<{ network: string | null; dismissed: boolean } | null>(
     null,
   );
 
   useEffect(() => {
-    const dismissed =
-      walletNetwork !== null && sessionStorage.getItem(dismissalKey(walletNetwork)) === "true";
+    let dismissed = false;
+    if (walletNetwork !== null) {
+      try {
+        dismissed = sessionStorage.getItem(dismissKey(walletNetwork)) === "true";
+      } catch {
+        dismissed = false;
+      }
+    }
     setChecked({ network: walletNetwork, dismissed });
   }, [walletNetwork]);
 
   const handleDismiss = () => {
     if (walletNetwork === null) return;
-    sessionStorage.setItem(dismissalKey(walletNetwork), "true");
+    try {
+      sessionStorage.setItem(dismissKey(walletNetwork), "true");
+    } catch {
+      // sessionStorage may be unavailable (e.g. private browsing quota exceeded).
+    }
     setChecked({ network: walletNetwork, dismissed: true });
+  };
+
+  const handleSwitch = () => {
+    const opened = window.open(FREIGHTER_NETWORK_GUIDE_URL, "_blank");
+    if (opened) {
+      // Sever the opener reference for security (noopener).
+      opened.opener = null;
+    } else {
+      // Popup was blocked — show inline manual steps instead.
+      setShowManualSteps(true);
+    }
   };
 
   if (
