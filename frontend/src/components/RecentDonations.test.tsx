@@ -290,3 +290,29 @@ describe("RecentDonations — load more pagination", () => {
     expect(screen.getByRole("button", { name: /load more/i })).toBeInTheDocument();
   });
 });
+
+describe("RecentDonations — dedication messages", () => {
+  it("renders the message when present, sanitized", () => {
+    const event = makeDonationEvent("0-1", REAL_DONOR, 50_000_000n, CAMPAIGN_ID);
+    event.data = [...event.data, "<b>Stay strong</b><script>alert(1)</script>"];
+    vi.mocked(useEvents).mockReturnValue({
+      data: [event],
+      isLoading: false,
+      isError: false,
+    } as any);
+    const { container } = render(<RecentDonations campaignId={CAMPAIGN_ID} />);
+    expect(screen.getByText(/Stay strong/)).toBeInTheDocument();
+    expect(container.querySelector("script")).toBeNull();
+    expect(container.querySelector("b")).toBeNull();
+  });
+
+  it("renders donations without a message unchanged", () => {
+    vi.mocked(useEvents).mockReturnValue({
+      data: [makeDonationEvent("0-1", REAL_DONOR, 50_000_000n, CAMPAIGN_ID)],
+      isLoading: false,
+      isError: false,
+    } as any);
+    const { container } = render(<RecentDonations campaignId={CAMPAIGN_ID} />);
+    expect(container.querySelector("p.italic")).toBeNull();
+  });
+});

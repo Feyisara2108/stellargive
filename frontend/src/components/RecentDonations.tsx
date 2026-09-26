@@ -9,9 +9,16 @@ import { Button } from "@/components/ui/button";
 import { Heart, ArrowUpRight, RotateCcw, HeartHandshake } from "lucide-react";
 import { AddressLink } from "@/components/AddressLink";
 import { RelativeTime } from "@/components/RelativeTime";
+import { sanitizeMessage } from "@/lib/sanitize";
 
 const INITIAL_BATCH_SIZE = 10;
 const BATCH_SIZE = 10;
+
+/** Reads the optional dedication (`data[5]`) from a `received` event payload. */
+function getDonationMessage(data: any): string {
+  const raw = Array.isArray(data) ? data[5] : undefined;
+  return typeof raw === "string" ? sanitizeMessage(raw) : "";
+}
 
 export function RecentDonations({
   campaignId,
@@ -124,6 +131,7 @@ export function RecentDonations({
           <div className="space-y-4">
             {visibleDonations.map((event: any) => {
               const donorAddress = normalizeDonorAddress(event.data[1]);
+              const message = getDonationMessage(event.data);
               return (
                 <div
                   key={event.id}
@@ -142,6 +150,11 @@ export function RecentDonations({
                         <span className="font-medium text-muted-foreground">Anonymous</span>
                       )}
                     </p>
+                    {message && (
+                      <p className="text-xs italic text-foreground/80 mt-0.5 break-words">
+                        &ldquo;{message}&rdquo;
+                      </p>
+                    )}
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {event.createdAt ? (
                         <RelativeTime

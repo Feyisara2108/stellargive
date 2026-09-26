@@ -1,0 +1,113 @@
+name: Nightly E2E
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      preview_url:
+        description: "Preview environment URL to test (defaults to the E2E_PREVIEW_URL repository variable)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-e2e
+  cancel-in-progress: false
+
+jobs:
+  e2e:
+    name: Nightly Playwright run
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      issues: write
+    env:
+      # When empty, Playwright starts the local dev server instead.
+      E2E_BASE_URL: ${{ inputs.preview_url || vars.E2E_PREVIEW_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1 # v4.2.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7 # v4.0.2
+        with:
+          node-version-file: frontend/.nvmrc
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        working-directory: frontend
+        run: npx playwright test --project=desktop --project=mobile --trace=retain-on-failure
+
+      - name: Upload failure artifacts (traces, screenshots, report)
+        if: failure()
+        uses: actions/upload-artifact@v7.0.1 # v4.3.0
+        with:
+          name: nightly-e2e-failure-${{ github.run_id }}
+          path: |
+            frontend/test-results/
+            frontend/playwright-report/
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Open or update failure issue
+        if: failure()
+        uses: actions/github-script@v9.0.0 # v7.0.1
+        with:
+          script: |
+            const label = "nightly-e2e";
+            const title = "Nightly E2E run is failing";
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const target = process.env.E2E_BASE_URL || "local dev server";
+            const body = [
+              `The nightly Playwright run failed on ${new Date().toISOString().slice(0, 10)}.`,
+              "",
+              `- Run: ${runUrl}`,
+              `- Commit: ${context.sha}`,
+              `- Target: ${target}`,
+              "",
+              "Traces and screenshots are attached to the run as the `nightly-e2e-failure-" + context.runId + "` artifact.",
+            ].join("\n");
+
+            try {
+              await github.rest.issues.createLabel({
+                ...context.repo,
+                name: label,
+                color: "d93f0b",
+                description: "Tracks failures of the nightly E2E run",
+              });
+            } catch (e) {
+              // Label already exists.
+            }
+
+            const { data: open } = await github.rest.issues.listForRepo({
+              ...context.repo,
+              labels: label,
+              state: "open",
+              per_page: 1,
+            });
+
+            if (open.length > 0) {
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number: open[0].number,
+                body,
+              });
+            } else {
+              await github.rest.issues.create({
+                ...context.repo,
+                title,
+                body,
+                labels: [label],
+              });
+            }

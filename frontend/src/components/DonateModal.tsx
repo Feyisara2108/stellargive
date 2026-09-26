@@ -33,6 +33,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { DEDICATION_MAX_LENGTH, sanitizeMessage } from "@/lib/sanitize";
 
 const FIRED_MILESTONES = new Set<string>();
 const milestoneKey = (campaignId: bigint, m: MilestonePercent) => `${campaignId.toString()}:${m}`;
@@ -115,6 +116,7 @@ export function DonateModal({
   const formatNum = (num: number) => num.toFixed(decimals).replace(/\.?0+$/, "") || "0";
 
   const [isAnonymous, setIsAnonymous] = useState(false);
+  const [message, setMessage] = useState("");
   const [internalOpen, setInternalOpen] = useState(false);
   const isControlled = openProp !== undefined;
   const isOpen = isControlled ? !!openProp : internalOpen;
@@ -187,6 +189,7 @@ export function DonateModal({
         amount: data.amount,
         isAnonymous,
         decimals,
+        message: sanitizeMessage(message) || undefined,
       });
       try {
         const beforeStroops = campaign.raised_amount;
@@ -229,6 +232,7 @@ export function DonateModal({
       setIsOpen(false);
       setValue("amount", "");
       setIsAnonymous(false);
+      setMessage("");
     } catch (e: any) {
       console.error(e);
       const inlineMsg = mapOnChainError(e);
@@ -450,6 +454,28 @@ export function DonateModal({
                 Hides your address in the public event feed and leaderboard. Ledger records will
                 still show the transfer.
               </p>
+            </div>
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="dedication">Dedication message (optional)</Label>
+                <span
+                  id="dedication-counter"
+                  className="text-xs text-muted-foreground"
+                  aria-live="polite"
+                >
+                  {message.length}/{DEDICATION_MAX_LENGTH}
+                </span>
+              </div>
+              <Input
+                id="dedication"
+                autoComplete="off"
+                maxLength={DEDICATION_MAX_LENGTH}
+                placeholder="In memory of…"
+                aria-describedby="dedication-counter"
+                value={message}
+                onChange={(e) => setMessage(e.target.value.slice(0, DEDICATION_MAX_LENGTH))}
+                disabled={donate.isPending}
+              />
             </div>
           </div>
           {/* Fee estimate row — always occupies space so GasWarning arrival

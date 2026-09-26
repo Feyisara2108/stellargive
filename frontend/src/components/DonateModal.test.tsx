@@ -133,6 +133,52 @@ describe("DonateModal", () => {
     });
   });
 
+  describe("dedication message", () => {
+    it("shows a live counter and enforces the 140 character limit", async () => {
+      render(<DonateModal campaign={baseCampaign} />);
+      fireEvent.click(screen.getByRole("button", { name: /Donate Now/i }));
+
+      const input = await screen.findByLabelText(/Dedication message/i);
+      expect(input).toHaveAttribute("maxlength", "140");
+      expect(screen.getByText("0/140")).toBeInTheDocument();
+
+      fireEvent.change(input, { target: { value: "y".repeat(200) } });
+      expect((input as HTMLInputElement).value).toHaveLength(140);
+      expect(screen.getByText("140/140")).toBeInTheDocument();
+    });
+
+    it("sends the sanitized message with the donation", async () => {
+      render(<DonateModal campaign={baseCampaign} />);
+      fireEvent.click(screen.getByRole("button", { name: /Donate Now/i }));
+
+      fireEvent.change(await screen.findByLabelText(/^Amount/i), { target: { value: "10" } });
+      fireEvent.change(screen.getByLabelText(/Dedication message/i), {
+        target: { value: "<b>For Ada</b><script>alert(1)</script>" },
+      });
+      const confirmBtn = screen.getByRole("button", { name: /Confirm Donation/i });
+      await waitFor(() => expect(confirmBtn).toBeEnabled());
+      fireEvent.click(confirmBtn);
+
+      await waitFor(() => expect(donateState.mutateAsync).toHaveBeenCalledTimes(1));
+      expect(donateState.mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "For Ada" }),
+      );
+    });
+
+    it("omits the message when the field is left empty", async () => {
+      render(<DonateModal campaign={baseCampaign} />);
+      fireEvent.click(screen.getByRole("button", { name: /Donate Now/i }));
+
+      fireEvent.change(await screen.findByLabelText(/^Amount/i), { target: { value: "10" } });
+      const confirmBtn = screen.getByRole("button", { name: /Confirm Donation/i });
+      await waitFor(() => expect(confirmBtn).toBeEnabled());
+      fireEvent.click(confirmBtn);
+
+      await waitFor(() => expect(donateState.mutateAsync).toHaveBeenCalledTimes(1));
+      expect(donateState.mutateAsync.mock.calls[0][0].message).toBeUndefined();
+    });
+  });
+
   describe("mutation error state", () => {
     afterEach(() => {
       vi.restoreAllMocks();
