@@ -65,12 +65,16 @@ const mockClaim = (overrides: Partial<MockClaimReturn> = {}): MockClaimReturn =>
 });
 
 beforeEach(() => {
-  vi.mocked(useWallet).mockReturnValue({ address: CREATOR } as any);
+  // Default to the beneficiary: only the beneficiary sees the interactive
+  // claim button. Creators get a disabled "only the beneficiary can claim"
+  // variant, so creator-specific tests set the wallet explicitly.
+  vi.mocked(useWallet).mockReturnValue({ address: BENEFICIARY } as any);
   vi.mocked(useClaimFunds).mockReturnValue(mockClaim() as any);
 });
 
 describe("ClaimButton — visibility", () => {
   it("renders 'Claim Funds' button for the campaign creator", () => {
+    vi.mocked(useWallet).mockReturnValue({ address: CREATOR } as any);
     render(<ClaimButton campaign={baseCampaign} />);
     expect(screen.getByRole("button", { name: /Claim Funds/i })).toBeInTheDocument();
   });

@@ -138,6 +138,30 @@ export function Footer() {
           >
             Explorer
           </a>
+          <a
+            href="https://github.com/Feyisara2108/stellargive#readme"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-foreground transition-colors"
+          >
+            Documentation
+          </a>
+          <a
+            href="https://github.com/Feyisara2108/stellargive#contracts"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-foreground transition-colors"
+          >
+            Contracts
+          </a>
+          <a
+            href="https://github.com/Feyisara2108/stellargive"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-foreground transition-colors"
+          >
+            GitHub
+          </a>
         </nav>
       </div>
     </footer>

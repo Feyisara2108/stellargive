@@ -215,17 +215,17 @@ export default function ProfilePage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <StatCard
                 icon={<TrendingUp className="h-4 w-4 text-blue-500" />}
-                label="Total Raised (created)"
+                title="Total Raised (created)"
                 value={`${formatTokenAmount(totalRaised, 7)} XLM`}
               />
               <StatCard
                 icon={<HandCoins className="h-4 w-4 text-green-500" />}
-                label="Total Donated"
+                title="Total Donated"
                 value={`${formatTokenAmount(totalDonated, 7)} XLM`}
               />
               <StatCard
                 icon={<Megaphone className="h-4 w-4 text-purple-500" />}
-                label="Active Campaigns"
+                title="Active Campaigns"
                 value={activeCount.toString()}
               />
             </div>

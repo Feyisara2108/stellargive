@@ -78,7 +78,7 @@ function makeRawEvent(id: string, topicSymbol: string) {
     type: "contract",
     ledger: 123000,
     ledgerClosedAt: "2024-01-01T00:00:00Z",
-    contractId: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+    contractId: "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
     id,
     pagingToken: id,
     topic: [encodeSymbol("campaign"), encodeSymbol(topicSymbol)],
@@ -310,11 +310,7 @@ describe("useSoroban", () => {
       const { result } = renderHook(() => useEvents(20), { wrapper: Wrapper });
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-      expect(result.current.data?.map((e) => e.topic)).toEqual([
-        "created",
-        "received",
-        "claimed",
-      ]);
+      expect(result.current.data?.map((e) => e.topic)).toEqual(["created", "received", "claimed"]);
       expect(result.current.data?.map((e) => e.id)).toEqual(["0-1", "0-2", "0-3"]);
     });
 

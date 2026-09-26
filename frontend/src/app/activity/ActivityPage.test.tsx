@@ -1,10 +1,19 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import ActivityPage from "./page";
 
 // fromStroops is the only soroban export the page reaches (via @/lib/eventData).
 vi.mock("@/lib/soroban", () => ({
   fromStroops: (stroops: bigint | string | number): string => BigInt(stroops).toString(),
+}));
+
+const replaceMock = vi.fn();
+let currentParams = new URLSearchParams();
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    replace: replaceMock,
+  }),
+  useSearchParams: () => currentParams,
 }));
 
 vi.mock("@/hooks/useSoroban", () => ({
@@ -82,6 +91,11 @@ import { useEvents } from "@/hooks/useSoroban";
 
 const DONOR = "G" + "B".repeat(55);
 
+beforeEach(() => {
+  replaceMock.mockReset();
+  currentParams = new URLSearchParams();
+});
+
 describe("ActivityPage - malformed event payloads", () => {
   it("renders placeholders instead of crashing on short or garbage data arrays", async () => {
     vi.mocked(useEvents).mockReturnValue({
@@ -139,6 +153,142 @@ describe("ActivityPage - malformed event payloads", () => {
 
     await waitFor(() => {
       expect(screen.getAllByText("5000000 XLM").length).toBeGreaterThanOrEqual(1);
+    });
+  });
+});
+
+describe("ActivityPage - search filtering", () => {
+  it("filters the activity list when a donor address is typed", async () => {
+    vi.mocked(useEvents).mockReturnValue({
+      data: [
+        { id: "s1", topic: "received", ledger: 30, data: [3, DONOR, 1000000] },
+        {
+          id: "s2",
+          topic: "received",
+          ledger: 31,
+          data: [3, "G" + "C".repeat(55), 2000000],
+        },
+      ],
+      isLoading: false,
+      isError: false,
+    } as any);
+
+    render(<ActivityPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText("1000000 XLM").length).toBeGreaterThanOrEqual(1);
+    });
+
+    const searchInput = screen.getByPlaceholderText(/Search by donor address/i);
+    fireEvent.change(searchInput, { target: { value: DONOR } });
+
+    await waitFor(
+      () => {
+        expect(screen.queryByText("2000000 XLM")).not.toBeInTheDocument();
+        expect(screen.getAllByText("1000000 XLM").length).toBeGreaterThanOrEqual(1);
+      },
+      { timeout: 1000 },
+    );
+  });
+
+  it("filters the activity list when a campaign id is typed", async () => {
+    vi.mocked(useEvents).mockReturnValue({
+      data: [
+        { id: "c1", topic: "received", ledger: 40, data: [3, DONOR, 1000000] },
+        { id: "c2", topic: "received", ledger: 41, data: [9, DONOR, 2000000] },
+      ],
+      isLoading: false,
+      isError: false,
+    } as any);
+
+    render(<ActivityPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText("1000000 XLM").length).toBeGreaterThanOrEqual(1);
+    });
+
+    const searchInput = screen.getByPlaceholderText(/Search by donor address/i);
+    fireEvent.change(searchInput, { target: { value: "9" } });
+
+    await waitFor(
+      () => {
+        expect(screen.queryByText("1000000 XLM")).not.toBeInTheDocument();
+        expect(screen.getAllByText("2000000 XLM").length).toBeGreaterThanOrEqual(1);
+      },
+      { timeout: 1000 },
+    );
+  });
+
+  it("shows a helpful empty state with a clear action when nothing matches", async () => {
+    vi.mocked(useEvents).mockReturnValue({
+      data: [{ id: "e6", topic: "received", ledger: 50, data: [3, DONOR, 1000000] }],
+      isLoading: false,
+      isError: false,
+    } as any);
+
+    render(<ActivityPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText("1000000 XLM").length).toBeGreaterThanOrEqual(1);
+    });
+
+    const searchInput = screen.getByPlaceholderText(/Search by donor address/i);
+    fireEvent.change(searchInput, { target: { value: "nonexistent" } });
+
+    await waitFor(
+      () => {
+        expect(screen.getByText(/No activity matches your search/i)).toBeInTheDocument();
+      },
+      { timeout: 1000 },
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Clear search input/i }));
+
+    await waitFor(() => {
+      expect(screen.getAllByText("1000000 XLM").length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  it("syncs the search term to the ?search= URL parameter", async () => {
+    vi.mocked(useEvents).mockReturnValue({
+      data: [{ id: "e7", topic: "received", ledger: 60, data: [3, DONOR, 1000000] }],
+      isLoading: false,
+      isError: false,
+    } as any);
+
+    render(<ActivityPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText("1000000 XLM").length).toBeGreaterThanOrEqual(1);
+    });
+
+    const searchInput = screen.getByPlaceholderText(/Search by donor address/i);
+    fireEvent.change(searchInput, { target: { value: DONOR } });
+
+    await waitFor(
+      () => {
+        expect(replaceMock).toHaveBeenCalledWith(
+          expect.stringContaining("search="),
+          expect.objectContaining({ scroll: false }),
+        );
+      },
+      { timeout: 1000 },
+    );
+  });
+
+  it("hydrates the search term from ?search= on mount", async () => {
+    currentParams = new URLSearchParams("search=abc123");
+    vi.mocked(useEvents).mockReturnValue({
+      data: [{ id: "e8", topic: "received", ledger: 70, data: [3, DONOR, 1000000] }],
+      isLoading: false,
+      isError: false,
+    } as any);
+
+    render(<ActivityPage />);
+
+    await waitFor(() => {
+      const input = screen.getByPlaceholderText(/Search by donor address/i) as HTMLInputElement;
+      expect(input.value).toBe("abc123");
     });
   });
 });

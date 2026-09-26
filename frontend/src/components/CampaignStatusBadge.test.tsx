@@ -38,15 +38,17 @@ describe("CampaignStatusBadge — style classes", () => {
   });
 
   it("applies blue classes for Funded", () => {
-    const { container } = render(<CampaignStatusBadge status="Funded" />);
-    const badge = container.firstChild as HTMLElement;
+    // Funded/Claimed default to 100% progress and also render milestone badges,
+    // so query the status badge by its label rather than container.firstChild.
+    render(<CampaignStatusBadge status="Funded" />);
+    const badge = screen.getByText("Funded");
     expect(badge.className).toContain("bg-blue-500/20");
     expect(badge.className).toContain("text-blue-500");
   });
 
   it("applies blue classes for Claimed", () => {
-    const { container } = render(<CampaignStatusBadge status="Claimed" />);
-    const badge = container.firstChild as HTMLElement;
+    render(<CampaignStatusBadge status="Claimed" />);
+    const badge = screen.getByText("Claimed");
     expect(badge.className).toContain("bg-blue-500/20");
     expect(badge.className).toContain("text-blue-500");
   });

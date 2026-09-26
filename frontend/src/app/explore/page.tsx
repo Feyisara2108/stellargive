@@ -15,6 +15,7 @@ import { CategorySelector, CATEGORIES, type CategoryKey } from "@/components/Cat
 import { SortSelector, SORT_OPTIONS, type SortKey } from "@/components/SortSelector";
 import { Search, Compass, Loader2, AlertTriangle, RotateCw } from "lucide-react";
 import { CampaignSkeletonGrid } from "@/components/CampaignSkeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 import type { Campaign } from "@/lib/soroban";
 
 const PAGE_SIZE = 9;
@@ -41,6 +42,7 @@ function sortCampaigns(campaigns: Campaign[], sortBy: SortKey): Campaign[] {
       return sorted.sort((a, b) => Number(b.deadline) - Number(a.deadline));
     case "ending-soon":
       return sorted.sort((a, b) => Number(a.deadline) - Number(b.deadline));
+    case "most-funded":
     case "near-goal": {
       const progress = (c: Campaign) =>
         c.target_amount === 0n ? 0 : Number((c.raised_amount * 10_000n) / c.target_amount);
@@ -67,6 +69,7 @@ const RESULTS_PANEL_ID = "campaign-results-panel";
 function ExploreContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const detailHrefSearch = searchParams.toString();
   const [limit, setLimit] = useState(PAGE_SIZE);
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get("q") ?? "");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "funded">(() => {
@@ -350,7 +353,7 @@ function ExploreContent() {
                 tabIndex={isSelected ? 0 : -1}
                 onClick={() => setStatusFilter(tab.value)}
                 onKeyDown={(e) => handleTabKeyDown(e, i)}
-                className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded"
+                className="focus:outline-none focus-visible:outline-none ring-offset-background focus:ring-2 focus:ring-primary focus:ring-offset-2 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded transition-all"
               >
                 <CampaignStatusBadge
                   status={tab.badgeStatus}
@@ -402,25 +405,17 @@ function ExploreContent() {
               </Button>
             </div>
           ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center gap-4 py-20 text-center">
-              <div>
-                <p className="font-medium text-foreground">No campaigns found</p>
-                <p className="text-muted-foreground">{emptyMessage}</p>
-              </div>
-              {debouncedSearch ? (
-                <Button variant="outline" onClick={() => setSearchTerm("")}>
-                  Clear search
-                </Button>
-              ) : categoryFilter !== "all" ? (
-                <Button variant="outline" onClick={() => setCategoryFilter("all")}>
-                  Show all categories
-                </Button>
-              ) : (
-                <Button asChild>
-                  <Link href="/create">Create the first one</Link>
-                </Button>
-              )}
-            </div>
+            <EmptyState
+              message={emptyMessage}
+              onClear={
+                debouncedSearch || categoryFilter !== "all"
+                  ? () => {
+                      setSearchTerm("");
+                      setCategoryFilter("all");
+                    }
+                  : undefined
+              }
+            />
           ) : (
             // `relative` anchors the floating "Updating…" pill so showing it never
             // reflows the grid below.
@@ -442,6 +437,7 @@ function ExploreContent() {
                     key={campaign.id.toString()}
                     campaign={campaign}
                     preloadedTokenMeta={tokenMetas?.[campaign.accepted_token]}
+                    detailHrefSearch={detailHrefSearch}
                   />
                 ))}
               </div>

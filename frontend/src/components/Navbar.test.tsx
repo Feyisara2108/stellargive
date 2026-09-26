@@ -15,6 +15,14 @@ vi.mock("sonner", () => ({
   },
 }));
 
+// Navbar calls usePathname() to highlight the active link; provide it so the
+// component renders without a mounted Next.js app router.
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
+  useSearchParams: () => ({ get: vi.fn() }),
+}));
+
 vi.mock("@/lib/soroban", () => ({
   getSACBalance: vi.fn().mockResolvedValue(BigInt(1000000000)),
   fromStroops: vi.fn((value: bigint) => (Number(value) / 10000000).toFixed(7)),

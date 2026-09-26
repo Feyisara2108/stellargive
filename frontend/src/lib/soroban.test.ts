@@ -15,7 +15,7 @@ vi.mock("@stellar/stellar-sdk", async (importActual) => {
   };
 });
 
-import { fromStroops, toStroops } from "@/lib/soroban";
+import { fromStroops, toStroops, resolveAddressName } from "@/lib/soroban";
 
 describe("fromStroops", () => {
   it("returns '0' for 0 stroops", () => {
@@ -140,5 +140,42 @@ describe("toStroops", () => {
       const fixed = val.toFixed(7);
       expect(Number(fromStroops(toStroops(fixed)))).toBeCloseTo(val, 7);
     }
+  });
+});
+
+describe("resolveAddressName", () => {
+  it("returns null for invalid or short addresses without throwing", async () => {
+    expect(await resolveAddressName("")).toBeNull();
+    expect(await resolveAddressName("G123")).toBeNull();
+  });
+
+  it("resolves domain name from Stellar directory lookup when available", async () => {
+    const validAddr = "G" + "A".repeat(55);
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        _embedded: { records: [{ name: "Test Foundation" }] },
+      }),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const name = await resolveAddressName(validAddr);
+    expect(name).toBe("Test Foundation");
+
+    vi.unstubAllGlobals();
+  });
+
+  it("gracefully returns null when address is not found without throwing network errors", async () => {
+    const validAddr = "G" + "A".repeat(55);
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const name = await resolveAddressName(validAddr);
+    expect(name).toBeNull();
+
+    vi.unstubAllGlobals();
   });
 });

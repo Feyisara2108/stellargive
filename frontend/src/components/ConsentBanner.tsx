@@ -3,26 +3,49 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
+import { initAnalytics } from "@/lib/sentry";
 
 const CONSENT_KEY = "stellargive_consent";
+const LEGACY_CONSENT_KEY = "stellargive_analytics_consent";
 
 export function ConsentBanner() {
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    const consent = localStorage.getItem(CONSENT_KEY);
+    const consent = getAnalyticsConsent();
     if (consent === null) {
       setIsVisible(true);
+    } else if (consent === "accepted") {
+      initAnalytics();
     }
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === CONSENT_KEY || e.key === LEGACY_CONSENT_KEY) {
+        if (e.newValue === null) {
+          setIsVisible(true);
+        } else {
+          setIsVisible(false);
+          if (e.newValue === "accepted") {
+            initAnalytics();
+          }
+        }
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
   }, []);
 
   const handleAccept = () => {
     localStorage.setItem(CONSENT_KEY, "accepted");
+    localStorage.setItem(LEGACY_CONSENT_KEY, "accepted");
     setIsVisible(false);
+    initAnalytics();
   };
 
   const handleDecline = () => {
     localStorage.setItem(CONSENT_KEY, "declined");
+    localStorage.setItem(LEGACY_CONSENT_KEY, "declined");
     setIsVisible(false);
   };
 
@@ -79,5 +102,8 @@ export function getAnalyticsConsent(): "accepted" | "declined" | null {
   const consent = localStorage.getItem(CONSENT_KEY);
   if (consent === "accepted") return "accepted";
   if (consent === "declined") return "declined";
+  const legacyConsent = localStorage.getItem(LEGACY_CONSENT_KEY);
+  if (legacyConsent === "accepted") return "accepted";
+  if (legacyConsent === "declined") return "declined";
   return null;
 }

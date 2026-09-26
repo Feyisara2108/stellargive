@@ -244,6 +244,11 @@ export function useDonate() {
         id: context?.toastId,
         hash: data?.hash,
       });
+      queryClient.invalidateQueries({
+        queryKey: ["campaign", variables.campaignId.toString()],
+      });
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+      queryClient.invalidateQueries({ queryKey: ["events"] });
     },
     onError: (error: any, variables: any, context: any) => {
       if (context?.previousCampaign) {
@@ -639,63 +644,47 @@ export function useTokenMetadataBatch(contractIds: string[]) {
 }
 
 /**
- * Hook to pause the contract (owner-only emergency control).
- * Requires typed confirmation before execution.
+ * Fetches the live XLM/USD exchange rate from CoinGecko, falling back to Stellar Expert.
  */
-export function usePauseContract() {
-  const { address } = useWallet();
+export async function fetchXlmPriceInUsd(): Promise<number | null> {
+  try {
+    const res = await fetch(
+      "https://api.coingecko.com/api/v3/simple/price?ids=stellar&vs_currencies=usd",
+      { headers: { Accept: "application/json" } },
+    );
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.stellar?.usd && typeof data.stellar.usd === "number") {
+        return data.stellar.usd;
+      }
+    }
+  } catch {
+    // Fall through to secondary API
+  }
 
-  return useMutation({
-    mutationFn: async () => {
-      if (!address) throw new Error("Wallet not connected");
+  try {
+    const res = await fetch("https://api.stellar.expert/explorer/directory/price?asset=XLM");
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.price && typeof data.price === "number") {
+        return data.price;
+      }
+    }
+  } catch {
+    // Return null if all endpoints fail
+  }
 
-      const args = [new Address(address).toScVal()];
-      return submitTransaction(address, "pause", args);
-    },
-    onMutate: () => {
-      const toastId = notify.loading("Pausing contract...");
-      return { toastId };
-    },
-    onSuccess: (data: any, _variables: any, context: any) => {
-      notify.success("Contract paused", {
-        id: context?.toastId,
-        hash: data?.hash,
-      });
-    },
-    onError: (error: any, _variables: any, context: any) => {
-      const mappedError = mapTransactionError(error);
-      notify.error(mappedError, { id: context?.toastId });
-    },
-  });
+  return null;
 }
 
 /**
- * Hook to unpause the contract (owner-only).
- * Requires typed confirmation before execution.
+ * Hook to query live XLM/USD exchange rate with 5-minute cache stale time.
  */
-export function useUnpauseContract() {
-  const { address } = useWallet();
-
-  return useMutation({
-    mutationFn: async () => {
-      if (!address) throw new Error("Wallet not connected");
-
-      const args = [new Address(address).toScVal()];
-      return submitTransaction(address, "unpause", args);
-    },
-    onMutate: () => {
-      const toastId = notify.loading("Unpausing contract...");
-      return { toastId };
-    },
-    onSuccess: (data: any, _variables: any, context: any) => {
-      notify.success("Contract unpaused", {
-        id: context?.toastId,
-        hash: data?.hash,
-      });
-    },
-    onError: (error: any, _variables: any, context: any) => {
-      const mappedError = mapTransactionError(error);
-      notify.error(mappedError, { id: context?.toastId });
-    },
+export function useXlmPrice() {
+  return useQuery({
+    queryKey: ["xlm-price-usd"],
+    queryFn: fetchXlmPriceInUsd,
+    staleTime: 5 * 60 * 1000, // 5 minutes stale time
+    retry: 2,
   });
 }

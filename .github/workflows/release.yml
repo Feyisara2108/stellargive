@@ -18,7 +18,7 @@ jobs:
       tag_name: ${{ steps.release.outputs.tag_name }}
       version: ${{ steps.release.outputs.version }}
     steps:
-      - uses: googleapis/release-please-action@v4 # v4
+      - uses: googleapis/release-please-action@v5 # v4
         id: release
         with:
           config-file: .release-please-config.json
@@ -48,11 +48,11 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4.2.2 # v4.2.2
+        uses: actions/checkout@v7.0.1 # v4.2.2
 
       # ── Frontend SBOM (npm / CycloneDX) ──────────────────────────────────
       - name: Setup Node.js
-        uses: actions/setup-node@v4 # v4.0.2
+        uses: actions/setup-node@v7 # v4.0.2
         with:
           node-version-file: frontend/.nvmrc
 
@@ -115,7 +115,7 @@ jobs:
           fi
 
       - name: Upload optimized WASM artifact
-        uses: actions/upload-artifact@v4.3.0 # v4.3.0
+        uses: actions/upload-artifact@v7.0.1 # v4.3.0
         with:
           name: stellar_give.wasm
           path: |
@@ -126,7 +126,7 @@ jobs:
 
       # ── Sign SBOMs (Sigstore/cosign, keyless) ─────────────────────────────
       - name: Install cosign
-        uses: sigstore/cosign-installer@v3.5.0 # v3.5.0
+        uses: sigstore/cosign-installer@v4.1.2 # v3.5.0
 
       - name: Sign SBOMs
         run: |
@@ -141,7 +141,7 @@ jobs:
 
       # ── Build provenance attestation for released artifacts ───────────────
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@v2.2.0 # v2.2.0
+        uses: actions/attest-build-provenance@v4.2.2 # v2.2.0
         with:
           subject-path: |
             sbom-frontend.cdx.json

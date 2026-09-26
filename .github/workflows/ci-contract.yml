@@ -19,12 +19,12 @@ jobs:
       contracts: ${{ steps.filter.outputs.contracts }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4.2.2 # v4.2.2
+        uses: actions/checkout@v7.0.1 # v4.2.2
       # On merge_group events, skip path filtering so the test job below always
       # runs and reports its required status check to the merge queue.
       - name: Detect changes
         if: github.event_name != 'merge_group'
-        uses: dorny/paths-filter@v3.0.2 # v3.0.2
+        uses: dorny/paths-filter@v4.0.3 # v3.0.2
         id: filter
         with:
           filters: |

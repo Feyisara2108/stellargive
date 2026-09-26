@@ -5,11 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Check, ChevronDown, ArrowDownUp } from "lucide-react";
 
-export type SortKey = "newest" | "ending-soon" | "near-goal" | "most-raised";
+export type SortKey = "newest" | "ending-soon" | "most-funded" | "near-goal" | "most-raised";
 
 export const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: "newest", label: "Newest" },
   { key: "ending-soon", label: "Ending Soon" },
+  { key: "most-funded", label: "Most Funded" },
   { key: "near-goal", label: "Near Goal" },
   { key: "most-raised", label: "Most Raised" },
 ];

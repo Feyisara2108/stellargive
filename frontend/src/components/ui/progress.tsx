@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 type ProgressVariant = "default" | "success" | "warning";
 
-const indicatorVariants: Record<ProgressVariant, string> = {
+export const progressIndicatorVariants: Record<ProgressVariant, string> = {
   default: "bg-primary",
   success: "bg-emerald-600 dark:bg-emerald-400",
   warning: "bg-amber-500 dark:bg-amber-400",
@@ -19,6 +19,7 @@ const Progress = React.forwardRef<
     showValueLabel?: boolean;
   }
 >(({ className, value, indicatorClassName, showValueLabel, ...props }, ref) => {
+  const clampedValue = Math.min(Math.max(value || 0, 0), 100);
   const progress = (
     <ProgressPrimitive.Root
       ref={ref}
@@ -26,8 +27,12 @@ const Progress = React.forwardRef<
       {...props}
     >
       <ProgressPrimitive.Indicator
-        className={cn("h-full w-full flex-1 bg-primary transition-all", indicatorClassName)}
-        style={{ transform: `translateX(-${100 - (value || 0)}%)` }}
+        className={cn(
+          "h-full w-full flex-1 transition-all",
+          progressIndicatorVariants.default,
+          indicatorClassName,
+        )}
+        style={{ transform: `translateX(-${100 - clampedValue}%)` }}
       />
     </ProgressPrimitive.Root>
   );
@@ -37,7 +42,7 @@ const Progress = React.forwardRef<
       <div className="w-full">
         {progress}
         <div className="text-xs font-medium text-right mt-1 text-muted-foreground">
-          {Math.round(value || 0)}%
+          {Math.round(clampedValue)}%
         </div>
       </div>
     );

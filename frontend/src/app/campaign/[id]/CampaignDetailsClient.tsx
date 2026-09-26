@@ -42,7 +42,7 @@ import { StickyDonateBar } from "@/components/StickyDonateBar";
 import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
 import { Badge } from "@/components/ui/badge";
 import { useCountdown } from "@/hooks/useCountdown";
-import { Breadcrumbs } from "@/components/Breadcrumbs";
+import { Breadcrumbs, type BreadcrumbItem } from "@/components/Breadcrumbs";
 import { CampaignDetailSkeleton } from "@/components/CampaignSkeleton";
 
 function TopDonors({ campaignId }: { campaignId: bigint }) {
@@ -137,7 +137,13 @@ function CampaignTimeline({ campaign }: { campaign: any }) {
   );
 }
 
-export function CampaignDetailsClient({ params }: { params: { id: string } }) {
+export function CampaignDetailsClient({
+  params,
+  breadcrumbs,
+}: {
+  params: { id: string };
+  breadcrumbs: BreadcrumbItem[];
+}) {
   const [imgError, setImgError] = useState(false);
   const { address, isWrongNetwork } = useWallet();
   const { data: campaign, isLoading, isError, refetch } = useCampaign(BigInt(params.id));
@@ -159,10 +165,9 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
   useEffect(() => {
     const el = headerDonateRef.current;
     if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => setHeaderVisible(entry.isIntersecting),
-      { threshold: 0 },
-    );
+    const observer = new IntersectionObserver(([entry]) => setHeaderVisible(entry.isIntersecting), {
+      threshold: 0,
+    });
     observer.observe(el);
     return () => observer.disconnect();
   }, [campaign]);
@@ -179,13 +184,7 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
   if (isError || !campaign) {
     return (
       <div className="p-8 max-w-4xl mx-auto">
-        <Breadcrumbs
-          items={[
-            { label: "Home", href: "/" },
-            { label: "Explore", href: "/explore" },
-            { label: `Campaign #${params.id}`, href: `/campaign/${params.id}` },
-          ]}
-        />
+        <Breadcrumbs items={breadcrumbs} />
         <div
           role="alert"
           className="mt-8 flex flex-col items-center justify-center gap-4 rounded-lg border border-destructive/30 bg-destructive/5 px-6 py-16 text-center"
@@ -224,19 +223,18 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
 
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-6">
-      <Breadcrumbs
-        items={[
-          { label: "Home", href: "/" },
-          { label: "Explore", href: "/explore" },
-          { label: campaign?.title || `Campaign #${params.id}`, href: `/campaign/${params.id}` },
-        ]}
-      />
+      <Breadcrumbs items={breadcrumbs} />
       <div ref={headerDonateRef} className="flex justify-between items-start">
         <div className="space-y-2">
           <div className="flex items-center gap-3">
             <h1 className="text-3xl font-bold">{campaign?.title || `Campaign #${params.id}`}</h1>
             {campaign && (
-              <CampaignStatusBadge status={campaign.status} deadline={campaign.deadline} />
+              <CampaignStatusBadge
+                status={campaign.status}
+                deadline={campaign.deadline}
+                raisedAmount={campaign.raised_amount}
+                targetAmount={campaign.target_amount}
+              />
             )}
           </div>
           {campaign && (
@@ -363,6 +361,13 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
                   <Progress
                     value={calculateProgress(campaign.raised_amount, campaign.target_amount)}
                     className="h-3"
+                    indicatorClassName={
+                      progressPercent >= 100
+                        ? "bg-emerald-600 dark:bg-emerald-400"
+                        : progressPercent >= 50
+                          ? "bg-amber-500 dark:bg-amber-400"
+                          : "bg-primary"
+                    }
                     aria-label="Campaign progress"
                     showValueLabel={true}
                   />
@@ -412,6 +417,14 @@ export function CampaignDetailsClient({ params }: { params: { id: string } }) {
                 campaign?.status === "Active"
                   ? (amount) => {
                       setDonateAmount(amount);
+                      setDonateOpen(true);
+                    }
+                  : undefined
+              }
+              onDonate={
+                campaign?.status === "Active"
+                  ? () => {
+                      setDonateAmount(undefined);
                       setDonateOpen(true);
                     }
                   : undefined

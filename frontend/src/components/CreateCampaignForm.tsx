@@ -65,8 +65,10 @@ const formSchema = z.object({
   ),
   deadlineDays: z.string().refine((val) => {
     const n = Number(val);
-    return Number.isInteger(n) && n >= 1 && n <= MAX_DURATION_DAYS;
-  }, `Deadline must be between 1 and ${MAX_DURATION_DAYS} days`),
+    if (!Number.isInteger(n) || n < 1 || n > MAX_DURATION_DAYS) return false;
+    const deadlineSec = Math.floor(Date.now() / 1000) + n * 24 * 60 * 60;
+    return deadlineSec > Math.floor(Date.now() / 1000) + 3600;
+  }, `Deadline must be between 1 and ${MAX_DURATION_DAYS} days and at least 1 hour in the future`),
   acceptedToken: z.string().regex(/^C[A-Z0-9]{55}$|^G[A-Z0-9]{55}$/, "Invalid Token address"),
   website: z
     .string()
@@ -107,6 +109,24 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const createCampaign = useCreateCampaign();
+
+  const [step, setStep] = useState(1);
+  const totalSteps = 3;
+
+  const STEP_FIELDS: Record<number, any[]> = {
+    1: ["title", "description", "category", "website", "twitter", "metadataUri"],
+    2: ["beneficiary", "acceptedToken", "targetAmount", "deadlineDays"],
+  };
+
+  const nextStep = async () => {
+    const fieldsToValidate = STEP_FIELDS[step] || [];
+    const isValid = await form.trigger(fieldsToValidate);
+    if (isValid) {
+      setStep((s) => Math.min(s + 1, totalSteps));
+    }
+  };
+
+  const prevStep = () => setStep((s) => Math.max(s - 1, 1));
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -185,6 +205,7 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
       setIsOpen(false);
       form.reset();
       setSelectedFileName("");
+      setStep(1);
       const campaignId =
         (result as { campaignId?: string | number } | undefined)?.campaignId ?? "1";
       router.push(`/campaign/${campaignId}`);
@@ -271,266 +292,332 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
   const formContent = (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <FormField
-          control={form.control}
-          name="title"
-          render={({ field }) => (
-            <FormItem>
-              <div className="flex items-center justify-between">
-                <FormLabel>Campaign Title</FormLabel>
-                <span
-                  aria-live="polite"
-                  className={cn(
-                    "text-xs tabular-nums",
-                    titleLen > MAX_TITLE_LEN ? "text-destructive" : "text-muted-foreground",
-                  )}
-                >
-                  {titleLen}/{MAX_TITLE_LEN}
-                </span>
-              </div>
-              <FormControl>
-                <Input
-                  placeholder="Flood Relief 2024"
-                  maxLength={MAX_TITLE_LEN}
-                  {...field}
-                  disabled={createCampaign.isPending}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="description"
-          render={({ field }) => (
-            <FormItem>
-              <div className="flex items-center justify-between">
-                <FormLabel>Campaign Description</FormLabel>
-                <span
-                  aria-live="polite"
-                  className={cn(
-                    "text-xs tabular-nums",
-                    (form.watch("description")?.length ?? 0) > 500
-                      ? "text-destructive"
-                      : "text-muted-foreground",
-                  )}
-                >
-                  {form.watch("description")?.length ?? 0}/500
-                </span>
-              </div>
-              <FormControl>
-                <textarea
-                  placeholder="Provide a detailed description of the campaign..."
-                  maxLength={500}
-                  rows={3}
-                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
-                  {...field}
-                  disabled={createCampaign.isPending}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="beneficiary"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Beneficiary Address</FormLabel>
-              <FormControl>
-                <Input placeholder="G..." {...field} disabled={createCampaign.isPending} />
-              </FormControl>
-              <FormDescription>Stellar public key of the receiver.</FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="acceptedToken"
-          render={({ field }) => (
-            <FormItem>
-              <FormControl>
-                <TokenSelector value={field.value} onChange={(val) => field.onChange(val)} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="category"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Category (Optional)</FormLabel>
-              <FormControl>
-                <select
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  {...field}
-                  disabled={createCampaign.isPending}
-                >
-                  <option value="">Select Category</option>
-                  <option value="medical">Medical</option>
-                  <option value="food">Food</option>
-                  <option value="shelter">Shelter</option>
-                  <option value="education">Education</option>
-                  <option value="relief">Relief</option>
-                  <option value="other">Other</option>
-                </select>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <div className="grid grid-cols-2 gap-4">
+        <div className="mb-4 space-y-2">
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>Step {step} of {totalSteps}</span>
+            <span>{step === 1 ? "Details" : step === 2 ? "Funding" : "Review"}</span>
+          </div>
+          <Progress value={(step / totalSteps) * 100} className="h-2" />
+        </div>
+        {/* Step 1: Details */}
+        <div className={cn("space-y-4", step !== 1 && "hidden")}>
           <FormField
             control={form.control}
-            name="targetAmount"
+            name="title"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Target ({tokenSymbol})</FormLabel>
+                <div className="flex items-center justify-between">
+                  <FormLabel>Campaign Title</FormLabel>
+                  <span
+                    aria-live="polite"
+                    className={cn(
+                      "text-xs tabular-nums",
+                      titleLen > MAX_TITLE_LEN ? "text-destructive" : "text-muted-foreground",
+                    )}
+                  >
+                    {titleLen}/{MAX_TITLE_LEN}
+                  </span>
+                </div>
                 <FormControl>
                   <Input
-                    type="number"
-                    min={MIN_TARGET_TOKEN}
-                    step="0.0000001"
-                    placeholder="1000"
+                    placeholder="Flood Relief 2024"
+                    maxLength={MAX_TITLE_LEN}
                     {...field}
                     disabled={createCampaign.isPending}
                   />
                 </FormControl>
-                <FormDescription className="text-[11px]">
-                  Min {MIN_TARGET_TOKEN.toFixed(1)} {tokenSymbol}.
-                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
           />
           <FormField
             control={form.control}
-            name="deadlineDays"
+            name="description"
+            render={({ field }) => {
+              const descValue = field.value ?? "";
+              const descLength = descValue.length;
+              const remaining = 500 - descLength;
+              const isWarning = remaining < 20 && descLength <= 500;
+              const isOverLimit = descLength > 500;
+
+              return (
+                <FormItem>
+                  <FormLabel>Campaign Description</FormLabel>
+                  <FormControl>
+                    <textarea
+                      placeholder="Provide a detailed description of the campaign..."
+                      rows={3}
+                      className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+                      {...field}
+                      disabled={createCampaign.isPending}
+                    />
+                  </FormControl>
+                  <div className="flex items-center justify-between text-xs">
+                    <FormMessage />
+                    <span
+                      aria-live="polite"
+                      className={cn(
+                        "tabular-nums transition-colors ml-auto",
+                        isOverLimit
+                          ? "text-destructive font-semibold"
+                          : isWarning
+                            ? "text-amber-600 dark:text-amber-400 font-medium"
+                            : "text-muted-foreground",
+                      )}
+                    >
+                      {descLength} / 500 characters
+                    </span>
+                  </div>
+                </FormItem>
+              );
+            }}
+          />
+          <FormField
+            control={form.control}
+            name="category"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Duration (Days)</FormLabel>
+                <FormLabel>Category (Optional)</FormLabel>
+                <FormControl>
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    {...field}
+                    disabled={createCampaign.isPending}
+                  >
+                    <option value="">Select Category</option>
+                    <option value="medical">Medical</option>
+                    <option value="food">Food</option>
+                    <option value="shelter">Shelter</option>
+                    <option value="education">Education</option>
+                    <option value="relief">Relief</option>
+                    <option value="other">Other</option>
+                  </select>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="metadataUri"
+            render={() => (
+              <FormItem>
+                <FormLabel>Campaign Cover Image (Optional)</FormLabel>
                 <FormControl>
                   <Input
-                    type="number"
-                    min={1}
-                    max={MAX_DURATION_DAYS}
+                    type="file"
+                    accept="image/png,image/jpeg"
+                    disabled={createCampaign.isPending || isUploadingImage}
+                    onChange={(event) => void onImageSelected(event.target.files?.[0] ?? null)}
+                  />
+                </FormControl>
+                <FormDescription>
+                  Upload PNG/JPG image up to 5MB. This will be stored on IPFS.
+                </FormDescription>
+                {isUploadingImage && (
+                  <div className="space-y-1">
+                    <Progress value={uploadProgress} aria-label="Image upload progress" />
+                    <p className="text-xs text-muted-foreground">Uploading... {uploadProgress}%</p>
+                  </div>
+                )}
+                {selectedFileName && !uploadError && (
+                  <p className="text-xs text-muted-foreground">Selected: {selectedFileName}</p>
+                )}
+                {!!metadataUri && !uploadError && (
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-xs text-muted-foreground break-all">CID: {metadataUri}</p>
+                    <span
+                      aria-live="polite"
+                      className={cn(
+                        "text-xs tabular-nums shrink-0",
+                        metadataUriLen > MAX_METADATA_URI_LEN
+                          ? "text-destructive"
+                          : "text-muted-foreground",
+                      )}
+                    >
+                      {metadataUriLen}/{MAX_METADATA_URI_LEN}
+                    </span>
+                  </div>
+                )}
+                {!!uploadError && <p className="text-xs text-destructive">{uploadError}</p>}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="website"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Website (Optional)</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="https://myrelief.org"
                     {...field}
                     disabled={createCampaign.isPending}
                   />
                 </FormControl>
-                <FormDescription className="text-[11px]">
-                  1–{MAX_DURATION_DAYS} days.
-                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="twitter"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Twitter Link (Optional)</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="https://twitter.com/mycampaign"
+                    {...field}
+                    disabled={createCampaign.isPending}
+                  />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
         </div>
-        <FormField
-          control={form.control}
-          name="metadataUri"
-          render={() => (
-            <FormItem>
-              <FormLabel>Campaign Cover Image (Optional)</FormLabel>
-              <FormControl>
-                <Input
-                  type="file"
-                  accept="image/png,image/jpeg"
-                  disabled={createCampaign.isPending || isUploadingImage}
-                  onChange={(event) => void onImageSelected(event.target.files?.[0] ?? null)}
-                />
-              </FormControl>
-              <FormDescription>
-                Upload PNG/JPG image up to 5MB. This will be stored on IPFS.
-              </FormDescription>
-              {isUploadingImage && (
-                <div className="space-y-1">
-                  <Progress value={uploadProgress} aria-label="Image upload progress" />
-                  <p className="text-xs text-muted-foreground">Uploading... {uploadProgress}%</p>
-                </div>
+
+        {/* Step 2: Funding */}
+        <div className={cn("space-y-4", step !== 2 && "hidden")}>
+          <FormField
+            control={form.control}
+            name="beneficiary"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Beneficiary Address</FormLabel>
+                <FormControl>
+                  <Input placeholder="G..." {...field} disabled={createCampaign.isPending} />
+                </FormControl>
+                <FormDescription>Stellar public key of the receiver.</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="acceptedToken"
+            render={({ field }) => (
+              <FormItem>
+                <FormControl>
+                  <TokenSelector value={field.value} onChange={(val) => field.onChange(val)} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="targetAmount"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Target ({tokenSymbol})</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min={MIN_TARGET_TOKEN}
+                      step="0.0000001"
+                      placeholder="1000"
+                      {...field}
+                      disabled={createCampaign.isPending}
+                    />
+                  </FormControl>
+                  <FormDescription className="text-[11px]">
+                    Min {MIN_TARGET_TOKEN.toFixed(1)} {tokenSymbol}.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
               )}
-              {selectedFileName && !uploadError && (
-                <p className="text-xs text-muted-foreground">Selected: {selectedFileName}</p>
+            />
+            <FormField
+              control={form.control}
+              name="deadlineDays"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Duration (Days)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={MAX_DURATION_DAYS}
+                      {...field}
+                      disabled={createCampaign.isPending}
+                    />
+                  </FormControl>
+                  <FormDescription className="text-[11px]">
+                    1–{MAX_DURATION_DAYS} days.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
               )}
-              {!!metadataUri && !uploadError && (
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-xs text-muted-foreground break-all">CID: {metadataUri}</p>
-                  <span
-                    aria-live="polite"
-                    className={cn(
-                      "text-xs tabular-nums shrink-0",
-                      metadataUriLen > MAX_METADATA_URI_LEN
-                        ? "text-destructive"
-                        : "text-muted-foreground",
-                    )}
-                  >
-                    {metadataUriLen}/{MAX_METADATA_URI_LEN}
-                  </span>
-                </div>
-              )}
-              {!!uploadError && <p className="text-xs text-destructive">{uploadError}</p>}
-              <FormMessage />
-            </FormItem>
+            />
+          </div>
+        </div>
+
+        {/* Step 3: Review */}
+        <div className={cn("space-y-4 text-sm", step !== 3 && "hidden")}>
+          <div className="rounded-md bg-muted p-4 space-y-3">
+            <div>
+              <p className="text-muted-foreground text-xs">Title</p>
+              <p className="font-medium">{watchedTitle || "N/A"}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs">Beneficiary</p>
+              <p className="font-medium break-all">{form.watch("beneficiary") || "N/A"}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <p className="text-muted-foreground text-xs">Target</p>
+                <p className="font-medium">{form.watch("targetAmount") || "0"} {tokenSymbol}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground text-xs">Duration</p>
+                <p className="font-medium">{form.watch("deadlineDays") || "0"} Days</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-2 pt-4">
+          {step > 1 && (
+            <Button type="button" variant="outline" onClick={prevStep} className="w-1/3">
+              Back
+            </Button>
           )}
-        />
-        <FormField
-          control={form.control}
-          name="website"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Website (Optional)</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="https://myrelief.org"
-                  {...field}
-                  disabled={createCampaign.isPending}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="twitter"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Twitter Link (Optional)</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="https://twitter.com/mycampaign"
-                  {...field}
-                  disabled={createCampaign.isPending}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <Button
-          type="submit"
-          className="w-full"
-          disabled={createCampaign.isPending || isUploadingImage || !form.formState.isValid}
-        >
-          {createCampaign.isPending ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Creating Campaign...
-            </>
-          ) : isUploadingImage ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Uploading Image...
-            </>
+          {step < totalSteps ? (
+            <Button type="button" onClick={nextStep} className={step > 1 ? "w-2/3" : "w-full"}>
+              Continue
+            </Button>
           ) : (
-            "Launch Campaign"
+            <Button
+              type="submit"
+              className={step > 1 ? "w-2/3" : "w-full"}
+              disabled={
+                createCampaign.isPending ||
+                isUploadingImage ||
+                !form.formState.isValid ||
+                (form.watch("description")?.length ?? 0) > 500
+              }
+            >
+              {createCampaign.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : isUploadingImage ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                "Launch Campaign"
+              )}
+            </Button>
           )}
-        </Button>
+        </div>
       </form>
     </Form>
   );
@@ -549,6 +636,7 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
             setUploadError("");
             setUploadProgress(0);
             setIsUploadingImage(false);
+            setStep(1);
           }
           setIsOpen(open);
         }

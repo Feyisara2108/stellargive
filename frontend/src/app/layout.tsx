@@ -25,9 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             Skip to content
           </a>
           <main id="main-content" tabIndex={-1} className="outline-none">
-            <ErrorBoundary heading="Application">
-              {children}
-            </ErrorBoundary>
+            <ErrorBoundary heading="Application">{children}</ErrorBoundary>
           </main>
           <Footer />
           <ConsentBanner />

@@ -66,17 +66,17 @@ export function PlatformStats() {
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 py-6" role="status">
       <StatCard
         icon={<Users className="h-4 w-4 text-primary" />}
-        label="Total Campaigns"
+        title="Total Campaigns"
         value={totalCampaigns.toString()}
       />
       <StatCard
         icon={<TrendingUp className="h-4 w-4 text-primary" />}
-        label="Total Raised"
+        title="Total Raised"
         value={`${Number(totalRaised).toLocaleString()} XLM`}
       />
       <StatCard
         icon={<Flame className="h-4 w-4 text-primary" />}
-        label="Active Campaigns"
+        title="Active Campaigns"
         value={(stats.activeCampaigns ?? 0).toString()}
       />
     </div>

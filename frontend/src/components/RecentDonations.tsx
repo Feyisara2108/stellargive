@@ -1,17 +1,22 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useEvents } from "@/hooks/useSoroban";
 import { formatTokenAmount } from "@/utils/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Heart, ArrowUpRight, RotateCcw } from "lucide-react";
+import { Heart, ArrowUpRight, RotateCcw, HeartHandshake } from "lucide-react";
 import { AddressLink } from "@/components/AddressLink";
 import { RelativeTime } from "@/components/RelativeTime";
+
+const INITIAL_BATCH_SIZE = 10;
+const BATCH_SIZE = 10;
 
 export function RecentDonations({
   campaignId,
   onDonateAgain,
+  onDonate,
 }: {
   campaignId: bigint;
   /**
@@ -20,7 +25,18 @@ export function RecentDonations({
    * campaigns, so the action is hidden once a campaign is no longer donatable.
    */
   onDonateAgain?: (amountXLM: string) => void;
+  /**
+   * When provided, the empty-state CTA button calls this to open the donate
+   * modal. Only passed for active campaigns.
+   */
+  onDonate?: () => void;
 }) {
+  const [visibleCount, setVisibleCount] = useState(INITIAL_BATCH_SIZE);
+
+  useEffect(() => {
+    setVisibleCount(INITIAL_BATCH_SIZE);
+  }, [campaignId]);
+
   const { data: allEvents, isLoading, isError } = useEvents();
 
   if (isLoading) {
@@ -63,7 +79,7 @@ export function RecentDonations({
     );
   }
 
-  // Filter for donations to this specific campaign, limit to 10
+  // Filter for donations to this specific campaign, sorted by ledger descending
   // data: [campaign_id, donor, amount, raised_amount, accepted_token]
   const donations = allEvents
     ?.filter((e) => {
@@ -73,8 +89,10 @@ export function RecentDonations({
         return false;
       }
     })
-    .sort((a, b) => Number(b.ledger) - Number(a.ledger))
-    .slice(0, 10);
+    .sort((a, b) => Number(b.ledger) - Number(a.ledger));
+
+  const visibleDonations = donations?.slice(0, visibleCount);
+  const hasMore = Boolean(donations && visibleCount < donations.length);
 
   const normalizeDonorAddress = (donor: any): string | null => {
     if (!donor) return null;
@@ -94,14 +112,17 @@ export function RecentDonations({
         <CardTitle className="text-lg flex items-center gap-2">
           <Heart className="w-4 h-4 text-primary fill-primary/20" /> Recent Donations
         </CardTitle>
-        <span className="text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer">
+        <span
+          onClick={() => setVisibleCount(donations?.length ?? INITIAL_BATCH_SIZE)}
+          className="text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+        >
           View All
         </span>
       </CardHeader>
       <CardContent className="space-y-4">
-        {donations && donations.length > 0 ? (
+        {visibleDonations && visibleDonations.length > 0 ? (
           <div className="space-y-4">
-            {donations.map((event: any) => {
+            {visibleDonations.map((event: any) => {
               const donorAddress = normalizeDonorAddress(event.data[1]);
               return (
                 <div
@@ -146,15 +167,40 @@ export function RecentDonations({
                 </div>
               );
             })}
+            {hasMore && (
+              <div className="pt-2 flex justify-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-xs"
+                  onClick={() => setVisibleCount((prev) => prev + BATCH_SIZE)}
+                >
+                  Load more
+                </Button>
+              </div>
+            )}
           </div>
         ) : (
           <div
             role="status"
             aria-live="polite"
-            className="text-center py-12 text-muted-foreground space-y-1 bg-muted/20 rounded-lg border border-dashed"
+            className="flex flex-col items-center text-center py-10 gap-4"
           >
-            <p className="text-sm font-medium">No donations yet</p>
-            <p className="text-xs">Be the first to support this campaign.</p>
+            <div className="flex items-center justify-center w-14 h-14 rounded-full bg-primary/10">
+              <HeartHandshake className="w-7 h-7 text-primary" aria-hidden="true" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-foreground">Be the first donor!</p>
+              <p className="text-xs text-muted-foreground">
+                No donations yet. Your support can make it happen.
+              </p>
+            </div>
+            {onDonate && (
+              <Button size="sm" onClick={onDonate} className="gap-2 mt-1">
+                <Heart className="w-3.5 h-3.5 fill-current" aria-hidden="true" />
+                Donate Now
+              </Button>
+            )}
           </div>
         )}
       </CardContent>

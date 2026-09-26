@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Dialog,
@@ -51,32 +51,77 @@ const navigationItems: CommandItem[] = [
   },
 ];
 
-export function CommandPalette() {
-  const [open, setOpen] = useState(false);
+interface CommandPaletteProps {
+  /** Allow a parent (e.g. Navbar) to control the open state externally. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}
+
+export function CommandPalette({ open: openProp, onOpenChange }: CommandPaletteProps = {}) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = openProp !== undefined;
+  const open = isControlled ? openProp : internalOpen;
+
+  const setOpen = useCallback(
+    (value: boolean) => {
+      if (isControlled) {
+        onOpenChange?.(value);
+      } else {
+        setInternalOpen(value);
+      }
+    },
+    [isControlled, onOpenChange],
+  );
+
   const [search, setSearch] = useState("");
+  const [announcement, setAnnouncement] = useState("");
   const router = useRouter();
   const [activeIndex, setActiveIndex] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-      e.preventDefault();
-      setOpen((prev) => !prev);
-    }
-  }, []);
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setOpen(!open);
+      }
+    },
+    [open, setOpen],
+  );
 
   useEffect(() => {
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
-  const filteredItems = navigationItems.filter((item) => {
-    const searchLower = search.toLowerCase();
-    return (
-      item.label.toLowerCase().includes(searchLower) ||
-      item.keywords.some((keyword) => keyword.includes(searchLower))
-    );
-  });
+  const filteredItems = useMemo(
+    () =>
+      navigationItems.filter((item) => {
+        const searchLower = search.toLowerCase();
+        return (
+          item.label.toLowerCase().includes(searchLower) ||
+          item.keywords.some((keyword) => keyword.includes(searchLower))
+        );
+      }),
+    [search],
+  );
+
+  useEffect(() => {
+    if (!open) {
+      setAnnouncement("");
+      return;
+    }
+
+    const count = filteredItems.length;
+    const message =
+      count === 0 ? "No results found" : `${count} result${count === 1 ? "" : "s"} available`;
+
+    const timer = window.setTimeout(() => {
+      setAnnouncement((prev) => (prev === message ? prev : message));
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [open, filteredItems]);
 
   const handleSelect = (href: string) => {
     setOpen(false);
@@ -135,9 +180,16 @@ export function CommandPalette() {
             <span className="text-xs">ESC</span>
           </kbd>
         </div>
+        <div role="status" aria-live="polite" className="sr-only">
+          {announcement}
+        </div>
         <div className="max-h-[300px] overflow-y-auto p-2">
           {filteredItems.length === 0 ? (
-            <div className="py-6 text-center text-sm text-muted-foreground">No results found</div>
+            <div className="flex flex-col items-center gap-2 py-8 text-center">
+              <Search className="w-5 h-5 text-muted-foreground" aria-hidden="true" />
+              <p className="text-sm font-medium">No results found</p>
+              <p className="text-xs text-muted-foreground">Try a different search term.</p>
+            </div>
           ) : (
             <div ref={listRef} role="listbox" aria-label="Command options">
               {filteredItems.map((item, index) => (

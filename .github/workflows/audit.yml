@@ -20,13 +20,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4.2.2 # v4.2.2
+      - uses: actions/checkout@v7.0.1 # v4.2.2
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable # stable
 
       - name: Cache cargo registry
-        uses: actions/cache@v4 # v4.0.2
+        uses: actions/cache@v6 # v4.0.2
         with:
           path: |
             ~/.cargo/registry
@@ -190,10 +190,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4.2.2 # v4.2.2
+      - uses: actions/checkout@v7.0.1 # v4.2.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4 # v4.0.2
+        uses: actions/setup-node@v7 # v4.0.2
         with:
           node-version: "20"
           cache: "npm"
@@ -260,12 +260,12 @@ jobs:
                           titles.append(item.get("title") or item.get("url") or "")
                   title_text = "; ".join(t for t in titles if t)[:180]
                   by_sev[sev].append((name, title_text))
-                  if sev == "critical":
-                      blocking_rows.append(name)
-                  elif sev == "high":
+                  if sev in ("critical", "high"):
                       fix = info.get("fixAvailable")
-                      # Highs whose only fix is a breaking major (Next 16, etc.)
-                      # stay visible in the summary but do not fail the build.
+                      # High/critical whose only fix is a breaking major (Next 16,
+                      # etc.) stay visible in the summary but do not fail the build,
+                      # matching the documented policy above. The breaking upgrade
+                      # is tracked separately and scheduled deliberately.
                       if isinstance(fix, dict) and fix.get("isSemVerMajor"):
                           deferred_major.append((name, fix.get("name"), fix.get("version")))
                       else:

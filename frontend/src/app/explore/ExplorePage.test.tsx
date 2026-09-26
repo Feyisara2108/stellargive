@@ -25,6 +25,8 @@ vi.mock("../../hooks/useSoroban", () => ({
     refetch: vi.fn(),
   }),
   useTokenMetadataBatch: () => ({ data: new Map() }),
+  useTokenMetadata: () => ({ data: undefined, isLoading: false }),
+  useXlmPrice: () => ({ data: undefined, isLoading: false }),
 }));
 
 vi.mock("../../hooks/useCampaignSearch", () => ({
@@ -101,7 +103,7 @@ describe("ExplorePage - Integrated Search & Hydration", () => {
     await waitFor(() => {
       expect(screen.getByText(/No active campaigns right now/i)).toBeInTheDocument();
     });
-    expect(screen.getByRole("link", { name: /Create the first one/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Create Campaign/i })).toBeInTheDocument();
   });
 
   it("displays correct campaign cards when multiple exist", async () => {
@@ -132,7 +134,7 @@ describe("ExplorePage - Integrated Search & Hydration", () => {
     await waitFor(
       () => {
         expect(screen.getByText(/No campaigns match your search/i)).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: /Clear search/i })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: /Clear Filters/i })).toBeInTheDocument();
       },
       { timeout: 1000 },
     );

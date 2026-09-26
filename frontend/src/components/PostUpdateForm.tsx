@@ -6,6 +6,11 @@ interface PostUpdateFormProps {
   campaignId: string;
   onSuccess: () => void;
   addUpdateMutation: (id: string, content: string) => Promise<void>;
+  /**
+   * When provided, the parent handles optimistic prepend + rollback.
+   * The form resets the textarea immediately after calling this (optimistic),
+   * before on-chain confirmation, so the UI feels instant.
+   */
   onSubmit?: (content: string) => Promise<void> | void;
 }
 
@@ -37,19 +42,34 @@ export const PostUpdateForm: React.FC<PostUpdateFormProps> = ({
 
     setIsSubmitting(true);
     setError(null);
-    try {
-      if (onSubmit) {
-        await onSubmit(trimmedContent);
-      } else {
-        await addUpdateMutation(campaignId, trimmedContent);
-      }
+
+    if (onSubmit) {
+      // Optimistic path: reset textarea immediately so the user sees instant feedback,
+      // then let the parent handle the on-chain tx and rollback on failure.
       setContent("");
-      onSuccess();
-    } catch (err: any) {
-      console.error("Failed to submit update to Soroban:", err);
-      setError(err?.message || "Transaction failed. Please try again.");
-    } finally {
-      setIsSubmitting(false);
+      try {
+        await onSubmit(trimmedContent);
+        onSuccess();
+      } catch (err: any) {
+        // Restore the content so the user can retry without retyping.
+        setContent(trimmedContent);
+        console.error("Failed to submit update to Soroban:", err);
+        setError(err?.message || "Transaction failed. Please try again.");
+      } finally {
+        setIsSubmitting(false);
+      }
+    } else {
+      // Fallback path (no optimistic handling in parent).
+      try {
+        await addUpdateMutation(campaignId, trimmedContent);
+        setContent("");
+        onSuccess();
+      } catch (err: any) {
+        console.error("Failed to submit update to Soroban:", err);
+        setError(err?.message || "Transaction failed. Please try again.");
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -66,16 +86,24 @@ export const PostUpdateForm: React.FC<PostUpdateFormProps> = ({
             value={content}
             onChange={(e) => handleContentChange(e.target.value)}
             disabled={isSubmitting}
+            aria-label="Campaign update content"
+            aria-describedby="update-char-count"
           />
           <div className="flex justify-between items-center mt-1 text-sm gap-2">
             <span
+              id="update-char-count"
               className={isOverLimit ? "text-destructive font-medium" : "text-muted-foreground"}
+              aria-live="polite"
             >
               {isOverLimit
                 ? "0 characters remaining"
                 : `${remainingCharacters} characters remaining`}
             </span>
-            {error && <span className="text-destructive font-medium">{error}</span>}
+            {error && (
+              <span className="text-destructive font-medium" role="alert" aria-live="assertive">
+                {error}
+              </span>
+            )}
           </div>
         </div>
         <button

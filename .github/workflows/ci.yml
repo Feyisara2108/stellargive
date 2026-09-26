@@ -20,12 +20,12 @@ jobs:
       frontend: ${{ steps.filter.outputs.frontend }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4.2.2 # v4.2.2
+        uses: actions/checkout@v7.0.1 # v4.2.2
       # On merge_group events, skip path filtering so the gating jobs below always
       # run and report their required status checks to the merge queue.
       - name: Detect changes
         if: github.event_name != 'merge_group'
-        uses: dorny/paths-filter@v3.0.2 # v3.0.2
+        uses: dorny/paths-filter@v4.0.3 # v3.0.2
         id: filter
         with:
           filters: |
@@ -57,7 +57,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v4.2.2 # v4.2.2
+        uses: actions/checkout@v7.0.1 # v4.2.2
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable # stable
@@ -65,7 +65,7 @@ jobs:
           targets: wasm32v1-none
 
       - name: Cache cargo
-        uses: Swatinem/rust-cache@v2.7.3 # v2.7.3
+        uses: Swatinem/rust-cache@v2.9.2 # v2.7.3
         with:
           workspaces: contracts/stellar-give
 
@@ -120,7 +120,7 @@ jobs:
       #             (optimized WASM, size report).
       - name: Upload optimized WASM artifact
         if: always()
-        uses: actions/upload-artifact@v4.3.0 # v4.3.0
+        uses: actions/upload-artifact@v7.0.1 # v4.3.0
         with:
           name: stellar-give-wasm-${{ github.sha }}
           path: |
@@ -131,7 +131,7 @@ jobs:
 
       - name: Codecov Upload (Rust)
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        uses: codecov/codecov-action@v4 # v4.5.0
+        uses: codecov/codecov-action@v7 # v4.5.0
         with:
           files: contracts/stellar-give/cobertura.xml
           flags: rust
@@ -144,15 +144,15 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Checkout
-        uses: actions/checkout@v4.2.2 # v4.2.2
+        uses: actions/checkout@v7.0.1 # v4.2.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4 # v4.0.2
+        uses: actions/setup-node@v7 # v4.0.2
         with:
           node-version-file: frontend/.nvmrc
 
       - name: Cache Next.js build
-        uses: actions/cache@v4 # v4.0.2
+        uses: actions/cache@v6 # v4.0.2
         with:
           path: |
             frontend/.next/cache
@@ -178,7 +178,7 @@ jobs:
 
       - name: Codecov Upload (Frontend)
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        uses: codecov/codecov-action@v4 # v4.5.0
+        uses: codecov/codecov-action@v7 # v4.5.0
         with:
           directory: frontend/coverage
           flags: frontend
@@ -254,10 +254,10 @@ jobs:
         node-version: [20, 22]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4.2.2 # v4.2.2
+        uses: actions/checkout@v7.0.1 # v4.2.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4 # v4.0.2
+        uses: actions/setup-node@v7 # v4.0.2
         with:
           node-version: ${{ matrix.node-version }}
 
@@ -280,7 +280,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4.2.2 # v4.2.2
+        uses: actions/checkout@v7.0.1 # v4.2.2
 
       - name: Read MSRV from Cargo.toml
         id: msrv
@@ -297,7 +297,7 @@ jobs:
           targets: wasm32v1-none
 
       - name: Cache cargo
-        uses: Swatinem/rust-cache@v2.7.3 # v2.7.3
+        uses: Swatinem/rust-cache@v2.9.2 # v2.7.3
         with:
           workspaces: contracts/stellar-give
 

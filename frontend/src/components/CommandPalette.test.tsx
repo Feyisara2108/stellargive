@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { CommandPalette } from "./CommandPalette";
 
@@ -58,7 +58,40 @@ describe("CommandPalette", () => {
     fireEvent.change(input, { target: { value: "nonexistentquery12345" } });
 
     expect(screen.getByText("No results found")).toBeInTheDocument();
+    expect(screen.getByText("Try a different search term.")).toBeInTheDocument();
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
+
+  it("announces the result count to screen readers after typing settles", async () => {
+    render(<CommandPalette />);
+    fireEvent.keyDown(document, { key: "k", ctrlKey: true });
+
+    const status = screen.getByRole("status");
+    expect(status).toHaveAttribute("aria-live", "polite");
+    await waitFor(() => expect(status).toHaveTextContent("4 results available"));
+
+    const input = screen.getByPlaceholderText("Search navigation...");
+    fireEvent.change(input, { target: { value: "c" } });
+    fireEvent.change(input, { target: { value: "cr" } });
+    fireEvent.change(input, { target: { value: "create" } });
+
+    expect(status).toHaveTextContent("4 results available");
+
+    await waitFor(() => expect(status).toHaveTextContent("1 result available"));
+  });
+
+  it("announces a zero-result summary when nothing matches the query", async () => {
+    render(<CommandPalette />);
+    fireEvent.keyDown(document, { key: "k", ctrlKey: true });
+
+    const input = screen.getByPlaceholderText("Search navigation...");
+    fireEvent.change(input, { target: { value: "nonexistentquery12345" } });
+
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+
+    const status = screen.getByRole("status");
+    await waitFor(() => expect(status).toHaveTextContent("No results found"));
+    expect(screen.getByText("Try a different search term.")).toBeInTheDocument();
   });
 
   it("navigates to selected item on option button click", () => {
@@ -108,4 +141,44 @@ describe("CommandPalette", () => {
 
     expect(screen.queryByPlaceholderText("Search navigation...")).not.toBeInTheDocument();
   });
+
+  it("wraps ArrowDown navigation from the last item back to the first", () => {
+    render(<CommandPalette />);
+    fireEvent.keyDown(document, { key: "k", ctrlKey: true });
+
+    const dialogContent = screen.getByRole("dialog");
+    const options = screen.getAllByRole("option");
+
+    // Home(0) -> Explore(1) -> Create(2) -> Profile(3) -> wraps to Home(0)
+    fireEvent.keyDown(dialogContent, { key: "ArrowDown" });
+    fireEvent.keyDown(dialogContent, { key: "ArrowDown" });
+    fireEvent.keyDown(dialogContent, { key: "ArrowDown" });
+    expect(options[3]).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.keyDown(dialogContent, { key: "ArrowDown" });
+    expect(options[0]).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("defers to the open/onOpenChange props when used as a controlled component", () => {
+    const onOpenChange = vi.fn();
+    const { rerender } = render(<CommandPalette open={false} onOpenChange={onOpenChange} />);
+
+    expect(screen.queryByPlaceholderText("Search navigation...")).not.toBeInTheDocument();
+
+    // The internal Ctrl+K handler still fires, but in controlled mode it must
+    // report the intended state via onOpenChange instead of opening itself.
+    fireEvent.keyDown(document, { key: "k", ctrlKey: true });
+    expect(onOpenChange).toHaveBeenCalledWith(true);
+    expect(screen.queryByPlaceholderText("Search navigation...")).not.toBeInTheDocument();
+
+    rerender(<CommandPalette open={true} onOpenChange={onOpenChange} />);
+    expect(screen.getByPlaceholderText("Search navigation...")).toBeInTheDocument();
+  });
+
+  // NOTE: the "recently-viewed campaigns" and "quick actions" (Create /
+  // Connect Wallet / Toggle Theme) groups described in issue #884 are not
+  // present in the current CommandPalette implementation, which still
+  // renders a single flat navigationItems list. The tests above cover the
+  // component as it exists today; recents/quick-action coverage should be
+  // added once those groups are actually implemented.
 });

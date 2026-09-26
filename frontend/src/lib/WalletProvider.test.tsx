@@ -314,9 +314,7 @@ describe("WalletProvider", () => {
       );
 
       await user.click(screen.getByTestId("btn-connect"));
-      await waitFor(() =>
-        expect(screen.getByTestId("address")).toHaveTextContent("GFIRSTACCOUNT"),
-      );
+      await waitFor(() => expect(screen.getByTestId("address")).toHaveTextContent("GFIRSTACCOUNT"));
 
       // User switches accounts inside Freighter, then reconnects from the app.
       vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "GSECONDACCOUNT" });

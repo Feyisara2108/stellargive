@@ -7,6 +7,7 @@ import {
   formatBasisPoints,
   toRawAmount,
   normalizeAddress,
+  formatUSD,
   ZERO_ADDRESS,
 } from "./format";
 
@@ -249,6 +250,21 @@ describe("format utils", () => {
     it("returns null for a non-zero numeric value coerced to a non-G string", () => {
       // Truthy, non-zero-address, but toString() won't be a valid G-address.
       expect(normalizeAddress(12345)).toBeNull();
+    });
+  });
+
+  describe("formatUSD", () => {
+    it("formats positive numbers correctly", () => {
+      expect(formatUSD(1234.56)).toBe("$1,234.56");
+      expect(formatUSD(0)).toBe("$0.00");
+      expect(formatUSD(1000)).toBe("$1,000.00");
+      expect(formatUSD(0.1234)).toBe("$0.12");
+    });
+
+    it("handles invalid or non-finite numbers gracefully", () => {
+      expect(formatUSD(NaN)).toBe("$0.00");
+      expect(formatUSD(Infinity)).toBe("$0.00");
+      expect(formatUSD(-Infinity)).toBe("$0.00");
     });
   });
 });
