@@ -29,29 +29,77 @@ export const sanitizeUrl = (url: string): string => {
   return cleaned;
 };
 
-export const DEDICATION_MAX_LENGTH = 140;
+const escapeHtml = (text: string): string =>
+  text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const renderInline = (escaped: string): string => {
+  const links: string[] = [];
+  const withLinkTokens = escaped.replace(
+    /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+    (_m, label: string, href: string) => {
+      links.push(`<a href="${href}" target="_blank" rel="noopener noreferrer">${label}</a>`);
+      return `\u0000${links.length - 1}\u0000`;
+    },
+  );
+  return withLinkTokens
+    .replace(/\*\*([^*]+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*([^*\s][^*]*?)\*(?!\*)/g, "$1<em>$2</em>")
+    .replace(/(^|[\s(])_([^_\s][^_]*?)_(?=$|[\s.,!?;:)])/g, "$1<em>$2</em>")
+    .replace(/\u0000(\d+)\u0000/g, (_m, i: string) => links[Number(i)]);
+};
 
 /**
- * Sanitizes a donor dedication message for display: strips all HTML, control
- * characters and repeated whitespace, then truncates to DEDICATION_MAX_LENGTH.
- * The result is plain text; render it as a React text child, never as HTML.
+ * Converts a safe subset of markdown (bold, italics, links, lists) to HTML and
+ * sanitizes the result with DOMPurify. Input is HTML-escaped before parsing, only
+ * http(s) links are recognised, and links open in a new tab with rel="noopener noreferrer".
  */
-export const sanitizeMessage = (message: string | null | undefined): string => {
-  if (!message) return "";
-  let text =
-    typeof window !== "undefined"
-      ? DOMPurify.sanitize(message, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] })
-      : message.replace(/<[^>]*>/g, "");
-  // DOMPurify returns serialized HTML; decode entities back to plain text.
-  text = text
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, "&");
-  return text
-    .replace(/[\u0000-\u001f\u007f]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, DEDICATION_MAX_LENGTH);
+export const renderMarkdown = (markdown: string): string => {
+  if (!markdown) return "";
+  const blocks: string[] = [];
+  let paragraph: string[] = [];
+  let list: { tag: "ul" | "ol"; items: string[] } | null = null;
+
+  const flushParagraph = () => {
+    if (paragraph.length) blocks.push(`<p>${paragraph.join("<br>")}</p>`);
+    paragraph = [];
+  };
+  const flushList = () => {
+    if (list) {
+      blocks.push(`<${list.tag}>${list.items.map((i) => `<li>${i}</li>`).join("")}</${list.tag}>`);
+    }
+    list = null;
+  };
+
+  for (const rawLine of markdown.replace(/\r\n?/g, "\n").split("\n")) {
+    const line = escapeHtml(rawLine.trim());
+    const bullet = /^[-*]\s+(.*)$/.exec(line);
+    const numbered = /^\d+[.)]\s+(.*)$/.exec(line);
+    if (!line) {
+      flushParagraph();
+      flushList();
+    } else if (bullet || numbered) {
+      const tag = bullet ? "ul" : "ol";
+      flushParagraph();
+      if (list && list.tag !== tag) flushList();
+      if (!list) list = { tag, items: [] };
+      list.items.push(renderInline((bullet ?? numbered)![1]));
+    } else {
+      flushList();
+      paragraph.push(renderInline(line));
+    }
+  }
+  flushParagraph();
+  flushList();
+
+  const html = blocks.join("");
+  if (typeof window === "undefined") return html;
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ["p", "br", "strong", "em", "ul", "ol", "li", "a"],
+    ALLOWED_ATTR: ["href", "target", "rel"],
+  });
 };

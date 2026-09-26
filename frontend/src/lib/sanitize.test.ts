@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { DEDICATION_MAX_LENGTH, sanitizeHtml, sanitizeMessage, sanitizeUrl } from "./sanitize";
+import { renderMarkdown, sanitizeHtml, sanitizeUrl } from "./sanitize";
 
 describe("sanitizeHtml", () => {
   it("removes script tags and keeps text content", () => {
@@ -44,32 +44,35 @@ describe("sanitizeUrl", () => {
   });
 });
 
-describe("sanitizeMessage", () => {
-  it("strips HTML tags and keeps the text", () => {
-    expect(sanitizeMessage("<script>alert(1)</script>Stay strong <b>friends</b>")).toBe(
-      "Stay strong friends",
-    );
+describe("renderMarkdown", () => {
+  it("renders bold, italics, links and lists", () => {
+    const html = renderMarkdown("**bold** and *italic*\n\n- one\n- two\n\n1. first\n2. second");
+    expect(html).toContain("<strong>bold</strong>");
+    expect(html).toContain("<em>italic</em>");
+    expect(html).toContain("<ul><li>one</li><li>two</li></ul>");
+    expect(html).toContain("<ol><li>first</li><li>second</li></ol>");
   });
 
-  it("drops event-handler attributes", () => {
-    expect(sanitizeMessage('<img src=x onerror="alert(1)">hello')).toBe("hello");
+  it("opens external links in a new tab with rel noopener noreferrer", () => {
+    const html = renderMarkdown("[Stellar](https://stellar.org)");
+    expect(html).toContain('href="https://stellar.org"');
+    expect(html).toContain('target="_blank"');
+    expect(html).toContain('rel="noopener noreferrer"');
   });
 
-  it("keeps plain punctuation as text", () => {
-    expect(sanitizeMessage('Tom & Jerry\'s "dedication"')).toBe('Tom & Jerry\'s "dedication"');
+  it("escapes raw HTML so scripts and handlers cannot run", () => {
+    const html = renderMarkdown("<script>alert(1)</script><img src=x onerror=alert(1)>");
+    expect(html).not.toContain("<script");
+    expect(html).not.toContain("<img");
   });
 
-  it("collapses whitespace and control characters", () => {
-    expect(sanitizeMessage("  a\n\n b\t\u0000c  ")).toBe("a b c");
-  });
-
-  it("truncates to the dedication limit", () => {
-    expect(sanitizeMessage("x".repeat(500))).toHaveLength(DEDICATION_MAX_LENGTH);
+  it("does not turn javascript: links into anchors", () => {
+    const html = renderMarkdown("[x](javascript:alert(1))");
+    expect(html).not.toContain("<a");
+    expect(html).not.toContain("href");
   });
 
   it("returns an empty string for empty input", () => {
-    expect(sanitizeMessage("")).toBe("");
-    expect(sanitizeMessage(null)).toBe("");
-    expect(sanitizeMessage(undefined)).toBe("");
+    expect(renderMarkdown("")).toBe("");
   });
 });

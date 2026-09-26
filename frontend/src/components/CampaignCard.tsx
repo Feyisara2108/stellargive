@@ -30,6 +30,38 @@ import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
+const HOUR_SECONDS = 60 * 60;
+
+export type DeadlineUrgency = "normal" | "soon" | "critical";
+
+/**
+ * Urgency of an active campaign's deadline: amber under 48h, red under 6h.
+ * `endingSoon` is true within 24h of the deadline. Past deadlines are "normal".
+ */
+export function getDeadlineUrgency(
+  deadlineSeconds: number,
+  nowMs: number = Date.now(),
+): { urgency: DeadlineUrgency; endingSoon: boolean } {
+  const secondsLeft = deadlineSeconds - nowMs / 1000;
+  if (secondsLeft <= 0) return { urgency: "normal", endingSoon: false };
+  return {
+    urgency:
+      secondsLeft < 6 * HOUR_SECONDS
+        ? "critical"
+        : secondsLeft < 48 * HOUR_SECONDS
+          ? "soon"
+          : "normal",
+    endingSoon: secondsLeft < 24 * HOUR_SECONDS,
+  };
+}
+
+// Text colors chosen for WCAG AA (>= 4.5:1) on the card background in both themes.
+const URGENCY_TEXT_CLASS: Record<DeadlineUrgency, string> = {
+  normal: "",
+  soon: "text-amber-700 dark:text-amber-400 font-medium",
+  critical: "text-red-700 dark:text-red-400 font-semibold",
+};
+
 // Prefetch debounce timer map (shared across all card instances)
 const prefetchTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const PREFETCH_DEBOUNCE_MS = 150;
@@ -96,6 +128,10 @@ function CampaignCardComponent({
   const isFunded = campaign.status === "Funded";
   const isClaimed = campaign.status === "Claimed";
   const deadlineDate = new Date(Number(campaign.deadline) * 1000);
+  const { urgency, endingSoon } =
+    campaign.status === "Active"
+      ? getDeadlineUrgency(Number(campaign.deadline))
+      : { urgency: "normal" as DeadlineUrgency, endingSoon: false };
 
   const gapRaw =
     campaign.target_amount > campaign.raised_amount
@@ -223,10 +259,15 @@ function CampaignCardComponent({
 
         <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2">
           <Calendar className="w-3 h-3" />
-          <span>
+          <span className={URGENCY_TEXT_CLASS[urgency]} data-urgency={urgency}>
             {isExpired ? "Ended " : "Ends "}
             <RelativeTime date={deadlineDate} />
           </span>
+          {endingSoon && (
+            <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-red-800 dark:bg-red-950 dark:text-red-200">
+              Ending soon
+            </span>
+          )}
         </div>
         <div className="space-y-1.5 pt-2 text-xs text-muted-foreground">
           <div className="flex items-center justify-between gap-2">
