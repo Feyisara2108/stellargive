@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useEvents } from "@/hooks/useSoroban";
 import { fromStroops } from "@/lib/soroban";
 import { getStellarExpertTxUrl } from "@/lib/utils";
@@ -11,10 +11,27 @@ import { Activity, ArrowUpRight, Megaphone, Trophy } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 
+// Throttle announcements to avoid overwhelming screen reader users
+const ANNOUNCEMENT_THROTTLE_MS = 5000;
+
 export function EventFeed() {
   const { data: events, isLoading } = useEvents();
   const prevIdsRef = useRef<Set<string>>(new Set());
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [announcement, setAnnouncement] = useState<string>("");
+  const lastAnnouncementTimeRef = useRef<number>(0);
+
+  // Throttled announcement function for screen readers
+  const announceNewEvents = useCallback((count: number) => {
+    const now = Date.now();
+    if (now - lastAnnouncementTimeRef.current < ANNOUNCEMENT_THROTTLE_MS) return;
+
+    lastAnnouncementTimeRef.current = now;
+    const message = count === 1
+      ? "New donation received"
+      : `${count} new donations received`;
+    setAnnouncement(message);
+  }, []);
 
   useEffect(() => {
     if (!events?.length) return;
@@ -33,11 +50,13 @@ export function EventFeed() {
             ? "New donation received!"
             : `${newDonations.length} new donations received!`,
         );
+        // Announce to screen readers
+        announceNewEvents(newDonations.length);
       }, 500);
     }
 
     prevIdsRef.current = currentIds;
-  }, [events]);
+  }, [events, announceNewEvents]);
 
   if (isLoading) {
     return (
@@ -64,6 +83,15 @@ export function EventFeed() {
 
   return (
     <Card className="h-full">
+      {/* ARIA live region for announcing new events to screen readers (#833) */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+      >
+        {announcement}
+      </div>
       <CardHeader>
         <CardTitle className="text-lg flex items-center gap-2">
           <Activity className="w-4 h-4 text-primary" /> Recent Activity
