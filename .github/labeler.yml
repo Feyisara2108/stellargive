@@ -1,0 +1,41 @@
+# Path-based PR auto-labeling configuration
+# Labels are applied based on the files changed in a PR
+# Documentation: https://github.com/actions/labeler
+
+# Frontend changes - UI, components, styling, frontend build config
+frontend:
+  - frontend/**/*
+  - "**/*.css"
+  - "**/*.scss"
+  - "**/*.tsx"
+  - "**/*.jsx"
+  - "**/next.config.*"
+  - "**/tailwind.config.*"
+  - "**/.eslintrc.*"
+
+# Contract changes - smart contract code, Soroban, Rust contract logic
+contract:
+  - contracts/**/*
+  - "**/*.rs"
+  - "**/Cargo.toml"
+  - "**/Cargo.lock"
+  - "**/soroban*"
+
+# DevOps/CI changes - workflows, Docker, deployment scripts, infrastructure
+devops:
+  - .github/workflows/**/*
+  - .github/actions/**/*
+  - docker-compose*.yml
+  - "**/Dockerfile*"
+  - scripts/**/*
+  - k8s/**/*
+  - terraform/**/*
+  - "**/*.sh"
+
+# Documentation changes - markdown files, docs directory
+docs:
+  - docs/**/*
+  - "**/*.md"
+  - "**/README*"
+  - "**/CHANGELOG*"
+  - "**/CONTRIBUTING*"

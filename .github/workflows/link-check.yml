@@ -1,0 +1,71 @@
+name: Link Checker
+
+on:
+  pull_request:
+    paths:
+      - '**.md'
+  schedule:
+    # Run weekly on Sundays at 00:00 UTC
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
+
+jobs:
+  link-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1 # v4.2.2
+
+      - name: Install lychee
+        run: cargo install lychee
+
+      - name: Check links
+        run: |
+          lychee \
+            --verbose \
+            --format markdown \
+            --exclude "https://github.com/Feyisara2108/stellargive/pull/*" \
+            --exclude-mail \
+            --max-retries 3 \
+            --timeout 10 \
+            --accept 200,204,301,302,308 \
+            --cache \
+            docs/ \
+            *.md \
+            > link-check-results.md || true
+
+      - name: Check for broken internal links
+        run: |
+          # Fail on broken internal links (file:// or relative links)
+          if grep -E "^\[.*\]\(file://|^\[.*\]\(\.\./|^\[.*\]\(\./" link-check-results.md | grep -q "✗"; then
+            echo "::error::Broken internal links detected:"
+            grep -E "^\[.*\]\(file://|^\[.*\]\(\.\./|^\[.*\]\(\./" link-check-results.md | grep "✗"
+            exit 1
+          fi
+          echo "✅ No broken internal links found"
+
+      - name: Report external link failures
+        if: always()
+        run: |
+          if [ -s link-check-results.md ]; then
+            echo "## Link Check Results" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            cat link-check-results.md >> "$GITHUB_STEP_SUMMARY"
+            
+            # Count failures
+            FAILURES=$(grep -c "✗" link-check-results.md || echo "0")
+            if [ "$FAILURES" -gt 0 ]; then
+              echo "::warning::$FAILURES broken link(s) detected (external links reported as warning)"
+            fi
+          else
+            echo "✅ All links are valid" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload link check results
+        if: always()
+        uses: actions/upload-artifact@v7.0.1 # v4.3.0
+        with:
+          name: link-check-results
+          path: link-check-results.md
+          retention-days: 30
