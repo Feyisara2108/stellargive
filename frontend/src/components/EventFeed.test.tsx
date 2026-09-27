@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { EventFeed } from "./EventFeed";
 
 vi.mock("@/hooks/useSoroban", () => ({
@@ -141,5 +141,38 @@ describe("EventFeed — populated state", () => {
     } as any);
     render(<EventFeed />);
     expect(screen.queryByText(/No activity yet/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("EventFeed — icons and legend", () => {
+  it("renders a distinct icon accent and text label per event type", () => {
+    vi.mocked(useEvents).mockReturnValue({
+      data: [
+        makeEvent("0-1", "received", [1n, "GABC", 10_000_000n]),
+        makeEvent("0-2", "created", [1n, "GABC", "GDEF", 10_000_000n]),
+        makeEvent("0-3", "claimed", [1n, "GABC", "GDEF", 10_000_000n]),
+      ],
+      isLoading: false,
+    } as any);
+    const { container } = render(<EventFeed />);
+    for (const topic of ["received", "created", "claimed"]) {
+      expect(container.querySelector(`[data-event-type="${topic}"]`)).toBeInTheDocument();
+    }
+    expect(screen.getAllByText("Donation").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Created").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Claimed").length).toBeGreaterThan(0);
+  });
+
+  it("has a collapsible legend documenting each event type", () => {
+    vi.mocked(useEvents).mockReturnValue({ data: [], isLoading: false } as any);
+    render(<EventFeed />);
+    const toggle = screen.getByRole("button", { name: /Legend/i });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText(/A donor contributed funds/i)).not.toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText(/A donor contributed funds/i)).toBeInTheDocument();
+    expect(screen.getByText(/A new campaign was launched/i)).toBeInTheDocument();
+    expect(screen.getByText(/beneficiary claimed the raised funds/i)).toBeInTheDocument();
   });
 });

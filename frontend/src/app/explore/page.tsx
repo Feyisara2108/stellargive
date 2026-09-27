@@ -10,10 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCampaignsPaged, useTokenMetadataBatch } from "@/hooks/useSoroban";
 import { useCampaignSearch } from "@/hooks/useCampaignSearch";
+import { useBookmarks } from "@/hooks/useBookmarks";
 import { TokenSelector } from "@/components/TokenSelector";
 import { CategorySelector, CATEGORIES, type CategoryKey } from "@/components/CategorySelector";
 import { SortSelector, SORT_OPTIONS, type SortKey } from "@/components/SortSelector";
-import { Search, Compass, Loader2, AlertTriangle, RotateCw, LayoutGrid, List } from "lucide-react";
+import { Search, Compass, Loader2, AlertTriangle, RotateCw, LayoutGrid, List, Bookmark } from "lucide-react";
 import { CampaignSkeletonGrid } from "@/components/CampaignSkeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { Campaign } from "@/lib/soroban";
@@ -85,6 +86,8 @@ function ExploreContent() {
     return SORT_OPTIONS.some((o) => o.key === sort) ? (sort as SortKey) : "newest";
   });
   const [tokenFilter, setTokenFilter] = useState(() => searchParams.get("token") ?? "");
+  const [savedOnly, setSavedOnly] = useState(() => searchParams.get("saved") === "1");
+  const { bookmarks } = useBookmarks();
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
   /** Ref to track the last search term synced to URL to prevent hydration from clobbering active typing */
@@ -179,6 +182,8 @@ function ExploreContent() {
       setCategoryFilter("all");
     }
 
+    setSavedOnly(searchParams.get("saved") === "1");
+
     const token = searchParams.get("token");
     if (token !== null) {
       setTokenFilter(token);
@@ -236,16 +241,23 @@ function ExploreContent() {
       next.delete("token");
     }
 
+    if (savedOnly) {
+      next.set("saved", "1");
+    } else {
+      next.delete("saved");
+    }
+
     const query = next.toString();
     const currentQuery = searchParams.toString();
     if (query !== currentQuery) {
       lastSyncedSearchRef.current = searchTerm;
       router.replace(query ? `/explore?${query}` : "/explore", { scroll: false });
     }
-  }, [router, searchParams, statusFilter, sortBy, categoryFilter, tokenFilter, searchTerm]);
+  }, [router, searchParams, statusFilter, sortBy, categoryFilter, tokenFilter, searchTerm, savedOnly]);
 
   const filtered = useMemo(() => {
     const byStatus = searched.filter((campaign) => {
+      if (savedOnly) return bookmarks.includes(campaign.id.toString());
       if (statusFilter === "all") return true;
       if (statusFilter === "active") {
         return campaign.status === "Active" && campaign.raised_amount < campaign.target_amount;
@@ -260,7 +272,7 @@ function ExploreContent() {
     const byCategory = byToken.filter((c) => matchesCategory(c, categoryFilter));
 
     return sortCampaigns(byCategory, sortBy);
-  }, [searched, statusFilter, sortBy, categoryFilter, tokenFilter]);
+  }, [searched, statusFilter, sortBy, categoryFilter, tokenFilter, savedOnly, bookmarks]);
 
   const uniqueTokens = useMemo(() => {
     return Array.from(new Set(filtered.map((c) => c.accepted_token)));
@@ -375,6 +387,26 @@ function ExploreContent() {
           </div>
         </div>
 
+        <div>
+          <button
+            type="button"
+            onClick={() => setSavedOnly((v) => !v)}
+            aria-pressed={savedOnly}
+            className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+              savedOnly
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Bookmark
+              className="h-4 w-4"
+              fill={savedOnly ? "currentColor" : "none"}
+              aria-hidden="true"
+            />
+            Saved{bookmarks.length > 0 ? ` (${bookmarks.length})` : ""}
+          </button>
+        </div>
+
         {/* Status filters — proper ARIA tab pattern with roving tabIndex */}
         <div
           role="tablist"
@@ -446,6 +478,22 @@ function ExploreContent() {
                 <RotateCw className="mr-2 h-4 w-4" aria-hidden="true" />
                 Retry
               </Button>
+            </div>
+          ) : filtered.length === 0 && savedOnly && bookmarks.length === 0 ? (
+            <div
+              data-testid="saved-empty-state"
+              className="flex flex-col items-center gap-4 py-20 text-center"
+            >
+              <div className="rounded-full bg-muted p-6">
+                <Bookmark className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
+              </div>
+              <div>
+                <p className="font-medium text-foreground text-lg">No saved campaigns yet</p>
+                <p className="text-muted-foreground text-sm max-w-sm mt-1">
+                  Tap the bookmark icon on any campaign to save it here for later.
+                </p>
+              </div>
+              <Button onClick={() => setSavedOnly(false)}>Discover campaigns</Button>
             </div>
           ) : filtered.length === 0 ? (
             <EmptyState

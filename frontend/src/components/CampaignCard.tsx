@@ -24,6 +24,7 @@ const DonateModal = dynamic(
 import { ClaimButton } from "@/components/ClaimButton";
 import { Calendar, Target, TrendingUp, Image as ImageIcon, Zap, Ban } from "lucide-react";
 import { ShareButton } from "@/components/ShareButton";
+import { BookmarkButton } from "@/components/BookmarkButton";
 import { AddressLink } from "@/components/AddressLink";
 import { RelativeTime } from "@/components/RelativeTime";
 import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
@@ -310,7 +311,8 @@ function CampaignCardComponent({
           />
         )}
         <ClaimButton campaign={campaign} />
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <BookmarkButton campaignId={campaign.id} title={campaign.title} />
           <ShareButton campaign={campaign} />
         </div>
       </CardFooter>
