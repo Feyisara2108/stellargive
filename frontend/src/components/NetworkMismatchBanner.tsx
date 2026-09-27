@@ -12,8 +12,9 @@ export const FREIGHTER_NETWORK_GUIDE_URL =
 export const dismissKey = (network: string) => `network-banner-dismissed:${network}`;
 
 export function NetworkMismatchBanner() {
-  const { isWrongNetwork, walletNetwork } = useWallet();
+  const { isWrongNetwork, walletNetwork, switchNetwork } = useWallet();
   const [showManualSteps, setShowManualSteps] = useState(false);
+  const [isSwitching, setIsSwitching] = useState(false);
   const [checked, setChecked] = useState<{ network: string | null; dismissed: boolean } | null>(
     null,
   );
@@ -40,7 +41,7 @@ export function NetworkMismatchBanner() {
     setChecked({ network: walletNetwork, dismissed: true });
   };
 
-  const handleSwitch = () => {
+  const openManualGuide = () => {
     const opened = window.open(FREIGHTER_NETWORK_GUIDE_URL, "_blank");
     if (opened) {
       // Sever the opener reference for security (noopener).
@@ -48,6 +49,25 @@ export function NetworkMismatchBanner() {
     } else {
       // Popup was blocked — show inline manual steps instead.
       setShowManualSteps(true);
+    }
+  };
+
+  const handleSwitch = async () => {
+    const expectedNetwork = process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE;
+    if (!expectedNetwork) {
+      openManualGuide();
+      return;
+    }
+
+    setIsSwitching(true);
+    const result = await switchNetwork(expectedNetwork);
+    setIsSwitching(false);
+
+    // A successful switch updates walletNetwork via the provider, which hides this
+    // banner on its own. Any other outcome (unsupported or failed) falls back to
+    // pointing the user at the manual instructions.
+    if (!result.success) {
+      openManualGuide();
     }
   };
 
@@ -96,8 +116,9 @@ export function NetworkMismatchBanner() {
               size="sm"
               className="h-8 text-xs font-medium"
               onClick={handleSwitch}
+              disabled={isSwitching}
             >
-              Switch Network
+              {isSwitching ? "Switching…" : "Switch Network"}
             </Button>
             <button
               onClick={handleDismiss}

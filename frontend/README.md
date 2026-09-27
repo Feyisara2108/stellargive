@@ -76,6 +76,33 @@ To enable Sentry, you must provide the following variables in your `.env.local` 
 - **Transaction Failure**: Submit an intentionally invalid transaction to see the failure in Sentry.
 - **User Rejection**: If the user cancels a wallet popup or transaction signature, the error is intentionally ignored to prevent noise.
 
+## Bundle Analysis
+
+Each route's client-side JavaScript (its own page code plus the shared chunks it
+loads) is budgeted at **3 MiB** (raw, pre-gzip). This is enforced via webpack's
+`performance` options in `next.config.mjs`. The ceiling starts generous because
+most routes ship the Stellar/Soroban SDK (see `lighthouserc.js`'s own 4 MB
+script-size allowance for the same reason) — tighten `ROUTE_JS_BUDGET_BYTES`
+once you've measured a real baseline with the analyzer below.
+
+- **Run the analyzer locally**:
+
+  ```bash
+  npm run analyze
+  ```
+
+  This runs a production build with `@next/bundle-analyzer` enabled and opens an
+  interactive treemap report for the client, server, and edge bundles in your
+  browser (one HTML file per bundle, written under `.next/analyze/`).
+
+- **Budget enforcement**: `npm run analyze` fails the build (and therefore the
+  report) if any route's entrypoint or asset exceeds the 3 MiB budget. A plain
+  `npm run build` only prints a warning for the same condition, so a route
+  creeping over budget doesn't block an unrelated production deploy before
+  someone has reviewed the analyzer report.
+- If a route legitimately needs to grow past the budget, adjust
+  `ROUTE_JS_BUDGET_BYTES` in `next.config.mjs`.
+
 ## Contributing
 
 Contributions are welcome! Please ensure all code passes ESLint and uses the project's design system.

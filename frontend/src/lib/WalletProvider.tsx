@@ -1,12 +1,18 @@
 "use client";
 
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { isConnected, getAddress, setAllowed, getNetwork } from "@stellar/freighter-api";
+import freighterApi, { isConnected, getAddress, setAllowed, getNetwork } from "@stellar/freighter-api";
 import * as Sentry from "@sentry/nextjs";
 import { notify } from "@/lib/toast";
 
 const APP_NETWORK_PASSPHRASE = process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE!;
 export const WALLET_CONNECTED_KEY = "stellargive:wallet-previously-connected";
+
+export interface NetworkSwitchResult {
+  /** Whether the connected wallet exposed a programmatic switch capability at all. */
+  supported: boolean;
+  success: boolean;
+}
 
 interface WalletContextType {
   address: string | null;
@@ -15,6 +21,7 @@ interface WalletContextType {
   isWrongNetwork: boolean;
   connect: () => Promise<void>;
   disconnect: () => void;
+  switchNetwork: (targetNetworkPassphrase: string) => Promise<NetworkSwitchResult>;
 }
 
 export const WalletContext = createContext<WalletContextType | undefined>(undefined);
@@ -113,6 +120,36 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setWalletNetwork(null);
   };
 
+  // Freighter's current API has no way to change the extension's active network on
+  // the user's behalf, but some wallets do (or may in the future). We feature-detect
+  // that capability on the connected wallet's API rather than assuming it exists, so
+  // callers can fall back to manual instructions when it's unsupported.
+  const switchNetwork = useCallback(
+    async (targetNetworkPassphrase: string): Promise<NetworkSwitchResult> => {
+      const api = freighterApi as unknown as Record<string, unknown>;
+      const requestNetworkChange = api.setNetwork;
+      if (typeof requestNetworkChange !== "function") {
+        return { supported: false, success: false };
+      }
+      try {
+        const result = (await (
+          requestNetworkChange as (opts: { networkPassphrase: string }) => Promise<{
+            error?: unknown;
+          }>
+        )({ networkPassphrase: targetNetworkPassphrase })) as { error?: unknown } | undefined;
+        if (result?.error) {
+          throw result.error;
+        }
+        await fetchWalletNetwork();
+        return { supported: true, success: true };
+      } catch (e) {
+        console.error("Failed to switch wallet network", e);
+        return { supported: true, success: false };
+      }
+    },
+    [fetchWalletNetwork],
+  );
+
   return (
     <WalletContext.Provider
       value={{
@@ -122,6 +159,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         isWrongNetwork,
         connect,
         disconnect,
+        switchNetwork,
       }}
     >
       {children}
