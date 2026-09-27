@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useCampaign, useCancelCampaign, useEvents } from "@/hooks/useSoroban";
 import { useWallet } from "@/lib/WalletProvider";
 import { ShareButton } from "@/components/ShareButton";
+import { BookmarkButton } from "@/components/BookmarkButton";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -304,6 +305,7 @@ export function CampaignDetailsClient({
           )}
         </div>
         <div className="flex items-center gap-3">
+          {campaign && <BookmarkButton campaignId={campaign.id} title={campaign.title} />}
           {campaign && <ShareButton campaign={campaign} />}
         </div>
       </div>

@@ -29,6 +29,9 @@ vi.mock("@/lib/WalletProvider", () => ({
   useWallet: vi.fn(),
 }));
 
+const confettiMock = vi.hoisted(() => vi.fn());
+vi.mock("canvas-confetti", () => ({ default: confettiMock }));
+
 import { useClaimFunds } from "@/hooks/useSoroban";
 import { useWallet } from "@/lib/WalletProvider";
 
@@ -179,12 +182,12 @@ describe("ClaimButton — pending state", () => {
 });
 
 describe("ClaimButton — mutation success flag", () => {
-  it("renders a disabled 'Claimed' button once the mutation reports isSuccess", () => {
+  it("replaces the button with a claimed indicator once the mutation reports isSuccess", () => {
     vi.mocked(useClaimFunds).mockReturnValue(mockClaim({ isSuccess: true }) as any);
     render(<ClaimButton campaign={baseCampaign} />);
 
-    const button = screen.getByRole("button", { name: /^Claimed$/i });
-    expect(button).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveTextContent(/Claimed/);
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 });
 
@@ -209,6 +212,49 @@ describe("ClaimButton — success path", () => {
     expect(claimedBtn).toBeInTheDocument();
     expect(claimedBtn).toBeDisabled();
     expect(screen.queryByRole("button", { name: /Claim Funds/i })).not.toBeInTheDocument();
+  });
+});
+
+describe("ClaimButton — celebration and receipt", () => {
+  const HASH = "abc123def456abc123def456abc123def456abc123def456abc123def456abcd";
+
+  it("fires confetti, shows a Stellar Expert receipt link and a permanent claimed state", async () => {
+    confettiMock.mockClear();
+    const mutateAsync = vi.fn().mockResolvedValue({ hash: HASH });
+    vi.mocked(useClaimFunds).mockReturnValue(mockClaim({ mutateAsync }) as any);
+
+    render(<ClaimButton campaign={baseCampaign} />);
+    fireEvent.click(screen.getByRole("button", { name: /Claim Funds/i }));
+
+    const link = await screen.findByRole("link", { name: /View receipt on Stellar Expert/i });
+    expect(link).toHaveAttribute("href", expect.stringContaining(`/tx/${HASH}`));
+    expect(link).toHaveAttribute("href", expect.stringContaining("stellar.expert"));
+    expect(screen.getByRole("status")).toHaveTextContent(/Claimed/);
+    expect(screen.queryByRole("button", { name: /Claim Funds/i })).not.toBeInTheDocument();
+    await waitFor(() => expect(confettiMock).toHaveBeenCalled());
+  });
+
+  it("skips confetti when the user prefers reduced motion", async () => {
+    confettiMock.mockClear();
+    const original = window.matchMedia;
+    window.matchMedia = ((q: string) => ({
+      matches: true,
+      media: q,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+      onchange: null,
+    })) as any;
+    const mutateAsync = vi.fn().mockResolvedValue({ hash: HASH });
+    vi.mocked(useClaimFunds).mockReturnValue(mockClaim({ mutateAsync }) as any);
+
+    render(<ClaimButton campaign={baseCampaign} />);
+    fireEvent.click(screen.getByRole("button", { name: /Claim Funds/i }));
+    await screen.findByRole("status");
+    expect(confettiMock).not.toHaveBeenCalled();
+    window.matchMedia = original;
   });
 });
 
