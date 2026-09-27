@@ -22,7 +22,7 @@ const DonateModal = dynamic(
   { ssr: false },
 );
 import { ClaimButton } from "@/components/ClaimButton";
-import { Calendar, Target, TrendingUp, Image as ImageIcon, Zap, Ban } from "lucide-react";
+import { Calendar, Target, TrendingUp, Image as ImageIcon, Zap, Ban, Flame } from "lucide-react";
 import { ShareButton } from "@/components/ShareButton";
 import { BookmarkButton } from "@/components/BookmarkButton";
 import { AddressLink } from "@/components/AddressLink";
@@ -67,14 +67,19 @@ const URGENCY_TEXT_CLASS: Record<DeadlineUrgency, string> = {
 const prefetchTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const PREFETCH_DEBOUNCE_MS = 150;
 
+export type CampaignHighlightLabel = "Near Goal" | "Trending";
+
 function CampaignCardComponent({
   campaign,
   preloadedTokenMeta,
   detailHrefSearch,
+  highlightLabel,
 }: {
   campaign: Campaign;
   preloadedTokenMeta?: any;
   detailHrefSearch?: string;
+  /** Renders a small ribbon (e.g. from a homepage highlight reel) over the image. */
+  highlightLabel?: CampaignHighlightLabel;
 }) {
   const [imgError, setImgError] = useState(false);
   const [donateOpen, setDonateOpen] = useState(false);
@@ -182,6 +187,16 @@ function CampaignCardComponent({
           <span className="absolute top-2 right-2 z-10 inline-flex items-center gap-1 rounded bg-black/70 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm backdrop-blur-sm">
             <Ban className="h-3 w-3" aria-hidden="true" />
             Campaign expired
+          </span>
+        )}
+        {highlightLabel && (
+          <span className="absolute top-2 left-2 z-10 inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-primary-foreground shadow-sm">
+            {highlightLabel === "Trending" ? (
+              <Flame className="h-3 w-3" aria-hidden="true" />
+            ) : (
+              <Target className="h-3 w-3" aria-hidden="true" />
+            )}
+            {highlightLabel}
           </span>
         )}
       </div>
@@ -325,6 +340,7 @@ export const CampaignCard = React.memo(CampaignCardComponent, (prevProps, nextPr
     prevProps.campaign.id === nextProps.campaign.id &&
     prevProps.campaign.status === nextProps.campaign.status &&
     prevProps.campaign.raised_amount === nextProps.campaign.raised_amount &&
-    prevProps.detailHrefSearch === nextProps.detailHrefSearch
+    prevProps.detailHrefSearch === nextProps.detailHrefSearch &&
+    prevProps.highlightLabel === nextProps.highlightLabel
   );
 });
