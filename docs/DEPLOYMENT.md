@@ -220,3 +220,52 @@ stellar contract invoke \
   --network testnet \
   -- version
 ```
+
+---
+
+## 10. Container Image Verification (Cosign)
+
+All frontend container images published to GitHub Container Registry (`ghcr.io`) are signed using [Cosign](https://github.com/sigstore/cosign) with keyless signing backed by Sigstore and GitHub Actions OIDC tokens.
+
+Consumers can verify image provenance and integrity prior to deployment:
+
+### Prerequisites
+
+Install `cosign` (v2.x or later):
+
+```bash
+# macOS (Homebrew)
+brew install cosign
+
+# Linux
+curl -O -L "https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64"
+sudo mv cosign-linux-amd64 /usr/local/bin/cosign
+sudo chmod +x /usr/local/bin/cosign
+```
+
+### Verifying Published Images
+
+Verify any published image tag (e.g., `latest`, release tag, or short SHA):
+
+```bash
+cosign verify \
+  --certificate-identity-regexp "https://github.com/Feyisara2108/stellargive/.*" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  ghcr.io/feyisara2108/stellargive-frontend:latest
+```
+
+Or verify directly by immutable image digest:
+
+```bash
+cosign verify \
+  --certificate-identity-regexp "https://github.com/Feyisara2108/stellargive/.*" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  ghcr.io/feyisara2108/stellargive-frontend@sha256:<IMAGE_DIGEST>
+```
+
+### Verification Expectations
+
+- **Valid Signature:** `cosign verify` outputs the verification certificate claims and signature details, returning exit code `0`.
+- **Unsigned Image:** Fails with an error (`no matching signatures found`) and non-zero exit code.
+- **Tampered / Impersonated Image:** Fails if the OIDC certificate identity or issuer does not match the official repository.
+
