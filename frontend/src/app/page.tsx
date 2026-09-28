@@ -6,7 +6,44 @@ const EventFeed = dynamic(() => import("@/components/EventFeed").then((mod) => m
 });
 import { HeroCTA } from "@/components/HeroCTA";
 import { PlatformStats } from "@/components/PlatformStats";
-import { Heart, ShieldCheck, Zap } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { ArrowRight, Heart, Megaphone, ShieldCheck, Trophy, Wallet, Zap } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+
+type HowItWorksStep = {
+  title: string;
+  description: string;
+  Icon: LucideIcon;
+  href?: string;
+  cta?: string;
+};
+
+// The three stages of the campaign lifecycle, in the order they happen on-chain.
+// The closing step links into the create flow so a visitor who just read how
+// claiming works can start their own campaign.
+const HOW_IT_WORKS: HowItWorksStep[] = [
+  {
+    title: "Create",
+    description:
+      "Describe the cause, set a funding goal and deadline, and name the beneficiary. Your campaign goes live as soon as your wallet signs.",
+    Icon: Megaphone,
+  },
+  {
+    title: "Fund",
+    description:
+      "Supporters connect a wallet and donate in a supported token. Funds move straight into the campaign's contract — no platform account holds them.",
+    Icon: Wallet,
+  },
+  {
+    title: "Claim",
+    description:
+      "Once the goal is met or the deadline passes, the beneficiary claims the raised funds in a single transaction.",
+    Icon: Trophy,
+    href: "/create",
+    cta: "Start your own campaign",
+  },
+];
 
 export default function Home() {
   return (
@@ -40,6 +77,52 @@ export default function Home() {
             <HeroCTA />
             <PlatformStats />
           </div>
+        </section>
+
+        {/* How It Works Section */}
+        <section id="how-it-works" className="py-16 container" aria-labelledby="how-it-works-title">
+          <div className="max-w-2xl mx-auto text-center space-y-2">
+            <h2 id="how-it-works-title" className="text-3xl font-bold tracking-tight">
+              How It Works
+            </h2>
+            <p className="text-muted-foreground">
+              Every campaign moves through the same three steps, enforced by the smart contract
+              rather than by StellarGive.
+            </p>
+          </div>
+
+          <ol className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-3">
+            {HOW_IT_WORKS.map((step, index) => {
+              const { Icon } = step;
+              return (
+                <li
+                  key={step.title}
+                  className="flex flex-col rounded-xl border bg-card text-card-foreground p-6 shadow-sm"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                      <Icon className="h-5 w-5" aria-hidden="true" />
+                    </span>
+                    <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                      Step {index + 1}
+                    </span>
+                  </div>
+
+                  <h3 className="mt-4 text-xl font-semibold tracking-tight">{step.title}</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">{step.description}</p>
+
+                  {step.href && step.cta ? (
+                    <Button asChild size="sm" className="mt-6 self-start">
+                      <Link href={step.href}>
+                        {step.cta}
+                        <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+                      </Link>
+                    </Button>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ol>
         </section>
 
         {/* Campaigns Section */}
