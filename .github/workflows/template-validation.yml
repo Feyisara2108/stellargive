@@ -51,7 +51,10 @@ jobs:
               return;
             }
 
-            const missingList = missingSections.map((section) => `- \\`${section}\\``).join('\\n');
+            // Single backslashes: the YAML block scalar passes characters through
+            // verbatim, so `\\`` would reach JS as an escaped backslash plus a
+            // backtick that closes the template early and breaks the whole script.
+            const missingList = missingSections.map((section) => `- \`${section}\``).join('\n');
             const commentBody = `${marker}
             ## Pull request template reminder
 
