@@ -66,10 +66,20 @@ jobs:
         run: |
           FIXTURE=".github/gitleaks-test-fixtures/fake-secrets.txt"
 
+          # The global path allowlist in .gitleaks.toml excludes the fixture
+          # directory so the production scan stays quiet — but that same
+          # allowlist suppresses every finding when the fixture is scanned in
+          # place, which is what silently broke this check. Copy the fixture to
+          # a path the allowlist does not match so the rules are exercised.
+          SCAN_DIR="/tmp/gitleaks-fixture-scan"
+          rm -rf "$SCAN_DIR"
+          mkdir -p "$SCAN_DIR"
+          cp "$FIXTURE" "$SCAN_DIR/"
+
           # gitleaks exits 1 when leaks are found, 0 when clean, 126/other on error.
           gitleaks detect \
             --config .gitleaks.toml \
-            --source "$FIXTURE" \
+            --source "$SCAN_DIR" \
             --no-git \
             --report-format json \
             --report-path /tmp/gitleaks-fixture-report.json \
