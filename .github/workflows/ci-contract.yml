@@ -43,8 +43,30 @@ jobs:
     if: ${{ github.event_name == 'merge_group' || needs.change-detection.outputs.contracts == 'true' }}
     uses: ./.github/workflows/contract-checks.yml
 
+  cargo-deny:
+    name: cargo-deny (advisories, licenses, bans, sources)
+    needs: change-detection
+    if: ${{ github.event_name == 'merge_group' || needs.change-detection.outputs.contracts == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2 # v4.2.2
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable # stable
+
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@v2 # v2
+        with:
+          tool: cargo-deny@0.16.1
+
+      - name: Run cargo-deny
+        working-directory: contracts/stellar-give
+        run: cargo deny check advisories licenses bans sources
+
   notify:
-    needs: contract-checks
+    needs: [contract-checks, cargo-deny]
     if: always() && failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
