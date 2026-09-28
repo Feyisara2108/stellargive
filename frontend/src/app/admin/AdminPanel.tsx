@@ -19,12 +19,38 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useAddToWhitelist, useCancelCampaign, useAddUpdate, usePauseContract, useUnpauseContract } from "@/hooks/useSoroban";
+import {
+  useAddToWhitelist,
+  useCancelCampaign,
+  useAddUpdate,
+  usePauseContract,
+  useUnpauseContract,
+  usePlatformConfig,
+} from "@/hooks/useSoroban";
 import { toast } from "sonner";
 import { Campaign } from "@/lib/soroban";
 import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
 import { PostUpdateForm } from "@/components/PostUpdateForm";
-import { Shield, CheckCircle, AlertCircle, Loader2, Eye, FileText, XCircle, Pause, Play } from "lucide-react";
+import { AsyncBoundary } from "@/components/AsyncBoundary";
+import { IconButton } from "@/components/ui/icon-button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { AddressLink } from "@/components/AddressLink";
+import {
+  Shield,
+  CheckCircle,
+  AlertCircle,
+  Loader2,
+  Eye,
+  FileText,
+  XCircle,
+  Pause,
+  Play,
+  Settings,
+  Landmark,
+  ListOrdered,
+  Percent,
+  RotateCw,
+} from "lucide-react";
 
 interface AdminPanelProps {
   ownedCampaigns: Campaign[];
@@ -36,6 +62,13 @@ export function AdminPanel({ ownedCampaigns }: AdminPanelProps) {
   const addUpdate = useAddUpdate();
   const pauseContract = usePauseContract();
   const unpauseContract = useUnpauseContract();
+  const {
+    data: platformConfig,
+    isLoading: isConfigLoading,
+    isError: isConfigError,
+    refetch: refetchConfig,
+    isFetching: isConfigFetching,
+  } = usePlatformConfig();
 
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>("");
   const [addressToWhitelist, setAddressToWhitelist] = useState<string>("");
@@ -96,6 +129,74 @@ export function AdminPanel({ ownedCampaigns }: AdminPanelProps) {
 
   return (
     <div className="space-y-8">
+      {/* Platform Configuration */}
+      <div className="border rounded-xl bg-card p-6 shadow-sm space-y-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-2">
+            <h2 className="text-xl font-semibold flex items-center gap-2">
+              <Settings className="w-5 h-5 text-primary" />
+              Platform Configuration
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Current on-chain owner, campaign totals, and fee rate for this deployment.
+            </p>
+          </div>
+          <IconButton
+            aria-label="Refresh platform configuration"
+            variant="outline"
+            onClick={() => refetchConfig()}
+            disabled={isConfigFetching}
+          >
+            <RotateCw className={`w-4 h-4 ${isConfigFetching ? "animate-spin" : ""}`} />
+          </IconButton>
+        </div>
+
+        <AsyncBoundary
+          isLoading={isConfigLoading}
+          isError={isConfigError}
+          onRetry={() => refetchConfig()}
+          errorTitle="Failed to load platform configuration"
+          errorMessage="We couldn't read the owner, campaign totals, or fee rate from the contract. Please check your connection and try again."
+          loadingSlot={
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Skeleton className="h-20" />
+              <Skeleton className="h-20" />
+              <Skeleton className="h-20" />
+            </div>
+          }
+        >
+          {platformConfig && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="rounded-lg border bg-background p-4 space-y-1.5">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase font-bold tracking-wider">
+                  <Landmark className="w-3.5 h-3.5" />
+                  Owner
+                </div>
+                <AddressLink address={platformConfig.owner} />
+              </div>
+
+              <div className="rounded-lg border bg-background p-4 space-y-1.5">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase font-bold tracking-wider">
+                  <ListOrdered className="w-3.5 h-3.5" />
+                  Total Campaigns
+                </div>
+                <p className="text-2xl font-bold">{platformConfig.totalCampaigns.toString()}</p>
+              </div>
+
+              <div className="rounded-lg border bg-background p-4 space-y-1.5">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase font-bold tracking-wider">
+                  <Percent className="w-3.5 h-3.5" />
+                  Platform Fee
+                </div>
+                <p className="text-2xl font-bold">
+                  {((platformConfig.feeBps / platformConfig.feeDenominator) * 100).toFixed(2)}%
+                </p>
+              </div>
+            </div>
+          )}
+        </AsyncBoundary>
+      </div>
+
       {/* Contract Controls */}
       <div className="border rounded-xl bg-card p-6 shadow-sm space-y-4">
         <div className="space-y-2">

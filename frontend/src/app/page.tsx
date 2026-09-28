@@ -1,3 +1,6 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navbar } from "@/components/Navbar";
 import { CampaignList } from "@/components/CampaignList";
 import dynamic from "next/dynamic";
@@ -44,6 +47,223 @@ const HOW_IT_WORKS: HowItWorksStep[] = [
     cta: "Start your own campaign",
   },
 ];
+import { CampaignCard } from "@/components/CampaignCard";
+import { IconButton } from "@/components/ui/icon-button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useRecentCampaigns } from "@/hooks/useSoroban";
+import type { Campaign } from "@/lib/soroban";
+import { Heart, ShieldCheck, Zap, ChevronLeft, ChevronRight } from "lucide-react";
+
+/** Auto-advance interval for the featured carousel, in ms. */
+const AUTO_ADVANCE_MS = 6000;
+/** Minimum horizontal drag distance to count as a swipe, in px. */
+const SWIPE_THRESHOLD_PX = 50;
+/** How many campaigns of each kind to pull into the highlight reel. */
+const HIGHLIGHTS_PER_CATEGORY = 4;
+const MAX_HIGHLIGHTS = 6;
+
+function usePrefersReducedMotion(): boolean {
+  const [prefers, setPrefers] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setPrefers(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setPrefers(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  return prefers;
+}
+
+type HighlightLabel = "Near Goal" | "Trending";
+interface Highlight {
+  campaign: Campaign;
+  label: HighlightLabel;
+}
+
+/**
+ * Curates the homepage highlight reel: active campaigns closest to their
+ * funding goal, plus active campaigns raising fastest relative to time left.
+ * Mirrors the "near-goal" / "trending" formulas used by the explore page's
+ * sort options, kept local here since this reel's curation (capped, deduped,
+ * two-category blend) is specific to this section.
+ */
+function curateHighlights(campaigns: Campaign[]): Highlight[] {
+  const active = campaigns.filter((c) => c.status === "Active");
+  const now = Date.now() / 1000;
+
+  const progressBps = (c: Campaign) =>
+    c.target_amount === 0n ? 0 : Number((c.raised_amount * 10_000n) / c.target_amount);
+
+  const nearGoal = active
+    .filter((c) => {
+      const bps = progressBps(c);
+      return bps >= 5000 && bps < 10000;
+    })
+    .sort((a, b) => progressBps(b) - progressBps(a))
+    .slice(0, HIGHLIGHTS_PER_CATEGORY)
+    .map((campaign): Highlight => ({ campaign, label: "Near Goal" }));
+
+  const nearGoalIds = new Set(nearGoal.map((h) => h.campaign.id.toString()));
+
+  const trendingScore = (c: Campaign) => {
+    const progress = c.target_amount === 0n ? 0 : Number(c.raised_amount) / Number(c.target_amount);
+    const daysLeft = Math.max((Number(c.deadline) - now) / 86400, 0.1);
+    return progress / daysLeft;
+  };
+
+  const trending = active
+    .filter((c) => !nearGoalIds.has(c.id.toString()))
+    .sort((a, b) => trendingScore(b) - trendingScore(a))
+    .slice(0, HIGHLIGHTS_PER_CATEGORY)
+    .map((campaign): Highlight => ({ campaign, label: "Trending" }));
+
+  return [...nearGoal, ...trending].slice(0, MAX_HIGHLIGHTS);
+}
+
+function FeaturedCarousel() {
+  const { data: campaigns, isLoading } = useRecentCampaigns();
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const highlights = useMemo(() => curateHighlights(campaigns ?? []), [campaigns]);
+
+  const [index, setIndex] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const touchStartX = useRef<number | null>(null);
+
+  // Clamp the index if the highlight set shrinks (e.g. after a refetch).
+  useEffect(() => {
+    if (index >= highlights.length) setIndex(0);
+  }, [highlights.length, index]);
+
+  const goTo = useCallback(
+    (next: number) => {
+      if (highlights.length === 0) return;
+      setIndex(((next % highlights.length) + highlights.length) % highlights.length);
+    },
+    [highlights.length],
+  );
+  const goNext = useCallback(() => goTo(index + 1), [goTo, index]);
+  const goPrev = useCallback(() => goTo(index - 1), [goTo, index]);
+
+  // Auto-advance: off entirely for reduced-motion users, and paused on
+  // hover/focus so a reader isn't fighting the slide out from under them.
+  useEffect(() => {
+    if (prefersReducedMotion || isPaused || highlights.length <= 1) return;
+    const timer = setInterval(() => setIndex((i) => (i + 1) % highlights.length), AUTO_ADVANCE_MS);
+    return () => clearInterval(timer);
+  }, [prefersReducedMotion, isPaused, highlights.length]);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      goPrev();
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      goNext();
+    }
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null) return;
+    const delta = e.changedTouches[0].clientX - touchStartX.current;
+    if (Math.abs(delta) > SWIPE_THRESHOLD_PX) {
+      if (delta < 0) goNext();
+      else goPrev();
+    }
+    touchStartX.current = null;
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center">
+        <Skeleton className="h-[420px] w-full max-w-md rounded-xl" />
+      </div>
+    );
+  }
+
+  if (highlights.length === 0) return null;
+
+  // Reduced-motion fallback: no autoplay, no sliding animation, just the
+  // same curated campaigns laid out as a static grid.
+  if (prefersReducedMotion) {
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {highlights.map(({ campaign, label }) => (
+          <CampaignCard key={campaign.id.toString()} campaign={campaign} highlightLabel={label} />
+        ))}
+      </div>
+    );
+  }
+
+  const current = highlights[index];
+
+  return (
+    <div
+      role="region"
+      aria-roledescription="carousel"
+      aria-label="Featured campaigns"
+      className="relative"
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+      onFocus={() => setIsPaused(true)}
+      onBlur={() => setIsPaused(false)}
+      onKeyDown={handleKeyDown}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
+      <div className="sr-only" aria-live="polite">
+        Showing featured campaign {index + 1} of {highlights.length}: {current.campaign.title} (
+        {current.label})
+      </div>
+
+      <div className="mx-auto max-w-md">
+        <div key={current.campaign.id.toString()} className="animate-in fade-in duration-500">
+          <CampaignCard campaign={current.campaign} highlightLabel={current.label} />
+        </div>
+      </div>
+
+      {highlights.length > 1 && (
+        <>
+          <IconButton
+            aria-label="Previous featured campaign"
+            variant="outline"
+            className="absolute left-0 top-1/3 -translate-y-1/2 -translate-x-1/2 bg-background shadow-md hidden sm:inline-flex"
+            onClick={goPrev}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </IconButton>
+          <IconButton
+            aria-label="Next featured campaign"
+            variant="outline"
+            className="absolute right-0 top-1/3 -translate-y-1/2 translate-x-1/2 bg-background shadow-md hidden sm:inline-flex"
+            onClick={goNext}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </IconButton>
+
+          <div className="flex justify-center gap-1.5 pt-4">
+            {highlights.map((h, i) => (
+              <button
+                key={h.campaign.id.toString()}
+                type="button"
+                onClick={() => goTo(i)}
+                aria-label={`Go to featured campaign ${i + 1} of ${highlights.length}`}
+                aria-current={i === index}
+                className={`h-2 rounded-full transition-all ${
+                  i === index
+                    ? "w-6 bg-primary"
+                    : "w-2 bg-muted-foreground/30 hover:bg-muted-foreground/50"
+                }`}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function Home() {
   return (
@@ -123,6 +343,15 @@ export default function Home() {
               );
             })}
           </ol>
+        {/* Featured Campaigns */}
+        <section className="py-16 container border-b">
+          <div className="space-y-1 text-center mb-10">
+            <h2 className="text-3xl font-bold tracking-tight">Featured Campaigns</h2>
+            <p className="text-muted-foreground">
+              Near-goal and trending campaigns making the most impact right now.
+            </p>
+          </div>
+          <FeaturedCarousel />
         </section>
 
         {/* Campaigns Section */}

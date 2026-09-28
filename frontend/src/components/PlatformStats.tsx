@@ -2,12 +2,93 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePlatformStats, useUniqueDonors } from "@/hooks/useSoroban";
+import { usePlatformStats } from "@/hooks/useSoroban";
 import { fromStroops } from "@/lib/soroban";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/ui/stat-card";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { AlertCircle, Flame, RotateCw, TrendingUp, UserRoundCheck, Users } from "lucide-react";
+
+/** How long a total takes to count from zero up to its final value, in ms. */
+const COUNT_UP_MS = 1100;
+
+/** Decelerating ease so the number settles onto the total instead of stopping dead. */
+const easeOutCubic = (progress: number) => 1 - (1 - progress) ** 3;
+
+/**
+ * Counts `value` up from zero the first time the card is scrolled into view, and
+ * returns the ref to observe alongside the number to render.
+ *
+ * Until the browser reports the card on screen the real total is rendered as-is:
+ * reduced-motion users, environments without `IntersectionObserver`, and totals
+ * that arrive before anyone scrolls never get a bogus zero, and a total that
+ * changes after the count (a Retry refetch, say) lands straight on screen.
+ */
+function useCountUpOnView(value: number, animate: boolean) {
+  const cardRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<number | null>(null);
+  const countingRef = useRef(false);
+  const [display, setDisplay] = useState(value);
+
+  const stop = () => {
+    if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+    frameRef.current = null;
+  };
+
+  // Reduced motion renders the final value immediately, and a preference change
+  // mid-count snaps the remaining frames to it.
+  useEffect(() => {
+    if (animate) return;
+    stop();
+    setDisplay(value);
+  }, [animate, value]);
+
+  // A new total is never re-animated — only the first view counts up.
+  useEffect(() => {
+    stop();
+    setDisplay(value);
+  }, [value]);
+
+  useEffect(() => {
+    const card = cardRef.current;
+    if (!animate || countingRef.current || !card) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        observer.disconnect();
+        countingRef.current = true;
+
+        // Timed off the animation frame timestamps rather than performance.now():
+        // the two can sit on different time origins, which would make the count
+        // jump straight to the total or run backwards.
+        let startedAt: number | null = null;
+        const tick = (now: number) => {
+          startedAt ??= now;
+          const progress = Math.min(1, (now - startedAt) / COUNT_UP_MS);
+          setDisplay(value * easeOutCubic(progress));
+          if (progress < 1) {
+            frameRef.current = requestAnimationFrame(tick);
+          } else {
+            frameRef.current = null;
+            setDisplay(value);
+          }
+        };
+        frameRef.current = requestAnimationFrame(tick);
+      },
+      { threshold: 0.25 },
+    );
+    observer.observe(card);
+    return () => {
+      observer.disconnect();
+      stop();
+    };
+  }, [animate, value]);
+
+  return { cardRef, display };
+}
+import { AlertCircle, Flame, RotateCw, TrendingUp, Users } from "lucide-react";
 
 /** How long a total takes to count from zero up to its final value, in ms. */
 const COUNT_UP_MS = 1100;
