@@ -10,7 +10,8 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useEvents, useResolvedName } from "@/hooks/useSoroban";
 import { fromStroops } from "@/lib/soroban";
-import { Trophy, ArrowDown, User } from "lucide-react";
+import { toCSV, downloadTextFile } from "@/utils/format";
+import { Trophy, ArrowDown, Download, User } from "lucide-react";
 import { useWallet } from "@/lib/WalletProvider";
 
 /** How many on-chain events to aggregate the ranking from. */
@@ -131,9 +132,7 @@ function LeaderboardRow({
             <p className="truncate text-sm font-medium text-foreground">{resolvedName}</p>
           )}
           <AddressLink address={entry.donor} className="text-xs text-muted-foreground" />
-          {isCurrentUser && (
-            <span className="text-xs text-primary font-medium">(You)</span>
-          )}
+          {isCurrentUser && <span className="text-xs text-primary font-medium">(You)</span>}
         </div>
       </div>
       <div className="shrink-0 text-right">
@@ -176,6 +175,20 @@ export default function LeaderboardPage() {
 
   const myRank = address ? donors.findIndex((d) => d.donor === address) + 1 : null;
 
+  const handleExportCSV = useCallback(() => {
+    const headers = ["Rank", "Donor Address", "Total Donated (XLM)", "Donations", "Campaigns"];
+    const rows = donors.map((d, index) => [
+      index + 1,
+      d.donor,
+      fromStroops(d.total),
+      d.donations,
+      d.campaigns,
+    ]);
+    const csv = toCSV(headers, rows);
+    const date = new Date().toISOString().slice(0, 10);
+    downloadTextFile(`stellargive-leaderboard-${timeRange}-${date}.csv`, csv);
+  }, [donors, timeRange]);
+
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
@@ -196,11 +209,13 @@ export default function LeaderboardPage() {
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Time range:</span>
           <div className="flex gap-1">
-            {([
-              { value: "all", label: "All Time" },
-              { value: "monthly", label: "Monthly" },
-              { value: "weekly", label: "Weekly" },
-            ] as const).map(({ value, label }) => (
+            {(
+              [
+                { value: "all", label: "All Time" },
+                { value: "monthly", label: "Monthly" },
+                { value: "weekly", label: "Weekly" },
+              ] as const
+            ).map(({ value, label }) => (
               <Button
                 key={value}
                 variant={timeRange === value ? "default" : "outline"}
@@ -242,21 +257,27 @@ export default function LeaderboardPage() {
           </div>
         ) : (
           <>
-            <div className="flex flex-wrap gap-6 text-sm">
-              <div>
-                <p className="text-muted-foreground">Donors ranked</p>
-                <p className="text-2xl font-bold tabular-nums">{donors.length}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Total donated</p>
-                <p className="text-2xl font-bold tabular-nums">{fromStroops(totalDonated)} XLM</p>
-              </div>
-              {myRank && (
+            <div className="flex flex-wrap items-end justify-between gap-6 text-sm">
+              <div className="flex flex-wrap gap-6">
                 <div>
-                  <p className="text-muted-foreground">Your rank</p>
-                  <p className="text-2xl font-bold tabular-nums text-primary">#{myRank}</p>
+                  <p className="text-muted-foreground">Donors ranked</p>
+                  <p className="text-2xl font-bold tabular-nums">{donors.length}</p>
                 </div>
-              )}
+                <div>
+                  <p className="text-muted-foreground">Total donated</p>
+                  <p className="text-2xl font-bold tabular-nums">{fromStroops(totalDonated)} XLM</p>
+                </div>
+                {myRank && (
+                  <div>
+                    <p className="text-muted-foreground">Your rank</p>
+                    <p className="text-2xl font-bold tabular-nums text-primary">#{myRank}</p>
+                  </div>
+                )}
+              </div>
+              <Button variant="outline" size="sm" onClick={handleExportCSV}>
+                <Download className="w-4 h-4 mr-1.5" />
+                Export CSV
+              </Button>
             </div>
 
             <Card>
