@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import React, { useMemo } from "react";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import type { Campaign } from "@/lib/soroban";
 
