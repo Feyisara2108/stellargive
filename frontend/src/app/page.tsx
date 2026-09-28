@@ -9,6 +9,44 @@ const EventFeed = dynamic(() => import("@/components/EventFeed").then((mod) => m
 });
 import { HeroCTA } from "@/components/HeroCTA";
 import { PlatformStats } from "@/components/PlatformStats";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { ArrowRight, Heart, Megaphone, ShieldCheck, Trophy, Wallet, Zap } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+
+type HowItWorksStep = {
+  title: string;
+  description: string;
+  Icon: LucideIcon;
+  href?: string;
+  cta?: string;
+};
+
+// The three stages of the campaign lifecycle, in the order they happen on-chain.
+// The closing step links into the create flow so a visitor who just read how
+// claiming works can start their own campaign.
+const HOW_IT_WORKS: HowItWorksStep[] = [
+  {
+    title: "Create",
+    description:
+      "Describe the cause, set a funding goal and deadline, and name the beneficiary. Your campaign goes live as soon as your wallet signs.",
+    Icon: Megaphone,
+  },
+  {
+    title: "Fund",
+    description:
+      "Supporters connect a wallet and donate in a supported token. Funds move straight into the campaign's contract — no platform account holds them.",
+    Icon: Wallet,
+  },
+  {
+    title: "Claim",
+    description:
+      "Once the goal is met or the deadline passes, the beneficiary claims the raised funds in a single transaction.",
+    Icon: Trophy,
+    href: "/create",
+    cta: "Start your own campaign",
+  },
+];
 import { CampaignCard } from "@/components/CampaignCard";
 import { IconButton } from "@/components/ui/icon-button";
 import { Skeleton } from "@/components/ui/skeleton";
