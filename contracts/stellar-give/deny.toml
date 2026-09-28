@@ -1,0 +1,66 @@
+# cargo-deny configuration for StellarGive smart contract
+# https://embarkstudios.github.io/cargo-deny/
+#
+# Run locally:
+#   cargo deny --manifest-path contracts/stellar-give/Cargo.toml check
+
+# ── Advisories ────────────────────────────────────────────────────────────────
+[advisories]
+# Lint level for crates with known security vulnerabilities.
+vulnerability = "deny"
+# Lint level for crates whose advisory has been withdrawn.
+unmaintained = "warn"
+# Lint level for crates with notices (informational advisories).
+notice = "warn"
+# Fetch the advisory database from the default GitHub source.
+db-urls = ["https://github.com/rustsec/advisory-db"]
+# Path where the advisory database is cloned/fetched.
+db-path = "~/.cargo/advisory-db"
+
+# ── Licenses ──────────────────────────────────────────────────────────────────
+[licenses]
+# Lint level for crates that are not explicitly allowed.
+unlicensed = "deny"
+# Copyleft licenses are not allowed; only these permissive licenses are accepted.
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Unicode-3.0",
+  "Unicode-DFS-2016",
+  "Zlib",
+  "0BSD",
+  "BSL-1.0",
+  "CC0-1.0",
+]
+# When a crate is dual-licensed (e.g. MIT OR Apache-2.0), accept it if any
+# license in the expression is in the allow list.
+default = "deny"
+# Some crates have non-standard license fields; handle with exceptions.
+exceptions = []
+# The confidence threshold for detecting a license from a LICENSE file.
+confidence-threshold = 0.8
+
+# ── Bans ──────────────────────────────────────────────────────────────────────
+[bans]
+# Lint level for multiple versions of the same crate in the dependency tree.
+multiple-versions = "warn"
+# Wildcards in dependencies (e.g. `version = "*"`) are not allowed.
+wildcards = "deny"
+# Highlight the lowest version of a duplicated crate.
+highlight = "lowest-version"
+# Specific crates to deny outright (e.g. known-bad or replaced crates).
+deny = []
+# Specific crates to allow (even if duplicated).
+allow = []
+
+# ── Sources ───────────────────────────────────────────────────────────────────
+[sources]
+# Lint level for crates from sources not in the allow list.
+unknown-registry = "deny"
+unknown-git = "deny"
+# Only allow crates from crates.io.
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
