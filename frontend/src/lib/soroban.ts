@@ -10,6 +10,7 @@ import {
   Networks,
   Keypair,
   Operation,
+  StrKey,
 } from "@stellar/stellar-sdk";
 // NOTE: @stellar/freighter-api is browser-only, so it is imported lazily inside
 // submitTransaction. This keeps the read-only helpers (getCampaign, getEvents…)
@@ -503,6 +504,15 @@ export async function getTokenMetadata(contractId: string): Promise<TokenMetadat
   const decimals = Number(scValToNative(simDecimals.result.retval));
 
   return { symbol, decimals };
+}
+
+/**
+ * Checksum-validates a Stellar public key (G... address). Unlike a shape-only
+ * regex, this rejects addresses with an invalid checksum even when the
+ * length and prefix look right.
+ */
+export function isValidStellarAddress(address: string): boolean {
+  return StrKey.isValidEd25519PublicKey(address);
 }
 
 /**

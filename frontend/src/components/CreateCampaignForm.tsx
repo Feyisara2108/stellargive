@@ -3,9 +3,10 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { useCreateCampaign } from "@/hooks/useSoroban";
+import { useCreateCampaign, useResolvedName } from "@/hooks/useSoroban";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useWallet } from "@/lib/WalletProvider";
+import { isValidStellarAddress } from "@/lib/soroban";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -51,7 +52,7 @@ const formSchema = z.object({
     .string()
     .min(10, "Description must be at least 10 characters")
     .max(500, "Description cannot exceed 500 characters"),
-  beneficiary: z.string().regex(/^G[A-Z0-9]{55}$/, "Invalid Stellar address"),
+  beneficiary: z.string().refine(isValidStellarAddress, "Invalid Stellar address"),
   category: z
     .enum(["medical", "food", "shelter", "education", "relief", "other"])
     .optional()
@@ -176,6 +177,13 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
     sessionStorage.setItem("create_campaign_draft", JSON.stringify(draftToSave));
   }, [debouncedValues]);
 
+  const watchBeneficiary = form.watch("beneficiary") ?? "";
+  const debouncedBeneficiary = useDebouncedValue(watchBeneficiary, 500);
+  const isBeneficiaryValid = isValidStellarAddress(debouncedBeneficiary);
+  const { data: resolvedBeneficiaryName, isFetching: isResolvingBeneficiary } = useResolvedName(
+    isBeneficiaryValid ? debouncedBeneficiary : null,
+  );
+
   const watchAcceptedToken = form.watch("acceptedToken");
   const metadataUri = form.watch("metadataUri") ?? "";
   const watchedTitle = form.watch("title") ?? "";
@@ -294,7 +302,9 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <div className="mb-4 space-y-2">
           <div className="flex justify-between text-xs text-muted-foreground">
-            <span>Step {step} of {totalSteps}</span>
+            <span>
+              Step {step} of {totalSteps}
+            </span>
             <span>{step === 1 ? "Details" : step === 2 ? "Funding" : "Review"}</span>
           </div>
           <Progress value={(step / totalSteps) * 100} className="h-2" />
@@ -492,6 +502,15 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
                   <Input placeholder="G..." {...field} disabled={createCampaign.isPending} />
                 </FormControl>
                 <FormDescription>Stellar public key of the receiver.</FormDescription>
+                {isBeneficiaryValid && (
+                  <p className="text-xs text-muted-foreground" aria-live="polite">
+                    {isResolvingBeneficiary
+                      ? "Resolving name…"
+                      : resolvedBeneficiaryName
+                        ? `Resolved: ${resolvedBeneficiaryName}`
+                        : null}
+                  </p>
+                )}
                 <FormMessage />
               </FormItem>
             )}
@@ -567,11 +586,16 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
             <div>
               <p className="text-muted-foreground text-xs">Beneficiary</p>
               <p className="font-medium break-all">{form.watch("beneficiary") || "N/A"}</p>
+              {resolvedBeneficiaryName && (
+                <p className="text-xs text-muted-foreground">{resolvedBeneficiaryName}</p>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <p className="text-muted-foreground text-xs">Target</p>
-                <p className="font-medium">{form.watch("targetAmount") || "0"} {tokenSymbol}</p>
+                <p className="font-medium">
+                  {form.watch("targetAmount") || "0"} {tokenSymbol}
+                </p>
               </div>
               <div>
                 <p className="text-muted-foreground text-xs">Duration</p>

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   formatStroop,
   formatAddress,
@@ -8,6 +8,9 @@ import {
   toRawAmount,
   normalizeAddress,
   formatUSD,
+  escapeCSVField,
+  toCSV,
+  downloadTextFile,
   ZERO_ADDRESS,
 } from "./format";
 
@@ -250,6 +253,70 @@ describe("format utils", () => {
     it("returns null for a non-zero numeric value coerced to a non-G string", () => {
       // Truthy, non-zero-address, but toString() won't be a valid G-address.
       expect(normalizeAddress(12345)).toBeNull();
+    });
+  });
+
+  describe("escapeCSVField", () => {
+    it("leaves plain values untouched", () => {
+      expect(escapeCSVField("GABC")).toBe("GABC");
+      expect(escapeCSVField(42)).toBe("42");
+      expect(escapeCSVField("")).toBe("");
+    });
+
+    it("quotes and doubles internal quotes when the value contains a comma, quote, or newline", () => {
+      expect(escapeCSVField("a,b")).toBe('"a,b"');
+      expect(escapeCSVField('say "hi"')).toBe('"say ""hi"""');
+      expect(escapeCSVField("line1\nline2")).toBe('"line1\nline2"');
+      expect(escapeCSVField("line1\r\nline2")).toBe('"line1\r\nline2"');
+    });
+  });
+
+  describe("toCSV", () => {
+    it("builds a header row followed by escaped data rows, joined with CRLF", () => {
+      const csv = toCSV(
+        ["Rank", "Donor"],
+        [
+          [1, "GABC"],
+          [2, "a,b"],
+        ],
+      );
+      expect(csv).toBe('Rank,Donor\r\n1,GABC\r\n2,"a,b"');
+    });
+
+    it("produces just the header row when there are no data rows", () => {
+      expect(toCSV(["Rank", "Donor"], [])).toBe("Rank,Donor");
+    });
+  });
+
+  describe("downloadTextFile", () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("creates a Blob URL, clicks a temporary anchor with the given filename, and revokes the URL", () => {
+      const createObjectURL = vi.fn().mockReturnValue("blob:mock-url");
+      const revokeObjectURL = vi.fn();
+      vi.stubGlobal("URL", { ...URL, createObjectURL, revokeObjectURL });
+
+      const clickSpy = vi.fn();
+      const appendSpy = vi.spyOn(document.body, "appendChild");
+      const removeSpy = vi.spyOn(document.body, "removeChild");
+      const realCreateElement = document.createElement.bind(document);
+      vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+        const el = realCreateElement(tag);
+        if (tag === "a") el.click = clickSpy;
+        return el;
+      });
+
+      downloadTextFile("report.csv", "a,b\r\n1,2");
+
+      expect(createObjectURL).toHaveBeenCalledTimes(1);
+      const [blobArg] = createObjectURL.mock.calls[0];
+      expect(blobArg.type).toBe("text/csv;charset=utf-8;");
+      expect(clickSpy).toHaveBeenCalledTimes(1);
+      expect(appendSpy).toHaveBeenCalled();
+      expect(removeSpy).toHaveBeenCalled();
+      expect(revokeObjectURL).toHaveBeenCalledWith("blob:mock-url");
     });
   });
 
