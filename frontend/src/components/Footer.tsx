@@ -2,12 +2,22 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, Globe, Twitter } from "lucide-react";
 import { toast } from "sonner";
 import { CONTRACT_ID } from "@/lib/soroban";
 import { cn } from "@/lib/utils";
 import { NETWORK_PASSPHRASE } from "@/lib/soroban";
 import { useRpcHealth, type RpcStatus } from "@/hooks/useRpcHealth";
+
+// GitHub is deliberately absent: the quick links beside these icons already
+// link the repository, and a second copy would be a duplicate tab stop.
+const SOCIAL_LINKS = [
+  { href: "https://stellargive.org", label: "StellarGive website", Icon: Globe },
+  { href: "https://twitter.com/stellargive", label: "StellarGive on X", Icon: Twitter },
+];
+
+/** GitHub renders the repo's SECURITY.md at this path, so it stays the one link. */
+const SECURITY_POLICY_URL = "https://github.com/Feyisara2108/stellargive/blob/main/SECURITY.md";
 
 function networkLabel(): string {
   if (!NETWORK_PASSPHRASE) return "unknown";
@@ -119,6 +129,23 @@ export function Footer() {
             <span className="font-medium">Network:</span>
             <RpcStatusDot />
           </div>
+          {/* flex-wrap keeps the icons on one line where there's room and folds
+              them onto their own lines on narrow viewports. */}
+          <nav aria-label="Social media" className="flex flex-wrap items-center gap-3 mt-1">
+            {SOCIAL_LINKS.map(({ href, label, Icon }) => (
+              <a
+                key={href}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`${label} (opens in a new tab)`}
+                title={label}
+                className="text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <Icon className="h-4 w-4" aria-hidden="true" />
+              </a>
+            ))}
+          </nav>
         </div>
         <nav className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
           <Link href="/explore" className="hover:text-foreground transition-colors">
@@ -161,6 +188,15 @@ export function Footer() {
             className="hover:text-foreground transition-colors"
           >
             GitHub
+          </a>
+          <a
+            href={SECURITY_POLICY_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-foreground transition-colors"
+          >
+            Security Policy
+            <span className="sr-only"> (opens in a new tab)</span>
           </a>
         </nav>
       </div>
