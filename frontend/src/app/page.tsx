@@ -261,6 +261,50 @@ export default function Home() {
           </div>
         </section>
 
+        {/* How It Works Section */}
+        <section id="how-it-works" className="py-16 container" aria-labelledby="how-it-works-title">
+          <div className="max-w-2xl mx-auto text-center space-y-2">
+            <h2 id="how-it-works-title" className="text-3xl font-bold tracking-tight">
+              How It Works
+            </h2>
+            <p className="text-muted-foreground">
+              Every campaign moves through the same three steps, enforced by the smart contract
+              rather than by StellarGive.
+            </p>
+          </div>
+
+          <ol className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-3">
+            {HOW_IT_WORKS.map((step, index) => {
+              const { Icon } = step;
+              return (
+                <li
+                  key={step.title}
+                  className="flex flex-col rounded-xl border bg-card text-card-foreground p-6 shadow-sm"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                      <Icon className="h-5 w-5" aria-hidden="true" />
+                    </span>
+                    <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                      Step {index + 1}
+                    </span>
+                  </div>
+
+                  <h3 className="mt-4 text-xl font-semibold tracking-tight">{step.title}</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">{step.description}</p>
+
+                  {step.href && step.cta ? (
+                    <Button asChild size="sm" className="mt-6 self-start">
+                      <Link href={step.href}>
+                        {step.cta}
+                        <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+                      </Link>
+                    </Button>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ol>
         {/* Featured Campaigns */}
         <section className="py-16 container border-b">
           <div className="space-y-1 text-center mb-10">
