@@ -164,6 +164,15 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: License compliance check
+        working-directory: frontend
+        run: |
+          echo "## 📋 Dependency License Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          npx license-checker --production --summary >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          npm run license:check
+
       - name: ESLint
         working-directory: frontend
         run: npm run lint
