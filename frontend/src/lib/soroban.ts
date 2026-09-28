@@ -216,7 +216,7 @@ export async function getRecentCampaigns(limit = 20): Promise<Campaign[]> {
   return campaigns;
 }
 
-export async function getTotalCampaigns(): Promise<bigint> {
+async function fetchTotalCampaigns(): Promise<bigint> {
   const tx = new TransactionBuilder(
     new Account("GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF", "0"),
     {
@@ -236,11 +236,77 @@ export async function getTotalCampaigns(): Promise<bigint> {
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    return 0n;
+    throw new Error(`Simulation failed: ${sim.error}`);
   }
-  if (!sim.result) return 0n;
+  if (!sim.result) throw new Error("Failed to get total campaigns: no result");
   const result = scValToNative(sim.result.retval);
   return BigInt(result);
+}
+
+/**
+ * Public-facing total campaign count (e.g. the homepage stats strip). Swallows
+ * RPC/simulation failures to 0 rather than surfacing an error, since a
+ * transient hiccup shouldn't break that read-only display.
+ */
+export async function getTotalCampaigns(): Promise<bigint> {
+  try {
+    return await fetchTotalCampaigns();
+  } catch {
+    return 0n;
+  }
+}
+
+export async function getOwner(): Promise<string> {
+  const tx = new TransactionBuilder(
+    new Account("GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF", "0"),
+    {
+      fee: "100",
+      networkPassphrase: NETWORK_PASSPHRASE,
+    },
+  )
+    .addOperation(
+      Operation.invokeContractFunction({
+        contract: CONTRACT_ID,
+        function: "get_owner",
+        args: [],
+      }),
+    )
+    .setTimeout(30)
+    .build();
+
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim)) {
+    throw new Error(`Simulation failed: ${sim.error}`);
+  }
+  if (!sim.result) throw new Error("Failed to get owner: no result");
+  const result = scValToNative(sim.result.retval);
+  return String(result);
+}
+
+/**
+ * Fee basis points the contract charges on every successful claim, out of
+ * `PLATFORM_FEE_DENOMINATOR`. The contract has no getter for this — it's a
+ * compile-time constant (`FEE_BPS` / `FEE_DENOMINATOR` in lib.rs) — so this
+ * mirrors the deployed value rather than being fetched.
+ */
+export const PLATFORM_FEE_BPS = 100;
+export const PLATFORM_FEE_DENOMINATOR = 10_000;
+
+export interface PlatformConfig {
+  owner: string;
+  totalCampaigns: bigint;
+  feeBps: number;
+  feeDenominator: number;
+}
+
+/**
+ * Admin-facing platform configuration snapshot. Unlike `getTotalCampaigns`,
+ * this throws on failure so the caller (the admin panel) can surface a real
+ * error state per metric instead of silently showing a misleading 0.
+ */
+export async function getPlatformConfig(): Promise<PlatformConfig> {
+  const [owner, totalCampaigns] = await Promise.all([getOwner(), fetchTotalCampaigns()]);
+  return { owner, totalCampaigns, feeBps: PLATFORM_FEE_BPS, feeDenominator: PLATFORM_FEE_DENOMINATOR };
 }
 
 export async function getCampaignsPage(
