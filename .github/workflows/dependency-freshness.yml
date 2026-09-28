@@ -1,0 +1,130 @@
+# Weekly dependency freshness report
+# Closes #789 – Add a scheduled dependency freshness report
+
+name: Dependency Freshness Report
+
+on:
+  schedule:
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  freshness-report:
+    name: Dependency freshness check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install npm dependencies
+        working-directory: frontend
+        run: npm ci --legacy-peer-deps
+
+      - name: Check outdated npm packages
+        id: npm_outdated
+        working-directory: frontend
+        run: |
+          echo "## 📦 npm – Outdated Packages" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          npm outdated --json > /tmp/npm-outdated.json 2>/dev/null || true
+
+          if [ ! -s /tmp/npm-outdated.json ] || [ "$(cat /tmp/npm-outdated.json)" = "{}" ]; then
+            echo "✅ All npm packages are up to date." >> "$GITHUB_STEP_SUMMARY"
+            echo "npm_has_outdated=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "npm_has_outdated=true" >> "$GITHUB_OUTPUT"
+            echo "### 🔴 Major (breaking changes)" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Package | Current | Wanted | Latest |" >> "$GITHUB_STEP_SUMMARY"
+            echo "|---------|---------|--------|--------|" >> "$GITHUB_STEP_SUMMARY"
+            node -e '
+              const data = require("/tmp/npm-outdated.json");
+              const semver = (v) => v.replace(/[^0-9.]/g, "").split(".");
+              for (const [pkg, info] of Object.entries(data)) {
+                const cur = semver(info.current || "0.0.0");
+                const lat = semver(info.latest || "0.0.0");
+                if (cur[0] !== lat[0]) {
+                  console.log(`| ${pkg} | ${info.current} | ${info.wanted} | ${info.latest} |`);
+                }
+              }
+            ' >> "$GITHUB_STEP_SUMMARY"
+
+            echo "### 🟡 Minor (new features)" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Package | Current | Wanted | Latest |" >> "$GITHUB_STEP_SUMMARY"
+            echo "|---------|---------|--------|--------|" >> "$GITHUB_STEP_SUMMARY"
+            node -e '
+              const data = require("/tmp/npm-outdated.json");
+              const semver = (v) => v.replace(/[^0-9.]/g, "").split(".");
+              for (const [pkg, info] of Object.entries(data)) {
+                const cur = semver(info.current || "0.0.0");
+                const lat = semver(info.latest || "0.0.0");
+                if (cur[0] === lat[0] && cur[1] !== lat[1]) {
+                  console.log(`| ${pkg} | ${info.current} | ${info.wanted} | ${info.latest} |`);
+                }
+              }
+            ' >> "$GITHUB_STEP_SUMMARY"
+
+            echo "### 🟢 Patch (bug fixes)" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Package | Current | Wanted | Latest |" >> "$GITHUB_STEP_SUMMARY"
+            echo "|---------|---------|--------|--------|" >> "$GITHUB_STEP_SUMMARY"
+            node -e '
+              const data = require("/tmp/npm-outdated.json");
+              const semver = (v) => v.replace(/[^0-9.]/g, "").split(".");
+              for (const [pkg, info] of Object.entries(data)) {
+                const cur = semver(info.current || "0.0.0");
+                const lat = semver(info.latest || "0.0.0");
+                if (cur[0] === lat[0] && cur[1] === lat[1] && cur[2] !== lat[2]) {
+                  console.log(`| ${pkg} | ${info.current} | ${info.wanted} | ${info.latest} |`);
+                }
+              }
+            ' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Check outdated Cargo crates
+        working-directory: contracts/stellar-give
+        run: |
+          cargo install cargo-outdated --locked 2>/dev/null || true
+          echo "## 🦀 Cargo – Outdated Crates" >> "$GITHUB_STEP_SUMMARY"
+          cargo outdated --root-deps-only --format json > /tmp/cargo-outdated.json 2>/dev/null || true
+
+          if [ ! -s /tmp/cargo-outdated.json ]; then
+            echo "✅ All Cargo crates are up to date (or cargo-outdated is unavailable)." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "| Crate | Project | Compat | Latest | Kind |" >> "$GITHUB_STEP_SUMMARY"
+            echo "|-------|---------|--------|--------|------|" >> "$GITHUB_STEP_SUMMARY"
+            node -e '
+              try {
+                const data = require("/tmp/cargo-outdated.json");
+                const deps = data.dependencies || [];
+                for (const d of deps) {
+                  console.log(`| ${d.name} | ${d.project} | ${d.compat} | ${d.latest} | ${d.kind} |`);
+                }
+                if (deps.length === 0) console.log("| ✅ | All up to date | — | — | — |");
+              } catch(e) {
+                console.log("| ⚠️ | Could not parse output | — | — | — |");
+              }
+            ' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Create/update freshness issue
+        if: steps.npm_outdated.outputs.npm_has_outdated == 'true'
+        uses: peter-evans/create-issue-from-file@v5
+        with:
+          title: "📦 Weekly Dependency Freshness Report – ${{ github.run_id }}"
+          content-filepath: ${{ github.step_summary }}
+          labels: dependencies, automated
+        continue-on-error: true
