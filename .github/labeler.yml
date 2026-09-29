@@ -1,0 +1,49 @@
+# Path-based PR auto-labeling configuration
+# Labels are applied based on the files changed in a PR
+# Documentation: https://github.com/actions/labeler
+#
+# Format: actions/labeler@v5 expects each label to hold a list of config
+# options, with the globs nested under `changed-files` (the v4 bare-glob
+# format is rejected with "found unexpected type for label ...").
+
+# Frontend changes - UI, components, styling, frontend build config
+frontend:
+  - changed-files:
+      - 'frontend/**/*'
+      - '**/*.css'
+      - '**/*.scss'
+      - '**/*.tsx'
+      - '**/*.jsx'
+      - '**/next.config.*'
+      - '**/tailwind.config.*'
+      - '**/.eslintrc.*'
+
+# Contract changes - smart contract code, Soroban, Rust contract logic
+contract:
+  - changed-files:
+      - 'contracts/**/*'
+      - '**/*.rs'
+      - '**/Cargo.toml'
+      - '**/Cargo.lock'
+      - '**/soroban*'
+
+# DevOps/CI changes - workflows, Docker, deployment scripts, infrastructure
+devops:
+  - changed-files:
+      - '.github/workflows/**/*'
+      - '.github/actions/**/*'
+      - 'docker-compose*.yml'
+      - '**/Dockerfile*'
+      - 'scripts/**/*'
+      - 'k8s/**/*'
+      - 'terraform/**/*'
+      - '**/*.sh'
+
+# Documentation changes - markdown files, docs directory
+docs:
+  - changed-files:
+      - 'docs/**/*'
+      - '**/*.md'
+      - '**/README*'
+      - '**/CHANGELOG*'
+      - '**/CONTRIBUTING*'

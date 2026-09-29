@@ -126,6 +126,7 @@ Implement the following to secure the deployment pipeline:
 - **Protected Branches:** Enforce protection rules on the `main` branch.
 - **Required PR Reviews:** Require at least two approvals for code merging.
 - **Deployment Approvals:** Require manual approval in GitHub Actions before executing the mainnet deployment step.
+- **Environment Protection:** The `production` environment in GitHub Actions requires reviewer approval before any deployment can proceed. This is configured in the repository settings under Settings > Environments > production. At least one reviewer must approve the workflow run before the deployment steps execute.
 
 ## Multi-Signature Administration
 

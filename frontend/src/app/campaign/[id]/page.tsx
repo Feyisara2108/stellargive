@@ -6,12 +6,12 @@ import { CampaignDetailsClient } from "./CampaignDetailsClient";
 import type { BreadcrumbItem } from "@/components/Breadcrumbs";
 
 type Props = {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 };
 
-type SearchParams = Record<string, string | string[] | undefined>;
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
-function buildExploreHref(searchParams?: SearchParams) {
+function buildExploreHref(searchParams?: Record<string, string | string[] | undefined>) {
   if (!searchParams) return "/explore";
 
   const query = new URLSearchParams();
@@ -39,21 +39,22 @@ function getImageUrl(metadataUri?: string) {
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const resolvedParams = await params;
   const defaultTitle = "StellarGive | Relief Grant Platform";
   const defaultDescription = "A decentralized donation platform built on Stellar.";
 
   const fallback: Metadata = {
-    title: `Campaign #${params.id} | StellarGive`,
+    title: `Campaign #${resolvedParams.id} | StellarGive`,
     description: defaultDescription,
     openGraph: {
-      title: `Campaign #${params.id} | StellarGive`,
+      title: `Campaign #${resolvedParams.id} | StellarGive`,
       description: defaultDescription,
       type: "website",
       siteName: "StellarGive",
     },
     twitter: {
       card: "summary",
-      title: `Campaign #${params.id} | StellarGive`,
+      title: `Campaign #${resolvedParams.id} | StellarGive`,
       description: defaultDescription,
     },
   };
@@ -63,7 +64,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   try {
-    const campaign = await getCampaign(BigInt(params.id));
+    const campaign = await getCampaign(BigInt(resolvedParams.id));
     const numBens = campaign.beneficiaries?.length ?? 1;
     const benDesc =
       numBens > 1
@@ -103,11 +104,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function CampaignPage({
   params,
   searchParams,
-}: Props & { searchParams?: SearchParams }) {
+}: { params: Promise<{ id: string }>, searchParams?: SearchParams }) {
+  const resolvedParams = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
   let campaignTitle: string | undefined;
 
   try {
-    const campaign = await getCampaign(BigInt(params.id));
+    const campaign = await getCampaign(BigInt(resolvedParams.id));
     campaignTitle = campaign.title;
   } catch {
     if (process.env.NEXT_PUBLIC_USE_MOCK_WALLET !== "true") {
@@ -117,12 +120,12 @@ export default async function CampaignPage({
 
   const breadcrumbs: BreadcrumbItem[] = [
     { label: "Home", href: "/" },
-    { label: "Explore", href: buildExploreHref(searchParams) },
+    { label: "Explore", href: buildExploreHref(resolvedSearchParams) },
     {
-      label: campaignTitle || `Campaign #${params.id}`,
-      href: `/campaign/${params.id}`,
+      label: campaignTitle || `Campaign #${resolvedParams.id}`,
+      href: `/campaign/${resolvedParams.id}`,
     },
   ];
 
-  return <CampaignDetailsClient params={params} breadcrumbs={breadcrumbs} />;
+  return <CampaignDetailsClient params={{ id: resolvedParams.id }} breadcrumbs={breadcrumbs} />;
 }

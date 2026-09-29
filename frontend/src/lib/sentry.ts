@@ -1,12 +1,48 @@
 import * as Sentry from "@sentry/nextjs";
 
+const CONSENT_KEY = "stellargive_consent";
+const LEGACY_CONSENT_KEY = "stellargive_analytics_consent";
+
 /**
  * Checks if analytics consent has been granted by the user.
  */
-function hasAnalyticsConsent(): boolean {
+export function hasAnalyticsConsent(): boolean {
   if (typeof window === "undefined") return false;
-  const consent = localStorage.getItem("stellargive_analytics_consent");
+  const consent = localStorage.getItem(CONSENT_KEY) ?? localStorage.getItem(LEGACY_CONSENT_KEY);
   return consent === "accepted";
+}
+
+/**
+ * Initializes Sentry client-side analytics if user consent has been granted.
+ */
+export function initAnalytics(options?: Sentry.BrowserOptions): void {
+  if (typeof window === "undefined") return;
+  if (!hasAnalyticsConsent()) return;
+
+  Sentry.init({
+    dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+    tracesSampleRate: 0.1,
+    debug: false,
+    environment: process.env.NODE_ENV,
+    release: process.env.SENTRY_RELEASE,
+    ...options,
+  });
+}
+
+export const initializeAnalytics = initAnalytics;
+
+/**
+ * Updates analytics consent in localStorage and immediately initializes analytics
+ * if accepted.
+ */
+export function setAnalyticsConsent(consent: "accepted" | "declined"): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(CONSENT_KEY, consent);
+  localStorage.setItem(LEGACY_CONSENT_KEY, consent);
+
+  if (consent === "accepted") {
+    initAnalytics();
+  }
 }
 
 /**

@@ -1,6 +1,6 @@
 // frontend/src/components/PostUpdateForm.tsx
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 interface PostUpdateFormProps {
   campaignId: string;
@@ -16,15 +16,38 @@ interface PostUpdateFormProps {
 
 const MAX_CHARACTER_LIMIT = 280;
 
+const DRAFT_KEY_PREFIX = "stellargive_update_draft_";
+
 export const PostUpdateForm: React.FC<PostUpdateFormProps> = ({
   campaignId,
   onSuccess,
   addUpdateMutation,
   onSubmit,
 }) => {
-  const [content, setContent] = useState("");
+  const [content, setContent] = useState(() => {
+    try {
+      return localStorage.getItem(`${DRAFT_KEY_PREFIX}${campaignId}`) || "";
+    } catch {
+      return "";
+    }
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [draftSaved, setDraftSaved] = useState(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!content.trim()) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      try {
+        localStorage.setItem(`${DRAFT_KEY_PREFIX}${campaignId}`, content);
+        setDraftSaved(true);
+        setTimeout(() => setDraftSaved(false), 2000);
+      } catch {}
+    }, 1000);
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+  }, [content, campaignId]);
 
   const remainingCharacters = MAX_CHARACTER_LIMIT - content.length;
   const isOverLimit = content.length > MAX_CHARACTER_LIMIT;
@@ -49,6 +72,7 @@ export const PostUpdateForm: React.FC<PostUpdateFormProps> = ({
       setContent("");
       try {
         await onSubmit(trimmedContent);
+        try { localStorage.removeItem(`${DRAFT_KEY_PREFIX}${campaignId}`); } catch {}
         onSuccess();
       } catch (err: any) {
         // Restore the content so the user can retry without retyping.
@@ -63,6 +87,7 @@ export const PostUpdateForm: React.FC<PostUpdateFormProps> = ({
       try {
         await addUpdateMutation(campaignId, trimmedContent);
         setContent("");
+        try { localStorage.removeItem(`${DRAFT_KEY_PREFIX}${campaignId}`); } catch {}
         onSuccess();
       } catch (err: any) {
         console.error("Failed to submit update to Soroban:", err);
@@ -99,6 +124,9 @@ export const PostUpdateForm: React.FC<PostUpdateFormProps> = ({
                 ? "0 characters remaining"
                 : `${remainingCharacters} characters remaining`}
             </span>
+            {draftSaved && (
+              <span className="text-xs text-muted-foreground italic">Draft saved</span>
+            )}
             {error && (
               <span className="text-destructive font-medium" role="alert" aria-live="assertive">
                 {error}

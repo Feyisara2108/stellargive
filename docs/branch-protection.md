@@ -51,11 +51,14 @@ The following configuration options are active for the `main` branch:
 
 1. **Require a Pull Request Before Merging**: Direct pushes to `main` are disabled. All changes must be submitted via pull requests.
 2. **Require Approvals**: At least **1 approving review** from a code owner or maintainer is required.
-3. **Dismiss Stale Approvals**: Approvals are automatically dismissed when new commits are pushed to a pull request.
-4. **Require Status Checks to Pass**: All of the required status checks listed above must pass before a merge.
-5. **Require Linear History**: Merges must be squash-merged or rebased; merge commits are not allowed.
-6. **Require Conversation Resolution**: All discussions and comments on the pull request must be resolved before merging.
-7. **Restrict Force Pushes and Deletions**: Force pushing to `main` and deleting the branch are strictly blocked.
+3. **Require Review from Code Owners**: Every file covered by [`.github/CODEOWNERS`](../.github/CODEOWNERS) must receive an approval from an assigned code owner.
+4. **Dismiss Stale Approvals**: Approvals are automatically dismissed when new commits are pushed to a pull request.
+5. **Require Status Checks to Pass**: All of the required status checks listed above must pass before a merge.
+6. **Require Linear History**: Merges must be squash-merged or rebased; merge commits are not allowed.
+7. **Require Conversation Resolution**: All discussions and comments on the pull request must be resolved before merging.
+8. **Restrict Force Pushes and Deletions**: Force pushing to `main` and deleting the branch are strictly blocked.
+
+Contributors can review the ownership map in [`.github/CODEOWNERS`](../.github/CODEOWNERS) before requesting review. Ownership is split across frontend, smart contracts, repository configuration, and documentation.
 
 ### Owner-Bypass Behavior
 
@@ -109,7 +112,7 @@ gh api \
   "enforce_admins": false,
   "required_pull_request_reviews": {
     "dismiss_stale_reviews": true,
-    "require_code_owner_reviews": false,
+    "require_code_owner_reviews": true,
     "required_approving_review_count": 1
   },
   "restrictions": null,

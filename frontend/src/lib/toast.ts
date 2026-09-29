@@ -51,6 +51,19 @@ export const notify = {
       toast.error(message);
     }
   },
+
+  /**
+   * Show an info toast.
+   * @param message - Info message
+   * @param options - Optional config including toastId for updating in place
+   */
+  info: (message: string, options?: { id?: string | number }): void => {
+    if (options?.id) {
+      toast.info(message, { id: options.id });
+    } else {
+      toast.info(message);
+    }
+  },
 };
 
 /**

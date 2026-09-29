@@ -10,11 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCampaignsPaged, useTokenMetadataBatch } from "@/hooks/useSoroban";
 import { useCampaignSearch } from "@/hooks/useCampaignSearch";
+import { useBookmarks } from "@/hooks/useBookmarks";
 import { TokenSelector } from "@/components/TokenSelector";
 import { CategorySelector, CATEGORIES, type CategoryKey } from "@/components/CategorySelector";
 import { SortSelector, SORT_OPTIONS, type SortKey } from "@/components/SortSelector";
-import { Search, Compass, Loader2, AlertTriangle, RotateCw } from "lucide-react";
+import { Search, Compass, Loader2, AlertTriangle, RotateCw, LayoutGrid, List, Bookmark } from "lucide-react";
 import { CampaignSkeletonGrid } from "@/components/CampaignSkeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 import type { Campaign } from "@/lib/soroban";
 
 const PAGE_SIZE = 9;
@@ -49,6 +51,15 @@ function sortCampaigns(campaigns: Campaign[], sortBy: SortKey): Campaign[] {
     }
     case "most-raised":
       return sorted.sort((a, b) => Number(b.raised_amount) - Number(a.raised_amount));
+    case "trending": {
+      const now = Date.now() / 1000;
+      const trendingScore = (c: Campaign) => {
+        const progress = c.target_amount === 0n ? 0 : Number(c.raised_amount) / Number(c.target_amount);
+        const daysLeft = Math.max((Number(c.deadline) - now) / 86400, 0.1);
+        return progress / daysLeft;
+      };
+      return sorted.sort((a, b) => trendingScore(b) - trendingScore(a));
+    }
     default:
       return sorted;
   }
@@ -84,6 +95,9 @@ function ExploreContent() {
     return SORT_OPTIONS.some((o) => o.key === sort) ? (sort as SortKey) : "newest";
   });
   const [tokenFilter, setTokenFilter] = useState(() => searchParams.get("token") ?? "");
+  const [savedOnly, setSavedOnly] = useState(() => searchParams.get("saved") === "1");
+  const { bookmarks } = useBookmarks();
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
   /** Ref to track the last search term synced to URL to prevent hydration from clobbering active typing */
   const lastSyncedSearchRef = useRef<string>(searchParams.get("q") ?? "");
@@ -118,6 +132,16 @@ function ExploreContent() {
   const { data, isLoading, isFetching, isError, refetch } = useCampaignsPaged(limit);
   const campaigns = data?.campaigns ?? EMPTY_CAMPAIGNS;
   const hasMore = data?.hasMore ?? false;
+
+  // Per-category campaign counts for the CategorySelector (#817).
+  const categoryCounts = useMemo(() => {
+    const counts: Partial<Record<CategoryKey, number>> = { all: campaigns.length };
+    for (const c of campaigns) {
+      const cat = (c.category || "uncategorized") as CategoryKey;
+      counts[cat] = (counts[cat] ?? 0) + 1;
+    }
+    return counts;
+  }, [campaigns]);
 
   // useCampaignsPaged keeps the previous page as placeholderData, so a fetch is
   // either "growing the list" (limit went up — append skeletons) or "refreshing
@@ -166,6 +190,8 @@ function ExploreContent() {
     } else if (category === null) {
       setCategoryFilter("all");
     }
+
+    setSavedOnly(searchParams.get("saved") === "1");
 
     const token = searchParams.get("token");
     if (token !== null) {
@@ -224,16 +250,23 @@ function ExploreContent() {
       next.delete("token");
     }
 
+    if (savedOnly) {
+      next.set("saved", "1");
+    } else {
+      next.delete("saved");
+    }
+
     const query = next.toString();
     const currentQuery = searchParams.toString();
     if (query !== currentQuery) {
       lastSyncedSearchRef.current = searchTerm;
       router.replace(query ? `/explore?${query}` : "/explore", { scroll: false });
     }
-  }, [router, searchParams, statusFilter, sortBy, categoryFilter, tokenFilter, searchTerm]);
+  }, [router, searchParams, statusFilter, sortBy, categoryFilter, tokenFilter, searchTerm, savedOnly]);
 
   const filtered = useMemo(() => {
     const byStatus = searched.filter((campaign) => {
+      if (savedOnly) return bookmarks.includes(campaign.id.toString());
       if (statusFilter === "all") return true;
       if (statusFilter === "active") {
         return campaign.status === "Active" && campaign.raised_amount < campaign.target_amount;
@@ -248,7 +281,7 @@ function ExploreContent() {
     const byCategory = byToken.filter((c) => matchesCategory(c, categoryFilter));
 
     return sortCampaigns(byCategory, sortBy);
-  }, [searched, statusFilter, sortBy, categoryFilter, tokenFilter]);
+  }, [searched, statusFilter, sortBy, categoryFilter, tokenFilter, savedOnly, bookmarks]);
 
   const uniqueTokens = useMemo(() => {
     return Array.from(new Set(filtered.map((c) => c.accepted_token)));
@@ -316,7 +349,11 @@ function ExploreContent() {
             />
           </div>
           <div className="w-full sm:w-auto min-w-[160px]">
-            <CategorySelector value={categoryFilter} onChange={setCategoryFilter} />
+            <CategorySelector
+              value={categoryFilter}
+              onChange={setCategoryFilter}
+              counts={categoryCounts}
+            />
           </div>
           <div className="w-full sm:w-auto min-w-[160px]">
             <TokenSelector
@@ -329,6 +366,54 @@ function ExploreContent() {
           <div className="w-full sm:w-auto min-w-[160px]">
             <SortSelector value={sortBy} onChange={setSortBy} />
           </div>
+          <div className="flex items-center gap-1 border rounded-md p-0.5">
+            <button
+              type="button"
+              onClick={() => setViewMode("grid")}
+              aria-label="Grid view"
+              aria-pressed={viewMode === "grid"}
+              className={`p-1.5 rounded transition-colors ${
+                viewMode === "grid"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("list")}
+              aria-label="List view"
+              aria-pressed={viewMode === "list"}
+              className={`p-1.5 rounded transition-colors ${
+                viewMode === "list"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <List className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <button
+            type="button"
+            onClick={() => setSavedOnly((v) => !v)}
+            aria-pressed={savedOnly}
+            className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+              savedOnly
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Bookmark
+              className="h-4 w-4"
+              fill={savedOnly ? "currentColor" : "none"}
+              aria-hidden="true"
+            />
+            Saved{bookmarks.length > 0 ? ` (${bookmarks.length})` : ""}
+          </button>
         </div>
 
         {/* Status filters — proper ARIA tab pattern with roving tabIndex */}
@@ -352,7 +437,7 @@ function ExploreContent() {
                 tabIndex={isSelected ? 0 : -1}
                 onClick={() => setStatusFilter(tab.value)}
                 onKeyDown={(e) => handleTabKeyDown(e, i)}
-                className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded"
+                className="focus:outline-none focus-visible:outline-none ring-offset-background focus:ring-2 focus:ring-primary focus:ring-offset-2 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded transition-all"
               >
                 <CampaignStatusBadge
                   status={tab.badgeStatus}
@@ -403,26 +488,34 @@ function ExploreContent() {
                 Retry
               </Button>
             </div>
-          ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center gap-4 py-20 text-center">
-              <div>
-                <p className="font-medium text-foreground">No campaigns found</p>
-                <p className="text-muted-foreground">{emptyMessage}</p>
+          ) : filtered.length === 0 && savedOnly && bookmarks.length === 0 ? (
+            <div
+              data-testid="saved-empty-state"
+              className="flex flex-col items-center gap-4 py-20 text-center"
+            >
+              <div className="rounded-full bg-muted p-6">
+                <Bookmark className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
               </div>
-              {debouncedSearch ? (
-                <Button variant="outline" onClick={() => setSearchTerm("")}>
-                  Clear search
-                </Button>
-              ) : categoryFilter !== "all" ? (
-                <Button variant="outline" onClick={() => setCategoryFilter("all")}>
-                  Show all categories
-                </Button>
-              ) : (
-                <Button asChild>
-                  <Link href="/create">Create the first one</Link>
-                </Button>
-              )}
+              <div>
+                <p className="font-medium text-foreground text-lg">No saved campaigns yet</p>
+                <p className="text-muted-foreground text-sm max-w-sm mt-1">
+                  Tap the bookmark icon on any campaign to save it here for later.
+                </p>
+              </div>
+              <Button onClick={() => setSavedOnly(false)}>Discover campaigns</Button>
             </div>
+          ) : filtered.length === 0 ? (
+            <EmptyState
+              message={emptyMessage}
+              onClear={
+                debouncedSearch || categoryFilter !== "all"
+                  ? () => {
+                      setSearchTerm("");
+                      setCategoryFilter("all");
+                    }
+                  : undefined
+              }
+            />
           ) : (
             // `relative` anchors the floating "Updating…" pill so showing it never
             // reflows the grid below.
@@ -434,8 +527,12 @@ function ExploreContent() {
                 </div>
               )}
               <div
-                className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 transition-opacity duration-200 ${
+                className={`transition-opacity duration-200 ${
                   isRefreshing ? "opacity-50" : "opacity-100"
+                } ${
+                  viewMode === "grid"
+                    ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                    : "flex flex-col gap-4"
                 }`}
                 aria-busy={isRefreshing}
               >

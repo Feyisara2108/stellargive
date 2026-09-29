@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Navbar } from "@/components/Navbar";
 import { CampaignCard } from "@/components/CampaignCard";
@@ -84,6 +84,13 @@ export default function ProfilePage() {
         myDonationsEvents: myDonations,
       };
     }, [campaigns, events, address]);
+
+  // Status filter for "My Campaigns" tab (#820).
+  const [profileStatusFilter, setProfileStatusFilter] = useState<"all" | "Active" | "Funded">("all");
+  const filteredCreated = useMemo(
+    () => (profileStatusFilter === "all" ? created : created.filter((c) => c.status === profileStatusFilter)),
+    [created, profileStatusFilter],
+  );
 
   // Auth guard — the dashboard is meaningless without a connected wallet.
   if (!isConnected || !address) {
@@ -237,10 +244,33 @@ export default function ProfilePage() {
               </TabsList>
 
               <TabsContent value="campaigns" className="mt-8 space-y-8">
+                {/* Status filters for created campaigns (#820) */}
+                <div className="flex flex-wrap gap-2 items-center">
+                  <span className="text-sm text-muted-foreground mr-1">Status:</span>
+                  {(["all", "Active", "Funded"] as const).map((status) => (
+                    <button
+                      key={status}
+                      type="button"
+                      onClick={() => setProfileStatusFilter(status)}
+                      className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors ${
+                        profileStatusFilter === status
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                      }`}
+                    >
+                      {status === "all" ? "All" : status}
+                      {status !== "all" && (
+                        <span className="ml-1 opacity-70">
+                          ({status === "Active" ? activeCount : created.length - activeCount})
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
                 <Section
                   title="Campaigns I Created"
                   emptyText="You haven't created any campaigns yet."
-                  campaigns={created}
+                  campaigns={filteredCreated}
                   action={
                     <Button asChild variant="outline" size="sm">
                       <Link href="/create">Create your first campaign</Link>

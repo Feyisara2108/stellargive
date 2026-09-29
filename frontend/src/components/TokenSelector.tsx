@@ -32,6 +32,38 @@ export const PREDEFINED_TOKENS = [
   },
 ];
 
+export const RECENT_TOKENS_KEY = "stellargive:recent-tokens";
+const MAX_RECENT_TOKENS = 5;
+
+export interface RecentToken {
+  address: string;
+  symbol: string;
+}
+
+function loadRecentTokens(): RecentToken[] {
+  try {
+    const parsed: unknown = JSON.parse(window.localStorage.getItem(RECENT_TOKENS_KEY) ?? "[]");
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(
+        (t): t is RecentToken =>
+          !!t && typeof t.address === "string" && typeof t.symbol === "string",
+      )
+      .slice(0, MAX_RECENT_TOKENS);
+  } catch {
+    return [];
+  }
+}
+
+function saveRecentTokens(tokens: RecentToken[]) {
+  try {
+    if (tokens.length === 0) window.localStorage.removeItem(RECENT_TOKENS_KEY);
+    else window.localStorage.setItem(RECENT_TOKENS_KEY, JSON.stringify(tokens));
+  } catch {
+    // Storage unavailable: recents simply won't persist.
+  }
+}
+
 // Module-level cache to prevent redundant RPC calls across mounts
 const tokenMetadataCache: Record<string, TokenMetadata> = {};
 
@@ -49,11 +81,19 @@ export function TokenSelector({ value, onChange, label, allowCustom = true }: To
   const [isValidating, setIsValidating] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [customTokenMeta, setCustomTokenMeta] = useState<TokenMetadata | null>(null);
+  const [recentTokens, setRecentTokens] = useState<RecentToken[]>([]);
+
+  // Load after mount so server and client markup match.
+  useEffect(() => {
+    setRecentTokens(loadRecentTokens());
+  }, []);
 
   // Dynamically fetch token metadata via hook for non-predefined or custom tokens
-  const { data: dynamicMeta, isLoading: isMetaLoading, isError: isMetaError } = useTokenMetadata(
-    value && !PREDEFINED_TOKENS.some((t) => t.address === value) ? value : null,
-  );
+  const {
+    data: dynamicMeta,
+    isLoading: isMetaLoading,
+    isError: isMetaError,
+  } = useTokenMetadata(value && !PREDEFINED_TOKENS.some((t) => t.address === value) ? value : null);
 
   // Selected token label resolution
   const predefinedToken = PREDEFINED_TOKENS.find((t) => t.address === value);
@@ -62,16 +102,49 @@ export function TokenSelector({ value, onChange, label, allowCustom = true }: To
   const resolvedMeta =
     predefinedToken ||
     (dynamicMeta
-      ? { symbol: dynamicMeta.symbol, name: dynamicMeta.name || "SAC Token", address: value, decimals: dynamicMeta.decimals }
+      ? {
+          symbol: dynamicMeta.symbol,
+          name: dynamicMeta.name || "SAC Token",
+          address: value,
+          decimals: dynamicMeta.decimals,
+        }
       : cachedMeta
-        ? { symbol: cachedMeta.symbol, name: cachedMeta.name || "SAC Token", address: value, decimals: cachedMeta.decimals }
+        ? {
+            symbol: cachedMeta.symbol,
+            name: cachedMeta.name || "SAC Token",
+            address: value,
+            decimals: cachedMeta.decimals,
+          }
         : null);
 
-  const isInvalidSAC = !!value && !predefinedToken && (isMetaError || (!isMetaLoading && !resolvedMeta));
+  const isInvalidSAC =
+    !!value && !predefinedToken && (isMetaError || (!isMetaLoading && !resolvedMeta));
   const decimals = resolvedMeta?.decimals ?? 7;
   const decimalPlaceholder = `e.g. ${(10).toFixed(Math.min(decimals, 7))}`;
 
+  const rememberToken = (address: string) => {
+    const known =
+      PREDEFINED_TOKENS.find((t) => t.address === address)?.symbol ??
+      tokenMetadataCache[address]?.symbol ??
+      (address === value ? resolvedMeta?.symbol : undefined) ??
+      `${address.slice(0, 4)}…${address.slice(-4)}`;
+    setRecentTokens((prev) => {
+      const next = [
+        { address, symbol: known },
+        ...prev.filter((t) => t.address !== address),
+      ].slice(0, MAX_RECENT_TOKENS);
+      saveRecentTokens(next);
+      return next;
+    });
+  };
+
+  const clearRecentTokens = () => {
+    setRecentTokens([]);
+    saveRecentTokens([]);
+  };
+
   const handleSelect = (address: string) => {
+    if (address) rememberToken(address);
     onChange(address);
     setIsOpen(false);
   };
@@ -149,7 +222,10 @@ export function TokenSelector({ value, onChange, label, allowCustom = true }: To
             {resolvedMeta ? (
               <span className="font-medium text-foreground flex items-center gap-1.5 flex-wrap">
                 <span>{resolvedMeta.symbol}</span>
-                <Badge variant="secondary" className="text-[10px] px-1 py-0 font-normal bg-emerald-500/10 text-emerald-600 border-emerald-500/20 flex items-center gap-0.5">
+                <Badge
+                  variant="secondary"
+                  className="text-[10px] px-1 py-0 font-normal bg-emerald-500/10 text-emerald-600 border-emerald-500/20 flex items-center gap-0.5"
+                >
                   <ShieldCheck className="h-2.5 w-2.5" /> SAC
                 </Badge>
                 {resolvedMeta.address && (
@@ -163,7 +239,10 @@ export function TokenSelector({ value, onChange, label, allowCustom = true }: To
                 <span className="text-xs font-mono">
                   ({value.slice(0, 6)}...{value.slice(-6)})
                 </span>
-                <Badge variant="destructive" className="text-[10px] px-1 py-0 flex items-center gap-1">
+                <Badge
+                  variant="destructive"
+                  className="text-[10px] px-1 py-0 flex items-center gap-1"
+                >
                   <AlertTriangle className="h-2.5 w-2.5" /> Invalid SAC
                 </Badge>
               </span>
@@ -183,6 +262,40 @@ export function TokenSelector({ value, onChange, label, allowCustom = true }: To
 
         {isOpen && (
           <div className="absolute left-0 mt-1 w-full rounded-md border border-border bg-popover text-popover-foreground shadow-md z-50 p-2">
+            {recentTokens.length > 0 && (
+              <div className="mb-2 pb-2 border-b border-border" data-testid="recent-tokens">
+                <div className="flex items-center justify-between px-1 pb-1">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Recent
+                  </span>
+                  <button
+                    type="button"
+                    onClick={clearRecentTokens}
+                    className="text-[10px] text-muted-foreground underline-offset-2 hover:underline hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm"
+                    aria-label="Clear recent tokens"
+                  >
+                    Clear
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-1.5" role="group" aria-label="Recently used tokens">
+                  {recentTokens.map((t) => (
+                    <button
+                      key={t.address}
+                      type="button"
+                      onClick={() => handleSelect(t.address)}
+                      title={t.address}
+                      aria-label={`Use recent token ${t.symbol}`}
+                      aria-pressed={value === t.address}
+                      className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                        value === t.address ? "border-primary text-primary" : "border-border"
+                      }`}
+                    >
+                      {t.symbol}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="space-y-1">
               {!allowCustom && (
                 <button
@@ -204,7 +317,10 @@ export function TokenSelector({ value, onChange, label, allowCustom = true }: To
                   <div className="flex flex-col text-left">
                     <div className="flex items-center gap-1.5">
                       <span className="font-semibold">{token.symbol}</span>
-                      <Badge variant="outline" className="text-[9px] px-1 py-0 text-emerald-600 bg-emerald-500/10 border-emerald-500/20">
+                      <Badge
+                        variant="outline"
+                        className="text-[9px] px-1 py-0 text-emerald-600 bg-emerald-500/10 border-emerald-500/20"
+                      >
                         SAC
                       </Badge>
                     </div>

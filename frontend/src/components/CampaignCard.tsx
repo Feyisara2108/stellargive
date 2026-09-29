@@ -1,14 +1,20 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import Image from "next/image";
-import { Campaign } from "@/lib/soroban";
+import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { Campaign, getCampaign } from "@/lib/soroban";
 import { formatTokenAmount, formatUSD } from "@/utils/format";
 import { useTokenMetadata, useXlmPrice } from "@/hooks/useSoroban";
 import { calculateProgress, getCampaignImageUrl, CAMPAIGN_IMAGE_BLUR_DATA_URL } from "@/lib/utils";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress, type ProgressVariant } from "@/components/ui/progress";
+import {
+  Progress,
+  progressIndicatorVariants,
+  type ProgressVariant,
+} from "@/components/ui/progress";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 const DonateModal = dynamic(
@@ -16,42 +22,110 @@ const DonateModal = dynamic(
   { ssr: false },
 );
 import { ClaimButton } from "@/components/ClaimButton";
-import { Calendar, Target, TrendingUp, Image as ImageIcon, Zap } from "lucide-react";
+import { Calendar, Target, TrendingUp, Image as ImageIcon, Zap, Ban, Flame } from "lucide-react";
 import { ShareButton } from "@/components/ShareButton";
+import { BookmarkButton } from "@/components/BookmarkButton";
 import { AddressLink } from "@/components/AddressLink";
 import { RelativeTime } from "@/components/RelativeTime";
 import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 
-const progressIndicatorVariants: Record<ProgressVariant, string> = {
-  default: "bg-primary",
-  success: "bg-emerald-600 dark:bg-emerald-400",
-  warning: "bg-amber-500 dark:bg-amber-400",
+const HOUR_SECONDS = 60 * 60;
+
+export type DeadlineUrgency = "normal" | "soon" | "critical";
+
+/**
+ * Urgency of an active campaign's deadline: amber under 48h, red under 6h.
+ * `endingSoon` is true within 24h of the deadline. Past deadlines are "normal".
+ */
+export function getDeadlineUrgency(
+  deadlineSeconds: number,
+  nowMs: number = Date.now(),
+): { urgency: DeadlineUrgency; endingSoon: boolean } {
+  const secondsLeft = deadlineSeconds - nowMs / 1000;
+  if (secondsLeft <= 0) return { urgency: "normal", endingSoon: false };
+  return {
+    urgency:
+      secondsLeft < 6 * HOUR_SECONDS
+        ? "critical"
+        : secondsLeft < 48 * HOUR_SECONDS
+          ? "soon"
+          : "normal",
+    endingSoon: secondsLeft < 24 * HOUR_SECONDS,
+  };
+}
+
+// Text colors chosen for WCAG AA (>= 4.5:1) on the card background in both themes.
+const URGENCY_TEXT_CLASS: Record<DeadlineUrgency, string> = {
+  normal: "",
+  soon: "text-amber-700 dark:text-amber-400 font-medium",
+  critical: "text-red-700 dark:text-red-400 font-semibold",
 };
+
+// Prefetch debounce timer map (shared across all card instances)
+const prefetchTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const PREFETCH_DEBOUNCE_MS = 150;
+
+export type CampaignHighlightLabel = "Near Goal" | "Trending";
 
 function CampaignCardComponent({
   campaign,
   preloadedTokenMeta,
   detailHrefSearch,
+  highlightLabel,
 }: {
   campaign: Campaign;
   preloadedTokenMeta?: any;
   detailHrefSearch?: string;
+  /** Renders a small ribbon (e.g. from a homepage highlight reel) over the image. */
+  highlightLabel?: CampaignHighlightLabel;
 }) {
   const [imgError, setImgError] = useState(false);
   const [donateOpen, setDonateOpen] = useState(false);
   const [donateAmount, setDonateAmount] = useState<string | undefined>(undefined);
   const [showUSD, setShowUSD] = useState(false);
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const prefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const campaignId = campaign.id.toString();
+  // Prefetch campaign route and data on hover/focus (#834)
+  const prefetchCampaign = useCallback(() => {
+    // Cancel any pending prefetch for this campaign
+    if (prefetchTimerRef.current) {
+      clearTimeout(prefetchTimerRef.current);
+    }
+
+    prefetchTimerRef.current = setTimeout(() => {
+      // Prefetch the route
+      router.prefetch(detailHref);
+
+      // Prefetch the campaign data query
+      queryClient.prefetchQuery({
+        queryKey: ["campaign", campaignId],
+        queryFn: () => getCampaign(campaign.id),
+        staleTime: 30_000,
+      });
+    }, PREFETCH_DEBOUNCE_MS);
+  }, [router, queryClient, detailHref, campaignId, campaign.id]);
+
+  const cancelPrefetch = useCallback(() => {
+    if (prefetchTimerRef.current) {
+      clearTimeout(prefetchTimerRef.current);
+      prefetchTimerRef.current = null;
+    }
+  }, []);
   const { data: xlmPrice } = useXlmPrice();
-  const { data: fetchedMeta } = useTokenMetadata(
+  const { data: fetchedMeta, isLoading: isMetaLoading } = useTokenMetadata(
     preloadedTokenMeta ? null : campaign.accepted_token,
   );
   const tokenMeta = preloadedTokenMeta ?? fetchedMeta;
+  const isMetaPending = tokenMeta == null && isMetaLoading;
   const decimals = tokenMeta?.decimals ?? 7;
   const symbol = tokenMeta?.symbol ?? "XLM";
 
-  const raised = formatTokenAmount(campaign.raised_amount, decimals);
-  const target = formatTokenAmount(campaign.target_amount, decimals);
+  const raised = isMetaPending ? null : formatTokenAmount(campaign.raised_amount, decimals);
+  const target = isMetaPending ? null : formatTokenAmount(campaign.target_amount, decimals);
   const progress = calculateProgress(campaign.raised_amount, campaign.target_amount);
   const progressVariant: ProgressVariant =
     progress >= 100 ? "success" : progress >= 50 ? "warning" : "default";
@@ -60,6 +134,10 @@ function CampaignCardComponent({
   const isFunded = campaign.status === "Funded";
   const isClaimed = campaign.status === "Claimed";
   const deadlineDate = new Date(Number(campaign.deadline) * 1000);
+  const { urgency, endingSoon } =
+    campaign.status === "Active"
+      ? getDeadlineUrgency(Number(campaign.deadline))
+      : { urgency: "normal" as DeadlineUrgency, endingSoon: false };
 
   const gapRaw =
     campaign.target_amount > campaign.raised_amount
@@ -67,13 +145,25 @@ function CampaignCardComponent({
       : 0n;
   const gap = Number(gapRaw) / 10 ** decimals;
   const showFundTheGap =
-    campaign.status === "Active" && progress >= 90 && progress < 100 && gap > 0;
+    !isMetaPending &&
+    campaign.status === "Active" &&
+    progress >= 90 &&
+    progress < 100 &&
+    gap > 0;
   const detailHref = detailHrefSearch
     ? `/campaign/${campaign.id.toString()}?${detailHrefSearch}`
     : `/campaign/${campaign.id.toString()}`;
 
   return (
-    <Card className="flex flex-col group hover:border-primary/50 transition-all duration-300 overflow-hidden">
+    <Card
+      className={`flex flex-col group hover:border-primary/50 transition-all duration-300 overflow-hidden${
+        isExpired ? " grayscale opacity-90" : ""
+      }`}
+      onMouseEnter={prefetchCampaign}
+      onFocus={prefetchCampaign}
+      onMouseLeave={cancelPrefetch}
+      onBlur={cancelPrefetch}
+    >
       <div className="relative aspect-video w-full bg-muted flex items-center justify-center overflow-hidden">
         {getCampaignImageUrl(campaign.metadata_uri) && !imgError ? (
           <Image
@@ -92,6 +182,22 @@ function CampaignCardComponent({
             <ImageIcon className="w-8 h-8 opacity-40" />
             <span className="text-[10px] uppercase tracking-widest">No Image</span>
           </div>
+        )}
+        {isExpired && (
+          <span className="absolute top-2 right-2 z-10 inline-flex items-center gap-1 rounded bg-black/70 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm backdrop-blur-sm">
+            <Ban className="h-3 w-3" aria-hidden="true" />
+            Campaign expired
+          </span>
+        )}
+        {highlightLabel && (
+          <span className="absolute top-2 left-2 z-10 inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-primary-foreground shadow-sm">
+            {highlightLabel === "Trending" ? (
+              <Flame className="h-3 w-3" aria-hidden="true" />
+            ) : (
+              <Target className="h-3 w-3" aria-hidden="true" />
+            )}
+            {highlightLabel}
+          </span>
         )}
       </div>
       <CardHeader>
@@ -124,12 +230,16 @@ function CampaignCardComponent({
               <TrendingUp className="w-3 h-3" /> Raised
             </span>
             <div className="flex items-center gap-2">
-              <span className="font-bold">
-                {showUSD && xlmPrice !== null && xlmPrice !== undefined
-                  ? formatUSD(Number(raised) * xlmPrice)
-                  : `${raised} ${symbol}`}
-              </span>
-              {xlmPrice !== null && xlmPrice !== undefined && (
+              {raised === null ? (
+                <Skeleton className="h-4 w-24" />
+              ) : (
+                <span className="font-bold">
+                  {showUSD && xlmPrice !== null && xlmPrice !== undefined
+                    ? formatUSD(Number(raised) * xlmPrice)
+                    : `${raised} ${symbol}`}
+                </span>
+              )}
+              {!isMetaPending && xlmPrice !== null && xlmPrice !== undefined && (
                 <button
                   type="button"
                   onClick={() => setShowUSD(!showUSD)}
@@ -150,21 +260,30 @@ function CampaignCardComponent({
           />
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>{progress.toFixed(1)}%</span>
-            <span className="flex items-center gap-1">
+            <div className="flex items-center gap-1">
               <Target className="w-3 h-3" /> Target:{" "}
-              {showUSD && xlmPrice !== null && xlmPrice !== undefined
-                ? formatUSD(Number(target) * xlmPrice)
-                : `${target} ${symbol}`}
-            </span>
+              {target === null ? (
+                <Skeleton className="h-3 w-16" />
+              ) : showUSD && xlmPrice !== null && xlmPrice !== undefined ? (
+                formatUSD(Number(target) * xlmPrice)
+              ) : (
+                `${target} ${symbol}`
+              )}
+            </div>
           </div>
         </div>
 
         <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2">
           <Calendar className="w-3 h-3" />
-          <span>
+          <span className={URGENCY_TEXT_CLASS[urgency]} data-urgency={urgency}>
             {isExpired ? "Ended " : "Ends "}
             <RelativeTime date={deadlineDate} />
           </span>
+          {endingSoon && (
+            <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-red-800 dark:bg-red-950 dark:text-red-200">
+              Ending soon
+            </span>
+          )}
         </div>
         <div className="space-y-1.5 pt-2 text-xs text-muted-foreground">
           <div className="flex items-center justify-between gap-2">
@@ -207,7 +326,8 @@ function CampaignCardComponent({
           />
         )}
         <ClaimButton campaign={campaign} />
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <BookmarkButton campaignId={campaign.id} title={campaign.title} />
           <ShareButton campaign={campaign} />
         </div>
       </CardFooter>
@@ -220,6 +340,7 @@ export const CampaignCard = React.memo(CampaignCardComponent, (prevProps, nextPr
     prevProps.campaign.id === nextProps.campaign.id &&
     prevProps.campaign.status === nextProps.campaign.status &&
     prevProps.campaign.raised_amount === nextProps.campaign.raised_amount &&
-    prevProps.detailHrefSearch === nextProps.detailHrefSearch
+    prevProps.detailHrefSearch === nextProps.detailHrefSearch &&
+    prevProps.highlightLabel === nextProps.highlightLabel
   );
 });

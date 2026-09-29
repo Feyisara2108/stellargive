@@ -1,20 +1,114 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useEvents } from "@/hooks/useSoroban";
 import { fromStroops } from "@/lib/soroban";
 import { getStellarExpertTxUrl } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Activity, ArrowUpRight, Megaphone, Trophy } from "lucide-react";
+import { Activity, ArrowUpRight, ChevronDown, Megaphone, Trophy } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
+
+// Throttle announcements to avoid overwhelming screen reader users
+const ANNOUNCEMENT_THROTTLE_MS = 5000;
+
+// Each event type gets a distinct icon, a text label (so meaning never relies on colour
+// alone) and an accent whose text/background pairing meets WCAG AA (>= 4.5:1) in both themes.
+export const EVENT_TYPES: Record<
+  string,
+  { label: string; description: string; Icon: LucideIcon; accent: string }
+> = {
+  received: {
+    label: "Donation",
+    description: "A donor contributed funds to a campaign.",
+    Icon: ArrowUpRight,
+    accent: "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300",
+  },
+  created: {
+    label: "Created",
+    description: "A new campaign was launched.",
+    Icon: Megaphone,
+    accent: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300",
+  },
+  claimed: {
+    label: "Claimed",
+    description: "The beneficiary claimed the raised funds.",
+    Icon: Trophy,
+    accent: "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300",
+  },
+};
+
+const FALLBACK_EVENT = {
+  label: "Event",
+  description: "Other on-chain activity.",
+  Icon: Activity,
+  accent: "bg-muted text-foreground",
+};
+
+function EventBadgeIcon({ topic }: { topic: string }) {
+  const { Icon, accent } = EVENT_TYPES[topic] ?? FALLBACK_EVENT;
+  return (
+    <div className={`p-1.5 rounded-full ${accent}`} data-event-type={topic}>
+      <Icon className="w-3 h-3" aria-hidden="true" />
+    </div>
+  );
+}
+
+function EventLegend() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="text-xs">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-controls="event-legend"
+        className="inline-flex items-center gap-1 font-medium text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm"
+      >
+        <ChevronDown
+          className={`w-3 h-3 transition-transform ${open ? "rotate-180" : ""}`}
+          aria-hidden="true"
+        />
+        Legend
+      </button>
+      {open && (
+        <ul id="event-legend" className="mt-2 space-y-2">
+          {Object.entries(EVENT_TYPES).map(([topic, { label, description }]) => (
+            <li key={topic} className="flex items-center gap-2">
+              <EventBadgeIcon topic={topic} />
+              <span>
+                <span className="font-semibold">{label}</span>
+                <span className="text-muted-foreground"> — {description}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 export function EventFeed() {
   const { data: events, isLoading } = useEvents();
   const prevIdsRef = useRef<Set<string>>(new Set());
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [announcement, setAnnouncement] = useState<string>("");
+  const lastAnnouncementTimeRef = useRef<number>(0);
+
+  // Throttled announcement function for screen readers
+  const announceNewEvents = useCallback((count: number) => {
+    const now = Date.now();
+    if (now - lastAnnouncementTimeRef.current < ANNOUNCEMENT_THROTTLE_MS) return;
+
+    lastAnnouncementTimeRef.current = now;
+    const message = count === 1
+      ? "New donation received"
+      : `${count} new donations received`;
+    setAnnouncement(message);
+  }, []);
 
   useEffect(() => {
     if (!events?.length) return;
@@ -33,11 +127,13 @@ export function EventFeed() {
             ? "New donation received!"
             : `${newDonations.length} new donations received!`,
         );
+        // Announce to screen readers
+        announceNewEvents(newDonations.length);
       }, 500);
     }
 
     prevIdsRef.current = currentIds;
-  }, [events]);
+  }, [events, announceNewEvents]);
 
   if (isLoading) {
     return (
@@ -64,12 +160,22 @@ export function EventFeed() {
 
   return (
     <Card className="h-full">
+      {/* ARIA live region for announcing new events to screen readers (#833) */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+      >
+        {announcement}
+      </div>
       <CardHeader>
         <CardTitle className="text-lg flex items-center gap-2">
           <Activity className="w-4 h-4 text-primary" /> Recent Activity
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
+        <EventLegend />
         <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-muted-foreground uppercase bg-muted/20">
@@ -85,21 +191,9 @@ export function EventFeed() {
                 <tr key={event.id} className="hover:bg-muted/10 transition-colors">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <div
-                        className={`p-1.5 rounded-full ${
-                          event.topic === "received"
-                            ? "bg-green-500/10 text-green-500"
-                            : event.topic === "created"
-                              ? "bg-blue-500/10 text-blue-500"
-                              : "bg-purple-500/10 text-purple-500"
-                        }`}
-                      >
-                        {event.topic === "received" && <ArrowUpRight className="w-3 h-3" />}
-                        {event.topic === "created" && <Megaphone className="w-3 h-3" />}
-                        {event.topic === "claimed" && <Trophy className="w-3 h-3" />}
-                      </div>
+                      <EventBadgeIcon topic={event.topic} />
                       <span className="uppercase text-[10px] font-bold tracking-wider">
-                        {event.topic}
+                        {(EVENT_TYPES[event.topic] ?? FALLBACK_EVENT).label}
                       </span>
                     </div>
                   </td>
@@ -147,21 +241,9 @@ export function EventFeed() {
             <div key={event.id} className="flex flex-col gap-3 p-4 border rounded-lg bg-card">
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
-                  <div
-                    className={`p-1.5 rounded-full ${
-                      event.topic === "received"
-                        ? "bg-green-500/10 text-green-500"
-                        : event.topic === "created"
-                          ? "bg-blue-500/10 text-blue-500"
-                          : "bg-purple-500/10 text-purple-500"
-                    }`}
-                  >
-                    {event.topic === "received" && <ArrowUpRight className="w-3 h-3" />}
-                    {event.topic === "created" && <Megaphone className="w-3 h-3" />}
-                    {event.topic === "claimed" && <Trophy className="w-3 h-3" />}
-                  </div>
+                  <EventBadgeIcon topic={event.topic} />
                   <span className="uppercase text-[10px] font-bold tracking-wider text-muted-foreground">
-                    {event.topic}
+                    {(EVENT_TYPES[event.topic] ?? FALLBACK_EVENT).label}
                   </span>
                 </div>
                 <span className="text-xs text-muted-foreground">Ledger {event.ledger}</span>

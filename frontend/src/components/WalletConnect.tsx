@@ -2,6 +2,7 @@
 
 import { useWallet } from "@/lib/WalletProvider";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Loader2, Wallet, LogOut, RefreshCw, ChevronDown } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
@@ -12,7 +13,7 @@ import * as freighter from "@stellar/freighter-api";
 const NATIVE_XLM = "CDLZS3ZCDY7SF3SIVR6Y7I6SN636O27T7G5MKSUIU22ZS76E55WJIPZ4";
 
 export function WalletConnect() {
-  const { address, isConnected, connect, disconnect } = useWallet();
+  const { address, isConnected, connect, disconnect, walletNetwork, isWrongNetwork } = useWallet();
   const [isConnecting, setIsConnecting] = useState(false);
   const [balance, setBalance] = useState<string | null>(null);
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
@@ -88,6 +89,20 @@ export function WalletConnect() {
           className="flex items-center gap-2 bg-secondary/50 border-border hover:bg-secondary transition-all"
           onClick={() => setIsDropdownOpen(!isDropdownOpen)}
         >
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span
+                  className={`h-2.5 w-2.5 rounded-full ${
+                    isWrongNetwork ? "bg-amber-500" : "bg-green-500"
+                  }`}
+                />
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{walletNetwork || "Unknown Network"}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           <Wallet className="h-4 w-4 text-primary" />
           <span className="font-mono text-sm">{formatAddress(address)}</span>
           <ChevronDown

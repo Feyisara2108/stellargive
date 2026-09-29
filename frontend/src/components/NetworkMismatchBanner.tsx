@@ -1,28 +1,84 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { useWallet } from "@/lib/WalletProvider";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, X } from "lucide-react";
-import { cn } from "@/lib/utils";
+
+export const FREIGHTER_NETWORK_GUIDE_URL =
+  "https://developers.stellar.org/docs/tools/freighter/freighter-extension#network-configuration";
+
+/** Dismissal is remembered per wallet network, so landing on a different wrong network re-shows the banner. */
+export const dismissKey = (network: string) => `network-banner-dismissed:${network}`;
 
 export function NetworkMismatchBanner() {
-  const { isWrongNetwork, walletNetwork } = useWallet();
-  const [isDismissed, setIsDismissed] = useState(false);
+  const { isWrongNetwork, walletNetwork, switchNetwork } = useWallet();
+  const [showManualSteps, setShowManualSteps] = useState(false);
+  const [isSwitching, setIsSwitching] = useState(false);
+  const [checked, setChecked] = useState<{ network: string | null; dismissed: boolean } | null>(
+    null,
+  );
 
   useEffect(() => {
-    const dismissed = sessionStorage.getItem("network-banner-dismissed");
-    if (dismissed === "true") {
-      setIsDismissed(true);
+    let dismissed = false;
+    if (walletNetwork !== null) {
+      try {
+        dismissed = sessionStorage.getItem(dismissKey(walletNetwork)) === "true";
+      } catch {
+        dismissed = false;
+      }
     }
-  }, []);
+    setChecked({ network: walletNetwork, dismissed });
+  }, [walletNetwork]);
 
   const handleDismiss = () => {
-    setIsDismissed(true);
-    sessionStorage.setItem("network-banner-dismissed", "true");
+    if (walletNetwork === null) return;
+    try {
+      sessionStorage.setItem(dismissKey(walletNetwork), "true");
+    } catch {
+      // sessionStorage may be unavailable (e.g. private browsing quota exceeded).
+    }
+    setChecked({ network: walletNetwork, dismissed: true });
   };
 
-  if (!isWrongNetwork || isDismissed) return null;
+  const openManualGuide = () => {
+    const opened = window.open(FREIGHTER_NETWORK_GUIDE_URL, "_blank");
+    if (opened) {
+      // Sever the opener reference for security (noopener).
+      opened.opener = null;
+    } else {
+      // Popup was blocked — show inline manual steps instead.
+      setShowManualSteps(true);
+    }
+  };
+
+  const handleSwitch = async () => {
+    const expectedNetwork = process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE;
+    if (!expectedNetwork) {
+      openManualGuide();
+      return;
+    }
+
+    setIsSwitching(true);
+    const result = await switchNetwork(expectedNetwork);
+    setIsSwitching(false);
+
+    // A successful switch updates walletNetwork via the provider, which hides this
+    // banner on its own. Any other outcome (unsupported or failed) falls back to
+    // pointing the user at the manual instructions.
+    if (!result.success) {
+      openManualGuide();
+    }
+  };
+
+  if (
+    !isWrongNetwork ||
+    checked === null ||
+    checked.network !== walletNetwork ||
+    checked.dismissed
+  ) {
+    return null;
+  }
 
   const expectedNetwork = process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE;
 
@@ -38,22 +94,31 @@ export function NetworkMismatchBanner() {
               StellarGive needs <span className="font-mono font-bold">{expectedNetwork}</span>.{" "}
               Please switch networks in your Freighter wallet.
             </p>
+            {showManualSteps && (
+              <p className="text-xs opacity-90" role="status">
+                Couldn&apos;t open the guide. In Freighter, open Settings &rarr; Network and select
+                the network above, or{" "}
+                <a
+                  href={FREIGHTER_NETWORK_GUIDE_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline font-medium"
+                >
+                  read the network guide
+                </a>
+                .
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Button
               variant="secondary"
               size="sm"
               className="h-8 text-xs font-medium"
-              onClick={() => {
-                // Link directly to Freighter's network configuration guide
-                window.open(
-                  "https://developers.stellar.org/docs/tools/freighter/freighter-extension#network-configuration",
-                  "_blank",
-                  "noopener,noreferrer",
-                );
-              }}
+              onClick={handleSwitch}
+              disabled={isSwitching}
             >
-              Switch Network
+              {isSwitching ? "Switching…" : "Switch Network"}
             </Button>
             <button
               onClick={handleDismiss}

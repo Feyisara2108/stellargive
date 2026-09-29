@@ -12,8 +12,14 @@ const createCampaignState = vi.hoisted(() => ({
   isPending: false,
 }));
 
+const resolvedNameState = vi.hoisted(() => ({
+  data: null as string | null,
+  isFetching: false,
+}));
+
 vi.mock("@/hooks/useSoroban", () => ({
   useCreateCampaign: () => createCampaignState,
+  useResolvedName: () => resolvedNameState,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -33,7 +39,11 @@ vi.mock("./TokenSelector", () => ({
   PREDEFINED_TOKENS: [{ address: "NATIVE", symbol: "XLM" }],
 }));
 
-const VALID_BENEFICIARY = "G" + "A".repeat(55);
+// A real, checksum-valid Ed25519 Stellar public key (StrKey.isValidEd25519PublicKey === true).
+const VALID_BENEFICIARY = "GCJIQPIC4TD33PSVHU42IOJS4FVPBBAQHWWOWHUDDMQDVZ2HVTD3OXKS";
+// Same shape/length as VALID_BENEFICIARY but with the last character flipped, so it fails
+// checksum validation despite matching a naive `^G[A-Z0-9]{55}$` regex.
+const BAD_CHECKSUM_BENEFICIARY = "GCJIQPIC4TD33PSVHU42IOJS4FVPBBAQHWWOWHUDDMQDVZ2HVTD3OXKA";
 
 function renderForm() {
   return render(
@@ -77,6 +87,8 @@ describe("CreateCampaignForm", () => {
     sessionStorage.clear();
     createCampaignState.mutateAsync = vi.fn().mockResolvedValue({ campaignId: "1" });
     createCampaignState.isPending = false;
+    resolvedNameState.data = null;
+    resolvedNameState.isFetching = false;
   });
 
   it("should have no accessibility violations in trigger state", async () => {
@@ -103,9 +115,7 @@ describe("CreateCampaignForm", () => {
       fireEvent.change(title, { target: { value: "Ab" } });
       fireEvent.blur(title);
 
-      expect(
-        await screen.findByText(/Title must be at least 5 characters/i),
-      ).toBeInTheDocument();
+      expect(await screen.findByText(/Title must be at least 5 characters/i)).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /Launch Campaign/i })).toBeDisabled();
     });
 
@@ -159,6 +169,71 @@ describe("CreateCampaignForm", () => {
       expect(await screen.findByText(/Invalid Stellar address/i)).toBeInTheDocument();
     });
 
+    it("rejects a well-formed address with an invalid checksum", async () => {
+      renderForm();
+      await openForm();
+
+      const beneficiary = screen.getByPlaceholderText("G...");
+      fireEvent.change(beneficiary, { target: { value: BAD_CHECKSUM_BENEFICIARY } });
+      fireEvent.blur(beneficiary);
+
+      expect(await screen.findByText(/Invalid Stellar address/i)).toBeInTheDocument();
+    });
+
+    it("blocks progression past the funding step when the beneficiary is invalid", async () => {
+      renderForm();
+      await openForm();
+
+      // Step 1: fill in the minimum required fields and advance.
+      fireEvent.change(screen.getByPlaceholderText(/Flood Relief 2024/i), {
+        target: { value: "Flood Relief 2024" },
+      });
+      fireEvent.change(screen.getByPlaceholderText(/Provide a detailed description/i), {
+        target: { value: "A description that is long enough." },
+      });
+      fireEvent.click(screen.getByRole("button", { name: /Continue/i }));
+
+      // Step 2: valid target amount, but an invalid-checksum beneficiary.
+      await screen.findByText(/Step 2 of 3/i);
+      fireEvent.change(screen.getByPlaceholderText("G..."), {
+        target: { value: BAD_CHECKSUM_BENEFICIARY },
+      });
+      fireEvent.change(screen.getByPlaceholderText("1000"), { target: { value: "500" } });
+      fireEvent.click(screen.getByRole("button", { name: /Continue/i }));
+
+      // Still stuck on step 2 — the review/submit step is never reached.
+      expect(await screen.findByText(/Invalid Stellar address/i)).toBeInTheDocument();
+      expect(screen.getByText(/Step 2 of 3/i)).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Launch Campaign/i })).not.toBeInTheDocument();
+    });
+
+    it("shows a resolved name for a valid beneficiary address once resolution completes", async () => {
+      resolvedNameState.data = "relief.stellar.org";
+      renderForm();
+      await openForm();
+
+      const beneficiary = screen.getByPlaceholderText("G...");
+      fireEvent.change(beneficiary, { target: { value: VALID_BENEFICIARY } });
+
+      expect(
+        await screen.findByText("Resolved: relief.stellar.org", {}, { timeout: 1000 }),
+      ).toBeInTheDocument();
+    });
+
+    it("shows no resolved-name hint for a valid address that has no directory match", async () => {
+      resolvedNameState.data = null;
+      renderForm();
+      await openForm();
+
+      const beneficiary = screen.getByPlaceholderText("G...");
+      fireEvent.change(beneficiary, { target: { value: VALID_BENEFICIARY } });
+      fireEvent.blur(beneficiary);
+
+      await waitFor(() => expect(screen.queryByText(/^Resolved:/)).not.toBeInTheDocument(), {
+        timeout: 1000,
+      });
+    });
+
     it("rejects a deadline duration of 0 days", async () => {
       renderForm();
       await openForm();
@@ -170,6 +245,32 @@ describe("CreateCampaignForm", () => {
       expect(
         await screen.findByText(/Deadline must be between 1 and 365 days/i),
       ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Launch Campaign/i })).toBeDisabled();
+    });
+
+    it("updates character counter in real time, applies warning style near cap, and disables submit when over 500 characters", async () => {
+      renderForm();
+      await openForm();
+
+      const description = screen.getByPlaceholderText(/Provide a detailed description/i);
+
+      // Real-time counter update
+      fireEvent.change(description, { target: { value: "Short description" } });
+      expect(screen.getByText("17 / 500 characters")).toBeInTheDocument();
+
+      // Warning style near cap (remaining < 20, e.g. 485 characters)
+      const warningText = "A".repeat(485);
+      fireEvent.change(description, { target: { value: warningText } });
+      const counterEl = screen.getByText("485 / 500 characters");
+      expect(counterEl).toBeInTheDocument();
+      expect(counterEl.className).toContain("text-amber-600");
+
+      // Over limit (e.g. 505 characters)
+      const overLimitText = "A".repeat(505);
+      fireEvent.change(description, { target: { value: overLimitText } });
+      const overLimitCounter = screen.getByText("505 / 500 characters");
+      expect(overLimitCounter).toBeInTheDocument();
+      expect(overLimitCounter.className).toContain("text-destructive");
       expect(screen.getByRole("button", { name: /Launch Campaign/i })).toBeDisabled();
     });
 

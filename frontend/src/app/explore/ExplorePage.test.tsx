@@ -25,6 +25,8 @@ vi.mock("../../hooks/useSoroban", () => ({
     refetch: vi.fn(),
   }),
   useTokenMetadataBatch: () => ({ data: new Map() }),
+  useTokenMetadata: () => ({ data: undefined, isLoading: false }),
+  useXlmPrice: () => ({ data: undefined, isLoading: false }),
 }));
 
 vi.mock("../../hooks/useCampaignSearch", () => ({
@@ -101,7 +103,7 @@ describe("ExplorePage - Integrated Search & Hydration", () => {
     await waitFor(() => {
       expect(screen.getByText(/No active campaigns right now/i)).toBeInTheDocument();
     });
-    expect(screen.getByRole("link", { name: /Create the first one/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Create Campaign/i })).toBeInTheDocument();
   });
 
   it("displays correct campaign cards when multiple exist", async () => {
@@ -132,7 +134,7 @@ describe("ExplorePage - Integrated Search & Hydration", () => {
     await waitFor(
       () => {
         expect(screen.getByText(/No campaigns match your search/i)).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: /Clear search/i })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: /Clear Filters/i })).toBeInTheDocument();
       },
       { timeout: 1000 },
     );
@@ -183,5 +185,37 @@ describe("ExplorePage - Integrated Search & Hydration", () => {
         expect.objectContaining({ scroll: false }),
       );
     });
+  });
+});
+
+describe("ExplorePage - Saved view", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it("shows a discovery empty state when nothing is bookmarked", async () => {
+    currentParams = new URLSearchParams("saved=1");
+    mockState.campaigns = [buildCampaign({ id: 1n, title: "Alpha" })];
+    renderPage();
+
+    expect(await screen.findByTestId("saved-empty-state")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Discover campaigns/i })).toBeInTheDocument();
+    expect(screen.queryByTestId("campaign-card")).not.toBeInTheDocument();
+  });
+
+  it("lists only bookmarked campaigns in the Saved view", async () => {
+    window.localStorage.setItem("stellargive:bookmarks", JSON.stringify(["2"]));
+    const { resetBookmarksCache } = await import("../../hooks/useBookmarks");
+    resetBookmarksCache();
+    currentParams = new URLSearchParams("saved=1");
+    mockState.campaigns = [
+      buildCampaign({ id: 1n, title: "Alpha" }),
+      buildCampaign({ id: 2n, title: "Beta" }),
+    ];
+    renderPage();
+
+    await waitFor(() => expect(screen.getAllByTestId("campaign-card")).toHaveLength(1));
+    expect(screen.getByText("Beta")).toBeInTheDocument();
+    expect(screen.queryByText("Alpha")).not.toBeInTheDocument();
   });
 });

@@ -189,3 +189,29 @@ describe("ProjectUpdates — ordering", () => {
     expect(renderedContentInOrder(container)).toEqual(["Newest update", "Older update"]);
   });
 });
+
+describe("ProjectUpdates — markdown rendering", () => {
+  it("renders bold, italics and lists from update content", () => {
+    mockUpdates([makeUpdate("**Big** news, *really*\n\n- first\n- second", 60)]);
+    const { container } = render(<ProjectUpdates campaignId={CAMPAIGN_ID} />);
+    expect(container.querySelector("strong")).toHaveTextContent("Big");
+    expect(container.querySelector("em")).toHaveTextContent("really");
+    expect(container.querySelectorAll("ul li")).toHaveLength(2);
+  });
+
+  it("opens links in a new tab with rel noopener noreferrer", () => {
+    mockUpdates([makeUpdate("See [the docs](https://stellar.org)", 60)]);
+    render(<ProjectUpdates campaignId={CAMPAIGN_ID} />);
+    const link = screen.getByRole("link", { name: "the docs" });
+    expect(link).toHaveAttribute("href", "https://stellar.org");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("does not render injected HTML from update content", () => {
+    mockUpdates([makeUpdate("<img src=x onerror=alert(1)><script>alert(1)</script>hi", 60)]);
+    const { container } = render(<ProjectUpdates campaignId={CAMPAIGN_ID} />);
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector("script")).toBeNull();
+  });
+});

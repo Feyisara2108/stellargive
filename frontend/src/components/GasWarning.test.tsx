@@ -1,6 +1,6 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { GasWarning } from "./GasWarning";
+import { GasWarning, splitFee } from "./GasWarning";
 
 // vi.mock is hoisted, so use the literal value inside the factory
 vi.mock("@/lib/soroban", () => ({
@@ -12,8 +12,10 @@ vi.mock("@/lib/WalletProvider", () => ({
   useWallet: () => ({ address: null, network: "testnet" }),
 }));
 
+const walletBalance = vi.hoisted(() => ({ value: null as bigint | null }));
+
 vi.mock("@/hooks/useSoroban", () => ({
-  useWalletBalance: () => ({ data: null }),
+  useWalletBalance: () => ({ data: walletBalance.value }),
 }));
 
 const MAX_SIMULATION_FEE_STROOPS = 10_000_000;
@@ -84,5 +86,39 @@ describe("GasWarning", () => {
   it("renders without crashing for a very small (below-threshold) fee", () => {
     const { container } = render(<GasWarning feeStroops={100} />);
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe("GasWarning — fee breakdown popover", () => {
+  beforeEach(() => {
+    walletBalance.value = 10_000_000_000n;
+  });
+  afterEach(() => {
+    walletBalance.value = null;
+  });
+
+  it("splits fees so base + resource equals the total", () => {
+    expect(splitFee(1_234_567)).toEqual({ base: 100, resource: 1_234_467 });
+    expect(splitFee(40)).toEqual({ base: 40, resource: 0 });
+  });
+
+  it("lists base and resource fees to 7 decimals and closes with Escape", () => {
+    render(<GasWarning estimatedFeeStroops={1_234_567} />);
+    const trigger = screen.getByRole("button", { name: "Fee breakdown" });
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    const dialog = screen.getByRole("dialog", { name: "Fee breakdown" });
+    expect(dialog).toHaveTextContent("Base fee0.0000100 XLM");
+    expect(dialog).toHaveTextContent("Resource fee (est.)0.1234467 XLM");
+    expect(dialog).toHaveTextContent("Total0.1234567 XLM");
+    expect(screen.getByRole("link", { name: /resource fees/i })).toHaveAttribute(
+      "href",
+      expect.stringContaining("developers.stellar.org"),
+    );
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

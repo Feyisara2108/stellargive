@@ -1,0 +1,73 @@
+name: "Setup Node.js with caching"
+description: >
+  Sets up Node.js and caches npm dependencies. Centralises the Node version
+  pin and caching logic so future version bumps only require one edit here.
+
+inputs:
+  node-version-file:
+    description: >
+      Path to a version file (.nvmrc, .node-version, package.json) that
+      specifies the Node.js version. Ignored when node-version is set.
+    required: false
+    default: "frontend/.nvmrc"
+
+  node-version:
+    description: >
+      Explicit Node.js version to use (e.g. "20"). When provided, takes
+      precedence over node-version-file. Leave empty to use the version file.
+    required: false
+    default: ""
+
+  cache-dependency-path:
+    description: >
+      Path to the lock file used as the cache key. Defaults to the frontend
+      package-lock.json which covers the vast majority of Node jobs in this
+      repo. Override for jobs that install from a different lock file.
+    required: false
+    default: "frontend/package-lock.json"
+
+  working-directory:
+    description: >
+      Directory in which to run `npm ci`. Set to an empty string to skip the
+      install step (useful when the caller only needs Node available, e.g. to
+      run npx without installing workspace deps first).
+    required: false
+    default: "frontend"
+
+runs:
+  using: "composite"
+  steps:
+    # ── Node.js (with built-in npm cache) ─────────────────────────────────────
+    - name: Setup Node.js (version file)
+      if: ${{ inputs.node-version == '' }}
+      uses: actions/setup-node@v7 # v4.0.2
+      with:
+        node-version-file: ${{ inputs.node-version-file }}
+        cache: "npm"
+        cache-dependency-path: ${{ inputs.cache-dependency-path }}
+
+    - name: Setup Node.js (explicit version)
+      if: ${{ inputs.node-version != '' }}
+      uses: actions/setup-node@v7 # v4.0.2
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: "npm"
+        cache-dependency-path: ${{ inputs.cache-dependency-path }}
+
+    # ── Next.js build cache (only when the frontend working-directory is used) ─
+    - name: Cache Next.js build
+      if: ${{ inputs.working-directory == 'frontend' }}
+      uses: actions/cache@v6 # v4.0.2
+      with:
+        path: |
+          frontend/.next/cache
+        key: ${{ runner.os }}-nextjs-${{ hashFiles('frontend/package-lock.json') }}-${{ hashFiles('frontend/src/**/*.js', 'frontend/src/**/*.jsx', 'frontend/src/**/*.ts', 'frontend/src/**/*.tsx') }}
+        restore-keys: |
+          ${{ runner.os }}-nextjs-${{ hashFiles('frontend/package-lock.json') }}-
+
+    # ── Install dependencies ───────────────────────────────────────────────────
+    - name: Install dependencies
+      if: ${{ inputs.working-directory != '' }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: npm ci

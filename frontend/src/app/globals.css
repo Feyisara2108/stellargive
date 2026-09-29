@@ -63,6 +63,22 @@
   }
 }
 
+/* ── Focus-visible ring token (#832) ───────────────────────────────────────────
+ * High-contrast focus ring for keyboard navigation, consistent across all
+ * interactive elements. Uses the primary colour which passes WCAG AA contrast
+ * against both light and dark backgrounds. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+
+  /* Remove default outline for mouse users */
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+}
+
 .glass {
   background: rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(10px);
@@ -71,4 +87,44 @@
 
 .text-gradient {
   @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-blue-600;
+}
+
+/* ── Reduced-motion guard (#831) ───────────────────────────────────────────────
+ * Neutralize non-essential animations for users who prefer reduced motion.
+ * Essential feedback (e.g. toast notifications, form validation errors) is
+ * kept visible without motion. */
+@media (prefers-reduced-motion: reduce) {
+  /* Disable all CSS transitions globally */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Explicitly allow essential feedback animations */
+  [role="alert"],
+  [role="status"],
+  [aria-live] {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  /* Disable specific Tailwind animation utilities */
+  .animate-pulse,
+  .animate-spin,
+  .animate-bounce {
+    animation: none !important;
+  }
+
+  /* Disable hover transforms that imply motion */
+  .hover\:scale-105:hover {
+    transform: none !important;
+  }
+
+  .group:hover .group-hover\:scale-105 {
+    transform: none !important;
+  }
 }

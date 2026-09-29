@@ -8,6 +8,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  issues: read
 
 jobs:
   release-please:
@@ -18,7 +19,7 @@ jobs:
       tag_name: ${{ steps.release.outputs.tag_name }}
       version: ${{ steps.release.outputs.version }}
     steps:
-      - uses: googleapis/release-please-action@v4 # v4
+      - uses: googleapis/release-please-action@v5 # v4
         id: release
         with:
           config-file: .release-please-config.json
@@ -37,7 +38,7 @@ jobs:
 
   sbom:
     name: Generate SBOM
-    needs: release-please
+    needs: [release-please, enrich-release-notes]
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -48,17 +49,11 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4.2.2 # v4.2.2
+        uses: actions/checkout@v7.0.1 # v4.2.2
 
       # ── Frontend SBOM (npm / CycloneDX) ──────────────────────────────────
-      - name: Setup Node.js
-        uses: actions/setup-node@v4 # v4.0.2
-        with:
-          node-version-file: frontend/.nvmrc
-
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm ci
+      - name: Setup Node.js and install dependencies
+        uses: ./.github/actions/setup-node
 
       - name: Generate frontend SBOM
         working-directory: frontend
@@ -115,7 +110,7 @@ jobs:
           fi
 
       - name: Upload optimized WASM artifact
-        uses: actions/upload-artifact@v4.3.0 # v4.3.0
+        uses: actions/upload-artifact@v7.0.1 # v4.3.0
         with:
           name: stellar_give.wasm
           path: |
@@ -126,7 +121,7 @@ jobs:
 
       # ── Sign SBOMs (Sigstore/cosign, keyless) ─────────────────────────────
       - name: Install cosign
-        uses: sigstore/cosign-installer@v3.5.0 # v3.5.0
+        uses: sigstore/cosign-installer@v4.1.2 # v3.5.0
 
       - name: Sign SBOMs
         run: |
@@ -141,7 +136,7 @@ jobs:
 
       # ── Build provenance attestation for released artifacts ───────────────
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@v2.2.0 # v2.2.0
+        uses: actions/attest-build-provenance@v4.2.2 # v2.2.0
         with:
           subject-path: |
             sbom-frontend.cdx.json
@@ -165,8 +160,175 @@ jobs:
             stellar_give.optimized.wasm \
             --clobber
 
+  enrich-release-notes:
+    name: Enrich release notes with labels and contributors
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: read
+      issues: read
+    steps:
+      - name: Generate and patch enriched release notes
+        uses: actions/github-script@v9.0.0 # v7.0.1
+        env:
+          TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const tagName = process.env.TAG_NAME;
+            const { owner, repo } = context.repo;
+
+            // ── 1. Find the previous tag to determine the comparison range ──
+            const { data: tags } = await github.rest.repos.listTags({
+              owner, repo, per_page: 10,
+            });
+            const tagNames = tags.map(t => t.name);
+            const currentIdx = tagNames.indexOf(tagName);
+            const previousTag = currentIdx >= 0 && currentIdx + 1 < tagNames.length
+              ? tagNames[currentIdx + 1]
+              : null;
+
+            core.info(`Current tag: ${tagName}  Previous tag: ${previousTag ?? '(none — first release)'}`);
+
+            // ── 2. Collect merged PRs in the range ──────────────────────────
+            // Strategy: list commits between the two tags, then resolve each
+            // commit SHA to a merged PR via the "list PRs associated with a commit" API.
+            let prNumbers = new Set();
+            if (previousTag) {
+              const { data: comparison } = await github.rest.repos.compareCommitsWithBasehead({
+                owner, repo,
+                basehead: `${previousTag}...${tagName}`,
+                per_page: 250,
+              });
+              for (const commit of (comparison.commits || [])) {
+                const { data: prs } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                  owner, repo, commit_sha: commit.sha, per_page: 10,
+                });
+                for (const pr of prs) {
+                  if (pr.merged_at) prNumbers.add(pr.number);
+                }
+              }
+            } else {
+              // First release: take the 100 most-recently closed PRs as a best effort.
+              const { data: recent } = await github.rest.pulls.list({
+                owner, repo, state: 'closed', sort: 'updated',
+                direction: 'desc', per_page: 100,
+              });
+              for (const pr of recent) {
+                if (pr.merged_at) prNumbers.add(pr.number);
+              }
+            }
+
+            core.info(`Found ${prNumbers.size} merged PR(s) in this release.`);
+
+            // ── 3. Fetch full PR objects (labels, author, title, URL) ────────
+            const prs = [];
+            for (const num of prNumbers) {
+              const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: num });
+              prs.push(pr);
+            }
+
+            // ── 4. Group PRs by label ────────────────────────────────────────
+            // Label → display section title mapping, in display order.
+            // Labels are sourced from the repo's create-labels.sh and ISSUES.md.
+            const CATEGORY_ORDER = [
+              { label: 'enhancement', title: '🚀 Features' },
+              { label: 'frontend',    title: '🖥️  Frontend' },
+              { label: 'contract',    title: '🔗 Smart Contracts' },
+              { label: 'bug',         title: '🐛 Bug Fixes' },
+              { label: 'security',    title: '🔒 Security' },
+              { label: 'docs',        title: '📚 Documentation' },
+              { label: 'ci',          title: '⚙️  CI / DevOps' },
+              { label: 'devops',      title: '⚙️  CI / DevOps' },
+              { label: 'infra',       title: '🏗️  Infrastructure' },
+              { label: 'performance', title: '⚡ Performance' },
+              { label: 'testing',     title: '🧪 Testing' },
+              { label: 'a11y',        title: '♿ Accessibility' },
+              { label: 'dependencies','title': '📦 Dependencies' },
+              { label: 'chore',       title: '🔧 Chores' },
+            ];
+
+            const categorized = new Map(); // label → []
+            const uncategorized = [];
+            const contributorLogins = new Set();
+
+            for (const pr of prs) {
+              const labels = (pr.labels || []).map(l => l.name);
+              // Skip release-please's own release PRs
+              if (labels.includes('autorelease: pending') || labels.includes('autorelease: tagged')) continue;
+
+              if (pr.user?.login) contributorLogins.add(pr.user.login);
+
+              let placed = false;
+              for (const cat of CATEGORY_ORDER) {
+                if (labels.includes(cat.label)) {
+                  if (!categorized.has(cat.title)) categorized.set(cat.title, []);
+                  categorized.get(cat.title).push(pr);
+                  placed = true;
+                  break;
+                }
+              }
+              if (!placed) uncategorized.push(pr);
+            }
+
+            // ── 5. Render the enriched notes ─────────────────────────────────
+            const prLine = pr =>
+              `- ${pr.title} ([#${pr.number}](${pr.html_url})) — @${pr.user?.login ?? 'unknown'}`;
+
+            const sections = [];
+
+            for (const [title, items] of categorized) {
+              if (!items.length) continue;
+              sections.push(`### ${title}\n\n${items.map(prLine).join('\n')}`);
+            }
+
+            if (uncategorized.length) {
+              sections.push(`### 🔀 Other Changes\n\n${uncategorized.map(prLine).join('\n')}`);
+            }
+
+            // Contributors section (sorted, deduplicated)
+            const contributors = [...contributorLogins].sort();
+            let contributorsSection = '';
+            if (contributors.length) {
+              contributorsSection = [
+                '### 🙏 Contributors',
+                '',
+                'Thank you to everyone who contributed to this release:',
+                '',
+                contributors.map(l => `- @${l}`).join('\n'),
+              ].join('\n');
+            }
+
+            const newBody = [
+              sections.join('\n\n'),
+              contributorsSection,
+            ].filter(Boolean).join('\n\n');
+
+            if (!newBody.trim()) {
+              core.info('No enriched content to add — skipping release body update.');
+              return;
+            }
+
+            // ── 6. Fetch the existing release and prepend enriched notes ─────
+            const { data: release } = await github.rest.repos.getReleaseByTag({ owner, repo, tag: tagName });
+            const existingBody = (release.body || '').trim();
+
+            const separator = existingBody ? '\n\n---\n\n' : '';
+            const updatedBody = `${newBody}${separator}${existingBody}`;
+
+            await github.rest.repos.updateRelease({
+              owner, repo,
+              release_id: release.id,
+              body: updatedBody,
+            });
+
+            core.info(`Release ${tagName} notes updated with ${contributors.length} contributor(s) and ${categorized.size} category section(s).`);
+
   notify:
-    needs: [release-please, sbom]
+    needs: [release-please, sbom, enrich-release-notes]
     if: always() && failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5

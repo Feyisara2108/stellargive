@@ -13,6 +13,10 @@ on:
         options:
           - testnet
           - mainnet
+      network_confirmation:
+        description: "Type the network name to confirm deployment (required for mainnet)"
+        required: false
+        type: string
 
 jobs:
   deploy:
@@ -23,7 +27,28 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4.2.2 # v4.2.2
+        uses: actions/checkout@v7.0.1 # v4.2.2
+
+      - name: Validate network confirmation
+        run: |
+          NETWORK="${{ github.event.inputs.network || 'testnet' }}"
+          CONFIRMATION="${{ github.event.inputs.network_confirmation }}"
+
+          if [ "$NETWORK" = "mainnet" ]; then
+            if [ -z "$CONFIRMATION" ]; then
+              echo "::error::Network confirmation is required for mainnet deployment"
+              echo "::error::Please provide the network confirmation by typing 'mainnet' in the workflow input"
+              exit 1
+            fi
+            if [ "$CONFIRMATION" != "mainnet" ]; then
+              echo "::error::Network confirmation does not match target network"
+              echo "::error::Expected: mainnet, Got: $CONFIRMATION"
+              exit 1
+            fi
+            echo "✅ Mainnet deployment confirmed"
+          else
+            echo "ℹ️ Testnet deployment - confirmation not required"
+          fi
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable # stable
@@ -99,7 +124,7 @@ jobs:
           EOF
 
       - name: Upload WASM artifact
-        uses: actions/upload-artifact@v4.3.0 # v4.3.0
+        uses: actions/upload-artifact@v7.0.1 # v4.3.0
         with:
           name: stellar-give-wasm-${{ github.sha }}
           path: contracts/stellar-give/target/wasm32v1-none/release/stellar_give.wasm
