@@ -17,11 +17,15 @@ jobs:
       contents: read
       packages: write
       actions: write
+      id-token: write
       security-events: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7.0.1 # v4.2.2
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.8.1
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4.4.1 # v3.6.1
@@ -44,6 +48,8 @@ jobs:
             type=sha,format=short
             type=raw,value=latest,enable={{is_default_branch}}
 
+      - name: Build and push Docker image
+        id: build-and-push
       - name: Build Docker image (local for scanning)
         uses: docker/build-push-action@v6.7.0 # v6.7.0
         with:
@@ -83,3 +89,23 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=stellargive-frontend
           cache-to: type=gha,mode=max,scope=stellargive-frontend
+
+      - name: Sign published Docker image
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+          DIGEST: ${{ steps.build-and-push.outputs.digest }}
+        run: |
+          images=""
+          for tag in ${TAGS}; do
+            images+="${tag}@${DIGEST} "
+          done
+          cosign sign --yes ${images}
+
+      - name: Verify signed Docker image
+        env:
+          DIGEST: ${{ steps.build-and-push.outputs.digest }}
+        run: |
+          cosign verify \
+            --certificate-identity-regexp "https://github.com/${{ github.repository }}/.*" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${DIGEST}"
