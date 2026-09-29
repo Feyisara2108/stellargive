@@ -1,0 +1,87 @@
+name: Validate pull request template
+
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  validate-template:
+    name: Check PR template sections
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check required sections and nudge author
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.pull_request.body || '';
+            const requiredSections = ['Summary', 'Closes', 'Testing', 'Checklist'];
+            const missingSections = requiredSections.filter((section) =>
+              !new RegExp(`^##\\s+${section}\\s*$`, 'im').test(body)
+            );
+            const marker = '<!-- template-validation -->';
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+            const existingComment = comments.find((comment) =>
+              comment.user.type === 'Bot' && comment.body.includes(marker)
+            );
+
+            if (missingSections.length === 0) {
+              core.info('All required pull request template sections are present.');
+              if (existingComment) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: existingComment.id,
+                  body: `${marker}\nAll required pull request template sections are now present. Thanks!`,
+                });
+              }
+              await core.summary
+                .addHeading('Pull request template')
+                .addRaw('All required sections are present.')
+                .write();
+              return;
+            }
+
+            // Single backslashes: the YAML block scalar passes characters through
+            // verbatim, so `\\`` would reach JS as an escaped backslash plus a
+            // backtick that closes the template early and breaks the whole script.
+            const missingList = missingSections.map((section) => `- \`${section}\``).join('\n');
+            const commentBody = `${marker}
+            ## Pull request template reminder
+
+            Please add the following required section(s) from [the pull request template](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/.github/pull_request_template.md):
+
+            ${missingList}
+
+            This check is advisory and will not block merging, but completing these sections helps reviewers understand and verify the change.`;
+
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: commentBody,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: commentBody,
+              });
+            }
+
+            core.warning(`Missing required pull request template sections: ${missingSections.join(', ')}`);
+            await core.summary
+              .addHeading('Pull request template')
+              .addRaw(`Missing sections: ${missingSections.join(', ')}. This advisory check does not block merging.`)
+              .write();

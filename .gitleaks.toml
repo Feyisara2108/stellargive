@@ -16,6 +16,8 @@ title = "Gitleaks config for stellarGive"
     '''Cargo\.lock$''',
     # Auto-generated release notes; may reference commit hashes/PR links that superficially match secret regexes.
     '''CHANGELOG\.md$''',
+    # CI validation fixtures — deliberately-planted fake secrets used only to verify rule detection.
+    '''\.github/gitleaks-test-fixtures/''',
   ]
 
 [[rules]]

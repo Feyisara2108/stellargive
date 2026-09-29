@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 import { AlertCircle, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Skeleton, SkeletonPreset, type SkeletonVariant } from "@/components/ui/skeleton";
 
 export interface AsyncBoundaryProps {
   /** True while the underlying data is being fetched. Takes priority over isError/isEmpty. */
@@ -16,8 +16,17 @@ export interface AsyncBoundaryProps {
   onRetry?: () => void;
   /** Rendered when none of isLoading/isError/isEmpty are true. */
   children: ReactNode;
-  /** Overrides the default skeleton. */
+  /** Overrides the default skeleton, including any `skeleton` variant. */
   loadingSlot?: ReactNode;
+  /** Built-in content-shaped skeleton to show while loading. */
+  skeleton?: SkeletonVariant;
+  /** Number of repeated items in the skeleton variant (cards, rows, stat tiles). */
+  skeletonCount?: number;
+  /**
+   * Minimum height reserved in every state, so content taller than the
+   * skeleton (or an empty/error panel) doesn't shift the page on resolve.
+   */
+  minHeight?: CSSProperties["minHeight"];
   /** Overrides the default error panel. */
   errorSlot?: ReactNode;
   /** Overrides the default empty-state panel. */
@@ -104,26 +113,42 @@ export function AsyncBoundary({
   onRetry,
   children,
   loadingSlot,
+  skeleton,
+  skeletonCount,
+  minHeight,
   errorSlot,
   emptySlot,
   errorTitle,
   errorMessage,
 }: AsyncBoundaryProps) {
+  let content: ReactNode;
+
   if (isLoading) {
-    return <>{loadingSlot ?? <DefaultLoading />}</>;
-  }
-
-  if (isError) {
-    return (
-      <>
-        {errorSlot ?? <DefaultError onRetry={onRetry} title={errorTitle} message={errorMessage} />}
-      </>
+    content =
+      loadingSlot ??
+      (skeleton ? (
+        <div role="status" aria-busy="true" aria-live="polite">
+          <span className="sr-only">Loading…</span>
+          <div aria-hidden="true">
+            <SkeletonPreset variant={skeleton} count={skeletonCount} />
+          </div>
+        </div>
+      ) : (
+        <DefaultLoading />
+      ));
+  } else if (isError) {
+    content = errorSlot ?? (
+      <DefaultError onRetry={onRetry} title={errorTitle} message={errorMessage} />
     );
+  } else if (isEmpty) {
+    content = emptySlot ?? <DefaultEmpty />;
+  } else {
+    content = children;
   }
 
-  if (isEmpty) {
-    return <>{emptySlot ?? <DefaultEmpty />}</>;
+  if (minHeight === undefined) {
+    return <>{content}</>;
   }
 
-  return <>{children}</>;
+  return <div style={{ minHeight }}>{content}</div>;
 }

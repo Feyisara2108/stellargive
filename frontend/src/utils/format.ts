@@ -109,6 +109,43 @@ export const toRawAmount = (amount: string | number, decimals: number = 7): bigi
 };
 
 /**
+ * Escapes a single CSV field per RFC 4180: wraps the value in double quotes
+ * and doubles any internal quotes whenever it contains a comma, quote, or
+ * newline that would otherwise break column boundaries.
+ */
+export const escapeCSVField = (value: string | number): string => {
+  const str = String(value);
+  return /[",\r\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+};
+
+/**
+ * Builds an RFC 4180 CSV string from a header row and data rows.
+ */
+export const toCSV = (headers: string[], rows: (string | number)[][]): string => {
+  return [headers, ...rows].map((row) => row.map(escapeCSVField).join(",")).join("\r\n");
+};
+
+/**
+ * Triggers a client-side file download of `content` — no server round trip.
+ * Builds an object URL from a Blob and clicks a temporary anchor element.
+ */
+export const downloadTextFile = (
+  filename: string,
+  content: string,
+  mimeType = "text/csv;charset=utf-8;",
+): void => {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
+/**
  * Formats a numeric value as a standard USD currency string (e.g. $1,234.56).
  */
 export const formatUSD = (amount: number): string => {
@@ -120,4 +157,3 @@ export const formatUSD = (amount: number): string => {
     maximumFractionDigits: 2,
   }).format(amount);
 };
-

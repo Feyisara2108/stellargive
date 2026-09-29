@@ -133,6 +133,52 @@ describe("DonateModal", () => {
     });
   });
 
+  describe("dedication message", () => {
+    it("shows a live counter and enforces the 140 character limit", async () => {
+      render(<DonateModal campaign={baseCampaign} />);
+      fireEvent.click(screen.getByRole("button", { name: /Donate Now/i }));
+
+      const input = await screen.findByLabelText(/Dedication message/i);
+      expect(input).toHaveAttribute("maxlength", "140");
+      expect(screen.getByText("0/140")).toBeInTheDocument();
+
+      fireEvent.change(input, { target: { value: "y".repeat(200) } });
+      expect((input as HTMLInputElement).value).toHaveLength(140);
+      expect(screen.getByText("140/140")).toBeInTheDocument();
+    });
+
+    it("sends the sanitized message with the donation", async () => {
+      render(<DonateModal campaign={baseCampaign} />);
+      fireEvent.click(screen.getByRole("button", { name: /Donate Now/i }));
+
+      fireEvent.change(await screen.findByLabelText(/^Amount/i), { target: { value: "10" } });
+      fireEvent.change(screen.getByLabelText(/Dedication message/i), {
+        target: { value: "<b>For Ada</b><script>alert(1)</script>" },
+      });
+      const confirmBtn = screen.getByRole("button", { name: /Confirm Donation/i });
+      await waitFor(() => expect(confirmBtn).toBeEnabled());
+      fireEvent.click(confirmBtn);
+
+      await waitFor(() => expect(donateState.mutateAsync).toHaveBeenCalledTimes(1));
+      expect(donateState.mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "For Ada" }),
+      );
+    });
+
+    it("omits the message when the field is left empty", async () => {
+      render(<DonateModal campaign={baseCampaign} />);
+      fireEvent.click(screen.getByRole("button", { name: /Donate Now/i }));
+
+      fireEvent.change(await screen.findByLabelText(/^Amount/i), { target: { value: "10" } });
+      const confirmBtn = screen.getByRole("button", { name: /Confirm Donation/i });
+      await waitFor(() => expect(confirmBtn).toBeEnabled());
+      fireEvent.click(confirmBtn);
+
+      await waitFor(() => expect(donateState.mutateAsync).toHaveBeenCalledTimes(1));
+      expect(donateState.mutateAsync.mock.calls[0][0].message).toBeUndefined();
+    });
+  });
+
   describe("mutation error state", () => {
     afterEach(() => {
       vi.restoreAllMocks();
@@ -221,28 +267,57 @@ describe("DonateModal", () => {
   });
 
   describe("preset amount and manual sync", () => {
-    it("shows a 'Fund the rest' shortcut and syncs the amount input when clicked", async () => {
+    it("shows preset chips (10 XLM, 50 XLM, 100 XLM, Fund Remaining) and populates input on click", async () => {
       render(<DonateModal campaign={baseCampaign} open onOpenChange={() => {}} />);
 
-      const shortcut = await screen.findByRole("button", { name: /Fund the rest/i });
-      fireEvent.click(shortcut);
+      const chip10 = await screen.findByRole("button", { name: "10 XLM" });
+      const chip50 = screen.getByRole("button", { name: "50 XLM" });
+      const chip100 = screen.getByRole("button", { name: "100 XLM" });
+      const fundRemainingChip = screen.getByRole("button", { name: /Fund Remaining/i });
 
-      const input = await screen.findByLabelText(/Amount/i);
+      expect(chip10).toBeInTheDocument();
+      expect(chip50).toBeInTheDocument();
+      expect(chip100).toBeInTheDocument();
+      expect(fundRemainingChip).toBeInTheDocument();
+
+      const input = screen.getByLabelText(/Amount/i);
+
+      // Click preset 10 XLM chip
+      fireEvent.click(chip10);
+      await waitFor(() => {
+        expect(input).toHaveValue("10");
+      });
+
+      // Click preset Fund Remaining chip (remaining = 100 - 35 = 65)
+      fireEvent.click(fundRemainingChip);
       await waitFor(() => {
         expect(input).toHaveValue("65");
       });
     });
 
-    it("hides the 'Fund the rest' shortcut once the manual amount already covers the goal", async () => {
+    it("highlights active chip when input matches preset amount", async () => {
       render(<DonateModal campaign={baseCampaign} open onOpenChange={() => {}} />);
 
       const input = await screen.findByLabelText(/Amount/i);
-      fireEvent.change(input, { target: { value: "65" } });
-      fireEvent.blur(input);
+      fireEvent.change(input, { target: { value: "50" } });
 
       await waitFor(() => {
-        expect(screen.queryByRole("button", { name: /Fund the rest/i })).not.toBeInTheDocument();
+        const chip50 = screen.getByRole("button", { name: "50 XLM" });
+        expect(chip50.className).toContain("bg-primary");
       });
+    });
+
+    it("remembers user's last donated amount in localStorage and pre-fills on return visits", async () => {
+      localStorage.setItem("stellargive_last_donated_amount", "50");
+
+      render(<DonateModal campaign={baseCampaign} open onOpenChange={() => {}} />);
+
+      const input = await screen.findByLabelText(/Amount/i);
+      await waitFor(() => {
+        expect(input).toHaveValue("50");
+      });
+
+      localStorage.removeItem("stellargive_last_donated_amount");
     });
   });
 
@@ -371,7 +446,12 @@ describe("DonateModal", () => {
 
     it("pre-fills the amount from suggestedAmount when the modal opens", async () => {
       const { rerender } = render(
-        <DonateModal campaign={baseCampaign} open={false} onOpenChange={() => {}} suggestedAmount="25" />,
+        <DonateModal
+          campaign={baseCampaign}
+          open={false}
+          onOpenChange={() => {}}
+          suggestedAmount="25"
+        />,
       );
 
       rerender(

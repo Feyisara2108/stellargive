@@ -10,6 +10,7 @@ import {
   Networks,
   Keypair,
   Operation,
+  StrKey,
 } from "@stellar/stellar-sdk";
 // NOTE: @stellar/freighter-api is browser-only, so it is imported lazily inside
 // submitTransaction. This keeps the read-only helpers (getCampaign, getEvents…)
@@ -216,7 +217,7 @@ export async function getRecentCampaigns(limit = 20): Promise<Campaign[]> {
   return campaigns;
 }
 
-export async function getTotalCampaigns(): Promise<bigint> {
+async function fetchTotalCampaigns(): Promise<bigint> {
   const tx = new TransactionBuilder(
     new Account("GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF", "0"),
     {
@@ -236,11 +237,77 @@ export async function getTotalCampaigns(): Promise<bigint> {
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    return 0n;
+    throw new Error(`Simulation failed: ${sim.error}`);
   }
-  if (!sim.result) return 0n;
+  if (!sim.result) throw new Error("Failed to get total campaigns: no result");
   const result = scValToNative(sim.result.retval);
   return BigInt(result);
+}
+
+/**
+ * Public-facing total campaign count (e.g. the homepage stats strip). Swallows
+ * RPC/simulation failures to 0 rather than surfacing an error, since a
+ * transient hiccup shouldn't break that read-only display.
+ */
+export async function getTotalCampaigns(): Promise<bigint> {
+  try {
+    return await fetchTotalCampaigns();
+  } catch {
+    return 0n;
+  }
+}
+
+export async function getOwner(): Promise<string> {
+  const tx = new TransactionBuilder(
+    new Account("GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF", "0"),
+    {
+      fee: "100",
+      networkPassphrase: NETWORK_PASSPHRASE,
+    },
+  )
+    .addOperation(
+      Operation.invokeContractFunction({
+        contract: CONTRACT_ID,
+        function: "get_owner",
+        args: [],
+      }),
+    )
+    .setTimeout(30)
+    .build();
+
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim)) {
+    throw new Error(`Simulation failed: ${sim.error}`);
+  }
+  if (!sim.result) throw new Error("Failed to get owner: no result");
+  const result = scValToNative(sim.result.retval);
+  return String(result);
+}
+
+/**
+ * Fee basis points the contract charges on every successful claim, out of
+ * `PLATFORM_FEE_DENOMINATOR`. The contract has no getter for this — it's a
+ * compile-time constant (`FEE_BPS` / `FEE_DENOMINATOR` in lib.rs) — so this
+ * mirrors the deployed value rather than being fetched.
+ */
+export const PLATFORM_FEE_BPS = 100;
+export const PLATFORM_FEE_DENOMINATOR = 10_000;
+
+export interface PlatformConfig {
+  owner: string;
+  totalCampaigns: bigint;
+  feeBps: number;
+  feeDenominator: number;
+}
+
+/**
+ * Admin-facing platform configuration snapshot. Unlike `getTotalCampaigns`,
+ * this throws on failure so the caller (the admin panel) can surface a real
+ * error state per metric instead of silently showing a misleading 0.
+ */
+export async function getPlatformConfig(): Promise<PlatformConfig> {
+  const [owner, totalCampaigns] = await Promise.all([getOwner(), fetchTotalCampaigns()]);
+  return { owner, totalCampaigns, feeBps: PLATFORM_FEE_BPS, feeDenominator: PLATFORM_FEE_DENOMINATOR };
 }
 
 export async function getCampaignsPage(
@@ -452,6 +519,7 @@ export async function getSACBalance(contractId: string, userAddress: string): Pr
 export interface TokenMetadata {
   symbol: string;
   decimals: number;
+  name?: string;
 }
 
 export async function getTokenMetadata(contractId: string): Promise<TokenMetadata> {
@@ -505,41 +573,68 @@ export async function getTokenMetadata(contractId: string): Promise<TokenMetadat
 }
 
 /**
- * Attempt to resolve a Soroban Domain name for the given address.
- * Falls back to null if the address has no associated domain.
- * Uses a simple HTTP API pattern; adapt as needed for your network.
+ * Checksum-validates a Stellar public key (G... address). Unlike a shape-only
+ * regex, this rejects addresses with an invalid checksum even when the
+ * length and prefix look right.
+ */
+export function isValidStellarAddress(address: string): boolean {
+  return StrKey.isValidEd25519PublicKey(address);
+}
+
+/**
+ * Attempt to resolve a domain name or directory label for the given Stellar address.
+ * Uses standard Stellar directory lookups and account records.
+ * Unresolved addresses gracefully return null without console errors.
  */
 export async function resolveAddressName(address: string): Promise<string | null> {
-  if (!address || address.length < 56) return null;
+  if (!address || !address.startsWith("G") || address.length !== 56) return null;
 
   try {
-    // Attempt to resolve via domain-resolver service
-    // This is a placeholder pattern - adapt to match your network's domain service
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
 
     try {
-      const response = await fetch(`https://domain-resolver.stellar.expert/resolve/${address}`, {
-        method: "GET",
-        signal: controller.signal,
-      });
+      // 1. Standard StellarExpert Directory Lookup
+      const dirResponse = await fetch(
+        `https://api.stellar.expert/explorer/directory?address[]=${encodeURIComponent(address)}`,
+        { method: "GET", signal: controller.signal },
+      );
 
-      clearTimeout(timeoutId);
-
-      if (!response.ok) return null;
-
-      const data = await response.json();
-      if (data?.name && typeof data.name === "string") {
-        return data.name;
+      if (dirResponse.ok) {
+        const data = await dirResponse.json();
+        const record = data?._embedded?.records?.[0];
+        const displayName = record?.name || record?.domain || record?.title;
+        if (displayName && typeof displayName === "string") {
+          clearTimeout(timeoutId);
+          return displayName;
+        }
       }
-    } catch (fetchError) {
+    } catch {
+      // Silent failure for directory lookup
+    }
+
+    try {
+      // 2. Horizon Stellar Record Account Lookup (home_domain)
+      const horizonResponse = await fetch(
+        `https://horizon-testnet.stellar.org/accounts/${encodeURIComponent(address)}`,
+        { method: "GET", signal: controller.signal },
+      );
+
+      if (horizonResponse.ok) {
+        const data = await horizonResponse.json();
+        if (data?.home_domain && typeof data.home_domain === "string") {
+          clearTimeout(timeoutId);
+          return data.home_domain;
+        }
+      }
+    } catch {
+      // Silent failure for Horizon lookup
+    } finally {
       clearTimeout(timeoutId);
-      // Network/timeout errors are silent failures
     }
 
     return null;
   } catch {
-    // Silently fail for any other errors
     return null;
   }
 }

@@ -12,6 +12,7 @@ import {
   getEvents,
   getUpdates,
   getTotalCampaigns,
+  getPlatformConfig,
   getSACBalance,
   resolveAddressName,
   Campaign,
@@ -186,6 +187,8 @@ export function useDonate() {
       amount: string;
       isAnonymous: boolean;
       decimals: number;
+      /** Optional dedication, passed to the contract's `comment: Option<String>` argument. */
+      message?: string;
     }) => {
       if (!address) throw new Error("Wallet not connected");
 
@@ -194,6 +197,7 @@ export function useDonate() {
         nativeToScVal(params.campaignId, { type: "u64" }),
         nativeToScVal(toRawAmount(params.amount, params.decimals), { type: "i128" }),
         nativeToScVal(params.isAnonymous, { type: "bool" }),
+        ...(params.message ? [nativeToScVal(params.message, { type: "string" })] : []),
       ];
 
       return submitTransaction(address, "donate", args);
@@ -244,6 +248,11 @@ export function useDonate() {
         id: context?.toastId,
         hash: data?.hash,
       });
+      queryClient.invalidateQueries({
+        queryKey: ["campaign", variables.campaignId.toString()],
+      });
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+      queryClient.invalidateQueries({ queryKey: ["events"] });
     },
     onError: (error: any, variables: any, context: any) => {
       if (context?.previousCampaign) {
@@ -364,6 +373,70 @@ export function usePlatformStats() {
       return { totalCampaigns, totalRaised: totalRaised.toString(), activeCampaigns };
     },
     staleTime: 60_000,
+  });
+}
+
+/** How many contract events to scan when counting distinct donors. */
+export const DONOR_SCAN_EVENT_LIMIT = 200;
+
+/** Anonymous donations are recorded against the contract's zero placeholder. */
+const ZERO_ADDRESS = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
+
+/**
+ * Counts the distinct donor addresses across the given donation events.
+ *
+ * Donation payloads are positional `[campaign_id, donor, amount, raised_amount,
+ * accepted_token]`, so the donor is `data[1]`. Anonymous donations all share the
+ * zero address on-chain and are dropped, so they count as no donor at all rather
+ * than as one distinct placeholder.
+ *
+ * Exported so the pure aggregation can be exercised without the RPC, and so the
+ * counting query below only has to wire it up.
+ */
+export function countUniqueDonors(events: any[] | undefined): number {
+  const donors = new Set<string>();
+
+  for (const event of events ?? []) {
+    if (event?.topic !== "received" || !event.data) continue;
+
+    const donor = event.data[1]?.toString();
+    if (!donor || donor === ZERO_ADDRESS) continue;
+
+    donors.add(donor);
+  }
+
+  return donors.size;
+}
+
+/**
+ * Distinct donors across the scanned donation events.
+ *
+ * Kept apart from `usePlatformStats` on purpose: it reads a different RPC
+ * resource (the event feed rather than the campaign list), and an unreachable
+ * event feed shouldn't be able to take the campaign totals down with it.
+ *
+ * `getEvents` pages from ledger 0, so the count covers the contract's first
+ * `DONOR_SCAN_EVENT_LIMIT` events — the same window the leaderboard ranks
+ * donors from — and is a complete total only while the contract has emitted
+ * that few events. No polling, like the campaign stats: this is hero copy, not
+ * a live feed.
+ */
+export function useUniqueDonors() {
+  return useQuery({
+    queryKey: ["platform-stats", "unique-donors"],
+    queryFn: async () => countUniqueDonors(await getEvents(DONOR_SCAN_EVENT_LIMIT)),
+    staleTime: 60_000,
+/**
+ * Admin-facing platform configuration (owner, total campaigns, fee). Unlike
+ * `usePlatformStats`, failures are surfaced as a real query error rather than
+ * being masked to 0 — this panel exists specifically so an admin can see
+ * when a read is failing.
+ */
+export function usePlatformConfig() {
+  return useQuery({
+    queryKey: ["platform-config"],
+    queryFn: getPlatformConfig,
+    staleTime: 30_000,
   });
 }
 
@@ -683,4 +756,3 @@ export function useXlmPrice() {
     retry: 2,
   });
 }
-

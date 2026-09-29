@@ -92,7 +92,7 @@ export function Navbar() {
     <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40">
       <div className="container flex h-16 items-center justify-between">
         {/* Brand */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <div className="bg-primary p-1.5 rounded-lg">
             <Heart className="w-5 h-5 text-primary-foreground fill-current" />
           </div>
@@ -102,7 +102,7 @@ export function Navbar() {
         </div>
 
         {/* Desktop navigation */}
-        <div className="hidden md:flex items-center gap-4">
+        <div className="hidden xl:flex items-center gap-4">
           {NAV_LINKS.map((link) => {
             const isActive = pathname
               ? pathname === link.href || pathname.startsWith(`${link.href}/`)
@@ -112,7 +112,7 @@ export function Navbar() {
                 key={link.href}
                 href={link.href}
                 aria-current={isActive ? "page" : undefined}
-                className={`text-sm font-medium transition-colors ${
+                className={`whitespace-nowrap text-sm font-medium transition-colors ${
                   isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -128,7 +128,7 @@ export function Navbar() {
             onClick={() => setPaletteOpen(true)}
             aria-label={`Search campaigns (${shortcutLabel})`}
             aria-keyshortcuts={isMac ? "Meta+k" : "Control+k"}
-            className="hidden lg:flex items-center gap-2 rounded-md border border-input bg-background px-3 h-9 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="hidden 2xl:flex items-center gap-2 rounded-md border border-input bg-background px-3 h-9 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring whitespace-nowrap"
           >
             <Search className="w-3.5 h-3.5" aria-hidden="true" />
             <span>Search campaigns...</span>
@@ -138,7 +138,7 @@ export function Navbar() {
           </button>
           {/* Compact icon-only trigger for medium screens */}
           <IconButton
-            className="lg:hidden"
+            className="2xl:hidden"
             onClick={() => setPaletteOpen(true)}
             aria-label={`Search campaigns (${shortcutLabel})`}
             aria-keyshortcuts={isMac ? "Meta+k" : "Control+k"}
@@ -154,7 +154,7 @@ export function Navbar() {
         {/* Mobile menu button */}
         <IconButton
           ref={menuButtonRef}
-          className="md:hidden"
+          className="xl:hidden"
           onClick={() => setMobileMenuOpen(true)}
           aria-label="Open menu"
           aria-expanded={mobileMenuOpen}

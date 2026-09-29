@@ -38,15 +38,17 @@ describe("CampaignStatusBadge — style classes", () => {
   });
 
   it("applies blue classes for Funded", () => {
-    const { container } = render(<CampaignStatusBadge status="Funded" />);
-    const badge = container.firstChild as HTMLElement;
+    // Funded/Claimed default to 100% progress and also render milestone badges,
+    // so query the status badge by its label rather than container.firstChild.
+    render(<CampaignStatusBadge status="Funded" />);
+    const badge = screen.getByText("Funded");
     expect(badge.className).toContain("bg-blue-500/20");
     expect(badge.className).toContain("text-blue-500");
   });
 
   it("applies blue classes for Claimed", () => {
-    const { container } = render(<CampaignStatusBadge status="Claimed" />);
-    const badge = container.firstChild as HTMLElement;
+    render(<CampaignStatusBadge status="Claimed" />);
+    const badge = screen.getByText("Claimed");
     expect(badge.className).toContain("bg-blue-500/20");
     expect(badge.className).toContain("text-blue-500");
   });
@@ -91,5 +93,24 @@ describe("CampaignStatusBadge — deadline override", () => {
     const futureDeadline = BigInt(Math.floor(Date.now() / 1000) + 86400);
     render(<CampaignStatusBadge status="Active" deadline={futureDeadline} />);
     expect(screen.getByText("Active")).toBeInTheDocument();
+  });
+});
+
+describe("CampaignStatusBadge — Refunding", () => {
+  it("renders a Refunding badge with an accessible status label", () => {
+    render(<CampaignStatusBadge status="Refunding" />);
+    const badge = screen.getByRole("status");
+    expect(badge).toHaveTextContent("Refunding");
+    expect(badge).toHaveAttribute("aria-label", expect.stringMatching(/refunding/i));
+  });
+
+  it("uses a distinct in-progress style", () => {
+    render(<CampaignStatusBadge status="Refunding" />);
+    expect(screen.getByRole("status").className).toContain("animate-pulse");
+  });
+
+  it("leaves other statuses without a status role", () => {
+    render(<CampaignStatusBadge status="Active" />);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 });

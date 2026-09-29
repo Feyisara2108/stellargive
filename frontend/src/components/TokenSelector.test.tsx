@@ -12,10 +12,17 @@ vi.mock("lucide-react", () => ({
   Check: () => <div data-testid="check-icon" />,
   ChevronDown: () => <div data-testid="chevron-down-icon" />,
   Coins: () => <div data-testid="coins-icon" />,
+  ShieldCheck: () => <div data-testid="shield-check-icon" />,
 }));
 
 vi.mock("@/lib/soroban", () => ({
   getTokenMetadata: vi.fn(),
+}));
+
+// TokenSelector calls useTokenMetadata (react-query) for non-predefined tokens.
+// Mock the hook so the component renders without a QueryClientProvider.
+vi.mock("@/hooks/useSoroban", () => ({
+  useTokenMetadata: vi.fn().mockReturnValue({ data: undefined, isLoading: false }),
 }));
 
 vi.mock("sonner", () => ({
@@ -88,5 +95,52 @@ describe("TokenSelector", () => {
     // Assert that onChange was called exactly once with the correct address
     expect(mockOnChange).toHaveBeenCalledTimes(1);
     expect(mockOnChange).toHaveBeenCalledWith(secondToken.address);
+  });
+});
+
+describe("TokenSelector — recent tokens", () => {
+  const onChange = vi.fn();
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.localStorage.clear();
+  });
+
+  const openMenu = () => fireEvent.click(screen.getAllByRole("button")[0]);
+
+  test("records a selection and shows it as a quick-pick chip", () => {
+    const { unmount } = render(<TokenSelector value="" onChange={onChange} />);
+    openMenu();
+    fireEvent.click(screen.getByText(PREDEFINED_TOKENS[1].name).closest("button")!);
+    expect(JSON.parse(window.localStorage.getItem("stellargive:recent-tokens")!)).toEqual([
+      { address: PREDEFINED_TOKENS[1].address, symbol: PREDEFINED_TOKENS[1].symbol },
+    ]);
+    unmount();
+
+    render(<TokenSelector value="" onChange={onChange} />);
+    openMenu();
+    const chip = screen.getByRole("button", {
+      name: `Use recent token ${PREDEFINED_TOKENS[1].symbol}`,
+    });
+    fireEvent.click(chip);
+    expect(onChange).toHaveBeenLastCalledWith(PREDEFINED_TOKENS[1].address);
+  });
+
+  test("clear button empties the recents list and storage", () => {
+    window.localStorage.setItem(
+      "stellargive:recent-tokens",
+      JSON.stringify([{ address: PREDEFINED_TOKENS[0].address, symbol: "XLM" }]),
+    );
+    render(<TokenSelector value="" onChange={onChange} />);
+    openMenu();
+    fireEvent.click(screen.getByRole("button", { name: /Clear recent tokens/i }));
+    expect(screen.queryByTestId("recent-tokens")).not.toBeInTheDocument();
+    expect(window.localStorage.getItem("stellargive:recent-tokens")).toBeNull();
+  });
+
+  test("ignores corrupt storage without throwing", () => {
+    window.localStorage.setItem("stellargive:recent-tokens", "{not json");
+    render(<TokenSelector value="" onChange={onChange} />);
+    openMenu();
+    expect(screen.queryByTestId("recent-tokens")).not.toBeInTheDocument();
   });
 });

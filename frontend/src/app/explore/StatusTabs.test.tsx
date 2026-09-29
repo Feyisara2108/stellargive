@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import ExplorePage from "./page";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MockWalletProvider } from "@/components/MockWalletProvider";
@@ -52,7 +52,7 @@ function renderPage() {
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 function getTab(name: string) {
-  return screen.getByRole("tab", { name: new RegExp(name, "i") });
+  return document.getElementById(`status-tab-${name}`) as HTMLButtonElement;
 }
 
 // ── tests ────────────────────────────────────────────────────────────────────
@@ -63,8 +63,8 @@ beforeEach(() => {
 describe("Status tabs – ARIA wiring", () => {
   it("renders exactly three tabs inside a tablist", () => {
     renderPage();
-    const tablist = screen.getByRole("tablist");
-    const tabs = screen.getAllByRole("tab");
+    const tablist = screen.getByRole("tablist", { name: /Campaign status filters/i });
+    const tabs = within(tablist).getAllByRole("tab");
     expect(tablist).toBeInTheDocument();
     expect(tabs).toHaveLength(3);
   });
@@ -86,7 +86,8 @@ describe("Status tabs – ARIA wiring", () => {
 
   it("each tab has aria-controls pointing at the results panel", () => {
     renderPage();
-    const tabs = screen.getAllByRole("tab");
+    const tablist = screen.getByRole("tablist", { name: /Campaign status filters/i });
+    const tabs = within(tablist).getAllByRole("tab");
     const panelId = "campaign-results-panel";
     tabs.forEach((tab) => expect(tab).toHaveAttribute("aria-controls", panelId));
   });

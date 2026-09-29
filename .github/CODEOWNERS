@@ -1,11 +1,14 @@
-# Default owner for everything not matched below
-* @Nursca
+# Default owner for files without a more specific owner
+* @Feyisara2108
 
 # Frontend
 frontend/** @Nursca
 
 # Smart contracts
-contracts/** @Nursca
+contracts/** @Feyisara2108
 
 # GitHub Actions, workflows, and repo config
 .github/** @Nursca
+
+# Documentation
+docs/** @Feyisara2108

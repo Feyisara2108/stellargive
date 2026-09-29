@@ -15,12 +15,107 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v4.2.2 # v4.2.2
+        uses: actions/checkout@v7.0.1 # v4.2.2
         with:
           fetch-depth: 0
 
       - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@v2 # v2.3.0
+        uses: gitleaks/gitleaks-action@v3 # v2.3.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  validate-config:
+    name: Validate gitleaks configuration
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1 # v4.2.2
+
+      - name: Install gitleaks
+        # Pin to a specific version so the test is reproducible.
+        # Matches the major version used by gitleaks/gitleaks-action@v3.
+        run: |
+          GITLEAKS_VERSION="8.21.2"
+          curl -sSfL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+
+      # ── 1. Config syntax check ──────────────────────────────────────────────
+      # Run gitleaks with the --no-git flag against an empty directory so we
+      # only exercise TOML parsing. A malformed .gitleaks.toml will cause
+      # gitleaks to exit non-zero before it scans anything.
+      - name: Check config syntax (TOML parse)
+        run: |
+          mkdir -p /tmp/empty-scan-target
+          gitleaks detect \
+            --config .gitleaks.toml \
+            --source /tmp/empty-scan-target \
+            --no-git \
+            --exit-code 0 \
+          && echo "✅ Config TOML parses without errors."
+
+      # ── 2. Detection effectiveness check ───────────────────────────────────
+      # Run gitleaks against the fixture file that contains deliberately-planted
+      # fake secrets. The job FAILS if gitleaks does NOT detect any findings,
+      # because that means the config rules are silently broken.
+      - name: Run gitleaks against fixture file (expect detections)
+        id: detection-check
+        run: |
+          FIXTURE=".github/gitleaks-test-fixtures/fake-secrets.txt"
+
+          # The global path allowlist in .gitleaks.toml excludes the fixture
+          # directory so the production scan stays quiet — but that same
+          # allowlist suppresses every finding when the fixture is scanned in
+          # place, which is what silently broke this check. Copy the fixture to
+          # a path the allowlist does not match so the rules are exercised.
+          SCAN_DIR="/tmp/gitleaks-fixture-scan"
+          rm -rf "$SCAN_DIR"
+          mkdir -p "$SCAN_DIR"
+          cp "$FIXTURE" "$SCAN_DIR/"
+
+          # gitleaks exits 1 when leaks are found, 0 when clean, 126/other on error.
+          gitleaks detect \
+            --config .gitleaks.toml \
+            --source "$SCAN_DIR" \
+            --no-git \
+            --report-format json \
+            --report-path /tmp/gitleaks-fixture-report.json \
+            --exit-code 1 \
+          ; GITLEAKS_EXIT=$?
+
+          echo "gitleaks exit code: $GITLEAKS_EXIT"
+
+          # Exit code 1 = leaks detected (expected and correct).
+          # Any other exit code that is not 1 means no leaks were found or
+          # there was an unexpected error — both are failures.
+          if [ "$GITLEAKS_EXIT" -ne 1 ]; then
+            echo "::error::Expected gitleaks to find secrets in the fixture file (exit 1) but got exit $GITLEAKS_EXIT."
+            echo "::error::This means one or more rules in .gitleaks.toml may be broken or silently disabled."
+            exit 1
+          fi
+
+          FOUND=$(jq 'length' /tmp/gitleaks-fixture-report.json 2>/dev/null || echo "unknown")
+          echo "✅ gitleaks detected $FOUND finding(s) in the fixture file — config rules are firing correctly."
+
+      # ── 3. Report findings in job summary ──────────────────────────────────
+      - name: Summarise fixture scan results
+        if: always()
+        run: |
+          REPORT="/tmp/gitleaks-fixture-report.json"
+          {
+            echo "## Gitleaks config validation"
+            echo ""
+            if [ -f "$REPORT" ]; then
+              COUNT=$(jq 'length' "$REPORT" 2>/dev/null || echo "0")
+              echo "**Fixture detections:** $COUNT finding(s) (all expected — these are planted fake secrets)"
+              echo ""
+              echo "| Rule ID | Description | File |"
+              echo "| --- | --- | --- |"
+              jq -r '.[] | "| \(.RuleID) | \(.Description) | \(.File) |"' "$REPORT" 2>/dev/null || true
+            else
+              echo "_No report file produced._"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

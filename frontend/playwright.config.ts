@@ -25,7 +25,8 @@ export default defineConfig({
   },
 
   use: {
-    baseURL: "http://localhost:3000",
+    // E2E_BASE_URL points the run at an already-deployed (preview) environment.
+    baseURL: process.env.E2E_BASE_URL || "http://localhost:3000",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
@@ -59,8 +60,9 @@ export default defineConfig({
   webServer: {
     command: "npm run dev",
     cwd: __dirname,
-    url: "http://localhost:3000",
-    reuseExistingServer: !process.env.CI,
+    url: process.env.E2E_BASE_URL || "http://localhost:3000",
+    // A reachable E2E_BASE_URL is reused as-is, so the local dev server is not started.
+    reuseExistingServer: !process.env.CI || !!process.env.E2E_BASE_URL,
     timeout: 120_000,
     env: {
       NEXT_PUBLIC_USE_MOCK_WALLET: "true",

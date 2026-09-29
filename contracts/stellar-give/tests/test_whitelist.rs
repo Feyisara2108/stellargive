@@ -106,3 +106,75 @@ fn test_add_to_whitelist_rejects_non_creator() {
         .try_add_to_whitelist(&campaign_id, &addrs);
     assert!(result.is_err());
 }
+
+#[test]
+fn test_whitelisted_donor_subject_to_cap() {
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let bens = single_ben(&env, &beneficiary);
+    let cap = 5_000_000_i128;
+    let campaign_id = client.create_campaign(
+        &creator,
+        &bens,
+        &String::from_str(&env, "Private Capped Campaign"),
+        &String::from_str(&env, "A test campaign description."),
+        &String::from_str(&env, "https://example.com/meta"),
+        &symbol_short!("relief"),
+        &50_000_000,
+        &2_000,
+        &token_client.address,
+        &Some(cap),
+    );
+
+    let key = (symbol_short!("CMP"), campaign_id);
+    env.as_contract(&client.address, || {
+        let mut campaign: stellar_give::Campaign = env.storage().persistent().get(&key).unwrap();
+        campaign.is_private = true;
+        env.storage().persistent().set(&key, &campaign);
+    });
+
+    let mut addrs = Vec::new(&env);
+    addrs.push_back(donor.clone());
+    client.add_to_whitelist(&campaign_id, &addrs);
+
+    // Should succeed up to cap
+    let result = client.try_donate(&donor, &campaign_id, &cap, &false, &None);
+    assert!(result.is_ok());
+
+    // Should fail if exceeding cap, despite being whitelisted
+    let result = client.try_donate(&donor, &campaign_id, &1_000_000, &false, &None);
+    assert_eq!(result, Err(Ok(ContractError::ExceedsDonorCap)));
+}
+
+#[test]
+fn test_non_whitelisted_donor_rejected_with_cap_configured() {
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let bens = single_ben(&env, &beneficiary);
+    let cap = 5_000_000_i128;
+    let campaign_id = client.create_campaign(
+        &creator,
+        &bens,
+        &String::from_str(&env, "Private Capped Campaign"),
+        &String::from_str(&env, "A test campaign description."),
+        &String::from_str(&env, "https://example.com/meta"),
+        &symbol_short!("relief"),
+        &50_000_000,
+        &2_000,
+        &token_client.address,
+        &Some(cap),
+    );
+
+    let key = (symbol_short!("CMP"), campaign_id);
+    env.as_contract(&client.address, || {
+        let mut campaign: stellar_give::Campaign = env.storage().persistent().get(&key).unwrap();
+        campaign.is_private = true;
+        env.storage().persistent().set(&key, &campaign);
+    });
+
+    // Donor is not whitelisted, and tries to donate amount under cap
+    let result = client.try_donate(&donor, &campaign_id, &(cap - 1_000_000), &false, &None);
+    assert_eq!(result, Err(Ok(ContractError::NotWhitelisted)));
+}

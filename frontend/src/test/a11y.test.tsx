@@ -142,6 +142,7 @@ import Home from "@/app/page";
 import ExplorePage from "@/app/explore/page";
 import { CreateCampaignForm } from "@/components/CreateCampaignForm";
 import { CampaignDetailsClient } from "@/app/campaign/[id]/CampaignDetailsClient";
+import ProfilePage from "@/app/profile/page";
 
 /**
  * Helper to run axe-core against a rendered container, filtering for
@@ -176,6 +177,11 @@ describe("Core Pages Accessibility Suite", () => {
 
   it("Campaign Detail page accessibility", async () => {
     const { container } = render(<CampaignDetailsClient params={{ id: "1" }} />);
+    await checkAccessibility(container);
+  });
+
+  it("Profile page accessibility", async () => {
+    const { container } = render(<ProfilePage />);
     await checkAccessibility(container);
   });
 });

@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe, toHaveNoViolations } from "jest-axe";
-import { CampaignCard } from "./CampaignCard";
+import { CampaignCard, getDeadlineUrgency } from "./CampaignCard";
 import type { Campaign } from "@/lib/soroban";
 
 expect.extend(toHaveNoViolations);
@@ -10,6 +10,7 @@ expect.extend(toHaveNoViolations);
 // ... rest of mocks ...
 vi.mock("@/hooks/useSoroban", () => ({
   useTokenMetadata: vi.fn().mockReturnValue({ data: undefined, isLoading: false }),
+  useXlmPrice: vi.fn().mockReturnValue({ data: undefined, isLoading: false }),
 }));
 
 // Deterministic relative-time formatting so countdown assertions don't
@@ -433,7 +434,14 @@ describe("CampaignCard", () => {
         deadline: BigInt(nowSec() + 14 * ONE_DAY),
       };
       render(<CampaignCard campaign={upcoming} />);
-      expect(screen.getByText("Ends in 14 days")).toBeInTheDocument();
+      // "Ends " is a text node and the countdown renders in a child <span>,
+      // so match the wrapping span by its combined text content.
+      expect(
+        screen.getByText(
+          (_content, element) =>
+            element?.tagName === "SPAN" && element.textContent === "Ends in 14 days",
+        ),
+      ).toBeInTheDocument();
     });
 
     it("renders a past deadline as an elapsed countdown", () => {
@@ -444,7 +452,12 @@ describe("CampaignCard", () => {
         deadline: BigInt(nowSec() - 2 * ONE_DAY),
       };
       render(<CampaignCard campaign={past} />);
-      expect(screen.getByText("Ended 2 days ago")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          (_content, element) =>
+            element?.tagName === "SPAN" && element.textContent === "Ended 2 days ago",
+        ),
+      ).toBeInTheDocument();
     });
   });
 
@@ -488,5 +501,30 @@ describe("CampaignCard", () => {
       expect(modal).toHaveAttribute("data-open", "true");
       expect(modal).toHaveAttribute("data-suggested-amount", "100000");
     });
+  });
+});
+
+describe("getDeadlineUrgency", () => {
+  const now = Date.UTC(2026, 5, 24, 12, 0, 0);
+  const inHours = (h: number) => now / 1000 + h * 3600;
+
+  it("is normal with no pill beyond 48 hours", () => {
+    expect(getDeadlineUrgency(inHours(72), now)).toEqual({ urgency: "normal", endingSoon: false });
+  });
+
+  it("is amber under 48 hours", () => {
+    expect(getDeadlineUrgency(inHours(30), now)).toEqual({ urgency: "soon", endingSoon: false });
+  });
+
+  it("is amber with the Ending soon pill under 24 hours", () => {
+    expect(getDeadlineUrgency(inHours(12), now)).toEqual({ urgency: "soon", endingSoon: true });
+  });
+
+  it("is red under 6 hours", () => {
+    expect(getDeadlineUrgency(inHours(3), now)).toEqual({ urgency: "critical", endingSoon: true });
+  });
+
+  it("is normal once the deadline has passed", () => {
+    expect(getDeadlineUrgency(inHours(-1), now)).toEqual({ urgency: "normal", endingSoon: false });
   });
 });

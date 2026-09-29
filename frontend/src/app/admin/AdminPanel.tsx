@@ -19,12 +19,38 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useAddToWhitelist, useCancelCampaign, useAddUpdate } from "@/hooks/useSoroban";
+import {
+  useAddToWhitelist,
+  useCancelCampaign,
+  useAddUpdate,
+  usePauseContract,
+  useUnpauseContract,
+  usePlatformConfig,
+} from "@/hooks/useSoroban";
 import { toast } from "sonner";
 import { Campaign } from "@/lib/soroban";
 import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
 import { PostUpdateForm } from "@/components/PostUpdateForm";
-import { Shield, CheckCircle, AlertCircle, Loader2, Eye, FileText, XCircle } from "lucide-react";
+import { AsyncBoundary } from "@/components/AsyncBoundary";
+import { IconButton } from "@/components/ui/icon-button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { AddressLink } from "@/components/AddressLink";
+import {
+  Shield,
+  CheckCircle,
+  AlertCircle,
+  Loader2,
+  Eye,
+  FileText,
+  XCircle,
+  Pause,
+  Play,
+  Settings,
+  Landmark,
+  ListOrdered,
+  Percent,
+  RotateCw,
+} from "lucide-react";
 
 interface AdminPanelProps {
   ownedCampaigns: Campaign[];
@@ -34,6 +60,15 @@ export function AdminPanel({ ownedCampaigns }: AdminPanelProps) {
   const addToWhitelist = useAddToWhitelist();
   const cancelCampaign = useCancelCampaign();
   const addUpdate = useAddUpdate();
+  const pauseContract = usePauseContract();
+  const unpauseContract = useUnpauseContract();
+  const {
+    data: platformConfig,
+    isLoading: isConfigLoading,
+    isError: isConfigError,
+    refetch: refetchConfig,
+    isFetching: isConfigFetching,
+  } = usePlatformConfig();
 
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>("");
   const [addressToWhitelist, setAddressToWhitelist] = useState<string>("");
@@ -44,6 +79,9 @@ export function AdminPanel({ ownedCampaigns }: AdminPanelProps) {
 
   const [campaignToCancel, setCampaignToCancel] = useState<Campaign | null>(null);
   const [updateCampaign, setUpdateCampaign] = useState<Campaign | null>(null);
+  const [showPauseConfirm, setShowPauseConfirm] = useState<boolean>(false);
+  const [showUnpauseConfirm, setShowUnpauseConfirm] = useState<boolean>(false);
+  const [pauseConfirmText, setPauseConfirmText] = useState<string>("");
 
   const handleSelectCampaign = (id: string) => {
     setSelectedCampaignId(id);
@@ -91,6 +129,106 @@ export function AdminPanel({ ownedCampaigns }: AdminPanelProps) {
 
   return (
     <div className="space-y-8">
+      {/* Platform Configuration */}
+      <div className="border rounded-xl bg-card p-6 shadow-sm space-y-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-2">
+            <h2 className="text-xl font-semibold flex items-center gap-2">
+              <Settings className="w-5 h-5 text-primary" />
+              Platform Configuration
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Current on-chain owner, campaign totals, and fee rate for this deployment.
+            </p>
+          </div>
+          <IconButton
+            aria-label="Refresh platform configuration"
+            variant="outline"
+            onClick={() => refetchConfig()}
+            disabled={isConfigFetching}
+          >
+            <RotateCw className={`w-4 h-4 ${isConfigFetching ? "animate-spin" : ""}`} />
+          </IconButton>
+        </div>
+
+        <AsyncBoundary
+          isLoading={isConfigLoading}
+          isError={isConfigError}
+          onRetry={() => refetchConfig()}
+          errorTitle="Failed to load platform configuration"
+          errorMessage="We couldn't read the owner, campaign totals, or fee rate from the contract. Please check your connection and try again."
+          loadingSlot={
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Skeleton className="h-20" />
+              <Skeleton className="h-20" />
+              <Skeleton className="h-20" />
+            </div>
+          }
+        >
+          {platformConfig && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="rounded-lg border bg-background p-4 space-y-1.5">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase font-bold tracking-wider">
+                  <Landmark className="w-3.5 h-3.5" />
+                  Owner
+                </div>
+                <AddressLink address={platformConfig.owner} />
+              </div>
+
+              <div className="rounded-lg border bg-background p-4 space-y-1.5">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase font-bold tracking-wider">
+                  <ListOrdered className="w-3.5 h-3.5" />
+                  Total Campaigns
+                </div>
+                <p className="text-2xl font-bold">{platformConfig.totalCampaigns.toString()}</p>
+              </div>
+
+              <div className="rounded-lg border bg-background p-4 space-y-1.5">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase font-bold tracking-wider">
+                  <Percent className="w-3.5 h-3.5" />
+                  Platform Fee
+                </div>
+                <p className="text-2xl font-bold">
+                  {((platformConfig.feeBps / platformConfig.feeDenominator) * 100).toFixed(2)}%
+                </p>
+              </div>
+            </div>
+          )}
+        </AsyncBoundary>
+      </div>
+
+      {/* Contract Controls */}
+      <div className="border rounded-xl bg-card p-6 shadow-sm space-y-4">
+        <div className="space-y-2">
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <Shield className="w-5 h-5 text-primary" />
+            Contract Controls
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Emergency controls for the contract owner. Pausing the contract disables all donations and campaign creation.
+          </p>
+        </div>
+
+        <div className="flex gap-3">
+          <Button
+            variant="destructive"
+            onClick={() => setShowPauseConfirm(true)}
+            disabled={pauseContract.isPending}
+          >
+            <Pause className="w-4 h-4 mr-2" />
+            Pause Contract
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setShowUnpauseConfirm(true)}
+            disabled={unpauseContract.isPending}
+          >
+            <Play className="w-4 h-4 mr-2" />
+            Unpause Contract
+          </Button>
+        </div>
+      </div>
+
       {/* Campaign Management */}
       <div className="border rounded-xl bg-card p-6 shadow-sm space-y-6">
         <div className="space-y-2">
@@ -313,6 +451,123 @@ export function AdminPanel({ ownedCampaigns }: AdminPanelProps) {
               }}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Pause Confirmation Dialog */}
+      <Dialog
+        open={showPauseConfirm}
+        onOpenChange={(open) => {
+          if (!pauseContract.isPending && !open) {
+            setShowPauseConfirm(false);
+            setPauseConfirmText("");
+          }
+        }}
+      >
+        <DialogContent aria-labelledby="pause-dialog-title">
+          <DialogHeader>
+            <DialogTitle id="pause-dialog-title" className="text-destructive">
+              Pause Contract?
+            </DialogTitle>
+            <DialogDescription>
+              This will immediately disable all donations and campaign creation across the entire platform.
+              Only the contract owner can unpause.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">
+              Type <span className="font-bold">PAUSE</span> to confirm:
+            </label>
+            <input
+              type="text"
+              value={pauseConfirmText}
+              onChange={(e) => setPauseConfirmText(e.target.value)}
+              className="w-full px-3 py-2 border rounded-md text-sm"
+              placeholder="PAUSE"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowPauseConfirm(false);
+                setPauseConfirmText("");
+              }}
+              disabled={pauseContract.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={pauseContract.isPending || pauseConfirmText !== "PAUSE"}
+              onClick={async () => {
+                try {
+                  await pauseContract.mutateAsync();
+                  setShowPauseConfirm(false);
+                  setPauseConfirmText("");
+                } catch (err) {
+                  console.error("Failed to pause contract:", err);
+                }
+              }}
+            >
+              {pauseContract.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Pausing...
+                </>
+              ) : (
+                "Pause Contract"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Unpause Confirmation Dialog */}
+      <Dialog
+        open={showUnpauseConfirm}
+        onOpenChange={(open) => {
+          if (!unpauseContract.isPending && !open) setShowUnpauseConfirm(false);
+        }}
+      >
+        <DialogContent aria-labelledby="unpause-dialog-title">
+          <DialogHeader>
+            <DialogTitle id="unpause-dialog-title">
+              Unpause Contract?
+            </DialogTitle>
+            <DialogDescription>
+              This will re-enable all donations and campaign creation.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowUnpauseConfirm(false)}
+              disabled={unpauseContract.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={unpauseContract.isPending}
+              onClick={async () => {
+                try {
+                  await unpauseContract.mutateAsync();
+                  setShowUnpauseConfirm(false);
+                } catch (err) {
+                  console.error("Failed to unpause contract:", err);
+                }
+              }}
+            >
+              {unpauseContract.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Unpausing...
+                </>
+              ) : (
+                "Unpause Contract"
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
