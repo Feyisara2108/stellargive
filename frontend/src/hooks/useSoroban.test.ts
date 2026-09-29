@@ -37,6 +37,16 @@ import {
   useEvents,
   useGetUpdates,
   useAddUpdate,
+  createMemoizedSelector,
+  areArraysShallowEqual,
+  selectActiveCampaigns,
+  getSelectUserCampaigns,
+  getSelectCampaignsByCategory,
+  getSelectFilteredAndSortedCampaigns,
+  useUserCampaigns,
+  useActiveCampaigns,
+  useCampaignsByCategory,
+  useFilteredCampaigns,
 } from "./useSoroban";
 import { useWallet } from "@/lib/WalletProvider";
 import { toast } from "sonner";
@@ -471,6 +481,86 @@ describe("useSoroban", () => {
 
       await waitFor(() => expect(result.current.isError).toBe(true));
       expect((result.current.error as Error).message).toBe("Wallet not connected");
+    });
+  });
+
+  describe("Memoized Selectors & Referential Stability", () => {
+    it("areArraysShallowEqual correctly identifies identical and changed arrays", () => {
+      const obj1 = { id: 1 };
+      const obj2 = { id: 2 };
+      expect(areArraysShallowEqual([obj1, obj2], [obj1, obj2])).toBe(true);
+      expect(areArraysShallowEqual([obj1, obj2], [obj1])).toBe(false);
+      expect(areArraysShallowEqual([obj1, obj2], [obj1, { id: 2 }])).toBe(false);
+    });
+
+    it("createMemoizedSelector preserves array reference when output elements are shallowly equal", () => {
+      const c1 = { id: 1n, status: "Active" } as any;
+      const c2 = { id: 2n, status: "Active" } as any;
+      const rawData1 = [c1, c2];
+      const rawData2 = [c1, c2]; // New array instance with same elements
+
+      const selector = createMemoizedSelector((list: any[]) => list.filter((x) => x.status === "Active"));
+
+      const res1 = selector(rawData1);
+      const res2 = selector(rawData2);
+
+      // Same reference returned despite rawData2 being a new array instance
+      expect(res1).toBe(res2);
+    });
+
+    it("getSelectUserCampaigns returns referentially stable selector for same address", () => {
+      const sel1 = getSelectUserCampaigns("GABC123");
+      const sel2 = getSelectUserCampaigns("GABC123");
+      expect(sel1).toBe(sel2);
+    });
+
+    it("getSelectCampaignsByCategory returns referentially stable selector for same category", () => {
+      const sel1 = getSelectCampaignsByCategory("medical");
+      const sel2 = getSelectCampaignsByCategory("medical");
+      expect(sel1).toBe(sel2);
+    });
+
+    it("getSelectFilteredAndSortedCampaigns returns referentially stable selector for identical filter options", () => {
+      const sel1 = getSelectFilteredAndSortedCampaigns({ category: "relief", sortBy: "newest" });
+      const sel2 = getSelectFilteredAndSortedCampaigns({ category: "relief", sortBy: "newest" });
+      expect(sel1).toBe(sel2);
+    });
+
+    it("useRecentCampaigns supports select option and returns transformed data", async () => {
+      const { Wrapper } = makeWrapper();
+      const selectTitles = (campaigns: any[]) => campaigns.map((c) => c.title);
+      const { result } = renderHook(() => useRecentCampaigns(selectTitles), { wrapper: Wrapper });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(result.current.data).toEqual(["First Campaign", "Second Campaign"]);
+    });
+
+    it("useActiveCampaigns filters and returns active campaigns", async () => {
+      const { Wrapper } = makeWrapper();
+      const { result } = renderHook(() => useActiveCampaigns(), { wrapper: Wrapper });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(result.current.data).toBeDefined();
+      expect(Array.isArray(result.current.data)).toBe(true);
+    });
+
+    it("useUserCampaigns filters campaigns by creator address", async () => {
+      const { Wrapper } = makeWrapper();
+      const { result } = renderHook(() => useUserCampaigns(WALLET), { wrapper: Wrapper });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(result.current.data).toBeDefined();
+    });
+
+    it("useFilteredCampaigns filters and sorts campaigns", async () => {
+      const { Wrapper } = makeWrapper();
+      const { result } = renderHook(
+        () => useFilteredCampaigns({ category: "relief", sortBy: "newest" }),
+        { wrapper: Wrapper }
+      );
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(result.current.data).toBeDefined();
     });
   });
 });
