@@ -149,6 +149,15 @@ jobs:
       - name: Setup Node.js and install dependencies
         uses: ./.github/actions/setup-node
 
+      - name: License compliance check
+        working-directory: frontend
+        run: |
+          echo "## 📋 Dependency License Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          npx license-checker --production --excludePrivatePackages --summary >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          npm run license:check
+
       - name: ESLint
         working-directory: frontend
         run: npm run lint
