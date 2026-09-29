@@ -89,3 +89,11 @@ If you discover a vulnerability:
   - Medium: deadline/token validation bypass requiring user interaction
   - Low: non-sensitive data exposure, minor hardening issues
 - Rewards and eligibility are defined by maintainers per report quality, impact, and originality.
+
+## 5. GitHub Actions Pinning Policy
+
+To prevent tag-hijacking supply-chain attacks, all third-party GitHub Actions must be pinned to full commit SHAs, rather than mutable tags (like `@v3`).
+
+- When adding a new action or updating an existing one, resolve the version tag to its immutable 40-character commit SHA.
+- Include a comment indicating the version tag for readability (e.g., `uses: actions/checkout@<SHA> # v4.2.2`).
+- A CI job (`pin-check`) runs on every pull request to enforce this policy.
