@@ -426,6 +426,9 @@ export function useUniqueDonors() {
     queryKey: ["platform-stats", "unique-donors"],
     queryFn: async () => countUniqueDonors(await getEvents(DONOR_SCAN_EVENT_LIMIT)),
     staleTime: 60_000,
+  });
+}
+
 /**
  * Admin-facing platform configuration (owner, total campaigns, fee). Unlike
  * `usePlatformStats`, failures are surfaced as a real query error rather than

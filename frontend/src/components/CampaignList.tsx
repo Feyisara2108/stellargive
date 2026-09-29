@@ -1,8 +1,16 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { FixedSizeList, type ListChildComponentProps } from "react-window";
 import { useRecentCampaigns } from "@/hooks/useSoroban";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { CampaignCard } from "@/components/CampaignCard";
@@ -20,6 +28,14 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: "near-goal", label: "Near Goal" },
   { key: "most-raised", label: "Most Raised" },
 ];
+
+// ---------------------------------------------------------------------------
+// Layout constants — must match the Tailwind classes used in the grid.
+// ---------------------------------------------------------------------------
+/** Estimated card height in px. Intentionally generous to avoid clipping. */
+const CARD_HEIGHT = 340;
+/** gap-6 = 1.5rem = 24px */
+const GRID_GAP = 24;
 
 function sortCampaigns(campaigns: Campaign[], sortBy: SortKey): Campaign[] {
   const sorted = [...campaigns];
@@ -40,6 +56,108 @@ function sortCampaigns(campaigns: Campaign[], sortBy: SortKey): Campaign[] {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Responsive column count — mirrors Tailwind md/lg breakpoints via matchMedia.
+// ---------------------------------------------------------------------------
+function useColumnCount(): number {
+  const getCount = useCallback(() => {
+    if (typeof window === "undefined") return 1;
+    if (window.matchMedia("(min-width: 1024px)").matches) return 3; // lg
+    if (window.matchMedia("(min-width: 768px)").matches) return 2; // md
+    return 1;
+  }, []);
+
+  const [columns, setColumns] = useState(getCount);
+
+  useEffect(() => {
+    const mdMq = window.matchMedia("(min-width: 768px)");
+    const lgMq = window.matchMedia("(min-width: 1024px)");
+    const update = () => setColumns(getCount());
+    mdMq.addEventListener("change", update);
+    lgMq.addEventListener("change", update);
+    return () => {
+      mdMq.removeEventListener("change", update);
+      lgMq.removeEventListener("change", update);
+    };
+  }, [getCount]);
+
+  return columns;
+}
+
+// ---------------------------------------------------------------------------
+// Lightweight ResizeObserver hook — measures the container width so the
+// virtualised list can fill it exactly without a separate AutoSizer package.
+// ---------------------------------------------------------------------------
+function useContainerWidth(ref: React.RefObject<HTMLDivElement>): number {
+  const [width, setWidth] = useState(0);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    // Initialise synchronously so the first render has valid dimensions.
+    setWidth(el.getBoundingClientRect().width);
+
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(([entry]) => {
+      if (entry) setWidth(entry.contentRect.width);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref]);
+
+  return width;
+}
+
+// ---------------------------------------------------------------------------
+// Row renderer for react-window — renders up to `columnCount` cards per row.
+// ---------------------------------------------------------------------------
+interface RowData {
+  rows: Campaign[][];
+  columnCount: number;
+  listWidth: number;
+}
+
+function CampaignRow({ index, style, data }: ListChildComponentProps<RowData>) {
+  const { rows, columnCount, listWidth } = data;
+  const row = rows[index];
+  if (!row) return null;
+
+  const cellWidth =
+    listWidth > 0
+      ? (listWidth - GRID_GAP * (columnCount - 1)) / columnCount
+      : 0;
+
+  return (
+    <div
+      role="row"
+      style={{ ...style, display: "flex", gap: GRID_GAP, paddingBottom: GRID_GAP }}
+    >
+      {row.map((campaign) => (
+        <div
+          key={campaign.id.toString()}
+          role="gridcell"
+          style={{ width: cellWidth, flexShrink: 0 }}
+        >
+          <CampaignCard campaign={campaign} />
+        </div>
+      ))}
+      {/* Phantom cells so the last row keeps the same width as others */}
+      {Array.from({ length: columnCount - row.length }).map((_, i) => (
+        <div
+          key={`phantom-${i}`}
+          role="presentation"
+          aria-hidden="true"
+          style={{ width: cellWidth, flexShrink: 0 }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Inner component — owns all state and rendering logic.
+// ---------------------------------------------------------------------------
 function CampaignListContent() {
   const { data: campaigns, isLoading, error } = useRecentCampaigns();
   const router = useRouter();
@@ -50,8 +168,11 @@ function CampaignListContent() {
   const [sortBy, setSortBy] = useState<SortKey>("newest");
   const debouncedSearchTerm = useDebouncedValue(searchTerm, 300);
 
-  // Keep the debounced query in the URL (?q=) so searches are shareable and
-  // survive a reload. Replace (not push) to avoid polluting the history stack.
+  const columnCount = useColumnCount();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const listWidth = useContainerWidth(containerRef);
+
+  // Sync debounced search term to the URL ?q= param.
   useEffect(() => {
     const params = new URLSearchParams(Array.from(searchParams.entries()));
     if (debouncedSearchTerm) {
@@ -80,6 +201,18 @@ function CampaignListContent() {
     return sortCampaigns(filtered, sortBy);
   }, [campaigns, debouncedSearchTerm, sortBy]);
 
+  // Chunk the flat campaign list into rows of `columnCount` items each.
+  const rows = useMemo(() => {
+    const chunks: Campaign[][] = [];
+    for (let i = 0; i < displayedCampaigns.length; i += columnCount) {
+      chunks.push(displayedCampaigns.slice(i, i + columnCount));
+    }
+    return chunks;
+  }, [displayedCampaigns, columnCount]);
+
+  const rowHeight = CARD_HEIGHT + GRID_GAP;
+  const listHeight = rows.length * rowHeight;
+
   if (isLoading && !campaigns) {
     return <CampaignSkeletonGrid count={6} />;
   }
@@ -93,9 +226,13 @@ function CampaignListContent() {
   }
 
   const hasQuery = searchTerm.trim().length > 0;
+  const totalCampaigns = campaigns?.length ?? 0;
 
   return (
     <div className="space-y-6">
+      {/* ---------------------------------------------------------------- */}
+      {/* Toolbar: sort selector + search input                             */}
+      {/* ---------------------------------------------------------------- */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-2xl font-semibold tracking-tight">Campaigns</h2>
@@ -153,40 +290,86 @@ function CampaignListContent() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {displayedCampaigns.map((campaign) => (
-          <CampaignCard key={campaign.id.toString()} campaign={campaign} />
-        ))}
-        {(campaigns?.length ?? 0) === 0 && (
-          <div className="col-span-full flex flex-col items-center gap-4 py-12 text-center">
-            <div>
-              <p className="font-medium text-foreground">No campaigns found</p>
-              <p className="text-sm text-muted-foreground">Why not create the first one?</p>
-            </div>
+      {/* ---------------------------------------------------------------- */}
+      {/* Empty state: no campaigns exist at all                            */}
+      {/* ---------------------------------------------------------------- */}
+      {totalCampaigns === 0 && (
+        <div className="flex flex-col items-center gap-4 py-12 text-center">
+          <div>
+            <p className="font-medium text-foreground">No campaigns found</p>
+            <p className="text-sm text-muted-foreground">Why not create the first one?</p>
+          </div>
+          <Button asChild>
+            <Link href="/create">Create campaign</Link>
+          </Button>
+        </div>
+      )}
+
+      {/* ---------------------------------------------------------------- */}
+      {/* No-results state: campaigns exist but search filtered them all out */}
+      {/* ---------------------------------------------------------------- */}
+      {totalCampaigns > 0 && displayedCampaigns.length === 0 && (
+        <div className="flex flex-col items-center gap-4 py-12 text-center">
+          <div>
+            <p className="font-medium text-foreground">No campaigns match your search</p>
+            <p className="text-sm text-muted-foreground">
+              Try a different term or clear your search.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button variant="outline" onClick={() => setSearchTerm("")}>
+              Clear search
+            </Button>
             <Button asChild>
               <Link href="/create">Create campaign</Link>
             </Button>
           </div>
-        )}
-        {(campaigns?.length ?? 0) > 0 && displayedCampaigns.length === 0 && (
-          <div className="col-span-full flex flex-col items-center gap-4 py-12 text-center">
-            <div>
-              <p className="font-medium text-foreground">No campaigns match your search</p>
-              <p className="text-sm text-muted-foreground">
-                Try a different term or clear your search.
-              </p>
+        </div>
+      )}
+
+      {/* ---------------------------------------------------------------- */}
+      {/* Virtualised grid                                                  */}
+      {/*                                                                   */}
+      {/* role="grid" + role="row" + role="gridcell" fulfil the WAI-ARIA   */}
+      {/* grid pattern so screen readers can navigate by row/column and     */}
+      {/* keyboard users can Tab into each card normally.                   */}
+      {/* ---------------------------------------------------------------- */}
+      {displayedCampaigns.length > 0 && (
+        <div
+          ref={containerRef}
+          role="grid"
+          aria-label="Campaign list"
+          aria-rowcount={rows.length}
+          aria-colcount={columnCount}
+          style={listWidth > 0 ? { height: listHeight } : undefined}
+        >
+          {/* When width is not yet measured (SSR / JSDOM), fall back to a          */}
+          {/* plain CSS grid so the cards are always in the DOM for tests and      */}
+          {/* first-paint. The virtualised path kicks in as soon as the            */}
+          {/* ResizeObserver fires in a real browser.                              */}
+          {listWidth === 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {displayedCampaigns.map((campaign) => (
+                <div key={campaign.id.toString()} role="gridcell">
+                  <CampaignCard campaign={campaign} />
+                </div>
+              ))}
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button variant="outline" onClick={() => setSearchTerm("")}>
-                Clear search
-              </Button>
-              <Button asChild>
-                <Link href="/create">Create campaign</Link>
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
+          ) : (
+            <FixedSizeList
+              height={listHeight}
+              width={listWidth}
+              itemCount={rows.length}
+              itemSize={rowHeight}
+              itemData={{ rows, columnCount, listWidth }}
+              overscanCount={2}
+              style={{ outline: "none", overflow: "visible" }}
+            >
+              {CampaignRow}
+            </FixedSizeList>
+          )}
+        </div>
+      )}
     </div>
   );
 }

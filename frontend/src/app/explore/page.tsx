@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef, Suspense } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { FixedSizeList, type ListChildComponentProps } from "react-window";
 import { Navbar } from "@/components/Navbar";
 import { CampaignCard } from "@/components/CampaignCard";
 import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
@@ -18,6 +19,151 @@ import { Search, Compass, Loader2, AlertTriangle, RotateCw, LayoutGrid, List, Bo
 import { CampaignSkeletonGrid } from "@/components/CampaignSkeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { Campaign } from "@/lib/soroban";
+
+// ---------------------------------------------------------------------------
+// Virtualisation constants
+// ---------------------------------------------------------------------------
+/** Estimated card height (grid mode). Generous to avoid clipping. */
+const GRID_CARD_HEIGHT = 340;
+/** Estimated row height (list mode). */
+const LIST_CARD_HEIGHT = 160;
+/** gap-6 = 1.5rem = 24px */
+const GRID_GAP = 24;
+
+// ---------------------------------------------------------------------------
+// Responsive column count — mirrors Tailwind md/lg breakpoints.
+// ---------------------------------------------------------------------------
+function useColumnCount(): number {
+  const getCount = useCallback(() => {
+    if (typeof window === "undefined") return 1;
+    if (window.matchMedia("(min-width: 1024px)").matches) return 3;
+    if (window.matchMedia("(min-width: 768px)").matches) return 2;
+    return 1;
+  }, []);
+
+  const [columns, setColumns] = useState(getCount);
+
+  useEffect(() => {
+    const mdMq = window.matchMedia("(min-width: 768px)");
+    const lgMq = window.matchMedia("(min-width: 1024px)");
+    const update = () => setColumns(getCount());
+    mdMq.addEventListener("change", update);
+    lgMq.addEventListener("change", update);
+    return () => {
+      mdMq.removeEventListener("change", update);
+      lgMq.removeEventListener("change", update);
+    };
+  }, [getCount]);
+
+  return columns;
+}
+
+// ---------------------------------------------------------------------------
+// ResizeObserver-based width measurement — avoids adding AutoSizer as a dep.
+// ---------------------------------------------------------------------------
+function useContainerWidth(ref: React.RefObject<HTMLDivElement>): number {
+  const [width, setWidth] = useState(0);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    setWidth(el.getBoundingClientRect().width);
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(([entry]) => {
+      if (entry) setWidth(entry.contentRect.width);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref]);
+
+  return width;
+}
+
+// ---------------------------------------------------------------------------
+// Grid row renderer — up to `columnCount` cards per row.
+// ---------------------------------------------------------------------------
+interface GridRowData {
+  rows: { campaign: Campaign; tokenMeta: any; detailHrefSearch: string }[][];
+  columnCount: number;
+  listWidth: number;
+  isRefreshing: boolean;
+}
+
+function GridRow({ index, style, data }: ListChildComponentProps<GridRowData>) {
+  const { rows, columnCount, listWidth, isRefreshing } = data;
+  const row = rows[index];
+  if (!row) return null;
+
+  const cellWidth =
+    listWidth > 0 ? (listWidth - GRID_GAP * (columnCount - 1)) / columnCount : 0;
+
+  return (
+    <div
+      role="row"
+      style={{ ...style, display: "flex", gap: GRID_GAP, paddingBottom: GRID_GAP }}
+    >
+      {row.map(({ campaign, tokenMeta, detailHrefSearch }) => (
+        <div
+          key={campaign.id.toString()}
+          role="gridcell"
+          style={{
+            width: cellWidth,
+            flexShrink: 0,
+            opacity: isRefreshing ? 0.5 : 1,
+            transition: "opacity 200ms",
+          }}
+        >
+          <CampaignCard
+            campaign={campaign}
+            preloadedTokenMeta={tokenMeta}
+            detailHrefSearch={detailHrefSearch}
+          />
+        </div>
+      ))}
+      {Array.from({ length: columnCount - row.length }).map((_, i) => (
+        <div
+          key={`phantom-${i}`}
+          role="presentation"
+          aria-hidden="true"
+          style={{ width: cellWidth, flexShrink: 0 }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// List row renderer — single card per row.
+// ---------------------------------------------------------------------------
+interface ListRowData {
+  campaigns: { campaign: Campaign; tokenMeta: any; detailHrefSearch: string }[];
+  isRefreshing: boolean;
+}
+
+function ListRow({ index, style, data }: ListChildComponentProps<ListRowData>) {
+  const { campaigns, isRefreshing } = data;
+  const item = campaigns[index];
+  if (!item) return null;
+  return (
+    <div
+      role="row"
+      style={{
+        ...style,
+        paddingBottom: GRID_GAP,
+        opacity: isRefreshing ? 0.5 : 1,
+        transition: "opacity 200ms",
+      }}
+    >
+      <div role="gridcell">
+        <CampaignCard
+          campaign={item.campaign}
+          preloadedTokenMeta={item.tokenMeta}
+          detailHrefSearch={item.detailHrefSearch}
+        />
+      </div>
+    </div>
+  );
+}
 
 const PAGE_SIZE = 9;
 
@@ -78,6 +224,9 @@ const RESULTS_PANEL_ID = "campaign-results-panel";
 
 function ExploreContent() {
   const router = useRouter();
+  const columnCount = useColumnCount();
+  const gridContainerRef = useRef<HTMLDivElement>(null);
+  const listContainerRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
   const detailHrefSearch = searchParams.toString();
   const [limit, setLimit] = useState(PAGE_SIZE);
@@ -519,32 +668,66 @@ function ExploreContent() {
           ) : (
             // `relative` anchors the floating "Updating…" pill so showing it never
             // reflows the grid below.
-            <div className="relative">
+            <div className="relative" aria-busy={isRefreshing}>
               {isRefreshing && (
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-md">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
                   Updating...
                 </div>
               )}
-              <div
-                className={`transition-opacity duration-200 ${
-                  isRefreshing ? "opacity-50" : "opacity-100"
-                } ${
-                  viewMode === "grid"
-                    ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-                    : "flex flex-col gap-4"
-                }`}
-                aria-busy={isRefreshing}
-              >
-                {filtered.map((campaign) => (
-                  <CampaignCard
-                    key={campaign.id.toString()}
-                    campaign={campaign}
-                    preloadedTokenMeta={tokenMetas?.[campaign.accepted_token]}
-                    detailHrefSearch={detailHrefSearch}
+
+              {/* -------------------------------------------------------- */}
+              {/* Virtualised grid view                                      */}
+              {/* role="grid" + role="row" + role="gridcell" preserve the    */}
+              {/* WAI-ARIA grid pattern for screen-reader and keyboard nav.  */}
+              {/* -------------------------------------------------------- */}
+              {viewMode === "grid" && (() => {
+                // Build row chunks here so the closure captures `filtered`
+                // and `columnCount` reactively.
+                const items = filtered.map((campaign) => ({
+                  campaign,
+                  tokenMeta: tokenMetas?.[campaign.accepted_token],
+                  detailHrefSearch,
+                }));
+                const gridRows: typeof items[] = [];
+                for (let i = 0; i < items.length; i += columnCount) {
+                  gridRows.push(items.slice(i, i + columnCount));
+                }
+                const rowH = GRID_CARD_HEIGHT + GRID_GAP;
+                const totalH = gridRows.length * rowH;
+                return (
+                  <GridVirtualContainer
+                    containerRef={gridContainerRef}
+                    totalHeight={totalH}
+                    rows={gridRows}
+                    columnCount={columnCount}
+                    rowHeight={rowH}
+                    isRefreshing={isRefreshing}
                   />
-                ))}
-              </div>
+                );
+              })()}
+
+              {/* -------------------------------------------------------- */}
+              {/* Virtualised list view                                      */}
+              {/* -------------------------------------------------------- */}
+              {viewMode === "list" && (() => {
+                const items = filtered.map((campaign) => ({
+                  campaign,
+                  tokenMeta: tokenMetas?.[campaign.accepted_token],
+                  detailHrefSearch,
+                }));
+                const rowH = LIST_CARD_HEIGHT + GRID_GAP;
+                const totalH = items.length * rowH;
+                return (
+                  <ListVirtualContainer
+                    containerRef={listContainerRef}
+                    totalHeight={totalH}
+                    items={items}
+                    rowHeight={rowH}
+                    isRefreshing={isRefreshing}
+                  />
+                );
+              })()}
             </div>
           )}
 
@@ -580,6 +763,129 @@ function ExploreContent() {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Container wrappers — measure their own width then hand it to FixedSizeList.
+// ---------------------------------------------------------------------------
+interface GridVirtualContainerProps {
+  containerRef: React.RefObject<HTMLDivElement>;
+  totalHeight: number;
+  rows: { campaign: Campaign; tokenMeta: any; detailHrefSearch: string }[][];
+  columnCount: number;
+  rowHeight: number;
+  isRefreshing: boolean;
+}
+
+function GridVirtualContainer({
+  containerRef,
+  totalHeight,
+  rows,
+  columnCount,
+  rowHeight,
+  isRefreshing,
+}: GridVirtualContainerProps) {
+  const listWidth = useContainerWidth(containerRef);
+
+  return (
+    <div
+      ref={containerRef}
+      role="grid"
+      aria-label="Campaign grid"
+      aria-rowcount={rows.length}
+      aria-colcount={columnCount}
+      style={listWidth > 0 ? { height: totalHeight } : undefined}
+    >
+      {/* JSDOM / SSR fallback — flat grid until the ResizeObserver fires. */}
+      {listWidth === 0 ? (
+        <div
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+          style={{ opacity: isRefreshing ? 0.5 : 1, transition: "opacity 200ms" }}
+        >
+          {rows.flat().map(({ campaign, tokenMeta, detailHrefSearch }) => (
+            <div key={campaign.id.toString()} role="gridcell">
+              <CampaignCard
+                campaign={campaign}
+                preloadedTokenMeta={tokenMeta}
+                detailHrefSearch={detailHrefSearch}
+              />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <FixedSizeList
+          height={totalHeight}
+          width={listWidth}
+          itemCount={rows.length}
+          itemSize={rowHeight}
+          itemData={{ rows, columnCount, listWidth, isRefreshing }}
+          overscanCount={2}
+          style={{ outline: "none", overflow: "visible" }}
+        >
+          {GridRow}
+        </FixedSizeList>
+      )}
+    </div>
+  );
+}
+
+interface ListVirtualContainerProps {
+  containerRef: React.RefObject<HTMLDivElement>;
+  totalHeight: number;
+  items: { campaign: Campaign; tokenMeta: any; detailHrefSearch: string }[];
+  rowHeight: number;
+  isRefreshing: boolean;
+}
+
+function ListVirtualContainer({
+  containerRef,
+  totalHeight,
+  items,
+  rowHeight,
+  isRefreshing,
+}: ListVirtualContainerProps) {
+  const listWidth = useContainerWidth(containerRef);
+
+  return (
+    <div
+      ref={containerRef}
+      role="grid"
+      aria-label="Campaign list"
+      aria-rowcount={items.length}
+      aria-colcount={1}
+      style={listWidth > 0 ? { height: totalHeight } : undefined}
+    >
+      {/* JSDOM / SSR fallback — flat list until the ResizeObserver fires. */}
+      {listWidth === 0 ? (
+        <div
+          className="flex flex-col gap-4"
+          style={{ opacity: isRefreshing ? 0.5 : 1, transition: "opacity 200ms" }}
+        >
+          {items.map(({ campaign, tokenMeta, detailHrefSearch }) => (
+            <div key={campaign.id.toString()} role="gridcell">
+              <CampaignCard
+                campaign={campaign}
+                preloadedTokenMeta={tokenMeta}
+                detailHrefSearch={detailHrefSearch}
+              />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <FixedSizeList
+          height={totalHeight}
+          width={listWidth}
+          itemCount={items.length}
+          itemSize={rowHeight}
+          itemData={{ campaigns: items, isRefreshing }}
+          overscanCount={3}
+          style={{ outline: "none", overflow: "visible" }}
+        >
+          {ListRow}
+        </FixedSizeList>
+      )}
+    </div>
+  );
+}
+
 export default function ExplorePage() {
   // useSearchParams (used in ExploreContent) requires a Suspense boundary above it
   // so Next.js can statically render the route without bailing out of CSR.
@@ -589,3 +895,4 @@ export default function ExplorePage() {
     </Suspense>
   );
 }
+
