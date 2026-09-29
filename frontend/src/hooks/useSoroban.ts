@@ -1,5 +1,4 @@
-"use client";
-
+import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getCampaign,
@@ -22,36 +21,302 @@ import { Address, nativeToScVal, xdr } from "@stellar/stellar-sdk";
 import { useWallet } from "@/lib/WalletProvider";
 import { toRawAmount } from "@/utils/format";
 
-export function useCampaign(id: bigint) {
+// ---------------------------------------------------------------------------
+// Selector Memoization & Referential Stability Utilities
+// ---------------------------------------------------------------------------
+
+export interface SorobanQueryOptions<TData, TQueryData> {
+  select?: (data: TQueryData) => TData;
+  enabled?: boolean;
+  staleTime?: number;
+}
+
+export function parseQueryOptions<TData, TQueryData>(
+  optionsOrSelect?: ((data: TQueryData) => TData) | SorobanQueryOptions<TData, TQueryData>
+): SorobanQueryOptions<TData, TQueryData> {
+  if (typeof optionsOrSelect === "function") {
+    return { select: optionsOrSelect };
+  }
+  return optionsOrSelect || {};
+}
+
+/**
+ * Performs a shallow element-wise equality check between two arrays.
+ * Returns true if both arrays contain referentially identical elements in the same order.
+ */
+export function areArraysShallowEqual<T>(a: T[] | undefined, b: T[] | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b) return a === b;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+/**
+ * Creates a memoized selector function that caches its last input and output.
+ * If a new invocation yields an output array that is shallowly equal to the previous result,
+ * the previous output array reference is returned.
+ *
+ * This ensures React Query's select function produces referentially stable results,
+ * preventing unnecessary component re-renders when data has not functionally changed.
+ */
+export function createMemoizedSelector<TInput, TItem>(
+  selectorFn: (input: TInput) => TItem[]
+): (input: TInput) => TItem[] {
+  let lastInput: TInput | undefined;
+  let lastResult: TItem[] | undefined;
+
+  return (input: TInput): TItem[] => {
+    if (input === lastInput && lastResult !== undefined) {
+      return lastResult;
+    }
+    const nextResult = selectorFn(input);
+    if (lastResult !== undefined && areArraysShallowEqual(lastResult, nextResult)) {
+      return lastResult;
+    }
+    lastInput = input;
+    lastResult = nextResult;
+    return nextResult;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Pure Memoized Campaign Selectors & Filters
+// ---------------------------------------------------------------------------
+
+export type CampaignSortKey = "newest" | "ending-soon" | "near-goal" | "most-raised" | "oldest";
+
+export interface CampaignFilterOptions {
+  category?: string;
+  status?: string;
+  creator?: string;
+  beneficiary?: string;
+  searchTerm?: string;
+  sortBy?: CampaignSortKey;
+}
+
+/**
+ * Pure selector that filters active campaigns.
+ */
+export const selectActiveCampaigns = createMemoizedSelector((campaigns: Campaign[]): Campaign[] => {
+  return campaigns.filter((c) => c.status === "Active");
+});
+
+/**
+ * Returns a referentially stable selector for campaigns belonging to a specific creator/user.
+ */
+const userCampaignsCache = new Map<string, (campaigns: Campaign[]) => Campaign[]>();
+
+export function getSelectUserCampaigns(address: string | null): (campaigns: Campaign[]) => Campaign[] {
+  const key = (address ?? "__null__").toLowerCase();
+  let selector = userCampaignsCache.get(key);
+  if (!selector) {
+    selector = createMemoizedSelector((campaigns: Campaign[]) => {
+      if (!address) return [];
+      return campaigns.filter((c) => c.creator.toLowerCase() === address.toLowerCase());
+    });
+    userCampaignsCache.set(key, selector);
+  }
+  return selector;
+}
+
+/**
+ * Returns a referentially stable selector for campaigns in a category.
+ */
+const categoryCampaignsCache = new Map<string, (campaigns: Campaign[]) => Campaign[]>();
+
+export function getSelectCampaignsByCategory(category: string): (campaigns: Campaign[]) => Campaign[] {
+  const key = category.toLowerCase().trim();
+  let selector = categoryCampaignsCache.get(key);
+  if (!selector) {
+    selector = createMemoizedSelector((campaigns: Campaign[]) => {
+      if (!key || key === "all") return campaigns;
+      return campaigns.filter((c) => c.category.toLowerCase() === key);
+    });
+    categoryCampaignsCache.set(key, selector);
+  }
+  return selector;
+}
+
+/**
+ * Sorts an array of campaigns given a sort key.
+ */
+export function sortCampaignsList(campaigns: Campaign[], sortBy?: CampaignSortKey): Campaign[] {
+  if (!sortBy) return campaigns;
+  const sorted = [...campaigns];
+  switch (sortBy) {
+    case "newest":
+      return sorted.sort((a, b) => Number(b.deadline) - Number(a.deadline));
+    case "oldest":
+      return sorted.sort((a, b) => Number(a.deadline) - Number(b.deadline));
+    case "ending-soon":
+      return sorted.sort((a, b) => Number(a.deadline) - Number(b.deadline));
+    case "near-goal": {
+      const progress = (c: Campaign) =>
+        c.target_amount === 0n ? 0 : Number((c.raised_amount * 10_000n) / c.target_amount);
+      return sorted.sort((a, b) => progress(b) - progress(a));
+    }
+    case "most-raised":
+      return sorted.sort((a, b) => Number(b.raised_amount) - Number(a.raised_amount));
+    default:
+      return sorted;
+  }
+}
+
+/**
+ * Returns a referentially stable selector based on filter and sort parameters.
+ */
+const filterSortCache = new Map<string, (campaigns: Campaign[]) => Campaign[]>();
+
+export function getSelectFilteredAndSortedCampaigns(
+  options: CampaignFilterOptions
+): (campaigns: Campaign[]) => Campaign[] {
+  const key = JSON.stringify({
+    category: (options.category ?? "").toLowerCase().trim(),
+    status: (options.status ?? "").toLowerCase().trim(),
+    creator: (options.creator ?? "").toLowerCase().trim(),
+    beneficiary: (options.beneficiary ?? "").toLowerCase().trim(),
+    searchTerm: (options.searchTerm ?? "").toLowerCase().trim(),
+    sortBy: options.sortBy ?? "",
+  });
+
+  let selector = filterSortCache.get(key);
+  if (!selector) {
+    selector = createMemoizedSelector((campaigns: Campaign[]): Campaign[] => {
+      let result = campaigns;
+
+      const category = (options.category ?? "").toLowerCase().trim();
+      if (category && category !== "all") {
+        result = result.filter((c) => c.category.toLowerCase() === category);
+      }
+
+      const status = (options.status ?? "").toLowerCase().trim();
+      if (status && status !== "all") {
+        result = result.filter((c) => c.status.toLowerCase() === status);
+      }
+
+      const creator = (options.creator ?? "").toLowerCase().trim();
+      if (creator) {
+        result = result.filter((c) => c.creator.toLowerCase() === creator);
+      }
+
+      const beneficiary = (options.beneficiary ?? "").toLowerCase().trim();
+      if (beneficiary) {
+        result = result.filter((c) => c.beneficiary.toLowerCase() === beneficiary);
+      }
+
+      const term = (options.searchTerm ?? "").toLowerCase().trim();
+      if (term) {
+        result = result.filter(
+          (c) =>
+            c.title.toLowerCase().includes(term) ||
+            c.description.toLowerCase().includes(term) ||
+            c.category.toLowerCase().includes(term) ||
+            c.creator.toLowerCase().includes(term) ||
+            c.beneficiary.toLowerCase().includes(term)
+        );
+      }
+
+      return sortCampaignsList(result, options.sortBy);
+    });
+    filterSortCache.set(key, selector);
+  }
+  return selector;
+}
+
+// ---------------------------------------------------------------------------
+// Primary Query Hooks with Select & Option Support
+// ---------------------------------------------------------------------------
+
+export function useCampaign<TData = Campaign>(
+  id: bigint,
+  optionsOrSelect?: ((data: Campaign) => TData) | SorobanQueryOptions<TData, Campaign>
+) {
+  const opts = parseQueryOptions(optionsOrSelect);
   return useQuery({
     queryKey: ["campaign", id.toString()],
     queryFn: () => getCampaign(id),
-    // Individual campaign pages are the LCP content; serve from cache for up
-    // to 30 s before considering a background refetch.
-    staleTime: 30_000,
+    staleTime: opts.staleTime ?? 30_000,
+    enabled: opts.enabled,
+    select: opts.select,
   });
 }
 
-export function useRecentCampaigns() {
+export function useRecentCampaigns<TData = Campaign[]>(
+  optionsOrSelect?: ((data: Campaign[]) => TData) | SorobanQueryOptions<TData, Campaign[]>
+) {
+  const opts = parseQueryOptions(optionsOrSelect);
   return useQuery({
     queryKey: ["campaigns", "recent"],
     queryFn: () => getRecentCampaigns(),
-    // Profile page remounts on wallet changes — 30 s staleTime prevents
-    // back-to-back refetches when the wallet context re-renders.
-    staleTime: 30_000,
+    staleTime: opts.staleTime ?? 30_000,
+    enabled: opts.enabled,
+    select: opts.select,
   });
 }
 
-export function useCampaignsPaged(limit: number) {
+export function useCampaignsPaged<TData = { campaigns: Campaign[]; hasMore: boolean }>(
+  limit: number,
+  optionsOrSelect?:
+    | ((data: { campaigns: Campaign[]; hasMore: boolean }) => TData)
+    | SorobanQueryOptions<TData, { campaigns: Campaign[]; hasMore: boolean }>
+) {
+  const opts = parseQueryOptions(optionsOrSelect);
   return useQuery({
     queryKey: ["campaigns", "paged", limit],
     queryFn: () => getCampaignsPage(limit),
     placeholderData: (prev) => prev,
-    // Explore page mounts/unmounts on navigation; 30 s staleTime means
-    // paginated results are served instantly on back-navigation without a
-    // redundant network call.
-    staleTime: 30_000,
+    staleTime: opts.staleTime ?? 30_000,
+    enabled: opts.enabled,
+    select: opts.select,
   });
+}
+
+// ---------------------------------------------------------------------------
+// Derived Hooks with Stable Selectors
+// ---------------------------------------------------------------------------
+
+/**
+ * Selects campaigns created by a specific address, memoized against stable inputs.
+ */
+export function useUserCampaigns(address: string | null) {
+  const selector = useMemo(() => getSelectUserCampaigns(address), [address]);
+  return useRecentCampaigns(selector);
+}
+
+/**
+ * Selects only active campaigns using referentially stable selector.
+ */
+export function useActiveCampaigns() {
+  return useRecentCampaigns(selectActiveCampaigns);
+}
+
+/**
+ * Selects campaigns by category using referentially stable selector.
+ */
+export function useCampaignsByCategory(category: string) {
+  const selector = useMemo(() => getSelectCampaignsByCategory(category), [category]);
+  return useRecentCampaigns(selector);
+}
+
+/**
+ * Selects filtered and sorted campaigns using referentially stable selectors.
+ */
+export function useFilteredCampaigns(options: CampaignFilterOptions) {
+  const selector = useMemo(
+    () => getSelectFilteredAndSortedCampaigns(options),
+    [
+      options.category,
+      options.status,
+      options.creator,
+      options.beneficiary,
+      options.searchTerm,
+      options.sortBy,
+    ]
+  );
+  return useRecentCampaigns(selector);
 }
 
 import { notify } from "@/lib/toast";
@@ -426,6 +691,9 @@ export function useUniqueDonors() {
     queryKey: ["platform-stats", "unique-donors"],
     queryFn: async () => countUniqueDonors(await getEvents(DONOR_SCAN_EVENT_LIMIT)),
     staleTime: 60_000,
+  });
+}
+
 /**
  * Admin-facing platform configuration (owner, total campaigns, fee). Unlike
  * `usePlatformStats`, failures are surfaced as a real query error rather than
