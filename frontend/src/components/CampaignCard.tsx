@@ -22,7 +22,7 @@ const DonateModal = dynamic(
   { ssr: false },
 );
 import { ClaimButton } from "@/components/ClaimButton";
-import { Calendar, Target, TrendingUp, Image as ImageIcon, Zap, Ban, Flame } from "lucide-react";
+import { Calendar, Target, TrendingUp, Image as ImageIcon, Zap, Ban, Flame, Tag } from "lucide-react";
 import { ShareButton } from "@/components/ShareButton";
 import { BookmarkButton } from "@/components/BookmarkButton";
 import { AddressLink } from "@/components/AddressLink";
@@ -74,40 +74,45 @@ function CampaignCardComponent({
   preloadedTokenMeta,
   detailHrefSearch,
   highlightLabel,
+  /** When true the card renders in a lightweight preview mode: no router
+   *  prefetch, no donate/claim actions, no bookmark/share buttons. */
+  isPreview = false,
 }: {
   campaign: Campaign;
   preloadedTokenMeta?: any;
   detailHrefSearch?: string;
   /** Renders a small ribbon (e.g. from a homepage highlight reel) over the image. */
   highlightLabel?: CampaignHighlightLabel;
+  isPreview?: boolean;
 }) {
   const [imgError, setImgError] = useState(false);
   const [donateOpen, setDonateOpen] = useState(false);
   const [donateAmount, setDonateAmount] = useState<string | undefined>(undefined);
   const [showUSD, setShowUSD] = useState(false);
+  // Hooks are always called but results are discarded in preview mode.
   const router = useRouter();
   const queryClient = useQueryClient();
   const prefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const campaignId = campaign.id.toString();
-  // Prefetch campaign route and data on hover/focus (#834)
+  const detailHref = detailHrefSearch
+    ? `/campaign/${campaign.id.toString()}?${detailHrefSearch}`
+    : `/campaign/${campaign.id.toString()}`;
+
+  // Prefetch campaign route and data on hover/focus (#834) — skipped in preview.
   const prefetchCampaign = useCallback(() => {
-    // Cancel any pending prefetch for this campaign
+    if (isPreview) return;
     if (prefetchTimerRef.current) {
       clearTimeout(prefetchTimerRef.current);
     }
-
     prefetchTimerRef.current = setTimeout(() => {
-      // Prefetch the route
       router.prefetch(detailHref);
-
-      // Prefetch the campaign data query
       queryClient.prefetchQuery({
         queryKey: ["campaign", campaignId],
         queryFn: () => getCampaign(campaign.id),
         staleTime: 30_000,
       });
     }, PREFETCH_DEBOUNCE_MS);
-  }, [router, queryClient, detailHref, campaignId, campaign.id]);
+  }, [isPreview, router, queryClient, detailHref, campaignId, campaign.id]);
 
   const cancelPrefetch = useCallback(() => {
     if (prefetchTimerRef.current) {
@@ -145,20 +150,18 @@ function CampaignCardComponent({
       : 0n;
   const gap = Number(gapRaw) / 10 ** decimals;
   const showFundTheGap =
+    !isPreview &&
     !isMetaPending &&
     campaign.status === "Active" &&
     progress >= 90 &&
     progress < 100 &&
     gap > 0;
-  const detailHref = detailHrefSearch
-    ? `/campaign/${campaign.id.toString()}?${detailHrefSearch}`
-    : `/campaign/${campaign.id.toString()}`;
 
   return (
     <Card
       className={`flex flex-col group hover:border-primary/50 transition-all duration-300 overflow-hidden${
         isExpired ? " grayscale opacity-90" : ""
-      }`}
+      }${isPreview ? " pointer-events-none select-none" : ""}`}
       onMouseEnter={prefetchCampaign}
       onFocus={prefetchCampaign}
       onMouseLeave={cancelPrefetch}
@@ -199,6 +202,11 @@ function CampaignCardComponent({
             {highlightLabel}
           </span>
         )}
+        {isPreview && (
+          <span className="absolute bottom-2 right-2 z-10 inline-flex items-center gap-1 rounded-full bg-black/60 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm backdrop-blur-sm">
+            Preview
+          </span>
+        )}
       </div>
       <CardHeader>
         <div className="flex justify-between items-center gap-2 mb-2">
@@ -215,12 +223,16 @@ function CampaignCardComponent({
           </Badge>
         </div>
         <CardTitle className="line-clamp-1 transition-colors">
-          <Link
-            href={detailHref}
-            className="hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm p-1 -m-1"
-          >
-            {campaign.title}
-          </Link>
+          {isPreview ? (
+            <span>{campaign.title || "Campaign Title"}</span>
+          ) : (
+            <Link
+              href={detailHref}
+              className="hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm p-1 -m-1"
+            >
+              {campaign.title}
+            </Link>
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent className="flex-1 space-y-4">
@@ -239,7 +251,7 @@ function CampaignCardComponent({
                     : `${raised} ${symbol}`}
                 </span>
               )}
-              {!isMetaPending && xlmPrice !== null && xlmPrice !== undefined && (
+              {!isMetaPending && !isPreview && xlmPrice !== null && xlmPrice !== undefined && (
                 <button
                   type="button"
                   onClick={() => setShowUSD(!showUSD)}
@@ -295,6 +307,21 @@ function CampaignCardComponent({
             <AddressLink address={campaign.beneficiary} />
           </div>
         </div>
+
+        {/* Tags */}
+        {campaign.tags && campaign.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 pt-1" aria-label="Campaign tags">
+            {campaign.tags.map((tag) => (
+              <span
+                key={tag}
+                className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-[10px] font-medium text-primary"
+              >
+                <Tag className="h-2.5 w-2.5" aria-hidden="true" />
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
       </CardContent>
       {showFundTheGap && (
         <div className="mx-4 mb-3 flex items-center justify-between gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2">
@@ -316,21 +343,23 @@ function CampaignCardComponent({
           </button>
         </div>
       )}
-      <CardFooter className="gap-2">
-        {campaign.status === "Active" && (
-          <DonateModal
-            campaign={campaign}
-            open={donateOpen}
-            onOpenChange={setDonateOpen}
-            suggestedAmount={donateAmount}
-          />
-        )}
-        <ClaimButton campaign={campaign} />
-        <div className="ml-auto flex items-center gap-2">
-          <BookmarkButton campaignId={campaign.id} title={campaign.title} />
-          <ShareButton campaign={campaign} />
-        </div>
-      </CardFooter>
+      {!isPreview && (
+        <CardFooter className="gap-2">
+          {campaign.status === "Active" && (
+            <DonateModal
+              campaign={campaign}
+              open={donateOpen}
+              onOpenChange={setDonateOpen}
+              suggestedAmount={donateAmount}
+            />
+          )}
+          <ClaimButton campaign={campaign} />
+          <div className="ml-auto flex items-center gap-2">
+            <BookmarkButton campaignId={campaign.id} title={campaign.title} />
+            <ShareButton campaign={campaign} />
+          </div>
+        </CardFooter>
+      )}
     </Card>
   );
 }
@@ -341,6 +370,8 @@ export const CampaignCard = React.memo(CampaignCardComponent, (prevProps, nextPr
     prevProps.campaign.status === nextProps.campaign.status &&
     prevProps.campaign.raised_amount === nextProps.campaign.raised_amount &&
     prevProps.detailHrefSearch === nextProps.detailHrefSearch &&
-    prevProps.highlightLabel === nextProps.highlightLabel
+    prevProps.highlightLabel === nextProps.highlightLabel &&
+    prevProps.isPreview === nextProps.isPreview &&
+    JSON.stringify(prevProps.campaign.tags) === JSON.stringify(nextProps.campaign.tags)
   );
 });

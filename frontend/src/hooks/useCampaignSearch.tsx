@@ -19,11 +19,20 @@ const SEARCHABLE_FIELDS = ["title", "creator", "category", "description"] as con
 export function campaignMatchesTerm(campaign: Campaign, term: string): boolean {
   if (!term) return true;
   const words = term.split(/\s+/).filter(Boolean);
-  return SEARCHABLE_FIELDS.some((field) => {
+  const fieldMatch = SEARCHABLE_FIELDS.some((field) => {
     const value = String(campaign[field] ?? "").toLowerCase();
     // All query words must match the field value.
     return words.every((w) => value.includes(w) || fuzzyScore(w, value) >= 0.6);
   });
+  if (fieldMatch) return true;
+
+  // Also search across free-form tags (joined as a single haystack).
+  if (campaign.tags && campaign.tags.length > 0) {
+    const tagsHaystack = campaign.tags.join(" ").toLowerCase();
+    return words.every((w) => tagsHaystack.includes(w) || fuzzyScore(w, tagsHaystack) >= 0.6);
+  }
+
+  return false;
 }
 
 /**
@@ -76,7 +85,7 @@ export interface CampaignSearchResult {
 }
 
 /**
- * Full-text campaign search over title, creator, category, and description.
+ * Full-text campaign search over title, creator, category, description, and tags.
  * Debouncing is handled internally, so callers only pass the raw input value.
  */
 export function useCampaignSearch(
