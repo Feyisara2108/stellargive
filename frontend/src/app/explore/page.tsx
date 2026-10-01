@@ -15,7 +15,7 @@ import { useBookmarks } from "@/hooks/useBookmarks";
 import { TokenSelector } from "@/components/TokenSelector";
 import { CategorySelector, CATEGORIES, type CategoryKey } from "@/components/CategorySelector";
 import { SortSelector, SORT_OPTIONS, type SortKey } from "@/components/SortSelector";
-import { Search, Compass, Loader2, AlertTriangle, RotateCw, LayoutGrid, List, Bookmark } from "lucide-react";
+import { Search, Compass, Loader2, AlertTriangle, RotateCw, LayoutGrid, List, Bookmark, Tag } from "lucide-react";
 import { CampaignSkeletonGrid } from "@/components/CampaignSkeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { Campaign } from "@/lib/soroban";
@@ -247,6 +247,9 @@ function ExploreContent() {
   const [savedOnly, setSavedOnly] = useState(() => searchParams.get("saved") === "1");
   const { bookmarks } = useBookmarks();
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [activeTagFilter, setActiveTagFilter] = useState<string>(
+    () => searchParams.get("tag") ?? "",
+  );
 
   /** Ref to track the last search term synced to URL to prevent hydration from clobbering active typing */
   const lastSyncedSearchRef = useRef<string>(searchParams.get("q") ?? "");
@@ -342,6 +345,9 @@ function ExploreContent() {
 
     setSavedOnly(searchParams.get("saved") === "1");
 
+    const tag = searchParams.get("tag");
+    setActiveTagFilter(tag ?? "");
+
     const token = searchParams.get("token");
     if (token !== null) {
       setTokenFilter(token);
@@ -405,13 +411,20 @@ function ExploreContent() {
       next.delete("saved");
     }
 
+    if (activeTagFilter) {
+      next.set("tag", activeTagFilter);
+    } else {
+      next.delete("tag");
+    }
+
     const query = next.toString();
     const currentQuery = searchParams.toString();
     if (query !== currentQuery) {
       lastSyncedSearchRef.current = searchTerm;
       router.replace(query ? `/explore?${query}` : "/explore", { scroll: false });
     }
-  }, [router, searchParams, statusFilter, sortBy, categoryFilter, tokenFilter, searchTerm, savedOnly]);
+  }, [router, searchParams, statusFilter, sortBy, categoryFilter, tokenFilter, searchTerm, savedOnly, activeTagFilter]);
+
 
   const filtered = useMemo(() => {
     const byStatus = searched.filter((campaign) => {
@@ -423,19 +436,36 @@ function ExploreContent() {
       return campaign.raised_amount >= campaign.target_amount || campaign.status === "Funded";
     });
 
-    const byToken = !tokenFilter
+    const byTag = !activeTagFilter
       ? byStatus
-      : byStatus.filter((c) => c.accepted_token === tokenFilter);
+      : byStatus.filter(
+          (c) =>
+            Array.isArray(c.tags) &&
+            c.tags.some((t) => t.toLowerCase() === activeTagFilter.toLowerCase()),
+        );
+
+    const byToken = !tokenFilter
+      ? byTag
+      : byTag.filter((c) => c.accepted_token === tokenFilter);
 
     const byCategory = byToken.filter((c) => matchesCategory(c, categoryFilter));
 
     return sortCampaigns(byCategory, sortBy);
-  }, [searched, statusFilter, sortBy, categoryFilter, tokenFilter, savedOnly, bookmarks]);
+  }, [searched, statusFilter, sortBy, categoryFilter, tokenFilter, savedOnly, bookmarks, activeTagFilter]);
 
   const uniqueTokens = useMemo(() => {
     return Array.from(new Set(filtered.map((c) => c.accepted_token)));
   }, [filtered]);
   const { data: tokenMetas } = useTokenMetadataBatch(uniqueTokens);
+
+  // Collect all unique tags from the loaded campaigns for the tag chips row.
+  const allUniqueTags = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of campaigns) {
+      if (Array.isArray(c.tags)) c.tags.forEach((t) => set.add(t));
+    }
+    return Array.from(set).sort();
+  }, [campaigns]);
 
   const emptyMessage = useMemo(() => {
     const inCategory =
@@ -564,6 +594,41 @@ function ExploreContent() {
             Saved{bookmarks.length > 0 ? ` (${bookmarks.length})` : ""}
           </button>
         </div>
+
+        {/* Tag filter chips (#848) — only shown when campaigns carry tags */}
+        {allUniqueTags.length > 0 && (
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-xs text-muted-foreground flex items-center gap-1">
+              <Tag className="h-3 w-3" aria-hidden="true" /> Tags:
+            </span>
+            {activeTagFilter && (
+              <button
+                type="button"
+                onClick={() => setActiveTagFilter("")}
+                className="inline-flex items-center gap-1 rounded-full border border-destructive/40 bg-destructive/10 px-2.5 py-0.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/20"
+                aria-label="Clear tag filter"
+              >
+                Clear: #{activeTagFilter} ×
+              </button>
+            )}
+            {allUniqueTags.map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => setActiveTagFilter((prev) => (prev === tag ? "" : tag))}
+                aria-pressed={activeTagFilter === tag}
+                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                  activeTagFilter === tag
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-primary/20 bg-primary/5 text-primary hover:bg-primary/10"
+                }`}
+              >
+                <Tag className="h-2.5 w-2.5" aria-hidden="true" />
+                #{tag}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Status filters — proper ARIA tab pattern with roving tabIndex */}
         <div
