@@ -91,6 +91,8 @@ export interface Campaign {
   metadata_uri?: string;
   website?: string;
   twitter?: string;
+  /** Client-side free-form tags for search/filtering — not stored on-chain. */
+  tags?: string[];
 }
 
 function parseCampaign(native: any): Campaign {

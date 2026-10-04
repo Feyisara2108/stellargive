@@ -28,11 +28,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2, PlusCircle } from "lucide-react";
+import { Loader2, PlusCircle, Tag, X, Eye } from "lucide-react";
 import { TokenSelector, PREDEFINED_TOKENS } from "@/components/TokenSelector";
 import { cn } from "@/lib/utils";
+import { CampaignCard } from "@/components/CampaignCard";
+import type { Campaign } from "@/lib/soroban";
 
 // Contract-enforced bounds — keep in sync with
 // contracts/stellar-give/src/lib.rs constants. Surfacing them at the form
@@ -42,6 +44,10 @@ const MAX_TITLE_LEN = 50; // MAX_TITLE_LEN
 const MIN_TARGET_TOKEN = 1; // MIN_TARGET = 10_000_000 stroops = 1.0 token
 const MAX_DURATION_DAYS = 365; // MAX_DURATION = 31_536_000 sec
 const MAX_METADATA_URI_LEN = 256; // MAX_METADATA_URI_LEN
+
+// Tags constraints (client-side only — not enforced on-chain).
+const MAX_TAG_COUNT = 10;
+const MAX_TAG_LENGTH = 30;
 
 const formSchema = z.object({
   title: z
@@ -100,8 +106,39 @@ const formSchema = z.object({
 
 const NATIVE_XLM = "CDLZS3ZCDY7SF3SIVR6Y7I6SN636O27T7G5MKSUIU22ZS76E55WJIPZ4";
 
+/** Build a synthetic Campaign object from current form values for preview. */
+function buildPreviewCampaign(
+  values: Partial<z.infer<typeof formSchema>>,
+  tags: string[],
+  walletAddress: string,
+): Campaign {
+  const days = parseInt(values.deadlineDays ?? "30") || 30;
+  const deadline = BigInt(Math.floor(Date.now() / 1000) + days * 24 * 60 * 60);
+  const targetRaw = parseFloat(values.targetAmount ?? "0") || 0;
+  // Convert to stroops (7 decimal places)
+  const targetAmount = BigInt(Math.round(targetRaw * 10_000_000));
+  return {
+    id: 0n,
+    creator: walletAddress || "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+    beneficiary: values.beneficiary || walletAddress || "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+    beneficiaries: [],
+    title: values.title || "Campaign Title",
+    description: values.description || "",
+    category: values.category || "other",
+    target_amount: targetAmount,
+    raised_amount: 0n,
+    deadline,
+    accepted_token: values.acceptedToken || NATIVE_XLM,
+    status: "Active",
+    metadata_uri: values.metadataUri || undefined,
+    website: values.website || undefined,
+    twitter: values.twitter || undefined,
+    tags,
+  };
+}
+
 export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
-  const { isWrongNetwork } = useWallet();
+  const { isWrongNetwork, address: walletAddress } = useWallet();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isOpen, setIsOpen] = useState(false);
@@ -110,6 +147,15 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const createCampaign = useCreateCampaign();
+
+  // --- Tags state (#848) ---
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
+  const [tagError, setTagError] = useState("");
+  const tagInputRef = useRef<HTMLInputElement>(null);
+
+  // --- Preview toggle (#847) ---
+  const [showPreview, setShowPreview] = useState(false);
 
   const [step, setStep] = useState(1);
   const totalSteps = 3;
@@ -156,7 +202,9 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
       try {
         const draft = JSON.parse(saved);
         Object.entries(draft).forEach(([key, val]) => {
-          if (val !== undefined) {
+          if (key === "tags" && Array.isArray(val)) {
+            setTags(val as string[]);
+          } else if (val !== undefined && key !== "tags") {
             form.setValue(key as any, val);
           }
         });
@@ -174,8 +222,8 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
 
   useEffect(() => {
     const { beneficiary, ...draftToSave } = debouncedValues;
-    sessionStorage.setItem("create_campaign_draft", JSON.stringify(draftToSave));
-  }, [debouncedValues]);
+    sessionStorage.setItem("create_campaign_draft", JSON.stringify({ ...draftToSave, tags }));
+  }, [debouncedValues, tags]);
 
   const watchBeneficiary = form.watch("beneficiary") ?? "";
   const debouncedBeneficiary = useDebouncedValue(watchBeneficiary, 500);
@@ -191,6 +239,44 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
   const metadataUriLen = metadataUri.length;
   const selectedTokenMeta = PREDEFINED_TOKENS.find((t) => t.address === watchAcceptedToken);
   const tokenSymbol = selectedTokenMeta ? selectedTokenMeta.symbol : "Tokens";
+
+  // Build preview campaign from current form values (updated live)
+  const previewCampaign = buildPreviewCampaign(formValues, tags, walletAddress ?? "");
+
+  // --- Tag helpers ---
+  function commitTag(raw: string) {
+    const tag = raw.trim().toLowerCase().replace(/\s+/g, "-");
+    if (!tag) return;
+    if (tags.length >= MAX_TAG_COUNT) {
+      setTagError(`Maximum ${MAX_TAG_COUNT} tags allowed.`);
+      return;
+    }
+    if (tag.length > MAX_TAG_LENGTH) {
+      setTagError(`Tag must be ${MAX_TAG_LENGTH} characters or fewer.`);
+      return;
+    }
+    if (tags.includes(tag)) {
+      setTagError("Tag already added.");
+      return;
+    }
+    setTags((prev) => [...prev, tag]);
+    setTagInput("");
+    setTagError("");
+  }
+
+  function removeTag(tag: string) {
+    setTags((prev) => prev.filter((t) => t !== tag));
+    setTagError("");
+  }
+
+  function handleTagKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      commitTag(tagInput);
+    } else if (e.key === "Backspace" && !tagInput && tags.length > 0) {
+      removeTag(tags[tags.length - 1]);
+    }
+  }
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (createCampaign.isPending || isUploadingImage) return; // Prevent duplicate submissions
@@ -214,6 +300,8 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
       form.reset();
       setSelectedFileName("");
       setStep(1);
+      setTags([]);
+      setTagInput("");
       const campaignId =
         (result as { campaignId?: string | number } | undefined)?.campaignId ?? "1";
       router.push(`/campaign/${campaignId}`);
@@ -309,7 +397,11 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
           </div>
           <Progress value={(step / totalSteps) * 100} className="h-2" />
         </div>
-        {/* Step 1: Details */}
+
+        {/* Responsive layout: form steps on left, live CampaignCard preview alongside on right */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr,340px] gap-6 items-start">
+          <div className="space-y-4">
+            {/* Step 1: Details */}
         <div className={cn("space-y-4", step !== 1 && "hidden")}>
           <FormField
             control={form.control}
@@ -407,6 +499,75 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
               </FormItem>
             )}
           />
+
+          {/* Tags input (#848) */}
+          <FormItem>
+            <FormLabel htmlFor="campaign-tags-input">
+              Tags{" "}
+              <span className="text-muted-foreground font-normal text-xs">
+                (Optional · up to {MAX_TAG_COUNT})
+              </span>
+            </FormLabel>
+            <div
+              className={cn(
+                "flex flex-wrap gap-1.5 min-h-[42px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
+                createCampaign.isPending && "opacity-50 cursor-not-allowed",
+              )}
+              onClick={() => tagInputRef.current?.focus()}
+            >
+              {tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="inline-flex items-center gap-1 rounded-full bg-primary/10 border border-primary/20 px-2 py-0.5 text-xs font-medium text-primary"
+                >
+                  <Tag className="h-2.5 w-2.5" aria-hidden="true" />
+                  {tag}
+                  <button
+                    type="button"
+                    aria-label={`Remove tag ${tag}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeTag(tag);
+                    }}
+                    className="ml-0.5 rounded-full hover:bg-primary/20 p-0.5 transition-colors"
+                    disabled={createCampaign.isPending}
+                  >
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                </span>
+              ))}
+              <input
+                id="campaign-tags-input"
+                ref={tagInputRef}
+                type="text"
+                value={tagInput}
+                onChange={(e) => {
+                  setTagError("");
+                  setTagInput(e.target.value);
+                }}
+                onKeyDown={handleTagKeyDown}
+                onBlur={() => {
+                  if (tagInput.trim()) commitTag(tagInput);
+                }}
+                placeholder={tags.length === 0 ? "Type a tag and press Enter or comma…" : ""}
+                disabled={createCampaign.isPending || tags.length >= MAX_TAG_COUNT}
+                className="flex-1 min-w-[120px] bg-transparent outline-none placeholder:text-muted-foreground text-sm disabled:cursor-not-allowed"
+                aria-describedby={tagError ? "campaign-tags-error" : "campaign-tags-hint"}
+              />
+            </div>
+            {tagError ? (
+              <p id="campaign-tags-error" className="text-xs text-destructive mt-1" role="alert">
+                {tagError}
+              </p>
+            ) : (
+              <p id="campaign-tags-hint" className="text-xs text-muted-foreground mt-1">
+                Press <kbd className="rounded border px-1 py-0.5 text-[10px] font-mono">Enter</kbd>{" "}
+                or <kbd className="rounded border px-1 py-0.5 text-[10px] font-mono">,</kbd> to add
+                · max {MAX_TAG_LENGTH} chars per tag · {MAX_TAG_COUNT - tags.length} remaining
+              </p>
+            )}
+          </FormItem>
+
           <FormField
             control={form.control}
             name="metadataUri"
@@ -602,6 +763,48 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
                 <p className="font-medium">{form.watch("deadlineDays") || "0"} Days</p>
               </div>
             </div>
+            {tags.length > 0 && (
+              <div>
+                <p className="text-muted-foreground text-xs mb-1">Tags</p>
+                <div className="flex flex-wrap gap-1">
+                  {tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center gap-1 rounded-full bg-primary/10 border border-primary/20 px-2 py-0.5 text-xs font-medium text-primary"
+                    >
+                      <Tag className="h-2.5 w-2.5" aria-hidden="true" />
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Step 3 Live Preview toggle (#847) for mobile / quick review */}
+          <div className="lg:hidden space-y-3 pt-2">
+            <button
+              type="button"
+              onClick={() => setShowPreview((v) => !v)}
+              className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
+              aria-expanded={showPreview}
+              aria-controls="campaign-preview-panel"
+            >
+              <Eye className="h-4 w-4" aria-hidden="true" />
+              {showPreview ? "Hide preview" : "Show card preview"}
+            </button>
+            {showPreview && (
+              <div
+                id="campaign-preview-panel"
+                aria-label="Live campaign card preview"
+                className="max-w-sm"
+              >
+                <p className="text-xs text-muted-foreground mb-2">
+                  This is how your campaign card will look to donors.
+                </p>
+                <CampaignCard campaign={previewCampaign} isPreview />
+              </div>
+            )}
           </div>
         </div>
 
@@ -642,9 +845,55 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
             </Button>
           )}
         </div>
-      </form>
-    </Form>
-  );
+
+        {/* Mobile preview toggle for step 1 & 2 (#847) */}
+        {step !== 3 && (
+          <div className="lg:hidden pt-2 border-t">
+            <button
+              type="button"
+              onClick={() => setShowPreview((v) => !v)}
+              className="inline-flex items-center gap-2 text-xs font-medium text-primary hover:underline"
+              aria-expanded={showPreview}
+              aria-controls="mobile-live-preview"
+            >
+              <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+              {showPreview ? "Hide card preview" : "Show live card preview"}
+            </button>
+            {showPreview && (
+              <div
+                id="mobile-live-preview"
+                aria-label="Live campaign card preview"
+                className="mt-3 max-w-[340px] mx-auto border rounded-xl p-3 bg-muted/20"
+              >
+                <p className="text-[11px] text-muted-foreground mb-2">
+                  Live preview reflects current form input in real time.
+                </p>
+                <CampaignCard campaign={previewCampaign} isPreview />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Desktop Live Preview (#847): persistent alongside form across all steps */}
+      <aside
+        className="hidden lg:flex flex-col space-y-2 sticky top-0"
+        aria-label="Live campaign card preview"
+      >
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+            <Eye className="w-3.5 h-3.5 text-primary" aria-hidden="true" /> Live Card Preview
+          </span>
+          <span className="text-[10px] text-muted-foreground">Updates live</span>
+        </div>
+        <div className="w-full max-w-[340px] border rounded-xl p-3 bg-muted/20 shadow-sm">
+          <CampaignCard campaign={previewCampaign} isPreview />
+        </div>
+      </aside>
+    </div>
+  </form>
+</Form>
+);
 
   if (inline) {
     return <div className="space-y-4">{formContent}</div>;
@@ -676,7 +925,7 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
         </Button>
       </DialogTrigger>
       <DialogContent
-        className="sm:max-w-[425px]"
+        className="sm:max-w-[520px] lg:max-w-4xl max-h-[90vh] overflow-y-auto"
         aria-labelledby="create-campaign-dialog-title"
         onPointerDownOutside={(e) => {
           if (createCampaign.isPending) e.preventDefault(); // lock UI until resolution
