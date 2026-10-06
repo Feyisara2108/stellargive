@@ -4,6 +4,9 @@ out/
 build/
 dist/
 coverage/
+storybook-static/
+playwright-report/
+test-results/
 
 # Dependencies
 node_modules/
