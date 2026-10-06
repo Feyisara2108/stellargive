@@ -1,5 +1,12 @@
-import { withSentryConfig } from "@sentry/nextjs";
+import { withSentryConfig } from "@sentry/nextjs/config";
 import bundleAnalyzer from "@next/bundle-analyzer";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+// The repo root has its own package-lock.json, so Next would otherwise guess the
+// monorepo root as the workspace. Pin it so standalone output (`server.js`) lands
+// in the same place locally and in the Docker build.
+const projectRoot = dirname(fileURLToPath(import.meta.url));
 
 const withBundleAnalyzer = bundleAnalyzer({
   enabled: process.env.ANALYZE === "true",
@@ -16,11 +23,12 @@ const ROUTE_JS_BUDGET_BYTES = 3 * 1024 * 1024;
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  outputFileTracingRoot: projectRoot,
+  turbopack: { root: projectRoot },
   // 'standalone' output is required for Docker self-hosting.
   // Vercel manages its own output — using 'standalone' on Vercel causes a 404.
   // The Dockerfile sets NEXT_BUILD_TARGET=docker to enable this mode.
   ...(process.env.NEXT_BUILD_TARGET === "docker" ? { output: "standalone" } : {}),
-  swcMinify: false,
   webpack: (config, { dev, isServer }) => {
     if (!dev && !isServer) {
       config.performance = {
