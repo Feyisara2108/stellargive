@@ -92,6 +92,13 @@ export function PlatformStats() {
   const { data: stats, isLoading, isError, refetch, isFetching } = usePlatformStats();
   const { data: uniqueDonors, isLoading: donorsLoading, isError: donorsError } = useUniqueDonors();
   const prefersReducedMotion = usePrefersReducedMotion();
+  // TanStack v5 resets a data-less query to "pending" on refetch, which would swap the
+  // error card for the loading skeleton mid-retry; track the retry so the card stays.
+  const [retrying, setRetrying] = useState(false);
+  const retry = () => {
+    setRetrying(true);
+    void refetch().finally(() => setRetrying(false));
+  };
 
   // Derived before the early returns below: the count-up hooks have to run on
   // every render, including the loading, error and empty ones.
@@ -109,7 +116,7 @@ export function PlatformStats() {
     !prefersReducedMotion && uniqueDonors !== undefined,
   );
 
-  if (isLoading) {
+  if (isLoading && !retrying) {
     return (
       <div
         className="flex flex-wrap items-center justify-center gap-8 pt-6 min-h-[3.5rem]"
@@ -126,7 +133,7 @@ export function PlatformStats() {
     );
   }
 
-  if (isError || !stats) {
+  if (retrying || isError || !stats) {
     return (
       <div
         className="flex flex-wrap items-center justify-center gap-3 pt-6 min-h-[3.5rem] text-sm"
@@ -136,12 +143,12 @@ export function PlatformStats() {
           <AlertCircle className="w-4 h-4 text-destructive" aria-hidden="true" />
           Couldn&apos;t load platform stats.
         </span>
-        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+        <Button variant="outline" size="sm" onClick={retry} disabled={retrying}>
           <RotateCw
-            className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`}
+            className={`mr-2 h-4 w-4 ${retrying ? "animate-spin" : ""}`}
             aria-hidden="true"
           />
-          {isFetching ? "Retrying..." : "Retry"}
+          {retrying ? "Retrying..." : "Retry"}
         </Button>
       </div>
     );

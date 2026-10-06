@@ -64,7 +64,7 @@ beforeEach(() => {
 });
 
 describe("PlatformStats — loading", () => {
-  it("renders three busy skeleton stat placeholders while stats load", () => {
+  it("renders four busy skeleton stat placeholders while stats load", () => {
     mockGetTotalCampaigns.mockReturnValue(new Promise<bigint>(() => {}));
 
     const { container } = renderStats();
@@ -72,7 +72,7 @@ describe("PlatformStats — loading", () => {
     const busy = container.querySelector('[aria-busy="true"]') as HTMLElement;
     expect(busy).not.toBeNull();
     // Each placeholder stat is a value bar + a label bar.
-    expect(busy.querySelectorAll(".animate-pulse")).toHaveLength(6);
+    expect(busy.querySelectorAll(".animate-pulse")).toHaveLength(8);
     expect(screen.queryByText("Total Campaigns")).toBeNull();
     expect(screen.queryByRole("button", { name: /retry/i })).toBeNull();
   });
