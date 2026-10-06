@@ -30,10 +30,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1 # v4.2.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4 # v4 – required for Rust language support
+        uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
@@ -42,13 +42,13 @@ jobs:
 
       - name: Cache cargo
         if: matrix.language == 'rust'
-        uses: Swatinem/rust-cache@v2.9.2 # v2.7.3
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: contracts/stellar-give
 
       # build-mode: none – CodeQL auto-extracts Rust without a manual build step
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v4 # v4 – required for Rust language support
+        uses: github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4
         with:
           category: "/language:${{ matrix.language }}"

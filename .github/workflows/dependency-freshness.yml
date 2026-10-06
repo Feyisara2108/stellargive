@@ -18,10 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version-file: frontend/.nvmrc
           cache: npm
@@ -92,7 +92,7 @@ jobs:
           fi
 
       - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
 
       - name: Check outdated Cargo crates
         working-directory: contracts/stellar-give
@@ -122,7 +122,7 @@ jobs:
 
       - name: Create/update freshness issue
         if: steps.npm_outdated.outputs.npm_has_outdated == 'true'
-        uses: peter-evans/create-issue-from-file@v5
+        uses: peter-evans/create-issue-from-file@e8ef132d6df98ed982188e460ebb3b5d4ef3a9cd # v5
         with:
           title: "📦 Weekly Dependency Freshness Report – ${{ github.run_id }}"
           content-filepath: ${{ github.step_summary }}

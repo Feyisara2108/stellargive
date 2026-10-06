@@ -40,7 +40,7 @@ runs:
     # ── Node.js (with built-in npm cache) ─────────────────────────────────────
     - name: Setup Node.js (version file)
       if: ${{ inputs.node-version == '' }}
-      uses: actions/setup-node@v7 # v4.0.2
+      uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
       with:
         node-version-file: ${{ inputs.node-version-file }}
         cache: "npm"
@@ -48,7 +48,7 @@ runs:
 
     - name: Setup Node.js (explicit version)
       if: ${{ inputs.node-version != '' }}
-      uses: actions/setup-node@v7 # v4.0.2
+      uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
       with:
         node-version: ${{ inputs.node-version }}
         cache: "npm"
@@ -57,7 +57,7 @@ runs:
     # ── Next.js build cache (only when the frontend working-directory is used) ─
     - name: Cache Next.js build
       if: ${{ inputs.working-directory == 'frontend' }}
-      uses: actions/cache@v6 # v4.0.2
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
       with:
         path: |
           frontend/.next/cache
