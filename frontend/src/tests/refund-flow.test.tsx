@@ -34,7 +34,8 @@ vi.mock("canvas-confetti", () => ({ default: vi.fn() }));
 
 const toastSuccess = vi.hoisted(() => vi.fn());
 const toastError = vi.hoisted(() => vi.fn());
-const toastLoading = vi.hoisted(() => vi.fn());
+// Like sonner, return a toast id so follow-up success/error toasts update it in place.
+const toastLoading = vi.hoisted(() => vi.fn(() => "toast-id"));
 vi.mock("sonner", () => ({
   toast: {
     success: toastSuccess,
@@ -204,6 +205,11 @@ describe("Integration: refund flow (donate -> cancel -> refund)", () => {
     // Default successful transaction execution for donate, cancel, and refund
     submitTransactionMock.mockImplementation(async (sender, method, args) => {
       if (method === "donate") {
+        // Mirror the chain so the post-donation refetch sees the new total.
+        currentCampaign = {
+          ...currentCampaign,
+          raised_amount: currentCampaign.raised_amount + BigInt(scValToNative(args[2])),
+        };
         return { hash: "donate-tx-hash-001", status: "SUCCESS" };
       }
       if (method === "cancel_campaign") {
@@ -229,6 +235,7 @@ describe("Integration: refund flow (donate -> cancel -> refund)", () => {
     });
 
     const { queryClient } = renderRefundFlow(currentCampaign);
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
     // --- PHASE 1: Initial Active State Gating ---
     expect(screen.getByTestId("campaign-status")).toHaveTextContent("Active");
@@ -263,7 +270,7 @@ describe("Integration: refund flow (donate -> cancel -> refund)", () => {
     )![2];
     expect(scValToNative(donateCallArgs[0])).toBe(WALLET_ADDRESS);
     expect(scValToNative(donateCallArgs[1])).toBe(77n);
-    expect(scValToNative(donateCallArgs[2])).toBe(100_0000000n); // 10 XLM in stroops
+    expect(scValToNative(donateCallArgs[2])).toBe(10_0000000n); // 10 XLM in stroops
     expect(scValToNative(donateCallArgs[3])).toBe(false); // not anonymous
 
     // Verify optimistic cache update for raised amount: 20 + 10 = 30 XLM
@@ -308,7 +315,10 @@ describe("Integration: refund flow (donate -> cancel -> refund)", () => {
     await waitFor(() => {
       expect(toastSuccess).toHaveBeenCalledWith(
         "Campaign cancelled",
-        expect.objectContaining({ hash: "cancel-tx-hash-002" }),
+        expect.objectContaining({
+          // notify turns a tx hash into a "View Explorer" action on the toast.
+          action: expect.objectContaining({ label: "View Explorer" }),
+        }),
       );
     });
 
@@ -379,7 +389,10 @@ describe("Integration: refund flow (donate -> cancel -> refund)", () => {
     await waitFor(() => {
       expect(toastSuccess).toHaveBeenCalledWith(
         "Refund claimed successfully",
-        expect.objectContaining({ hash: "refund-tx-hash-003" }),
+        expect.objectContaining({
+          // notify turns a tx hash into a "View Explorer" action on the toast.
+          action: expect.objectContaining({ label: "View Explorer" }),
+        }),
       );
     });
 
@@ -397,11 +410,10 @@ describe("Integration: refund flow (donate -> cancel -> refund)", () => {
       expect(screen.getByTestId("wallet-balance")).toHaveTextContent("1000000000");
     });
 
-    // Verify cache invalidations occurred
-    expect(queryClient.getQueryState(["campaign", "77"])?.isInvalidated).toBe(true);
-    expect(
-      queryClient.getQueryState(["refund-eligibility", "77", WALLET_ADDRESS])?.isInvalidated,
-    ).toBe(true);
+    // Verify the refund invalidated the campaign and eligibility caches. (isInvalidated
+    // is unreliable here: active queries refetch immediately and clear the flag.)
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["campaign", "77"] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["refund-eligibility", "77"] });
   });
 
   describe("Refund eligibility gating across ineligible states", () => {
