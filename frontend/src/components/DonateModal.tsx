@@ -551,8 +551,8 @@ export function DonateModal({
                 Donation Successful!
               </DialogTitle>
               <DialogDescription className="text-center mt-2 text-slate-500 dark:text-slate-400">
-                Thank you support for supporting <strong>{campaign.title}</strong>! Your
-                contribution makes a big difference.
+                Thank you for supporting <strong>{campaign.title}</strong>! Your contribution makes
+                a big difference.
               </DialogDescription>
             </DialogHeader>
 
