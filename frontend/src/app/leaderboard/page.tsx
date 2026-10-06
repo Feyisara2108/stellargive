@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useCallback } from "react";
+import { useMemo, useRef, useCallback, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Navbar } from "@/components/Navbar";
@@ -145,7 +145,7 @@ function LeaderboardRow({
   );
 }
 
-export default function LeaderboardPage() {
+function LeaderboardContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { address } = useWallet();
@@ -300,5 +300,15 @@ export default function LeaderboardPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function LeaderboardPage() {
+  // useSearchParams (used in LeaderboardContent) requires a Suspense boundary above
+  // it so Next.js can statically render the route without bailing out of CSR.
+  return (
+    <Suspense>
+      <LeaderboardContent />
+    </Suspense>
   );
 }
