@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen, act, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, onTestFinished } from "vitest";
+import { render, screen, act, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "./tooltip";
 
@@ -132,7 +132,9 @@ describe("Tooltip", () => {
 
   it("respects delayDuration from TooltipProvider", async () => {
     vi.useFakeTimers();
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
 
     render(
       <TooltipProvider delayDuration={200}>
@@ -145,7 +147,7 @@ describe("Tooltip", () => {
       </TooltipProvider>,
     );
 
-    await user.hover(screen.getByRole("button", { name: /trigger/i }));
+    fireEvent.mouseEnter(screen.getByRole("button", { name: /trigger/i }));
 
     // Before delay elapses, tooltip should not be visible
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
@@ -154,8 +156,7 @@ describe("Tooltip", () => {
       vi.advanceTimersByTime(200);
     });
 
-    expect(await screen.findByRole("tooltip")).toBeInTheDocument();
-
-    vi.useRealTimers();
+    // Synchronous query: findBy* polls on timers, which are faked here.
+    expect(screen.getByRole("tooltip")).toBeInTheDocument();
   });
 });

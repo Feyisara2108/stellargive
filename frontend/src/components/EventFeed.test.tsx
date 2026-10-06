@@ -69,9 +69,10 @@ describe("EventFeed — empty state", () => {
   it("announces the empty state via aria-live=polite for screen readers", () => {
     vi.mocked(useEvents).mockReturnValue({ data: [], isLoading: false } as any);
     render(<EventFeed />);
-    const status = screen.getByRole("status");
+    // The feed also has an sr-only announcer for new events (#833); target the empty state.
+    const status = screen.getByText(/No activity yet/i).closest('[role="status"]');
     expect(status).toHaveAttribute("aria-live", "polite");
-    expect(status).toHaveTextContent(/No activity yet/i);
+    expect(status).toHaveTextContent(/New donations, campaigns, and claims/i);
   });
 });
 
