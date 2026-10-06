@@ -33,6 +33,12 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 
+# Pick up Alpine security patches (e.g. OpenSSL) newer than the pinned base, and
+# drop the bundled npm CLI: the server runs `node server.js` and never needs npm,
+# whose vendored dependencies account for most image scan findings.
+RUN apk upgrade --no-cache \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+
 # Create a non-root user
 RUN addgroup -S nextjs && adduser -S nextjs -G nextjs
 
