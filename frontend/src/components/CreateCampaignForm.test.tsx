@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@/test/render";
 import { axe, toHaveNoViolations } from "jest-axe";
 import { CreateCampaignForm } from "./CreateCampaignForm";
 
@@ -20,6 +20,9 @@ const resolvedNameState = vi.hoisted(() => ({
 vi.mock("@/hooks/useSoroban", () => ({
   useCreateCampaign: () => createCampaignState,
   useResolvedName: () => resolvedNameState,
+  // Used by the live CampaignCard preview.
+  useTokenMetadata: () => ({ data: undefined, isLoading: false }),
+  useXlmPrice: () => ({ data: undefined, isLoading: false }),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -82,6 +85,23 @@ function fillValidForm() {
   fireEvent.change(screen.getByPlaceholderText("1000"), { target: { value: "500" } });
 }
 
+/** Walks the wizard from Details through Funding to the Review step, where submit lives. */
+async function goToReviewStep() {
+  fireEvent.click(screen.getByRole("button", { name: /Continue/i }));
+  await screen.findByText(/Step 2 of 3/i);
+  fireEvent.click(screen.getByRole("button", { name: /Continue/i }));
+  await screen.findByText(/Step 3 of 3/i);
+}
+
+/** Clicking Continue on an invalid step must leave the wizard where it is. */
+async function expectStuckOnStep(n: number) {
+  fireEvent.click(screen.getByRole("button", { name: /Continue/i }));
+  await waitFor(() =>
+    expect(screen.getByText(new RegExp(`Step ${n} of 3`, "i"))).toBeInTheDocument(),
+  );
+  expect(screen.queryByRole("button", { name: /Launch Campaign/i })).not.toBeInTheDocument();
+}
+
 describe("CreateCampaignForm", () => {
   beforeEach(() => {
     sessionStorage.clear();
@@ -116,7 +136,7 @@ describe("CreateCampaignForm", () => {
       fireEvent.blur(title);
 
       expect(await screen.findByText(/Title must be at least 5 characters/i)).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /Launch Campaign/i })).toBeDisabled();
+      await expectStuckOnStep(1);
     });
 
     it("rejects a description shorter than 10 characters", async () => {
@@ -245,7 +265,6 @@ describe("CreateCampaignForm", () => {
       expect(
         await screen.findByText(/Deadline must be between 1 and 365 days/i),
       ).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /Launch Campaign/i })).toBeDisabled();
     });
 
     it("updates character counter in real time, applies warning style near cap, and disables submit when over 500 characters", async () => {
@@ -271,7 +290,7 @@ describe("CreateCampaignForm", () => {
       const overLimitCounter = screen.getByText("505 / 500 characters");
       expect(overLimitCounter).toBeInTheDocument();
       expect(overLimitCounter.className).toContain("text-destructive");
-      expect(screen.getByRole("button", { name: /Launch Campaign/i })).toBeDisabled();
+      await expectStuckOnStep(1);
     });
 
     it("rejects a deadline duration beyond the 365-day maximum", async () => {
@@ -293,6 +312,7 @@ describe("CreateCampaignForm", () => {
       renderForm();
       await openForm();
       fillValidForm();
+      await goToReviewStep();
 
       const submitBtn = await screen.findByRole("button", { name: /Launch Campaign/i });
       await waitFor(() => expect(submitBtn).toBeEnabled());
@@ -329,17 +349,17 @@ describe("CreateCampaignForm", () => {
           <CreateCampaignForm inline />
         </WalletContext.Provider>,
       );
+      fillValidForm();
+      await goToReviewStep();
 
-      expect(
-        await screen.findByRole("button", { name: /Creating Campaign\.\.\./i }),
-      ).toBeDisabled();
+      expect(await screen.findByRole("button", { name: /Creating\.\.\./i })).toBeDisabled();
     });
 
-    it("keeps the submit button disabled until the required fields are valid", async () => {
+    it("does not reach the submit step until the required fields are valid", async () => {
       renderForm();
       await openForm();
 
-      expect(screen.getByRole("button", { name: /Launch Campaign/i })).toBeDisabled();
+      await expectStuckOnStep(1);
     });
   });
 });
