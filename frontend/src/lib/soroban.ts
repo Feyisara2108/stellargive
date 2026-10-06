@@ -68,7 +68,7 @@ export function fromStroops(stroops: bigint | string | number): string {
   return decPart.length > 0 ? `${intPart}.${decPart}` : intPart;
 }
 
-export type CampaignStatus = "Active" | "Funded" | "Claimed" | "Expired";
+export type CampaignStatus = "Active" | "Funded" | "Claimed" | "Expired" | "Cancelled";
 
 export interface CampaignBeneficiary {
   address: string;
