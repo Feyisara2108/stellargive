@@ -3,7 +3,7 @@
 mod helpers;
 
 use helpers::{create_default_campaign, register_and_setup, set_timestamp, single_ben};
-use soroban_sdk::testutils::Events;
+use soroban_sdk::testutils::{Address as _, Events};
 use soroban_sdk::{symbol_short, String, TryFromVal};
 use stellar_give::{CampaignUpdateEvent, ContractError};
 
@@ -302,7 +302,7 @@ fn test_add_update_accumulate_and_retrieve_in_order() {
         5_000,
     );
 
-    let updates_text = vec![
+    let updates_text = [
         "First update",
         "Second update",
         "Third update",
