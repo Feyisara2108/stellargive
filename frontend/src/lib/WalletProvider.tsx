@@ -1,7 +1,12 @@
 "use client";
 
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import freighterApi, { isConnected, getAddress, setAllowed, getNetwork } from "@stellar/freighter-api";
+import freighterApi, {
+  isConnected,
+  getAddress,
+  setAllowed,
+  getNetwork,
+} from "@stellar/freighter-api";
 import * as Sentry from "@sentry/nextjs";
 import { notify } from "@/lib/toast";
 

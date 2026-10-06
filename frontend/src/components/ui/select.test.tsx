@@ -1,13 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "./select";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "./select";
 
 function TestSelect({
   defaultValue,
@@ -78,9 +72,7 @@ describe("Select", () => {
 
     await user.click(screen.getByRole("option", { name: /cherry/i }));
 
-    await waitFor(() =>
-      expect(screen.getByRole("combobox")).toHaveTextContent(/cherry/i),
-    );
+    await waitFor(() => expect(screen.getByRole("combobox")).toHaveTextContent(/cherry/i));
   });
 
   it("fires onValueChange with the selected value", async () => {

@@ -46,7 +46,9 @@ export const PostUpdateForm: React.FC<PostUpdateFormProps> = ({
         setTimeout(() => setDraftSaved(false), 2000);
       } catch {}
     }, 1000);
-    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
   }, [content, campaignId]);
 
   const remainingCharacters = MAX_CHARACTER_LIMIT - content.length;
@@ -72,7 +74,9 @@ export const PostUpdateForm: React.FC<PostUpdateFormProps> = ({
       setContent("");
       try {
         await onSubmit(trimmedContent);
-        try { localStorage.removeItem(`${DRAFT_KEY_PREFIX}${campaignId}`); } catch {}
+        try {
+          localStorage.removeItem(`${DRAFT_KEY_PREFIX}${campaignId}`);
+        } catch {}
         onSuccess();
       } catch (err: any) {
         // Restore the content so the user can retry without retyping.
@@ -87,7 +91,9 @@ export const PostUpdateForm: React.FC<PostUpdateFormProps> = ({
       try {
         await addUpdateMutation(campaignId, trimmedContent);
         setContent("");
-        try { localStorage.removeItem(`${DRAFT_KEY_PREFIX}${campaignId}`); } catch {}
+        try {
+          localStorage.removeItem(`${DRAFT_KEY_PREFIX}${campaignId}`);
+        } catch {}
         onSuccess();
       } catch (err: any) {
         console.error("Failed to submit update to Soroban:", err);

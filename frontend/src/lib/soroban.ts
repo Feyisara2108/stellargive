@@ -309,7 +309,12 @@ export interface PlatformConfig {
  */
 export async function getPlatformConfig(): Promise<PlatformConfig> {
   const [owner, totalCampaigns] = await Promise.all([getOwner(), fetchTotalCampaigns()]);
-  return { owner, totalCampaigns, feeBps: PLATFORM_FEE_BPS, feeDenominator: PLATFORM_FEE_DENOMINATOR };
+  return {
+    owner,
+    totalCampaigns,
+    feeBps: PLATFORM_FEE_BPS,
+    feeDenominator: PLATFORM_FEE_DENOMINATOR,
+  };
 }
 
 export async function getCampaignsPage(

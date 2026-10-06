@@ -205,7 +205,8 @@ export function AdminPanel({ ownedCampaigns }: AdminPanelProps) {
             Contract Controls
           </h2>
           <p className="text-sm text-muted-foreground">
-            Emergency controls for the contract owner. Pausing the contract disables all donations and campaign creation.
+            Emergency controls for the contract owner. Pausing the contract disables all donations
+            and campaign creation.
           </p>
         </div>
 
@@ -470,8 +471,8 @@ export function AdminPanel({ ownedCampaigns }: AdminPanelProps) {
               Pause Contract?
             </DialogTitle>
             <DialogDescription>
-              This will immediately disable all donations and campaign creation across the entire platform.
-              Only the contract owner can unpause.
+              This will immediately disable all donations and campaign creation across the entire
+              platform. Only the contract owner can unpause.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
@@ -532,9 +533,7 @@ export function AdminPanel({ ownedCampaigns }: AdminPanelProps) {
       >
         <DialogContent aria-labelledby="unpause-dialog-title">
           <DialogHeader>
-            <DialogTitle id="unpause-dialog-title">
-              Unpause Contract?
-            </DialogTitle>
+            <DialogTitle id="unpause-dialog-title">Unpause Contract?</DialogTitle>
             <DialogDescription>
               This will re-enable all donations and campaign creation.
             </DialogDescription>

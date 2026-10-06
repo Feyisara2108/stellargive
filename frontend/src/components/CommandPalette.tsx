@@ -102,10 +102,25 @@ export function CommandPalette({ open: openProp, onOpenChange }: CommandPaletteP
     if (open) setRecentCampaigns(getRecentCampaigns());
   }, [open]);
 
-  const quickActions: CommandItem[] = useMemo(() => [
-    { id: "connect-wallet", label: "Connect Wallet", href: "#connect-wallet", icon: <Wallet className="w-4 h-4" />, keywords: ["connect", "wallet", "stellar"] },
-    { id: "toggle-theme", label: "Toggle Theme", href: "#toggle-theme", icon: <Sun className="w-4 h-4" />, keywords: ["toggle", "theme", "dark", "light", "mode"] },
-  ], []);
+  const quickActions: CommandItem[] = useMemo(
+    () => [
+      {
+        id: "connect-wallet",
+        label: "Connect Wallet",
+        href: "#connect-wallet",
+        icon: <Wallet className="w-4 h-4" />,
+        keywords: ["connect", "wallet", "stellar"],
+      },
+      {
+        id: "toggle-theme",
+        label: "Toggle Theme",
+        href: "#toggle-theme",
+        icon: <Sun className="w-4 h-4" />,
+        keywords: ["toggle", "theme", "dark", "light", "mode"],
+      },
+    ],
+    [],
+  );
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {

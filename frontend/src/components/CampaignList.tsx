@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  Suspense,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FixedSizeList, type ListChildComponentProps } from "react-window";
@@ -123,16 +116,10 @@ function CampaignRow({ index, style, data }: ListChildComponentProps<RowData>) {
   const row = rows[index];
   if (!row) return null;
 
-  const cellWidth =
-    listWidth > 0
-      ? (listWidth - GRID_GAP * (columnCount - 1)) / columnCount
-      : 0;
+  const cellWidth = listWidth > 0 ? (listWidth - GRID_GAP * (columnCount - 1)) / columnCount : 0;
 
   return (
-    <div
-      role="row"
-      style={{ ...style, display: "flex", gap: GRID_GAP, paddingBottom: GRID_GAP }}
-    >
+    <div role="row" style={{ ...style, display: "flex", gap: GRID_GAP, paddingBottom: GRID_GAP }}>
       {row.map((campaign) => (
         <div
           key={campaign.id.toString()}

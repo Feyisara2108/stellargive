@@ -14,7 +14,11 @@ vi.mock("@/lib/WalletProvider", () => ({
   useWallet: () => wallet,
 }));
 
-import { NetworkMismatchBanner, FREIGHTER_NETWORK_GUIDE_URL, dismissKey } from "./NetworkMismatchBanner";
+import {
+  NetworkMismatchBanner,
+  FREIGHTER_NETWORK_GUIDE_URL,
+  dismissKey,
+} from "./NetworkMismatchBanner";
 
 // Set by src/test/setup.ts.
 const APP_NETWORK = process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE!;

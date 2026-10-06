@@ -73,10 +73,7 @@ describe("AccordionItem", () => {
       </Accordion>,
     );
 
-    expect(screen.getByRole("button", { name: /Q/i })).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
+    expect(screen.getByRole("button", { name: /Q/i })).toHaveAttribute("aria-expanded", "false");
   });
 
   it("sets aria-expanded=true when expanded", async () => {
@@ -89,10 +86,7 @@ describe("AccordionItem", () => {
 
     await user.click(screen.getByRole("button", { name: /Q/i }));
 
-    expect(screen.getByRole("button", { name: /Q/i })).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    );
+    expect(screen.getByRole("button", { name: /Q/i })).toHaveAttribute("aria-expanded", "true");
   });
 
   it("items operate independently — opening one does not close another", async () => {

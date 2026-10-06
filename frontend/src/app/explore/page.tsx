@@ -15,7 +15,17 @@ import { useBookmarks } from "@/hooks/useBookmarks";
 import { TokenSelector } from "@/components/TokenSelector";
 import { CategorySelector, CATEGORIES, type CategoryKey } from "@/components/CategorySelector";
 import { SortSelector, SORT_OPTIONS, type SortKey } from "@/components/SortSelector";
-import { Search, Compass, Loader2, AlertTriangle, RotateCw, LayoutGrid, List, Bookmark, Tag } from "lucide-react";
+import {
+  Search,
+  Compass,
+  Loader2,
+  AlertTriangle,
+  RotateCw,
+  LayoutGrid,
+  List,
+  Bookmark,
+  Tag,
+} from "lucide-react";
 import { CampaignSkeletonGrid } from "@/components/CampaignSkeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { Campaign } from "@/lib/soroban";
@@ -94,14 +104,10 @@ function GridRow({ index, style, data }: ListChildComponentProps<GridRowData>) {
   const row = rows[index];
   if (!row) return null;
 
-  const cellWidth =
-    listWidth > 0 ? (listWidth - GRID_GAP * (columnCount - 1)) / columnCount : 0;
+  const cellWidth = listWidth > 0 ? (listWidth - GRID_GAP * (columnCount - 1)) / columnCount : 0;
 
   return (
-    <div
-      role="row"
-      style={{ ...style, display: "flex", gap: GRID_GAP, paddingBottom: GRID_GAP }}
-    >
+    <div role="row" style={{ ...style, display: "flex", gap: GRID_GAP, paddingBottom: GRID_GAP }}>
       {row.map(({ campaign, tokenMeta, detailHrefSearch }) => (
         <div
           key={campaign.id.toString()}
@@ -200,7 +206,8 @@ function sortCampaigns(campaigns: Campaign[], sortBy: SortKey): Campaign[] {
     case "trending": {
       const now = Date.now() / 1000;
       const trendingScore = (c: Campaign) => {
-        const progress = c.target_amount === 0n ? 0 : Number(c.raised_amount) / Number(c.target_amount);
+        const progress =
+          c.target_amount === 0n ? 0 : Number(c.raised_amount) / Number(c.target_amount);
         const daysLeft = Math.max((Number(c.deadline) - now) / 86400, 0.1);
         return progress / daysLeft;
       };
@@ -423,8 +430,17 @@ function ExploreContent() {
       lastSyncedSearchRef.current = searchTerm;
       router.replace(query ? `/explore?${query}` : "/explore", { scroll: false });
     }
-  }, [router, searchParams, statusFilter, sortBy, categoryFilter, tokenFilter, searchTerm, savedOnly, activeTagFilter]);
-
+  }, [
+    router,
+    searchParams,
+    statusFilter,
+    sortBy,
+    categoryFilter,
+    tokenFilter,
+    searchTerm,
+    savedOnly,
+    activeTagFilter,
+  ]);
 
   const filtered = useMemo(() => {
     const byStatus = searched.filter((campaign) => {
@@ -444,14 +460,21 @@ function ExploreContent() {
             c.tags.some((t) => t.toLowerCase() === activeTagFilter.toLowerCase()),
         );
 
-    const byToken = !tokenFilter
-      ? byTag
-      : byTag.filter((c) => c.accepted_token === tokenFilter);
+    const byToken = !tokenFilter ? byTag : byTag.filter((c) => c.accepted_token === tokenFilter);
 
     const byCategory = byToken.filter((c) => matchesCategory(c, categoryFilter));
 
     return sortCampaigns(byCategory, sortBy);
-  }, [searched, statusFilter, sortBy, categoryFilter, tokenFilter, savedOnly, bookmarks, activeTagFilter]);
+  }, [
+    searched,
+    statusFilter,
+    sortBy,
+    categoryFilter,
+    tokenFilter,
+    savedOnly,
+    bookmarks,
+    activeTagFilter,
+  ]);
 
   const uniqueTokens = useMemo(() => {
     return Array.from(new Set(filtered.map((c) => c.accepted_token)));
@@ -623,8 +646,7 @@ function ExploreContent() {
                     : "border-primary/20 bg-primary/5 text-primary hover:bg-primary/10"
                 }`}
               >
-                <Tag className="h-2.5 w-2.5" aria-hidden="true" />
-                #{tag}
+                <Tag className="h-2.5 w-2.5" aria-hidden="true" />#{tag}
               </button>
             ))}
           </div>
@@ -746,53 +768,55 @@ function ExploreContent() {
               {/* role="grid" + role="row" + role="gridcell" preserve the    */}
               {/* WAI-ARIA grid pattern for screen-reader and keyboard nav.  */}
               {/* -------------------------------------------------------- */}
-              {viewMode === "grid" && (() => {
-                // Build row chunks here so the closure captures `filtered`
-                // and `columnCount` reactively.
-                const items = filtered.map((campaign) => ({
-                  campaign,
-                  tokenMeta: tokenMetas?.[campaign.accepted_token],
-                  detailHrefSearch,
-                }));
-                const gridRows: typeof items[] = [];
-                for (let i = 0; i < items.length; i += columnCount) {
-                  gridRows.push(items.slice(i, i + columnCount));
-                }
-                const rowH = GRID_CARD_HEIGHT + GRID_GAP;
-                const totalH = gridRows.length * rowH;
-                return (
-                  <GridVirtualContainer
-                    containerRef={gridContainerRef}
-                    totalHeight={totalH}
-                    rows={gridRows}
-                    columnCount={columnCount}
-                    rowHeight={rowH}
-                    isRefreshing={isRefreshing}
-                  />
-                );
-              })()}
+              {viewMode === "grid" &&
+                (() => {
+                  // Build row chunks here so the closure captures `filtered`
+                  // and `columnCount` reactively.
+                  const items = filtered.map((campaign) => ({
+                    campaign,
+                    tokenMeta: tokenMetas?.[campaign.accepted_token],
+                    detailHrefSearch,
+                  }));
+                  const gridRows: (typeof items)[] = [];
+                  for (let i = 0; i < items.length; i += columnCount) {
+                    gridRows.push(items.slice(i, i + columnCount));
+                  }
+                  const rowH = GRID_CARD_HEIGHT + GRID_GAP;
+                  const totalH = gridRows.length * rowH;
+                  return (
+                    <GridVirtualContainer
+                      containerRef={gridContainerRef}
+                      totalHeight={totalH}
+                      rows={gridRows}
+                      columnCount={columnCount}
+                      rowHeight={rowH}
+                      isRefreshing={isRefreshing}
+                    />
+                  );
+                })()}
 
               {/* -------------------------------------------------------- */}
               {/* Virtualised list view                                      */}
               {/* -------------------------------------------------------- */}
-              {viewMode === "list" && (() => {
-                const items = filtered.map((campaign) => ({
-                  campaign,
-                  tokenMeta: tokenMetas?.[campaign.accepted_token],
-                  detailHrefSearch,
-                }));
-                const rowH = LIST_CARD_HEIGHT + GRID_GAP;
-                const totalH = items.length * rowH;
-                return (
-                  <ListVirtualContainer
-                    containerRef={listContainerRef}
-                    totalHeight={totalH}
-                    items={items}
-                    rowHeight={rowH}
-                    isRefreshing={isRefreshing}
-                  />
-                );
-              })()}
+              {viewMode === "list" &&
+                (() => {
+                  const items = filtered.map((campaign) => ({
+                    campaign,
+                    tokenMeta: tokenMetas?.[campaign.accepted_token],
+                    detailHrefSearch,
+                  }));
+                  const rowH = LIST_CARD_HEIGHT + GRID_GAP;
+                  const totalH = items.length * rowH;
+                  return (
+                    <ListVirtualContainer
+                      containerRef={listContainerRef}
+                      totalHeight={totalH}
+                      items={items}
+                      rowHeight={rowH}
+                      isRefreshing={isRefreshing}
+                    />
+                  );
+                })()}
             </div>
           )}
 
@@ -960,4 +984,3 @@ export default function ExplorePage() {
     </Suspense>
   );
 }
-

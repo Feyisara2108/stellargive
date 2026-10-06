@@ -35,11 +35,7 @@ export function CategorySelector({ value, onChange, label, counts }: CategorySel
     if (!counts) return null;
     const n = counts[cat];
     if (n === undefined) return null;
-    return (
-      <span className="ml-1 text-[0.65rem] font-normal opacity-70">
-        ({n})
-      </span>
-    );
+    return <span className="ml-1 text-[0.65rem] font-normal opacity-70">({n})</span>;
   };
 
   return (
@@ -60,7 +56,8 @@ export function CategorySelector({ value, onChange, label, counts }: CategorySel
         >
           {CATEGORIES.map((cat) => (
             <option key={cat} value={cat}>
-              {getCategoryLabel(cat)}{counts?.[cat] !== undefined ? ` (${counts[cat]})` : ''}
+              {getCategoryLabel(cat)}
+              {counts?.[cat] !== undefined ? ` (${counts[cat]})` : ""}
             </option>
           ))}
         </select>

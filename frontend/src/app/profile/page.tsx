@@ -86,9 +86,14 @@ export default function ProfilePage() {
     }, [campaigns, events, address]);
 
   // Status filter for "My Campaigns" tab (#820).
-  const [profileStatusFilter, setProfileStatusFilter] = useState<"all" | "Active" | "Funded">("all");
+  const [profileStatusFilter, setProfileStatusFilter] = useState<"all" | "Active" | "Funded">(
+    "all",
+  );
   const filteredCreated = useMemo(
-    () => (profileStatusFilter === "all" ? created : created.filter((c) => c.status === profileStatusFilter)),
+    () =>
+      profileStatusFilter === "all"
+        ? created
+        : created.filter((c) => c.status === profileStatusFilter),
     [created, profileStatusFilter],
   );
 

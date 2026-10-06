@@ -19,10 +19,10 @@ test.describe("Theme Toggle Persistence & Anti-flash", () => {
     if (!isDark) {
       await themeButton.click();
     }
-    
+
     // Ensure it's now dark
     await expect(html).toHaveClass(/dark/);
-    
+
     // Reload page
     await page.reload();
 
@@ -39,10 +39,10 @@ test.describe("Theme Toggle Persistence & Anti-flash", () => {
     await page.goto("/");
 
     const html = page.locator("html");
-    
+
     // Assert the theme is applied immediately
     await expect(html).toHaveClass(/dark/);
-    
+
     // Optionally check that the resolved theme state matches once hydrated
     const themeButton = page.locator('button:has-text("Toggle theme")');
     await expect(themeButton).toBeVisible();

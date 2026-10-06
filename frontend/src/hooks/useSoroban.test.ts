@@ -499,7 +499,9 @@ describe("useSoroban", () => {
       const rawData1 = [c1, c2];
       const rawData2 = [c1, c2]; // New array instance with same elements
 
-      const selector = createMemoizedSelector((list: any[]) => list.filter((x) => x.status === "Active"));
+      const selector = createMemoizedSelector((list: any[]) =>
+        list.filter((x) => x.status === "Active"),
+      );
 
       const res1 = selector(rawData1);
       const res2 = selector(rawData2);
@@ -556,7 +558,7 @@ describe("useSoroban", () => {
       const { Wrapper } = makeWrapper();
       const { result } = renderHook(
         () => useFilteredCampaigns({ category: "relief", sortBy: "newest" }),
-        { wrapper: Wrapper }
+        { wrapper: Wrapper },
       );
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));

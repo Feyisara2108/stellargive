@@ -104,9 +104,7 @@ export function EventFeed() {
     if (now - lastAnnouncementTimeRef.current < ANNOUNCEMENT_THROTTLE_MS) return;
 
     lastAnnouncementTimeRef.current = now;
-    const message = count === 1
-      ? "New donation received"
-      : `${count} new donations received`;
+    const message = count === 1 ? "New donation received" : `${count} new donations received`;
     setAnnouncement(message);
   }, []);
 
@@ -161,12 +159,7 @@ export function EventFeed() {
   return (
     <Card className="h-full">
       {/* ARIA live region for announcing new events to screen readers (#833) */}
-      <div
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-        className="sr-only"
-      >
+      <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
         {announcement}
       </div>
       <CardHeader>

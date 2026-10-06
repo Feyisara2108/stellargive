@@ -32,7 +32,7 @@ export interface SorobanQueryOptions<TData, TQueryData> {
 }
 
 export function parseQueryOptions<TData, TQueryData>(
-  optionsOrSelect?: ((data: TQueryData) => TData) | SorobanQueryOptions<TData, TQueryData>
+  optionsOrSelect?: ((data: TQueryData) => TData) | SorobanQueryOptions<TData, TQueryData>,
 ): SorobanQueryOptions<TData, TQueryData> {
   if (typeof optionsOrSelect === "function") {
     return { select: optionsOrSelect };
@@ -63,7 +63,7 @@ export function areArraysShallowEqual<T>(a: T[] | undefined, b: T[] | undefined)
  * preventing unnecessary component re-renders when data has not functionally changed.
  */
 export function createMemoizedSelector<TInput, TItem>(
-  selectorFn: (input: TInput) => TItem[]
+  selectorFn: (input: TInput) => TItem[],
 ): (input: TInput) => TItem[] {
   let lastInput: TInput | undefined;
   let lastResult: TItem[] | undefined;
@@ -109,7 +109,9 @@ export const selectActiveCampaigns = createMemoizedSelector((campaigns: Campaign
  */
 const userCampaignsCache = new Map<string, (campaigns: Campaign[]) => Campaign[]>();
 
-export function getSelectUserCampaigns(address: string | null): (campaigns: Campaign[]) => Campaign[] {
+export function getSelectUserCampaigns(
+  address: string | null,
+): (campaigns: Campaign[]) => Campaign[] {
   const key = (address ?? "__null__").toLowerCase();
   let selector = userCampaignsCache.get(key);
   if (!selector) {
@@ -127,7 +129,9 @@ export function getSelectUserCampaigns(address: string | null): (campaigns: Camp
  */
 const categoryCampaignsCache = new Map<string, (campaigns: Campaign[]) => Campaign[]>();
 
-export function getSelectCampaignsByCategory(category: string): (campaigns: Campaign[]) => Campaign[] {
+export function getSelectCampaignsByCategory(
+  category: string,
+): (campaigns: Campaign[]) => Campaign[] {
   const key = category.toLowerCase().trim();
   let selector = categoryCampaignsCache.get(key);
   if (!selector) {
@@ -171,7 +175,7 @@ export function sortCampaignsList(campaigns: Campaign[], sortBy?: CampaignSortKe
 const filterSortCache = new Map<string, (campaigns: Campaign[]) => Campaign[]>();
 
 export function getSelectFilteredAndSortedCampaigns(
-  options: CampaignFilterOptions
+  options: CampaignFilterOptions,
 ): (campaigns: Campaign[]) => Campaign[] {
   const key = JSON.stringify({
     category: (options.category ?? "").toLowerCase().trim(),
@@ -215,7 +219,7 @@ export function getSelectFilteredAndSortedCampaigns(
             c.description.toLowerCase().includes(term) ||
             c.category.toLowerCase().includes(term) ||
             c.creator.toLowerCase().includes(term) ||
-            c.beneficiary.toLowerCase().includes(term)
+            c.beneficiary.toLowerCase().includes(term),
         );
       }
 
@@ -232,7 +236,7 @@ export function getSelectFilteredAndSortedCampaigns(
 
 export function useCampaign<TData = Campaign>(
   id: bigint,
-  optionsOrSelect?: ((data: Campaign) => TData) | SorobanQueryOptions<TData, Campaign>
+  optionsOrSelect?: ((data: Campaign) => TData) | SorobanQueryOptions<TData, Campaign>,
 ) {
   const opts = parseQueryOptions(optionsOrSelect);
   return useQuery({
@@ -245,7 +249,7 @@ export function useCampaign<TData = Campaign>(
 }
 
 export function useRecentCampaigns<TData = Campaign[]>(
-  optionsOrSelect?: ((data: Campaign[]) => TData) | SorobanQueryOptions<TData, Campaign[]>
+  optionsOrSelect?: ((data: Campaign[]) => TData) | SorobanQueryOptions<TData, Campaign[]>,
 ) {
   const opts = parseQueryOptions(optionsOrSelect);
   return useQuery({
@@ -261,7 +265,7 @@ export function useCampaignsPaged<TData = { campaigns: Campaign[]; hasMore: bool
   limit: number,
   optionsOrSelect?:
     | ((data: { campaigns: Campaign[]; hasMore: boolean }) => TData)
-    | SorobanQueryOptions<TData, { campaigns: Campaign[]; hasMore: boolean }>
+    | SorobanQueryOptions<TData, { campaigns: Campaign[]; hasMore: boolean }>,
 ) {
   const opts = parseQueryOptions(optionsOrSelect);
   return useQuery({
@@ -314,7 +318,7 @@ export function useFilteredCampaigns(options: CampaignFilterOptions) {
       options.beneficiary,
       options.searchTerm,
       options.sortBy,
-    ]
+    ],
   );
   return useRecentCampaigns(selector);
 }

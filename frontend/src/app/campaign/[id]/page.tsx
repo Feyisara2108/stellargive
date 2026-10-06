@@ -104,7 +104,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function CampaignPage({
   params,
   searchParams,
-}: { params: Promise<{ id: string }>, searchParams?: SearchParams }) {
+}: {
+  params: Promise<{ id: string }>;
+  searchParams?: SearchParams;
+}) {
   const resolvedParams = await params;
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   let campaignTitle: string | undefined;

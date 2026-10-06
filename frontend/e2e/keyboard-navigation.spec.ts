@@ -8,7 +8,7 @@ test.describe("Keyboard Navigation & Accessibility", () => {
   test("skip link moves focus to main content", async ({ page }) => {
     // Press Tab to focus the first interactive element, which should be the skip link.
     await page.keyboard.press("Tab");
-    
+
     const skipLink = page.locator('a:has-text("Skip to content")');
     await expect(skipLink).toBeFocused();
 

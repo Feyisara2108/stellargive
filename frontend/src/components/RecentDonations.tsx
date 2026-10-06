@@ -25,7 +25,11 @@ function simpleHash(str: string): number {
 function DonorAvatar({ address, name }: { address: string | null; name: string }) {
   if (!address) {
     return (
-      <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0" role="img" aria-label={name}>
+      <div
+        className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0"
+        role="img"
+        aria-label={name}
+      >
         <User className="w-4 h-4 text-muted-foreground" />
       </div>
     );
