@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { renderMarkdown, sanitizeHtml, sanitizeUrl } from "./sanitize";
+import {
+  DEDICATION_MAX_LENGTH,
+  renderMarkdown,
+  sanitizeHtml,
+  sanitizeMessage,
+  sanitizeUrl,
+} from "./sanitize";
 
 describe("sanitizeHtml", () => {
   it("removes script tags and keeps text content", () => {
@@ -74,5 +80,30 @@ describe("renderMarkdown", () => {
 
   it("returns an empty string for empty input", () => {
     expect(renderMarkdown("")).toBe("");
+  });
+});
+
+describe("sanitizeMessage", () => {
+  it("returns an empty string for empty input", () => {
+    expect(sanitizeMessage("")).toBe("");
+  });
+
+  it("drops script and style blocks along with their contents", () => {
+    expect(sanitizeMessage("<b>For Ada</b><script>alert(1)</script>")).toBe("For Ada");
+    expect(sanitizeMessage("Hi<style>body{display:none}</style> there")).toBe("Hi there");
+  });
+
+  it("strips remaining tags and stray angle brackets but keeps the text", () => {
+    expect(sanitizeMessage("<em>In memory</em> of <a href='x'>Grace</a> <3")).toBe(
+      "In memory of Grace 3",
+    );
+  });
+
+  it("replaces control characters and collapses whitespace", () => {
+    expect(sanitizeMessage("  line one\n\n\tline\u0000two  ")).toBe("line one line two");
+  });
+
+  it("caps the result at DEDICATION_MAX_LENGTH", () => {
+    expect(sanitizeMessage("x".repeat(500))).toHaveLength(DEDICATION_MAX_LENGTH);
   });
 });

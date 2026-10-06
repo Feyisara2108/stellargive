@@ -12,6 +12,27 @@ export const sanitizeHtml = (html: string): string => {
   return html;
 };
 
+/** Max dedication length; comfortably under the contract's 250-byte MAX_COMMENT_LEN. */
+export const DEDICATION_MAX_LENGTH = 140;
+
+/**
+ * Reduces a free-text donation dedication to plain text: drops script/style
+ * blocks with their contents, strips any other tags (keeping their text),
+ * removes control characters, collapses whitespace, and caps the length.
+ * Pure string handling so it behaves the same on server and client.
+ */
+export const sanitizeMessage = (message: string): string => {
+  if (!message) return "";
+  return message
+    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, "")
+    .replace(/<[^>]*>/g, "")
+    .replace(/[<>]/g, "")
+    .replace(/[\u0000-\u001F\u007F]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, DEDICATION_MAX_LENGTH);
+};
+
 /**
  * Sanitizes URLs to block javascript:, data:, and vbscript: protocols.
  */
