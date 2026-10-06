@@ -32,7 +32,9 @@ proptest! {
         ) = register_and_setup_without_auth_mock();
 
         let deadline = 2000;
-        let target_amount = 10_000_000_000_i128; // High enough or not, we will pass deadline
+        // Above the largest possible total (20 x 10B) so the goal is never reached and
+        // auto-claim never fires; this test covers the after-deadline claim path.
+        let target_amount = 1_000_000_000_000_i128;
 
         set_timestamp(&env, 1000);
 
@@ -42,23 +44,22 @@ proptest! {
             &bens,
             &String::from_str(&env, "T"),
             &String::from_str(&env, "D"),
-            &String::from_str(&env, "U"),
+            &String::from_str(&env, "https://example.com/meta"),
             &soroban_sdk::symbol_short!("relief"),
             &target_amount,
             &deadline,
             &token_client.address,
             &None,
-            &None,
         );
 
         let mut total_donated: i128 = 0;
-        
+
         // Donate
         for amount in donations {
             let donor = Address::generate(&env);
             token_admin_client.mock_all_auths().mint(&donor, &amount);
-            
-            client.mock_all_auths().donate(&donor, &campaign_id, &amount, &false);
+
+            client.mock_all_auths().donate(&donor, &campaign_id, &amount, &false, &None);
             total_donated += amount;
         }
 
@@ -67,16 +68,16 @@ proptest! {
 
         let pre_platform_balance = token_client.balance(&platform_admin);
         let pre_ben_balance = token_client.balance(&beneficiary);
-        
+
         let expected_fee = calculate_platform_fee(total_donated);
         let expected_net = total_donated - expected_fee;
 
         // Claim
         let claimed = client.mock_all_auths().claim_funds(&beneficiary, &campaign_id);
-        
+
         assert_eq!(claimed, total_donated);
         assert!(expected_net <= total_donated - expected_fee);
-        
+
         let post_platform_balance = token_client.balance(&platform_admin);
         let post_ben_balance = token_client.balance(&beneficiary);
 
