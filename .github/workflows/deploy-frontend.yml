@@ -28,6 +28,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Normalise image name
+        # Registry paths must be lowercase, but repository_owner keeps the
+        # account's casing (Feyisara2108), which Docker rejects.
+        run: echo "IMAGE=${REGISTRY}/${IMAGE_NAME,,}" >> "$GITHUB_ENV"
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
@@ -38,7 +43,7 @@ jobs:
       - name: Pull image
         run: |
           TAG=${GITHUB_REF_NAME#v}
-          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}
+          docker pull ${{ env.IMAGE }}:${TAG}
 
       - name: Deploy via SSH
         if: ${{ env.SSH_HOST != '' }}
@@ -47,13 +52,13 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
-          envs: IMAGE_NAME,REGISTRY,GITHUB_REF_NAME
+          envs: IMAGE,GITHUB_REF_NAME
           script: |
             TAG=${GITHUB_REF_NAME#v}
             export NEXT_PUBLIC_SOROBAN_RPC_URL="${{ secrets.NEXT_PUBLIC_SOROBAN_RPC_URL }}"
             export NEXT_PUBLIC_NETWORK_PASSPHRASE="${{ secrets.NEXT_PUBLIC_NETWORK_PASSPHRASE }}"
             export NEXT_PUBLIC_CONTRACT_ID="${{ secrets.NEXT_PUBLIC_CONTRACT_ID }}"
-            docker pull ${REGISTRY}/${IMAGE_NAME}:${TAG}
+            docker pull ${IMAGE}:${TAG}
             docker stop stellargive-frontend || true
             docker rm stellargive-frontend || true
             docker run -d \
@@ -64,7 +69,7 @@ jobs:
               -e NEXT_PUBLIC_SOROBAN_RPC_URL \
               -e NEXT_PUBLIC_NETWORK_PASSPHRASE \
               -e NEXT_PUBLIC_CONTRACT_ID \
-              ${REGISTRY}/${IMAGE_NAME}:${TAG}
+              ${IMAGE}:${TAG}
 
       - name: Verify deployment
         if: ${{ vars.PRODUCTION_URL != '' }}
