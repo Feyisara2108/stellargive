@@ -906,6 +906,39 @@ export function useAddToWhitelist() {
   });
 }
 
+function usePauseToggle(method: "pause" | "unpause", pending: string, done: string) {
+  const { address } = useWallet();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (_: void) => {
+      if (!address) throw new Error("Wallet not connected");
+      return submitTransaction(address, method, []);
+    },
+    onMutate: () => {
+      const toastId = notify.loading(pending);
+      return { toastId };
+    },
+    onSuccess: (data: any, _variables: void, context: any) => {
+      notify.success(done, { id: context?.toastId, hash: data?.hash });
+      queryClient.invalidateQueries({ queryKey: ["platform-config"] });
+    },
+    onError: (error: any, _variables: void, context: any) => {
+      notify.error(mapTransactionError(error), { id: context?.toastId });
+    },
+  });
+}
+
+/** Admin-only: pauses all state-mutating contract calls. */
+export function usePauseContract() {
+  return usePauseToggle("pause", "Pausing contract...", "Contract paused");
+}
+
+/** Admin-only: resumes state-mutating contract calls. */
+export function useUnpauseContract() {
+  return usePauseToggle("unpause", "Unpausing contract...", "Contract unpaused");
+}
+
 export function useWalletBalance(
   tokenContractId: string | null | undefined,
   address: string | null,
