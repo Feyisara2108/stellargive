@@ -29,13 +29,13 @@ title = "Gitleaks config for stellarGive"
 [[rules]]
   id = "generic-api-key"
   description = "Generic API key"
-  regex = '''(?i)(api[_-]?key|apikey)\s*[:=]\s*['\"]?([A-Za-z0-9\-_]{20,})['\"]?'''
+  regex = '''(?i)(?:api[_-]?key|apikey)\s*[:=]\s*['\"]?([A-Za-z0-9\-_]{20,})['\"]?'''
   tags = ["key", "generic"]
 
 [[rules]]
   id = "generic-secret"
   description = "Generic secret value"
-  regex = '''(?i)(secret|private[_-]?key|token)\s*[:=]\s*['\"]?([A-Za-z0-9\-_\.]{20,})['\"]?'''
+  regex = '''(?i)(?:secret|private[_-]?key|token)\s*[:=]\s*['\"]?([A-Za-z0-9\-_\.]{20,})['\"]?'''
   tags = ["secret", "generic"]
   [rules.allowlist]
     # Values matching these words are documentation/placeholder text
@@ -48,6 +48,17 @@ title = "Gitleaks config for stellarGive"
       '''(?i)xxx''',
       '''(?i)your[-_]?key''',
       '''(?i)fill[-_]?in''',
+      # Code references, not values: property access such as `values.acceptedToken`
+      # or `process.env.SENTRY_AUTH_TOKEN`. Segments are capped at 30 chars so
+      # dotted secrets like JWTs (36+ char segments) are still reported.
+      '''^[A-Za-z_][A-Za-z0-9_]{0,29}(\.[A-Za-z_][A-Za-z0-9_]{0,29})+$''',
+      # SCREAMING_SNAKE constant references such as `NATIVE_XLM_CONTRACT_ID`.
+      # (?-i) is required: gitleaks matches allowlists case-insensitively, which
+      # would otherwise also allow prefixed tokens like `ghp_...` or `sk_live_...`.
+      '''(?-i)^[A-Z][A-Z0-9]{0,19}(_[A-Z0-9]{1,20})+$''',
+      # Public Stellar account (G...) and contract (C...) addresses; secret keys
+      # start with S and are caught by the stellar-secret-key rule.
+      '''(?-i)^[GC][A-Z2-7]{55}$''',
     ]
 
 [[rules]]
