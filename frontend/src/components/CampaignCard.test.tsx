@@ -55,15 +55,17 @@ vi.mock("@/components/DonateModal", () => ({
     campaign: Campaign;
     open?: boolean;
     suggestedAmount?: string;
-  }) => (
-    <button
-      data-testid="donate-modal"
-      data-open={open ? "true" : "false"}
-      data-suggested-amount={suggestedAmount ?? ""}
-    >
-      Donate to {campaign.title}
-    </button>
-  ),
+  }) =>
+    // Mirrors the real contract: DonateModal renders no trigger unless the campaign is Active.
+    campaign.status !== "Active" ? null : (
+      <button
+        data-testid="donate-modal"
+        data-open={open ? "true" : "false"}
+        data-suggested-amount={suggestedAmount ?? ""}
+      >
+        Donate to {campaign.title}
+      </button>
+    ),
 }));
 
 vi.mock("@/components/ClaimButton", () => ({

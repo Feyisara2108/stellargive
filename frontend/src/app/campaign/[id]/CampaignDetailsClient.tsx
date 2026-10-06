@@ -493,26 +493,30 @@ export function CampaignDetailsClient({
         </DialogContent>
       </Dialog>
 
-      {/* Donate modal (controlled) and sticky mobile CTA */}
+      {/* Donate modal (controlled). Always mounted when a campaign is loaded: it hides
+          itself unless Active, but keeps the success dialog alive if this donation
+          is the one that flips the campaign to Funded. */}
+      {campaign && (
+        <DonateModal
+          campaign={campaign}
+          open={donateOpen}
+          onOpenChange={setDonateOpen}
+          suggestedAmount={donateAmount}
+        />
+      )}
+
+      {/* Sticky mobile CTA */}
       {campaign?.status === "Active" && (
-        <>
-          <DonateModal
-            campaign={campaign}
-            open={donateOpen}
-            onOpenChange={setDonateOpen}
-            suggestedAmount={donateAmount}
-          />
-          <StickyDonateBar
-            onOpen={() => {
-              setDonateAmount(undefined);
-              setDonateOpen(true);
-            }}
-            disabled={!address || isWrongNetwork}
-            hidden={headerVisible}
-            title={campaign.title}
-            progressPercent={progressPercent}
-          />
-        </>
+        <StickyDonateBar
+          onOpen={() => {
+            setDonateAmount(undefined);
+            setDonateOpen(true);
+          }}
+          disabled={!address || isWrongNetwork}
+          hidden={headerVisible}
+          title={campaign.title}
+          progressPercent={progressPercent}
+        />
       )}
     </div>
   );

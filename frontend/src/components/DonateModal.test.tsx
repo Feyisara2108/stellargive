@@ -133,6 +133,16 @@ describe("DonateModal", () => {
     });
   });
 
+  describe("campaign status", () => {
+    it.each(["Funded", "Expired", "Claimed", "Cancelled"] as const)(
+      "renders no donate trigger for %s campaigns",
+      (status) => {
+        render(<DonateModal campaign={{ ...baseCampaign, status }} />);
+        expect(screen.queryByRole("button", { name: /Donate Now/i })).not.toBeInTheDocument();
+      },
+    );
+  });
+
   describe("dedication message", () => {
     it("shows a live counter and enforces the 140 character limit", async () => {
       render(<DonateModal campaign={baseCampaign} />);

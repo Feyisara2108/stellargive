@@ -240,284 +240,294 @@ export function DonateModal({
     }
   };
 
+  // Only Active campaigns take donations, but the success dialog below must outlive
+  // the status flip when this donation is the one that reaches the goal.
+  const acceptingDonations = campaign.status === "Active";
+
   return (
     <>
-      <Dialog
-        open={isOpen}
-        onOpenChange={(open) => {
-          if (!donate.isPending) {
-            setIsOpen(open);
-            if (!open) {
-              setSubmitError(null);
-              clearErrors();
+      {acceptingDonations && (
+        <Dialog
+          open={isOpen}
+          onOpenChange={(open) => {
+            if (!donate.isPending) {
+              setIsOpen(open);
+              if (!open) {
+                setSubmitError(null);
+                clearErrors();
+              }
             }
-          }
-        }}
-      >
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="relative flex-1 block">
-              <DialogTrigger asChild>
-                <Button
-                  className="w-full"
-                  disabled={!address || isWrongNetwork}
-                  aria-describedby={
-                    !address || isWrongNetwork ? "donate-disabled-reason" : undefined
-                  }
-                >
-                  Donate Now
-                </Button>
-              </DialogTrigger>
-            </span>
-          </TooltipTrigger>
-          {(!address || isWrongNetwork) && (
-            <TooltipContent side="top" id="donate-disabled-reason">
-              {!address
-                ? "Connect your wallet to donate"
-                : "Please switch wallet network to Stellar Testnet"}
-            </TooltipContent>
-          )}
-        </Tooltip>
-        <DialogContent
-          aria-labelledby="donate-dialog-title"
-          onPointerDownOutside={(e) => {
-            if (donate.isPending) e.preventDefault();
-          }}
-          onEscapeKeyDown={(e) => {
-            if (donate.isPending) e.preventDefault();
           }}
         >
-          <DialogHeader>
-            <DialogTitle id="donate-dialog-title">Donate to {campaign.title}</DialogTitle>
-            <DialogDescription>
-              Enter the amount of tokens you wish to contribute to this relief campaign.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="amount">Amount</Label>
-                {canFundRest && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="relative flex-1 block">
+                <DialogTrigger asChild>
                   <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-6 px-2 text-xs"
-                    onClick={() =>
-                      setValue("amount", formatNum(remaining), { shouldValidate: true })
+                    className="w-full"
+                    disabled={!address || isWrongNetwork}
+                    aria-describedby={
+                      !address || isWrongNetwork ? "donate-disabled-reason" : undefined
                     }
-                    disabled={donate.isPending}
                   >
-                    Fund the rest
+                    Donate Now
                   </Button>
-                )}
-              </div>
-              <Input
-                id="amount"
-                inputMode="decimal"
-                autoComplete="off"
-                placeholder="10.0"
-                autoFocus
-                aria-invalid={errors.amount ? "true" : "false"}
-                aria-describedby={errors.amount ? "amount-error" : "amount-hint"}
-                {...register("amount", {
-                  required: "Amount is required",
-                  pattern: {
-                    value: /^\d*\.?\d*$/,
-                    message: "Enter a valid number",
-                  },
-                  validate: (value) => {
-                    const num = Number(value);
-                    if (isNaN(num)) return "Enter a valid number";
-                    const parts = value.split(".");
-                    if (parts.length > 1 && parts[1].length > decimals)
-                      return `Maximum ${decimals} decimal places`;
-                    if (num < minDonation)
-                      return `Minimum donation is ${formatNum(minDonation)} ${symbol}`;
-                    if (num > remaining) return "This exceeds the remaining goal";
-                    if (balanceTokens !== null && num > balanceTokens)
-                      return `Insufficient balance — you have ${formatNum(balanceTokens)} ${symbol}`;
-                    return true;
-                  },
-                })}
-                disabled={donate.isPending}
-              />
-              <div
-                className="flex flex-wrap gap-1.5 pt-1"
-                role="group"
-                aria-label="Preset donation values"
-              >
-                {[10, 50, 100].map((presetVal) => {
-                  const isActive =
-                    !!amount && !isNaN(Number(amount)) && Number(amount) === presetVal;
-                  return (
+                </DialogTrigger>
+              </span>
+            </TooltipTrigger>
+            {(!address || isWrongNetwork) && (
+              <TooltipContent side="top" id="donate-disabled-reason">
+                {!address
+                  ? "Connect your wallet to donate"
+                  : "Please switch wallet network to Stellar Testnet"}
+              </TooltipContent>
+            )}
+          </Tooltip>
+          <DialogContent
+            aria-labelledby="donate-dialog-title"
+            onPointerDownOutside={(e) => {
+              if (donate.isPending) e.preventDefault();
+            }}
+            onEscapeKeyDown={(e) => {
+              if (donate.isPending) e.preventDefault();
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle id="donate-dialog-title">Donate to {campaign.title}</DialogTitle>
+              <DialogDescription>
+                Enter the amount of tokens you wish to contribute to this relief campaign.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="amount">Amount</Label>
+                  {canFundRest && (
                     <Button
-                      key={presetVal}
                       type="button"
-                      variant={isActive ? "default" : "outline"}
+                      variant="outline"
                       size="sm"
-                      className={cn(
-                        "h-7 px-3 text-xs rounded-full transition-colors",
-                        isActive && "font-semibold shadow-sm",
-                      )}
+                      className="h-6 px-2 text-xs"
                       onClick={() =>
-                        setValue("amount", presetVal.toString(), { shouldValidate: true })
+                        setValue("amount", formatNum(remaining), { shouldValidate: true })
                       }
                       disabled={donate.isPending}
                     >
-                      {presetVal} {symbol}
+                      Fund the rest
                     </Button>
-                  );
-                })}
-                {remaining > 0 && (
-                  <Button
-                    type="button"
-                    variant={
-                      !!amount &&
-                      !isNaN(Number(amount)) &&
-                      Number(amount) > 0 &&
-                      Math.abs(Number(amount) - remaining) < 0.0000001
-                        ? "default"
-                        : "outline"
-                    }
-                    size="sm"
-                    className={cn(
-                      "h-7 px-3 text-xs rounded-full transition-colors",
-                      !!amount &&
+                  )}
+                </div>
+                <Input
+                  id="amount"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  placeholder="10.0"
+                  autoFocus
+                  aria-invalid={errors.amount ? "true" : "false"}
+                  aria-describedby={errors.amount ? "amount-error" : "amount-hint"}
+                  {...register("amount", {
+                    required: "Amount is required",
+                    pattern: {
+                      value: /^\d*\.?\d*$/,
+                      message: "Enter a valid number",
+                    },
+                    validate: (value) => {
+                      const num = Number(value);
+                      if (isNaN(num)) return "Enter a valid number";
+                      const parts = value.split(".");
+                      if (parts.length > 1 && parts[1].length > decimals)
+                        return `Maximum ${decimals} decimal places`;
+                      if (num < minDonation)
+                        return `Minimum donation is ${formatNum(minDonation)} ${symbol}`;
+                      if (num > remaining) return "This exceeds the remaining goal";
+                      if (balanceTokens !== null && num > balanceTokens)
+                        return `Insufficient balance — you have ${formatNum(balanceTokens)} ${symbol}`;
+                      return true;
+                    },
+                  })}
+                  disabled={donate.isPending}
+                />
+                <div
+                  className="flex flex-wrap gap-1.5 pt-1"
+                  role="group"
+                  aria-label="Preset donation values"
+                >
+                  {[10, 50, 100].map((presetVal) => {
+                    const isActive =
+                      !!amount && !isNaN(Number(amount)) && Number(amount) === presetVal;
+                    return (
+                      <Button
+                        key={presetVal}
+                        type="button"
+                        variant={isActive ? "default" : "outline"}
+                        size="sm"
+                        className={cn(
+                          "h-7 px-3 text-xs rounded-full transition-colors",
+                          isActive && "font-semibold shadow-sm",
+                        )}
+                        onClick={() =>
+                          setValue("amount", presetVal.toString(), { shouldValidate: true })
+                        }
+                        disabled={donate.isPending}
+                      >
+                        {presetVal} {symbol}
+                      </Button>
+                    );
+                  })}
+                  {remaining > 0 && (
+                    <Button
+                      type="button"
+                      variant={
+                        !!amount &&
                         !isNaN(Number(amount)) &&
                         Number(amount) > 0 &&
-                        Math.abs(Number(amount) - remaining) < 0.0000001 &&
-                        "font-semibold shadow-sm",
-                    )}
-                    onClick={() =>
-                      setValue("amount", formatNum(remaining), { shouldValidate: true })
-                    }
-                    disabled={donate.isPending}
+                        Math.abs(Number(amount) - remaining) < 0.0000001
+                          ? "default"
+                          : "outline"
+                      }
+                      size="sm"
+                      className={cn(
+                        "h-7 px-3 text-xs rounded-full transition-colors",
+                        !!amount &&
+                          !isNaN(Number(amount)) &&
+                          Number(amount) > 0 &&
+                          Math.abs(Number(amount) - remaining) < 0.0000001 &&
+                          "font-semibold shadow-sm",
+                      )}
+                      onClick={() =>
+                        setValue("amount", formatNum(remaining), { shouldValidate: true })
+                      }
+                      disabled={donate.isPending}
+                    >
+                      Fund Remaining
+                    </Button>
+                  )}
+                </div>
+                <div className="flex items-center justify-between">
+                  <span
+                    id="amount-hint"
+                    className="text-xs text-muted-foreground"
+                    role="status"
+                    aria-live="polite"
                   >
-                    Fund Remaining
-                  </Button>
-                )}
-              </div>
-              <div className="flex items-center justify-between">
-                <span
-                  id="amount-hint"
-                  className="text-xs text-muted-foreground"
-                  role="status"
-                  aria-live="polite"
-                >
-                  {liveRemaining > 0
-                    ? `${formatNum(liveRemaining)} ${symbol} left to reach the goal`
-                    : amount && Number(amount) > 0
-                      ? "This will fully fund the campaign!"
-                      : `${formatNum(remaining)} ${symbol} left to reach the goal`}
-                </span>
-                {/* Always render the balance slot so the row height is stable.
+                    {liveRemaining > 0
+                      ? `${formatNum(liveRemaining)} ${symbol} left to reach the goal`
+                      : amount && Number(amount) > 0
+                        ? "This will fully fund the campaign!"
+                        : `${formatNum(remaining)} ${symbol} left to reach the goal`}
+                  </span>
+                  {/* Always render the balance slot so the row height is stable.
                     Skeleton while loading → value once resolved → nothing if
                     no address (slot collapses naturally when empty). */}
-                <span className="text-xs text-muted-foreground min-w-[6rem] text-right">
-                  {walletBalance.isLoading ? (
-                    <Skeleton className="h-3 w-24 inline-block" aria-label="Loading balance" />
-                  ) : balanceTokens !== null ? (
-                    `Balance: ${formatNum(balanceTokens)} ${symbol}`
-                  ) : null}
-                </span>
+                  <span className="text-xs text-muted-foreground min-w-[6rem] text-right">
+                    {walletBalance.isLoading ? (
+                      <Skeleton className="h-3 w-24 inline-block" aria-label="Loading balance" />
+                    ) : balanceTokens !== null ? (
+                      `Balance: ${formatNum(balanceTokens)} ${symbol}`
+                    ) : null}
+                  </span>
+                </div>
+                {errors.amount && (
+                  <span
+                    id="amount-error"
+                    className="text-xs text-red-500 mt-1"
+                    role="alert"
+                    aria-live="polite"
+                  >
+                    {errors.amount.message}
+                  </span>
+                )}
               </div>
-              {errors.amount && (
-                <span
-                  id="amount-error"
-                  className="text-xs text-red-500 mt-1"
-                  role="alert"
-                  aria-live="polite"
-                >
-                  {errors.amount.message}
-                </span>
-              )}
-            </div>
-            <div className="grid gap-1">
-              <div className="flex items-center space-x-2 pt-2">
-                <input
-                  id="anonymous"
-                  type="checkbox"
-                  checked={isAnonymous}
-                  onChange={(e) => setIsAnonymous(e.target.checked)}
+              <div className="grid gap-1">
+                <div className="flex items-center space-x-2 pt-2">
+                  <input
+                    id="anonymous"
+                    type="checkbox"
+                    checked={isAnonymous}
+                    onChange={(e) => setIsAnonymous(e.target.checked)}
+                    disabled={donate.isPending}
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary accent-primary cursor-pointer"
+                  />
+                  <Label
+                    htmlFor="anonymous"
+                    className="cursor-pointer select-none text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    Donate anonymously
+                  </Label>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                  Hides your address in the public event feed and leaderboard. Ledger records will
+                  still show the transfer.
+                </p>
+              </div>
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="dedication">Dedication message (optional)</Label>
+                  <span
+                    id="dedication-counter"
+                    className="text-xs text-muted-foreground"
+                    aria-live="polite"
+                  >
+                    {message.length}/{DEDICATION_MAX_LENGTH}
+                  </span>
+                </div>
+                <Input
+                  id="dedication"
+                  autoComplete="off"
+                  maxLength={DEDICATION_MAX_LENGTH}
+                  placeholder="In memory of…"
+                  aria-describedby="dedication-counter"
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value.slice(0, DEDICATION_MAX_LENGTH))}
                   disabled={donate.isPending}
-                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary accent-primary cursor-pointer"
                 />
-                <Label
-                  htmlFor="anonymous"
-                  className="cursor-pointer select-none text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  Donate anonymously
-                </Label>
               </div>
-              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                Hides your address in the public event feed and leaderboard. Ledger records will
-                still show the transfer.
-              </p>
             </div>
-            <div className="grid gap-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="dedication">Dedication message (optional)</Label>
-                <span
-                  id="dedication-counter"
-                  className="text-xs text-muted-foreground"
-                  aria-live="polite"
-                >
-                  {message.length}/{DEDICATION_MAX_LENGTH}
-                </span>
-              </div>
-              <Input
-                id="dedication"
-                autoComplete="off"
-                maxLength={DEDICATION_MAX_LENGTH}
-                placeholder="In memory of…"
-                aria-describedby="dedication-counter"
-                value={message}
-                onChange={(e) => setMessage(e.target.value.slice(0, DEDICATION_MAX_LENGTH))}
-                disabled={donate.isPending}
-              />
-            </div>
-          </div>
-          {/* Fee estimate row — always occupies space so GasWarning arrival
+            {/* Fee estimate row — always occupies space so GasWarning arrival
               does not shift the footer. Three states:
               1. No amount entered yet → invisible placeholder preserving height.
               2. Amount entered, estimate in-flight → "Estimating fee…" pulse.
               3. Estimate resolved → GasWarning (or nothing if data is null). */}
-          <div className="min-h-[2.5rem]" aria-live="polite" aria-atomic="true">
-            {feeEstimate.isFetching && feeEstimate.data == null ? (
-              <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                <Loader2 className="h-3 w-3 animate-spin shrink-0" aria-hidden="true" />
-                <span>Estimating network fee…</span>
-              </div>
-            ) : feeEstimate.isError && feeEstimate.data == null ? (
-              <GasWarning feeError onRetry={() => feeEstimate.refetch()} />
-            ) : feeEstimate.data != null ? (
-              <GasWarning estimatedFeeStroops={feeEstimate.data} />
-            ) : null}
-          </div>
-          {submitError && (
-            <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-              <span>{submitError}</span>
+            <div className="min-h-[2.5rem]" aria-live="polite" aria-atomic="true">
+              {feeEstimate.isFetching && feeEstimate.data == null ? (
+                <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin shrink-0" aria-hidden="true" />
+                  <span>Estimating network fee…</span>
+                </div>
+              ) : feeEstimate.isError && feeEstimate.data == null ? (
+                <GasWarning feeError onRetry={() => feeEstimate.refetch()} />
+              ) : feeEstimate.data != null ? (
+                <GasWarning estimatedFeeStroops={feeEstimate.data} />
+              ) : null}
             </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsOpen(false)} disabled={donate.isPending}>
-              Cancel
-            </Button>
-            <Button onClick={handleSubmit(onSubmit)} disabled={donate.isPending || !isValid}>
-              {donate.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Donating...
-                </>
-              ) : (
-                "Confirm Donation"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            {submitError && (
+              <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>{submitError}</span>
+              </div>
+            )}
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setIsOpen(false)}
+                disabled={donate.isPending}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleSubmit(onSubmit)} disabled={donate.isPending || !isValid}>
+                {donate.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Donating...
+                  </>
+                ) : (
+                  "Confirm Donation"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {showSuccess && (
         <Dialog

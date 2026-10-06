@@ -354,14 +354,13 @@ function CampaignCardComponent({
       )}
       {!isPreview && (
         <CardFooter className="gap-2">
-          {campaign.status === "Active" && (
-            <DonateModal
-              campaign={campaign}
-              open={donateOpen}
-              onOpenChange={setDonateOpen}
-              suggestedAmount={donateAmount}
-            />
-          )}
+          {/* Renders nothing for non-Active campaigns except a pending success dialog. */}
+          <DonateModal
+            campaign={campaign}
+            open={donateOpen}
+            onOpenChange={setDonateOpen}
+            suggestedAmount={donateAmount}
+          />
           <ClaimButton campaign={campaign} />
           <div className="ml-auto flex items-center gap-2">
             <BookmarkButton campaignId={campaign.id} title={campaign.title} />

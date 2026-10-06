@@ -81,7 +81,8 @@ function CampaignClaimFlowView({ campaignId }: { campaignId: bigint }) {
         targetAmount={campaign.target_amount}
       />
 
-      {campaign.status === "Active" && <DonateModal campaign={campaign} />}
+      {/* Mirrors the campaign page: DonateModal hides itself unless Active. */}
+      <DonateModal campaign={campaign} />
       <ClaimButton campaign={campaign} />
     </div>
   );
