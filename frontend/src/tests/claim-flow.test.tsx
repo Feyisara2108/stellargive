@@ -251,18 +251,20 @@ describe("Integration: claim funds flow from goal funding to beneficiary claim",
       );
     });
 
-    // (b) Button transitions to "Claimed" and is disabled
-    const claimedButton = await screen.findByRole("button", { name: /Claimed/i });
-    expect(claimedButton).toBeDisabled();
+    // (b) The claim button is replaced by the post-claim celebration (#955)
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: /Claim Funds/i })).not.toBeInTheDocument();
+    });
+    expect(screen.getAllByRole("status").some((el) => /Claimed/.test(el.textContent ?? ""))).toBe(
+      true,
+    );
 
-    // (c) Refetched campaign reflects Claimed status
+    // (c) Refetched campaign reflects Claimed status, and the celebration persists
     await waitFor(() => {
       expect(screen.getByTestId("campaign-status")).toHaveTextContent("Status: Claimed");
     });
-
-    // (d) Tooltip surfaces that funds have already been claimed
-    fireEvent.mouseEnter(claimedButton.parentElement as HTMLElement);
-    expect(await screen.findByText("Funds have already been claimed")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Claim Funds/i })).not.toBeInTheDocument();
+    // The "already claimed" tooltip for campaigns loaded as Claimed is covered in ClaimButton.test.
   });
 
   it("prevents non-beneficiary users from claiming campaign funds", async () => {
