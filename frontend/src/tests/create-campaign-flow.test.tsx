@@ -32,10 +32,12 @@ vi.mock("sonner", () => ({
 }));
 
 const submitTransactionMock = vi.hoisted(() => vi.fn());
-const TOKEN_CONTRACT = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
+// Hoisted so the vi.mock factories below (also hoisted) can reference it.
+const TOKEN_CONTRACT = vi.hoisted(() => "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC");
 const VALID_BENEFICIARY = "GA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVSGZ";
 
-vi.mock("@/lib/soroban", () => ({
+vi.mock("@/lib/soroban", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/soroban")>()),
   CONTRACT_ID: "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
   submitTransaction: submitTransactionMock,
   estimateFee: vi.fn().mockResolvedValue(null),
@@ -94,8 +96,6 @@ function renderCreateCampaignFlow() {
 }
 
 describe("Integration: campaign creation flow with IPFS upload mock", () => {
-  let originalXhr: typeof XMLHttpRequest;
-
   beforeEach(() => {
     sessionStorage.clear();
     submitTransactionMock.mockReset();
@@ -124,7 +124,6 @@ describe("Integration: campaign creation flow with IPFS upload mock", () => {
     );
 
     // Bridge XMLHttpRequest to MSW's fetch in jsdom test environment
-    originalXhr = window.XMLHttpRequest;
     class InterceptedXMLHttpRequest {
       status = 0;
       responseText = "";
@@ -157,11 +156,11 @@ describe("Integration: campaign creation flow with IPFS upload mock", () => {
       });
     }
 
-    window.XMLHttpRequest = InterceptedXMLHttpRequest as any;
+    vi.stubGlobal("XMLHttpRequest", InterceptedXMLHttpRequest);
   });
 
   afterEach(() => {
-    window.XMLHttpRequest = originalXhr;
+    vi.unstubAllGlobals();
     delete (window as any).__mockWalletAddress;
     sessionStorage.clear();
   });
@@ -169,16 +168,14 @@ describe("Integration: campaign creation flow with IPFS upload mock", () => {
   it("validates gating across input steps, uploads image to IPFS, and submits create_campaign mutation with exact on-chain arguments", async () => {
     renderCreateCampaignFlow();
 
-    // 1. Initial validation gating: Empty form keeps submit button disabled
-    const submitBtn = screen.getByRole("button", { name: /Launch Campaign/i });
-    expect(submitBtn).toBeDisabled();
+    // 1. Initial gating: the wizard opens on Details, so there is no submit button yet
+    expect(screen.queryByRole("button", { name: /Launch Campaign/i })).not.toBeInTheDocument();
 
     // 2. Validate title constraint gating (< 5 characters)
     const titleInput = screen.getByPlaceholderText(/Flood Relief 2024/i);
     fireEvent.change(titleInput, { target: { value: "Help" } });
     fireEvent.blur(titleInput);
     expect(await screen.findByText(/Title must be at least 5 characters/i)).toBeInTheDocument();
-    expect(submitBtn).toBeDisabled();
 
     // Enter valid title
     fireEvent.change(titleInput, { target: { value: "Disaster Relief Fund 2026" } });
@@ -191,7 +188,6 @@ describe("Integration: campaign creation flow with IPFS upload mock", () => {
     expect(
       await screen.findByText(/Description must be at least 10 characters/i),
     ).toBeInTheDocument();
-    expect(submitBtn).toBeDisabled();
 
     // Enter valid description
     const validDesc =
@@ -204,7 +200,6 @@ describe("Integration: campaign creation flow with IPFS upload mock", () => {
     fireEvent.change(beneficiaryInput, { target: { value: "invalid-stellar-key" } });
     fireEvent.blur(beneficiaryInput);
     expect(await screen.findByText(/Invalid Stellar address/i)).toBeInTheDocument();
-    expect(submitBtn).toBeDisabled();
 
     // Enter valid beneficiary address
     fireEvent.change(beneficiaryInput, { target: { value: VALID_BENEFICIARY } });
@@ -218,7 +213,6 @@ describe("Integration: campaign creation flow with IPFS upload mock", () => {
     fireEvent.change(targetInput, { target: { value: "0.5" } });
     fireEvent.blur(targetInput);
     expect(await screen.findByText(/Target must be at least 1\.0/i)).toBeInTheDocument();
-    expect(submitBtn).toBeDisabled();
 
     // Enter valid target amount
     fireEvent.change(targetInput, { target: { value: "250" } });
@@ -252,7 +246,12 @@ describe("Integration: campaign creation flow with IPFS upload mock", () => {
       expect(screen.getByText(`CID: ${MOCK_METADATA_URI}`)).toBeInTheDocument();
     });
 
-    // 9. All required steps and validations are satisfied -> Submit button enables
+    // 9. All fields are valid -> walk Details -> Funding -> Review, where submit enables
+    fireEvent.click(screen.getByRole("button", { name: /Continue/i }));
+    await screen.findByText(/Step 2 of 3/i);
+    fireEvent.click(screen.getByRole("button", { name: /Continue/i }));
+    await screen.findByText(/Step 3 of 3/i);
+    const submitBtn = screen.getByRole("button", { name: /Launch Campaign/i });
     await waitFor(() => {
       expect(submitBtn).toBeEnabled();
     });
