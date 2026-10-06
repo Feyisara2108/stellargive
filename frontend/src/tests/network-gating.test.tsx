@@ -197,6 +197,7 @@ describe("Integration: wrong-network action gating across actions", () => {
 
     fireEvent.mouseEnter(claimButton.parentElement as HTMLElement);
     expect(await screen.findByText(WRONG_NETWORK_REASON)).toBeInTheDocument();
+    fireEvent.mouseLeave(claimButton.parentElement as HTMLElement);
 
     fireEvent.mouseEnter(refundButton.parentElement as HTMLElement);
     expect(await screen.findByText(WRONG_NETWORK_REASON)).toBeInTheDocument();

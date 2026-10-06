@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useClaimRefund, useRefundEligibility } from "@/hooks/useSoroban";
+import { useWallet } from "@/lib/WalletProvider";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,6 +19,7 @@ const ELIGIBILITY_EXPLAINER =
   "Refunds are available when a campaign is cancelled, or when it expired without reaching its funding goal.";
 const INELIGIBLE_REASON =
   "Not refundable: the campaign must be cancelled or expired unfunded, and this wallet must have a refundable donation.";
+const WRONG_NETWORK_REASON = "Please switch wallet network to Stellar Testnet";
 
 export function RefundButton({
   campaignId,
@@ -33,6 +35,7 @@ export function RefundButton({
   refundAmount?: string;
 }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const { isWrongNetwork } = useWallet();
   const { data: isEligible, isLoading: isCheckingEligibility } = useRefundEligibility(
     campaignId,
     isCancelled,
@@ -76,24 +79,36 @@ export function RefundButton({
 
   return (
     <div className="space-y-1">
-      <Button
-        variant="outline"
-        className="border-primary text-primary hover:bg-primary/10 gap-2"
-        disabled={claimRefund.isPending}
-        onClick={() => setConfirmOpen(true)}
-      >
-        {claimRefund.isPending ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Claiming refund...
-          </>
-        ) : (
-          <>
-            <RefreshCcw className="h-4 w-4" />
-            Claim refund
-          </>
+      <Tooltip>
+        <TooltipTrigger>
+          <span className="relative">
+            <Button
+              variant="outline"
+              className="border-primary text-primary hover:bg-primary/10 gap-2"
+              disabled={claimRefund.isPending || isWrongNetwork}
+              aria-describedby={isWrongNetwork ? "refund-disabled-reason" : undefined}
+              onClick={() => setConfirmOpen(true)}
+            >
+              {claimRefund.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Claiming refund...
+                </>
+              ) : (
+                <>
+                  <RefreshCcw className="h-4 w-4" />
+                  Claim refund
+                </>
+              )}
+            </Button>
+          </span>
+        </TooltipTrigger>
+        {isWrongNetwork && (
+          <TooltipContent side="top" id="refund-disabled-reason">
+            {WRONG_NETWORK_REASON}
+          </TooltipContent>
         )}
-      </Button>
+      </Tooltip>
       <p className="text-xs text-muted-foreground">{ELIGIBILITY_EXPLAINER}</p>
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
