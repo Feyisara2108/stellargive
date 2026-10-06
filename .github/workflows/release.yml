@@ -233,7 +233,7 @@ jobs:
 
             // ── 4. Group PRs by label ────────────────────────────────────────
             // Label → display section title mapping, in display order.
-            // Labels are sourced from the repo's create-labels.sh and ISSUES.md.
+            // Labels match the repository's GitHub labels.
             const CATEGORY_ORDER = [
               { label: 'enhancement', title: '🚀 Features' },
               { label: 'frontend',    title: '🖥️  Frontend' },
