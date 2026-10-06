@@ -80,3 +80,7 @@ IMPLEMENTATION_COMPLETE.md
 frontend/next-env.d.ts
 frontend/AGENTS.md
 frontend/CLAUDE.md
+
+# Playwright writes local baselines for non-CI platforms; CI compares Linux ones
+frontend/e2e/**/*-darwin.png
+frontend/e2e/**/*-win32.png
