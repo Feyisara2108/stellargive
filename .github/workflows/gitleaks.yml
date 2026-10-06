@@ -77,6 +77,9 @@ jobs:
           cp "$FIXTURE" "$SCAN_DIR/"
 
           # gitleaks exits 1 when leaks are found, 0 when clean, 126/other on error.
+          # Actions runs this script with `bash -e`, so capture the status with `||`;
+          # a bare non-zero exit would abort the step before it is recorded.
+          GITLEAKS_EXIT=0
           gitleaks detect \
             --config .gitleaks.toml \
             --source "$SCAN_DIR" \
@@ -84,7 +87,7 @@ jobs:
             --report-format json \
             --report-path /tmp/gitleaks-fixture-report.json \
             --exit-code 1 \
-          ; GITLEAKS_EXIT=$?
+            || GITLEAKS_EXIT=$?
 
           echo "gitleaks exit code: $GITLEAKS_EXIT"
 
