@@ -100,6 +100,17 @@ export function Tooltip({
     };
   }, []);
 
+  // WCAG 1.4.13: an open tooltip must be dismissible with Escape even when it was
+  // opened by hover and keyboard focus is elsewhere on the page.
+  React.useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open, setOpen]);
+
   const baseId = React.useId();
   const triggerId = `${baseId}-trigger`;
   const contentId = `${baseId}-tooltip`;
