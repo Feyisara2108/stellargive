@@ -8,6 +8,9 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
+    // jsdom + axe audits and full integration flows exceed the 5s default when the
+    // suite runs in parallel (and on slower CI runners), causing load-dependent flakes.
+    testTimeout: 20_000,
     exclude: ["**/node_modules/**", "**/dist/**", "**/e2e/**"],
     coverage: {
       provider: "v8",

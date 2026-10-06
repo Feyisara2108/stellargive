@@ -64,3 +64,31 @@ Object.defineProperty(window, "IntersectionObserver", {
   configurable: true,
   value: MockIntersectionObserver,
 });
+
+// Components that call useRouter()/usePathname() crash outside a mounted App Router.
+// Default to inert stubs; tests that assert on navigation can still vi.mock this module.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    prefetch: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    refresh: vi.fn(),
+  }),
+  usePathname: () => "/",
+  useSearchParams: () => new URLSearchParams(),
+  useParams: () => ({}),
+  notFound: vi.fn(),
+  redirect: vi.fn(),
+}));
+
+// jsdom lacks the pointer-capture and scrolling APIs Radix primitives call.
+if (!Element.prototype.hasPointerCapture) {
+  Element.prototype.hasPointerCapture = () => false;
+  Element.prototype.setPointerCapture = () => {};
+  Element.prototype.releasePointerCapture = () => {};
+}
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {};
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render } from "@testing-library/react";
+import { render } from "@/test/render";
 import { axe, toHaveNoViolations } from "jest-axe";
 import React from "react";
 
@@ -84,6 +84,9 @@ vi.mock("@/hooks/useSoroban", () => ({
     data: {},
     isLoading: false,
   }),
+  useResolvedName: () => ({ data: null, isFetching: false }),
+  useTokenMetadata: () => ({ data: undefined, isLoading: false }),
+  useXlmPrice: () => ({ data: undefined, isLoading: false }),
 }));
 
 // Mock WalletProvider
@@ -176,7 +179,7 @@ describe("Core Pages Accessibility Suite", () => {
   });
 
   it("Campaign Detail page accessibility", async () => {
-    const { container } = render(<CampaignDetailsClient params={{ id: "1" }} />);
+    const { container } = render(<CampaignDetailsClient params={{ id: "1" }} breadcrumbs={[]} />);
     await checkAccessibility(container);
   });
 
