@@ -22,32 +22,53 @@ export function campaignMatchesTerm(campaign: Campaign, term: string): boolean {
   const fieldMatch = SEARCHABLE_FIELDS.some((field) => {
     const value = String(campaign[field] ?? "").toLowerCase();
     // All query words must match the field value.
-    return words.every((w) => value.includes(w) || fuzzyScore(w, value) >= 0.6);
+    return words.every((w) => value.includes(w) || fuzzyWordMatch(w, value));
   });
   if (fieldMatch) return true;
 
   // Also search across free-form tags (joined as a single haystack).
   if (campaign.tags && campaign.tags.length > 0) {
     const tagsHaystack = campaign.tags.join(" ").toLowerCase();
-    return words.every((w) => tagsHaystack.includes(w) || fuzzyScore(w, tagsHaystack) >= 0.6);
+    return words.every((w) => tagsHaystack.includes(w) || fuzzyWordMatch(w, tagsHaystack));
   }
 
   return false;
 }
 
-/**
- * Simple fuzzy score: what fraction of `pattern` characters appear in `text`
- * in order (not necessarily contiguous). Returns 0–1 where 1 is a perfect
- * subsequence match. Used as a fallback when substring match misses, so
- * minor typos still surface relevant results.
- */
-function fuzzyScore(pattern: string, text: string): number {
-  if (!pattern) return 1;
-  let pi = 0;
-  for (let ti = 0; ti < text.length && pi < pattern.length; ti++) {
-    if (text[ti] === pattern[pi]) pi++;
+/** Shortest query word that gets typo tolerance; shorter words match too loosely. */
+const FUZZY_MIN_LENGTH = 4;
+
+/** True when `a` and `b` differ by at most one insertion, deletion, or substitution. */
+function withinOneEdit(a: string, b: string): boolean {
+  if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0;
+  let j = 0;
+  let edits = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) {
+      i++;
+      j++;
+      continue;
+    }
+    if (++edits > 1) return false;
+    if (a.length > b.length) i++;
+    else if (b.length > a.length) j++;
+    else {
+      i++;
+      j++;
+    }
   }
-  return pi / pattern.length;
+  return edits + (a.length - i) + (b.length - j) <= 1;
+}
+
+/**
+ * Typo-tolerant fallback for when substring matching misses: `word` matches if
+ * some single word in `text` is within one edit of it (e.g. "watr" -> "water").
+ * Comparing whole words keeps long descriptions from matching everything.
+ */
+function fuzzyWordMatch(word: string, text: string): boolean {
+  if (word.length < FUZZY_MIN_LENGTH) return false;
+  return text.split(/[^\p{L}\p{N}]+/u).some((token) => withinOneEdit(word, token));
 }
 
 /**

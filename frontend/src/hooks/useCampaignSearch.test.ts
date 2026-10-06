@@ -74,11 +74,21 @@ describe("campaignMatchesTerm", () => {
     expect(campaignMatchesTerm(campaign, "earthquake")).toBe(false);
   });
 
-  it("does not perform fuzzy/typo-tolerant matching (exact substring only)", () => {
-    // "watr" is a one-letter-dropped typo of "water" — a fuzzy matcher would
-    // typically still match this; the current implementation does not.
+  it("tolerates a single-letter typo against a whole word", () => {
     const campaign = makeCampaign({ title: "Clean Water Initiative" });
-    expect(campaignMatchesTerm(campaign, "watr")).toBe(false);
+    expect(campaignMatchesTerm(campaign, "watr")).toBe(true);
+    expect(campaignMatchesTerm(campaign, "wather")).toBe(true);
+  });
+
+  it("does not fuzzy-match short words or letters scattered across a long field", () => {
+    const campaign = makeCampaign({
+      title: "School Rebuilding Fund",
+      description: "We want a teacher in every rural classroom.",
+    });
+    // Every letter of "water" appears in order in the description, but no single word is close.
+    expect(campaignMatchesTerm(campaign, "water")).toBe(false);
+    // Words under four letters get no typo tolerance ("fud" vs "fund").
+    expect(campaignMatchesTerm(campaign, "fud")).toBe(false);
   });
 
   it("does not match across word boundaries a substring matcher wouldn't span", () => {
