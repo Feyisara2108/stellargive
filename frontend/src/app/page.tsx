@@ -52,7 +52,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRecentCampaigns } from "@/hooks/useSoroban";
 import type { Campaign } from "@/lib/soroban";
-import { Heart, ShieldCheck, Zap, ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 /** Auto-advance interval for the featured carousel, in ms. */
 const AUTO_ADVANCE_MS = 6000;
@@ -343,6 +343,8 @@ export default function Home() {
               );
             })}
           </ol>
+        </section>
+
         {/* Featured Campaigns */}
         <section className="py-16 container border-b">
           <div className="space-y-1 text-center mb-10">
