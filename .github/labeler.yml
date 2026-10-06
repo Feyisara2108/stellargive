@@ -3,47 +3,53 @@
 # Documentation: https://github.com/actions/labeler
 #
 # Format: actions/labeler@v5 expects each label to hold a list of config
-# options, with the globs nested under `changed-files` (the v4 bare-glob
-# format is rejected with "found unexpected type for label ...").
+# options; globs go under a matcher (any-glob-to-any-file) inside
+# `changed-files`. Bare globs under changed-files fail with "The changed-files
+# section must have a valid config structure".
 
 # Frontend changes - UI, components, styling, frontend build config
 frontend:
   - changed-files:
-      - 'frontend/**/*'
-      - '**/*.css'
-      - '**/*.scss'
-      - '**/*.tsx'
-      - '**/*.jsx'
-      - '**/next.config.*'
-      - '**/tailwind.config.*'
-      - '**/.eslintrc.*'
+      - any-glob-to-any-file:
+          - 'frontend/**/*'
+          - '**/*.css'
+          - '**/*.scss'
+          - '**/*.tsx'
+          - '**/*.jsx'
+          - '**/next.config.*'
+          - '**/tailwind.config.*'
+          - '**/.eslintrc.*'
+          - '**/eslint.config.*'
 
 # Contract changes - smart contract code, Soroban, Rust contract logic
 contract:
   - changed-files:
-      - 'contracts/**/*'
-      - '**/*.rs'
-      - '**/Cargo.toml'
-      - '**/Cargo.lock'
-      - '**/soroban*'
+      - any-glob-to-any-file:
+          - 'contracts/**/*'
+          - '**/*.rs'
+          - '**/Cargo.toml'
+          - '**/Cargo.lock'
+          - '**/soroban*'
 
 # DevOps/CI changes - workflows, Docker, deployment scripts, infrastructure
 devops:
   - changed-files:
-      - '.github/workflows/**/*'
-      - '.github/actions/**/*'
-      - 'docker-compose*.yml'
-      - '**/Dockerfile*'
-      - 'scripts/**/*'
-      - 'k8s/**/*'
-      - 'terraform/**/*'
-      - '**/*.sh'
+      - any-glob-to-any-file:
+          - '.github/workflows/**/*'
+          - '.github/actions/**/*'
+          - 'docker-compose*.yml'
+          - '**/Dockerfile*'
+          - 'scripts/**/*'
+          - 'k8s/**/*'
+          - 'terraform/**/*'
+          - '**/*.sh'
 
 # Documentation changes - markdown files, docs directory
-docs:
+documentation:
   - changed-files:
-      - 'docs/**/*'
-      - '**/*.md'
-      - '**/README*'
-      - '**/CHANGELOG*'
-      - '**/CONTRIBUTING*'
+      - any-glob-to-any-file:
+          - 'docs/**/*'
+          - '**/*.md'
+          - '**/README*'
+          - '**/CHANGELOG*'
+          - '**/CONTRIBUTING*'
