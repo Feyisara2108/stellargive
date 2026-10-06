@@ -1,5 +1,6 @@
 "use client";
 
+import { NATIVE_XLM_CONTRACT_ID } from "@/lib/tokens";
 import { useEffect, useId, useRef, useState } from "react";
 import { MAX_SIMULATION_FEE_STROOPS } from "@/lib/soroban";
 import { useWalletBalance } from "@/hooks/useSoroban";
@@ -10,8 +11,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 export const BASE_FEE_STROOPS = 100;
 const RESOURCE_FEE_DOCS_URL =
   "https://developers.stellar.org/docs/learn/fundamentals/fees-resource-limits-metering";
-
-const NATIVE_XLM = "CDLZS3ZCDY7SF3SIVR6Y7I6SN636O27T7G5MKSUIU22ZS76E55WJIPZ4";
 
 interface GasWarningProps {
   feeStroops?: number;
@@ -122,7 +121,7 @@ export function GasWarning({
   onDismiss,
 }: GasWarningProps) {
   const { address, walletNetwork } = useWallet();
-  const { data: balance } = useWalletBalance(NATIVE_XLM, address);
+  const { data: balance } = useWalletBalance(NATIVE_XLM_CONTRACT_ID, address);
 
   const balanceStroops = balance ?? 0n;
   const network = walletNetwork && walletNetwork.includes("Test") ? "testnet" : "mainnet";

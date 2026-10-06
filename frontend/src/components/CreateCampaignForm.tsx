@@ -1,5 +1,6 @@
 "use client";
 
+import { NATIVE_XLM_CONTRACT_ID } from "@/lib/tokens";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -104,8 +105,6 @@ const formSchema = z.object({
     ),
 });
 
-const NATIVE_XLM = "CDLZS3ZCDY7SF3SIVR6Y7I6SN636O27T7G5MKSUIU22ZS76E55WJIPZ4";
-
 /** Build a synthetic Campaign object from current form values for preview. */
 function buildPreviewCampaign(
   values: Partial<z.infer<typeof formSchema>>,
@@ -131,7 +130,7 @@ function buildPreviewCampaign(
     target_amount: targetAmount,
     raised_amount: 0n,
     deadline,
-    accepted_token: values.acceptedToken || NATIVE_XLM,
+    accepted_token: values.acceptedToken || NATIVE_XLM_CONTRACT_ID,
     status: "Active",
     metadata_uri: values.metadataUri || undefined,
     website: values.website || undefined,
@@ -191,7 +190,7 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
       category: "",
       targetAmount: "",
       deadlineDays: "30",
-      acceptedToken: NATIVE_XLM,
+      acceptedToken: NATIVE_XLM_CONTRACT_ID,
       website: "",
       twitter: "",
       metadataUri: "",

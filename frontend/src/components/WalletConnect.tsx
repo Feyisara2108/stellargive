@@ -1,5 +1,6 @@
 "use client";
 
+import { NATIVE_XLM_CONTRACT_ID } from "@/lib/tokens";
 import { useWallet } from "@/lib/WalletProvider";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -9,8 +10,6 @@ import { toast } from "sonner";
 import { formatAddress } from "@/utils/format";
 import { getSACBalance, fromStroops } from "@/lib/soroban";
 import * as freighter from "@stellar/freighter-api";
-
-const NATIVE_XLM = "CDLZS3ZCDY7SF3SIVR6Y7I6SN636O27T7G5MKSUIU22ZS76E55WJIPZ4";
 
 export function WalletConnect() {
   const { address, isConnected, connect, disconnect, walletNetwork, isWrongNetwork } = useWallet();
@@ -26,7 +25,7 @@ export function WalletConnect() {
     setIsLoadingBalance(true);
     setBalanceError(null);
     try {
-      const balBigInt = await getSACBalance(NATIVE_XLM, address);
+      const balBigInt = await getSACBalance(NATIVE_XLM_CONTRACT_ID, address);
       setBalance(fromStroops(balBigInt));
     } catch (e: any) {
       setBalanceError(e.message || "Failed to fetch XLM balance");

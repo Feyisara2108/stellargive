@@ -1,9 +1,14 @@
 import React from "react";
+import { vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { TokenSelector, PREDEFINED_TOKENS } from "./TokenSelector";
 import "@testing-library/jest-dom";
 
-import { vi } from "vitest";
+// USDC is only listed when configured; give the picker a second token to select.
+vi.hoisted(() => {
+  process.env.NEXT_PUBLIC_USDC_CONTRACT_ID =
+    "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
+});
 
 // Mock external dependencies
 vi.mock("lucide-react", () => ({

@@ -9,27 +9,20 @@ import { Loader2, Plus, Check, ChevronDown, Coins, AlertTriangle, ShieldCheck } 
 import { getTokenMetadata, TokenMetadata } from "@/lib/soroban";
 import { useTokenMetadata } from "@/hooks/useSoroban";
 import { toast } from "sonner";
+import { NATIVE_XLM_CONTRACT_ID, USDC_CONTRACT_ID } from "@/lib/tokens";
 
-// Predefined tokens for campaign creation
+// Predefined tokens for campaign creation. Addresses are network-specific, so XLM is
+// derived from the configured passphrase and USDC only appears when configured.
 export const PREDEFINED_TOKENS = [
   {
     symbol: "XLM",
     name: "Stellar Lumens (Native)",
-    address: "CDLZS3ZCDY7SF3SIVR6Y7I6SN636O27T7G5MKSUIU22ZS76E55WJIPZ4",
+    address: NATIVE_XLM_CONTRACT_ID,
     decimals: 7,
   },
-  {
-    symbol: "USDC",
-    name: "USD Coin",
-    address: "CA3D5AJURHEK4LI6JE6IWHT3W7YA3UNJKXTYAXISJ3Q2TZ2VT6AI2372",
-    decimals: 7,
-  },
-  {
-    symbol: "yXLM",
-    name: "Yield Lumens",
-    address: "CDA3ZHQ34NOHB2G2R6E55SF3SIVR6Y7I6SN636O27T7G5MKSUIU22ZS76E",
-    decimals: 7,
-  },
+  ...(USDC_CONTRACT_ID
+    ? [{ symbol: "USDC", name: "USD Coin", address: USDC_CONTRACT_ID, decimals: 7 }]
+    : []),
 ];
 
 export const RECENT_TOKENS_KEY = "stellargive:recent-tokens";
