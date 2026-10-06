@@ -69,8 +69,11 @@ export default defineConfig({
       NEXT_PUBLIC_CONTRACT_ID:
         process.env.NEXT_PUBLIC_CONTRACT_ID ??
         "CB6HVHRQYILGNKW7RBB66BC6TDBIEWADOA2YUUV4I22RXRLA6DY6OAKT",
+      // Specs mock RPC with page.route("**/soroban/rpc*"), so the URL must contain that
+      // path or every call silently reaches a real network. The default host is
+      // deliberately unreachable so an unmocked call fails fast instead.
       NEXT_PUBLIC_SOROBAN_RPC_URL:
-        process.env.NEXT_PUBLIC_SOROBAN_RPC_URL ?? "https://soroban-testnet.stellar.org",
+        process.env.E2E_SOROBAN_RPC_URL ?? "http://127.0.0.1:8000/soroban/rpc",
       NEXT_PUBLIC_NETWORK_PASSPHRASE:
         process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ?? "Test SDF Network ; September 2015",
     },
