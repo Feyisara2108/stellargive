@@ -22,6 +22,7 @@ const withWallet = (address: string | null) =>
           isWrongNetwork: false,
           connect: async () => {},
           disconnect: () => {},
+          switchNetwork: async () => ({ supported: false, success: false }),
         }}
       >
         <Story />

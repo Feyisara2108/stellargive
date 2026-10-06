@@ -113,6 +113,7 @@ export function MockWalletProvider({ children }: { children: React.ReactNode }) 
           isWrongNetwork: false,
           connect,
           disconnect,
+          switchNetwork: async () => ({ supported: false, success: false }),
         }}
       >
         {children}
