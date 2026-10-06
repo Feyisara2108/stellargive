@@ -16,7 +16,7 @@
     "build-storybook": "storybook build",
     "test:e2e": "playwright test",
     "test:e2e:update": "playwright test --update-snapshots",
-    "license:check": "license-checker --production --excludePrivatePackages --onlyAllow 'MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;0BSD;CC0-1.0;CC-BY-3.0;CC-BY-4.0;Unlicense;BlueOak-1.0.0;Python-2.0' --summary"
+    "license:check": "node scripts/check-licenses.mjs"
   },
   "dependencies": {
     "@emnapi/core": "^1.11.2",
