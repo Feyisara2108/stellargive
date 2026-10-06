@@ -70,11 +70,13 @@ export function RefundButton({
     );
   }
 
-  const handleConfirm = async () => {
+  const handleConfirm = () => {
     if (claimRefund.isPending) return;
     // Close first so the pending state is visible on the button and a second click can't re-submit.
     setConfirmOpen(false);
-    await claimRefund.mutateAsync(campaignId);
+    // mutate (not mutateAsync): failures are surfaced by the hook's onError toast, and
+    // awaiting mutateAsync here would leave an unhandled rejection.
+    claimRefund.mutate(campaignId);
   };
 
   return (

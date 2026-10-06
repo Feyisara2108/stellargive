@@ -22,7 +22,7 @@ type MockEligibilityReturn = {
 };
 
 type MockClaimReturn = {
-  mutateAsync: ReturnType<typeof vi.fn>;
+  mutate: ReturnType<typeof vi.fn>;
   isPending: boolean;
   isSuccess: boolean;
 };
@@ -36,7 +36,7 @@ const mockEligibility = (
 });
 
 const mockClaim = (overrides: Partial<MockClaimReturn> = {}): MockClaimReturn => ({
-  mutateAsync: vi.fn().mockResolvedValue({}),
+  mutate: vi.fn().mockResolvedValue({}),
   isPending: false,
   isSuccess: false,
   ...overrides,
@@ -93,9 +93,9 @@ describe("RefundButton — visibility", () => {
 
 describe("RefundButton — interaction", () => {
   it("opens a confirmation dialog instead of refunding immediately", () => {
-    const mutateAsync = vi.fn().mockResolvedValue({});
+    const mutate = vi.fn().mockResolvedValue({});
     vi.mocked(useRefundEligibility).mockReturnValue(mockEligibility({ data: true }) as any);
-    vi.mocked(useClaimRefund).mockReturnValue(mockClaim({ mutateAsync }) as any);
+    vi.mocked(useClaimRefund).mockReturnValue(mockClaim({ mutate }) as any);
 
     render(
       <RefundButton
@@ -110,35 +110,35 @@ describe("RefundButton — interaction", () => {
     const dialog = screen.getByRole("dialog");
     expect(dialog).toHaveTextContent("Flood Relief");
     expect(dialog).toHaveTextContent("12.5 XLM");
-    expect(mutateAsync).not.toHaveBeenCalled();
+    expect(mutate).not.toHaveBeenCalled();
   });
 
   it("does not refund when the dialog is cancelled", () => {
-    const mutateAsync = vi.fn().mockResolvedValue({});
+    const mutate = vi.fn().mockResolvedValue({});
     vi.mocked(useRefundEligibility).mockReturnValue(mockEligibility({ data: true }) as any);
-    vi.mocked(useClaimRefund).mockReturnValue(mockClaim({ mutateAsync }) as any);
+    vi.mocked(useClaimRefund).mockReturnValue(mockClaim({ mutate }) as any);
 
     render(<RefundButton campaignId={CAMPAIGN_ID} isCancelled />);
     fireEvent.click(screen.getByRole("button", { name: /Claim refund/i }));
     fireEvent.click(screen.getByRole("button", { name: /^Cancel$/i }));
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(mutateAsync).not.toHaveBeenCalled();
+    expect(mutate).not.toHaveBeenCalled();
   });
 
-  it("calls mutateAsync with campaign id exactly once after confirming", async () => {
-    const mutateAsync = vi.fn().mockResolvedValue({});
+  it("calls mutate with campaign id exactly once after confirming", async () => {
+    const mutate = vi.fn().mockResolvedValue({});
     vi.mocked(useRefundEligibility).mockReturnValue(mockEligibility({ data: true }) as any);
-    vi.mocked(useClaimRefund).mockReturnValue(mockClaim({ mutateAsync }) as any);
+    vi.mocked(useClaimRefund).mockReturnValue(mockClaim({ mutate }) as any);
 
     render(<RefundButton campaignId={CAMPAIGN_ID} isCancelled />);
     fireEvent.click(screen.getByRole("button", { name: /Claim refund/i }));
     fireEvent.click(screen.getByRole("button", { name: /Confirm refund/i }));
 
     await waitFor(() => {
-      expect(mutateAsync).toHaveBeenCalledWith(CAMPAIGN_ID);
+      expect(mutate).toHaveBeenCalledWith(CAMPAIGN_ID);
     });
-    expect(mutateAsync).toHaveBeenCalledTimes(1);
+    expect(mutate).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
