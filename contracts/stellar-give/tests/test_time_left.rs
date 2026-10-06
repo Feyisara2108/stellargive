@@ -1,86 +1,58 @@
-#![cfg(test)]
-
-use soroban_sdk::{testutils::Ledger, Env, String, Symbol};
-use stellar_give::{StellarGiveClient, ContractError};
+//! Boundary tests for `get_time_left`.
 
 mod helpers;
-use helpers::{setup_env_and_contract, generate_address};
+use helpers::{create_default_campaign, register_and_setup, set_timestamp};
+use stellar_give::ContractError;
+
+/// One year, mirroring `MAX_DURATION` in the contract.
+const MAX_DURATION: u64 = 31_536_000;
 
 #[test]
 fn test_get_time_left_boundaries() {
-    let env = Env::default();
-    let (contract_id, client) = setup_env_and_contract(&env);
-    let creator = generate_address(&env);
-    let token = generate_address(&env);
-    
-    // Set current time to a known value
-    env.ledger().with_mut(|li| li.timestamp = 1000);
-    
-    // Create a campaign with a deadline at 2000
-    let deadline = 2000;
-    let campaign_id = client.create_campaign(
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let campaign_id = create_default_campaign(
+        &env,
+        &client,
         &creator,
-        &String::from_str(&env, "Test"),
-        &String::from_str(&env, "Desc"),
-        &String::from_str(&env, "uri"),
-        &Symbol::new(&env, "relief"),
-        &1000i128,
-        &deadline,
-        &token,
-        &None,
-        &None,
+        &beneficiary,
+        &token_client.address,
+        2_000,
     );
 
-    // Test: Just before expiry
-    env.ledger().with_mut(|li| li.timestamp = 1999);
-    let time_left = client.get_time_left(&campaign_id);
-    assert_eq!(time_left, 1);
-    
-    // Test: Exactly at expiry
-    env.ledger().with_mut(|li| li.timestamp = 2000);
-    let time_left = client.get_time_left(&campaign_id);
-    assert_eq!(time_left, 0);
+    set_timestamp(&env, 1_999);
+    assert_eq!(client.get_time_left(&campaign_id), 1);
 
-    // Test: Just after expiry
-    env.ledger().with_mut(|li| li.timestamp = 2001);
-    let time_left = client.get_time_left(&campaign_id);
-    assert_eq!(time_left, 0); // Contract semantic is to return 0 when now >= deadline
+    // At and after the deadline the contract reports zero rather than underflowing.
+    set_timestamp(&env, 2_000);
+    assert_eq!(client.get_time_left(&campaign_id), 0);
+
+    set_timestamp(&env, 2_001);
+    assert_eq!(client.get_time_left(&campaign_id), 0);
 }
 
 #[test]
-fn test_get_time_left_far_future() {
-    let env = Env::default();
-    let (_, client) = setup_env_and_contract(&env);
-    let creator = generate_address(&env);
-    let token = generate_address(&env);
-    
-    env.ledger().with_mut(|li| li.timestamp = 1000);
-    
-    // Far-future deadline
-    let deadline = u64::MAX;
-    let campaign_id = client.create_campaign(
+fn test_get_time_left_max_duration() {
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let campaign_id = create_default_campaign(
+        &env,
+        &client,
         &creator,
-        &String::from_str(&env, "Test"),
-        &String::from_str(&env, "Desc"),
-        &String::from_str(&env, "uri"),
-        &Symbol::new(&env, "relief"),
-        &1000i128,
-        &deadline,
-        &token,
-        &None,
-        &None,
+        &beneficiary,
+        &token_client.address,
+        1_000 + MAX_DURATION,
     );
 
-    let time_left = client.get_time_left(&campaign_id);
-    assert_eq!(time_left, u64::MAX - 1000);
+    assert_eq!(client.get_time_left(&campaign_id), MAX_DURATION);
 }
 
 #[test]
-#[should_panic(expected = "HostError: Error(Contract, #1)")] // CampaignNotFound is usually #1, let's just use generic test pattern if we can't catch precise. Wait, try catch can be done with client.try_get_time_left
 fn test_get_time_left_nonexistent() {
-    let env = Env::default();
-    let (_, client) = setup_env_and_contract(&env);
-    
+    let (_env, client, ..) = register_and_setup();
+
     let res = client.try_get_time_left(&999);
     assert_eq!(res.unwrap_err().unwrap(), ContractError::CampaignNotFound);
 }
