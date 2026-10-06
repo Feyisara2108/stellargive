@@ -129,10 +129,10 @@ export function TokenSelector({ value, onChange, label, allowCustom = true }: To
       (address === value ? resolvedMeta?.symbol : undefined) ??
       `${address.slice(0, 4)}…${address.slice(-4)}`;
     setRecentTokens((prev) => {
-      const next = [
-        { address, symbol: known },
-        ...prev.filter((t) => t.address !== address),
-      ].slice(0, MAX_RECENT_TOKENS);
+      const next = [{ address, symbol: known }, ...prev.filter((t) => t.address !== address)].slice(
+        0,
+        MAX_RECENT_TOKENS,
+      );
       saveRecentTokens(next);
       return next;
     });
@@ -277,7 +277,11 @@ export function TokenSelector({ value, onChange, label, allowCustom = true }: To
                     Clear
                   </button>
                 </div>
-                <div className="flex flex-wrap gap-1.5" role="group" aria-label="Recently used tokens">
+                <div
+                  className="flex flex-wrap gap-1.5"
+                  role="group"
+                  aria-label="Recently used tokens"
+                >
                   {recentTokens.map((t) => (
                     <button
                       key={t.address}

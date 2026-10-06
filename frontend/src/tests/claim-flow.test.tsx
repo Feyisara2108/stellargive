@@ -188,11 +188,13 @@ describe("Integration: claim funds flow from goal funding to beneficiary claim",
     fireEvent.click(confirmDonateBtn);
 
     // Verify donation on-chain submission
-    await waitFor(() => expect(submitTransactionMock).toHaveBeenCalledWith(
-      WALLET_ADDRESS,
-      "donate",
-      expect.any(Array),
-    ));
+    await waitFor(() =>
+      expect(submitTransactionMock).toHaveBeenCalledWith(
+        WALLET_ADDRESS,
+        "donate",
+        expect.any(Array),
+      ),
+    );
 
     // Verify donation success dialog renders
     expect(await screen.findByText(/Donation Successful!/i)).toBeInTheDocument();

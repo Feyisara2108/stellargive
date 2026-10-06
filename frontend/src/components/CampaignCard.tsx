@@ -22,7 +22,16 @@ const DonateModal = dynamic(
   { ssr: false },
 );
 import { ClaimButton } from "@/components/ClaimButton";
-import { Calendar, Target, TrendingUp, Image as ImageIcon, Zap, Ban, Flame, Tag } from "lucide-react";
+import {
+  Calendar,
+  Target,
+  TrendingUp,
+  Image as ImageIcon,
+  Zap,
+  Ban,
+  Flame,
+  Tag,
+} from "lucide-react";
 import { ShareButton } from "@/components/ShareButton";
 import { BookmarkButton } from "@/components/BookmarkButton";
 import { AddressLink } from "@/components/AddressLink";

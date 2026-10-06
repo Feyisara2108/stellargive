@@ -108,11 +108,7 @@ function RefundFlowHarness({
     <div data-testid="refund-flow-container">
       <div data-testid="wallet-address">{address || "none"}</div>
       <div data-testid="wallet-balance">{balance != null ? balance.toString() : "none"}</div>
-      <button
-        type="button"
-        data-testid="refetch-balance-btn"
-        onClick={() => refetchBalance()}
-      >
+      <button type="button" data-testid="refetch-balance-btn" onClick={() => refetchBalance()}>
         Refresh Balance
       </button>
 
@@ -139,9 +135,7 @@ function RefundFlowHarness({
       )}
 
       <div data-testid="refund-section">
-        {campaign && (
-          <RefundButton campaignId={campaign.id} isCancelled={isCancelled} />
-        )}
+        {campaign && <RefundButton campaignId={campaign.id} isCancelled={isCancelled} />}
       </div>
     </div>
   );
@@ -200,7 +194,7 @@ describe("Integration: refund flow (donate -> cancel -> refund)", () => {
       id: 77n,
       title: "Clean Water Initiative",
       target_amount: 100_0000000n, // 100 XLM
-      raised_amount: 20_0000000n,  // 20 XLM
+      raised_amount: 20_0000000n, // 20 XLM
       accepted_token: TOKEN_CONTRACT,
       status: "Active",
     });
@@ -224,7 +218,11 @@ describe("Integration: refund flow (donate -> cancel -> refund)", () => {
 
     // When campaign is cancelled and donor probes claim_refund, return non-null fee
     estimateFeeMock.mockImplementation(async (sender, method) => {
-      if (method === "claim_refund" && sender === WALLET_ADDRESS && currentCampaign.status === "Cancelled") {
+      if (
+        method === "claim_refund" &&
+        sender === WALLET_ADDRESS &&
+        currentCampaign.status === "Cancelled"
+      ) {
         return 4500;
       }
       return null;
@@ -388,7 +386,9 @@ describe("Integration: refund flow (donate -> cancel -> refund)", () => {
     // Assert UI update: Claim refund button disappears (unmounts due to isSuccess / invalidation)
     await waitFor(() => {
       expect(screen.queryByRole("button", { name: /Claim refund/i })).not.toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: /Claiming refund\.\.\./i })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /Claiming refund\.\.\./i }),
+      ).not.toBeInTheDocument();
     });
 
     // Assert wallet balance updates in the UI
@@ -399,7 +399,9 @@ describe("Integration: refund flow (donate -> cancel -> refund)", () => {
 
     // Verify cache invalidations occurred
     expect(queryClient.getQueryState(["campaign", "77"])?.isInvalidated).toBe(true);
-    expect(queryClient.getQueryState(["refund-eligibility", "77", WALLET_ADDRESS])?.isInvalidated).toBe(true);
+    expect(
+      queryClient.getQueryState(["refund-eligibility", "77", WALLET_ADDRESS])?.isInvalidated,
+    ).toBe(true);
   });
 
   describe("Refund eligibility gating across ineligible states", () => {
