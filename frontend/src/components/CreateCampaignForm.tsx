@@ -207,7 +207,7 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
           if (key === "tags" && Array.isArray(val)) {
             setTags(val as string[]);
           } else if (val !== undefined && key !== "tags") {
-            form.setValue(key as any, val);
+            form.setValue(key as any, val, { shouldDirty: true });
           }
         });
       } catch (e) {
@@ -222,10 +222,18 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
   const formValues = form.watch();
   const debouncedValues = useDebouncedValue(formValues, 500);
 
+  const isDirty = form.formState.isDirty;
+
   useEffect(() => {
+    // Only persist real edits. Without this, the debounced save re-writes the
+    // blank form right after a successful submit clears the draft.
+    if (!isDirty && tags.length === 0) {
+      sessionStorage.removeItem("create_campaign_draft");
+      return;
+    }
     const { beneficiary, ...draftToSave } = debouncedValues;
     sessionStorage.setItem("create_campaign_draft", JSON.stringify({ ...draftToSave, tags }));
-  }, [debouncedValues, tags]);
+  }, [debouncedValues, tags, isDirty]);
 
   const watchBeneficiary = form.watch("beneficiary") ?? "";
   const debouncedBeneficiary = useDebouncedValue(watchBeneficiary, 500);
