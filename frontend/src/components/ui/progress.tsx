@@ -23,6 +23,7 @@ const Progress = React.forwardRef<
   const progress = (
     <ProgressPrimitive.Root
       ref={ref}
+      value={clampedValue}
       className={cn("relative h-4 w-full overflow-hidden rounded-full bg-secondary", className)}
       {...props}
     >

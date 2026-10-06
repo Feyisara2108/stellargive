@@ -397,7 +397,11 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
             </span>
             <span>{step === 1 ? "Details" : step === 2 ? "Funding" : "Review"}</span>
           </div>
-          <Progress value={(step / totalSteps) * 100} className="h-2" />
+          <Progress
+            value={(step / totalSteps) * 100}
+            className="h-2"
+            aria-label={`Campaign setup progress: step ${step} of ${totalSteps}`}
+          />
         </div>
 
         {/* Responsive layout: form steps on left, live CampaignCard preview alongside on right */}
