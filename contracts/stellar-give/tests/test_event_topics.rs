@@ -730,7 +730,7 @@ fn test_donate_event_snapshot() {
         &bens,
         &String::from_str(&env, "Snapshot Campaign"),
         &String::from_str(&env, "Snapshot desc"),
-        &String::from_str(&env, "meta"),
+        &String::from_str(&env, "https://example.com/meta"),
         &symbol_short!("relief"),
         &10_000_000,
         &2_000,
@@ -762,7 +762,6 @@ fn test_donate_event_snapshot() {
         symbol_short!("received")
     );
 
-    use soroban_sdk::IntoVal;
     let expected_payload = DonationEvent {
         campaign_id,
         donor: donor.clone(),
@@ -772,8 +771,8 @@ fn test_donate_event_snapshot() {
         comment: None,
     };
     assert_eq!(
-        event.2,
-        expected_payload.into_val(&env),
+        DonationEvent::try_from_val(&env, &event.2).expect("event data must decode"),
+        expected_payload,
         "Donation event snapshot mismatch"
     );
 }
@@ -790,7 +789,7 @@ fn test_claim_event_snapshot() {
         &bens,
         &String::from_str(&env, "Snapshot Campaign"),
         &String::from_str(&env, "Snapshot desc"),
-        &String::from_str(&env, "meta"),
+        &String::from_str(&env, "https://example.com/meta"),
         &symbol_short!("relief"),
         &10_000_000,
         &2_000,
@@ -827,15 +826,14 @@ fn test_claim_event_snapshot() {
         campaign_id
     );
 
-    use soroban_sdk::IntoVal;
     let expected_payload = ClaimedEvent {
         campaign_id,
         amount: 9_000_000,
         beneficiary: beneficiary.clone(),
     };
     assert_eq!(
-        event.2,
-        expected_payload.into_val(&env),
+        ClaimedEvent::try_from_val(&env, &event.2).expect("event data must decode"),
+        expected_payload,
         "Claimed event snapshot mismatch"
     );
 }
@@ -851,7 +849,7 @@ fn test_refund_event_snapshot() {
         &bens,
         &String::from_str(&env, "Snapshot Campaign"),
         &String::from_str(&env, "Snapshot desc"),
-        &String::from_str(&env, "meta"),
+        &String::from_str(&env, "https://example.com/meta"),
         &symbol_short!("relief"),
         &10_000_000,
         &2_000,
@@ -881,15 +879,14 @@ fn test_refund_event_snapshot() {
         symbol_short!("refund")
     );
 
-    use soroban_sdk::IntoVal;
     let expected_payload = RefundEvent {
         campaign_id,
         donor: donor.clone(),
         amount: 1_000_000,
     };
     assert_eq!(
-        event.2,
-        expected_payload.into_val(&env),
+        RefundEvent::try_from_val(&env, &event.2).expect("event data must decode"),
+        expected_payload,
         "Refund event snapshot mismatch"
     );
 }
@@ -905,7 +902,7 @@ fn test_update_event_snapshot() {
         &bens,
         &String::from_str(&env, "Snapshot Campaign"),
         &String::from_str(&env, "Snapshot desc"),
-        &String::from_str(&env, "meta"),
+        &String::from_str(&env, "https://example.com/meta"),
         &symbol_short!("relief"),
         &10_000_000,
         &2_000,
@@ -935,15 +932,14 @@ fn test_update_event_snapshot() {
         symbol_short!("update")
     );
 
-    use soroban_sdk::IntoVal;
     let expected_payload = CampaignUpdateEvent {
         campaign_id,
         content: content.clone(),
         timestamp: 1_500,
     };
     assert_eq!(
-        event.2,
-        expected_payload.into_val(&env),
+        CampaignUpdateEvent::try_from_val(&env, &event.2).expect("event data must decode"),
+        expected_payload,
         "Update event snapshot mismatch"
     );
 }
