@@ -6,12 +6,11 @@
 
 # ── Advisories ────────────────────────────────────────────────────────────────
 [advisories]
-# Lint level for crates with known security vulnerabilities.
-vulnerability = "deny"
-# Lint level for crates whose advisory has been withdrawn.
-unmaintained = "warn"
-# Lint level for crates with notices (informational advisories).
-notice = "warn"
+# cargo-deny v2 schema: vulnerabilities are always errors.
+version = 2
+# Fail on unmaintained crates we depend on directly; transitive ones are out of
+# our hands and would only add noise.
+unmaintained = "workspace"
 # Fetch the advisory database from the default GitHub source.
 db-urls = ["https://github.com/rustsec/advisory-db"]
 # Path where the advisory database is cloned/fetched.
@@ -19,12 +18,14 @@ db-path = "~/.cargo/advisory-db"
 
 # ── Licenses ──────────────────────────────────────────────────────────────────
 [licenses]
-# Lint level for crates that are not explicitly allowed.
-unlicensed = "deny"
+# cargo-deny v2 schema: crates without an allowed license are always errors.
+version = 2
 # Copyleft licenses are not allowed; only these permissive licenses are accepted.
 allow = [
   "MIT",
   "Apache-2.0",
+  # Used by the Soroban SDK crates; the exception only adds permissions to Apache-2.0.
+  "Apache-2.0 WITH LLVM-exception",
   "BSD-2-Clause",
   "BSD-3-Clause",
   "ISC",
@@ -35,9 +36,6 @@ allow = [
   "BSL-1.0",
   "CC0-1.0",
 ]
-# When a crate is dual-licensed (e.g. MIT OR Apache-2.0), accept it if any
-# license in the expression is in the allow list.
-default = "deny"
 # Some crates have non-standard license fields; handle with exceptions.
 exceptions = []
 # The confidence threshold for detecting a license from a LICENSE file.

@@ -86,7 +86,7 @@ jobs:
       - name: Install cargo-deny
         uses: taiki-e/install-action@183e4297cca2404691e9380e1307288dced5c82a # v2
         with:
-          tool: cargo-deny@0.16.1
+          tool: cargo-deny@0.20.2
 
       - name: Run cargo-deny
         working-directory: contracts/stellar-give
