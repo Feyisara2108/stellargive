@@ -70,4 +70,4 @@ runs:
       if: ${{ inputs.working-directory != '' }}
       shell: bash
       working-directory: ${{ inputs.working-directory }}
-      run: npm ci --legacy-peer-deps
+      run: npm ci

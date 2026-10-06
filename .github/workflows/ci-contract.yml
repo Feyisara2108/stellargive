@@ -50,7 +50,7 @@ jobs:
       - name: Verify npm lockfile
         working-directory: frontend
         run: |
-          if ! npm ci --legacy-peer-deps --ignore-scripts 2>/tmp/npm-ci-error.log; then
+          if ! npm ci --ignore-scripts 2>/tmp/npm-ci-error.log; then
             echo "::error::❌ package-lock.json is out of sync with package.json!"
             echo "🔧 To fix: run 'npm install' locally, commit package-lock.json, and push."
             cat /tmp/npm-ci-error.log
