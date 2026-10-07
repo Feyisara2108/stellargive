@@ -6,12 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Check, ChevronDown, ArrowDownUp } from "lucide-react";
 
 export type SortKey =
-  | "newest"
-  | "ending-soon"
-  | "most-funded"
-  | "near-goal"
-  | "most-raised"
-  | "trending";
+  "newest" | "ending-soon" | "most-funded" | "near-goal" | "most-raised" | "trending";
 
 export const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: "newest", label: "Newest" },
