@@ -7,11 +7,11 @@
     "lint:staged": "lint-staged"
   },
   "devDependencies": {
-    "@stellar/stellar-sdk": "^17.1.0",
-    "dotenv": "^18.0.1",
+    "@stellar/stellar-sdk": "^17.2.1",
+    "dotenv": "^18.0.5",
     "husky": "^9.0.11",
-    "lint-staged": "^17.5.1",
-    "prettier": "^3.9.8"
+    "lint-staged": "^17.6.0",
+    "prettier": "^3.9.9"
   },
   "lint-staged": {
     "frontend/**/*.{js,jsx,ts,tsx}": [
