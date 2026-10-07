@@ -72,9 +72,11 @@ describe("Dialog", () => {
     await user.click(screen.getByRole("button", { name: /open dialog/i }));
     await screen.findByRole("dialog");
 
-    // Radix DismissableLayer listens for pointerdown outside the content.
+    // Radix dismisses on a complete outside click: since react-dialog 1.1.23 a primary
+    // pointerdown is deferred until the following click, so fire both.
     // fireEvent bypasses CSS pointer-events restrictions present in jsdom.
-    fireEvent.pointerDown(document.body, { bubbles: true, cancelable: true });
+    fireEvent.pointerDown(document.body, { bubbles: true, cancelable: true, button: 0 });
+    fireEvent.click(document.body);
 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
