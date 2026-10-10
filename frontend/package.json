@@ -74,7 +74,7 @@
     "jest-axe": "^10.0.0",
     "jsdom": "^29.1.1",
     "license-checker": "^25.0.1",
-    "msw": "^2.14.6",
+    "msw": "^3.0.2",
     "postcss": "^8.5.28",
     "prettier": "^3.9.9",
     "storybook": "^10.6.1",
