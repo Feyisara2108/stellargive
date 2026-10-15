@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "prepare": "husky",
-    "lint:staged": "lint-staged"
+    "lint:staged": "lint-staged",
+    "stress-test": "node scripts/stress-test.js"
   },
   "devDependencies": {
     "@stellar/stellar-sdk": "^17.2.1",

@@ -42,7 +42,14 @@ function receivedEvent(campaignId: number, donor: string, amount: number, id: st
   return {
     id,
     topic: "received",
-    data: [campaignId, donor, amount],
+    data: {
+      campaign_id: BigInt(campaignId),
+      donor,
+      amount: BigInt(amount),
+      total_raised: 0n,
+      accepted_token: "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+      comment: null,
+    },
     createdAt: new Date().toISOString(),
   };
 }

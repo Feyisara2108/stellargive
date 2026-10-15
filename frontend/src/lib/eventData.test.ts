@@ -22,20 +22,40 @@ import {
   getAmountStroops,
   getCampaignId,
   getEventField,
+  getEventPayload,
   parseBigInt,
 } from "@/lib/eventData";
+import {
+  makeClaimedEvent,
+  makeCreatedEvent,
+  makeDonationEvent,
+} from "@/test/factories";
 
-describe("getEventField", () => {
-  it("reads a value from a well-formed event", () => {
-    expect(getEventField({ data: ["1", "GABC", "500"] }, 2)).toBe("500");
+describe("getEventPayload", () => {
+  it("returns the struct payload for a well-formed event", () => {
+    const event = makeDonationEvent("e1", "GABC", 500n);
+    expect(getEventPayload(event)).toEqual(event.data);
   });
 
-  it("returns undefined for undersized, missing, or non-array data", () => {
-    expect(getEventField({ data: ["1"] }, 3)).toBeUndefined();
-    expect(getEventField({}, 0)).toBeUndefined();
-    expect(getEventField({ data: "not-an-array" }, 0)).toBeUndefined();
-    expect(getEventField(null, 0)).toBeUndefined();
-    expect(getEventField(undefined, 1)).toBeUndefined();
+  it("returns null for array or missing data", () => {
+    expect(getEventPayload({ data: ["1", "GABC"] })).toBeNull();
+    expect(getEventPayload({})).toBeNull();
+    expect(getEventPayload(null)).toBeNull();
+  });
+});
+
+describe("getEventField", () => {
+  it("reads a named field from a struct event", () => {
+    const event = makeDonationEvent("e1", "GABC", 500n);
+    expect(getEventField(event, "amount")).toBe(500n);
+    expect(getEventField(event, "donor")).toBe("GABC");
+  });
+
+  it("returns undefined for missing fields or non-struct data", () => {
+    expect(getEventField(makeDonationEvent("e1", "GABC", 500n), "missing")).toBeUndefined();
+    expect(getEventField({ data: ["1"] }, "amount")).toBeUndefined();
+    expect(getEventField({}, "amount")).toBeUndefined();
+    expect(getEventField(null, "amount")).toBeUndefined();
   });
 });
 
@@ -58,40 +78,54 @@ describe("parseBigInt", () => {
 });
 
 describe("getCampaignId", () => {
-  it("returns the id as a decimal string", () => {
-    expect(getCampaignId({ data: [7n] })).toBe("7");
+  it("reads campaign_id from donation events", () => {
+    expect(getCampaignId(makeDonationEvent("e1", "GABC", 1n, 7n))).toBe("7");
+  });
+
+  it("reads id from created events", () => {
+    expect(getCampaignId(makeCreatedEvent("e2", { id: 9n }))).toBe("9");
   });
 
   it("returns null for undersized or garbage payloads", () => {
-    expect(getCampaignId({ data: [] })).toBeNull();
-    expect(getCampaignId({ data: ["oops"] })).toBeNull();
+    expect(getCampaignId({ data: {} })).toBeNull();
+    expect(getCampaignId({ data: { campaign_id: "oops" } })).toBeNull();
     expect(getCampaignId({})).toBeNull();
     expect(getCampaignId(null)).toBeNull();
   });
 });
 
 describe("getAmountStroops", () => {
-  it("returns the parsed amount", () => {
-    expect(getAmountStroops({ data: ["1", "GABC", "15000000"] }, 2)).toBe(15000000n);
+  it("returns the parsed amount from the named field", () => {
+    expect(getAmountStroops(makeDonationEvent("e1", "GABC", 15_000_000n))).toBe(15_000_000n);
+    expect(getAmountStroops(makeCreatedEvent("e2", { target_amount: 100n }), "target_amount")).toBe(
+      100n,
+    );
   });
 
   it("falls back to 0n so aggregations never throw", () => {
-    expect(getAmountStroops({ data: ["1"] }, 2)).toBe(0n);
-    expect(getAmountStroops({ data: ["1", "GABC", "junk"] }, 2)).toBe(0n);
-    expect(getAmountStroops(undefined, 2)).toBe(0n);
+    expect(getAmountStroops({ data: {} })).toBe(0n);
+    expect(getAmountStroops({ data: { amount: "junk" } })).toBe(0n);
+    expect(getAmountStroops(undefined)).toBe(0n);
   });
 });
 
 describe("formatEventAmount", () => {
   it("formats a valid stroop amount", () => {
-    expect(formatEventAmount({ data: ["1", "GABC", 15000000] }, 2)).toBe("1.5 XLM");
+    expect(formatEventAmount(makeDonationEvent("e1", "GABC", 15_000_000n))).toBe("1.5 XLM");
   });
 
   it("returns the placeholder when the field is missing or malformed", () => {
-    expect(formatEventAmount({ data: ["1"] }, 2)).toBe(MISSING_FIELD);
-    expect(formatEventAmount({ data: ["1", "GABC", "junk"] }, 2)).toBe(MISSING_FIELD);
-    expect(formatEventAmount({}, 3)).toBe(MISSING_FIELD);
-    expect(formatEventAmount(null, 2)).toBe(MISSING_FIELD);
+    expect(formatEventAmount({ data: {} })).toBe(MISSING_FIELD);
+    expect(formatEventAmount({ data: { amount: "junk" } })).toBe(MISSING_FIELD);
+    expect(formatEventAmount({})).toBe(MISSING_FIELD);
+    expect(formatEventAmount(null)).toBe(MISSING_FIELD);
+  });
+
+  it("formats claimed and created amounts via field name", () => {
+    expect(formatEventAmount(makeClaimedEvent("c1", { amount: 15_000_000n }))).toBe("1.5 XLM");
+    expect(formatEventAmount(makeCreatedEvent("c2", { target_amount: 15_000_000n }), "target_amount")).toBe(
+      "1.5 XLM",
+    );
   });
 });
 

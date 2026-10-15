@@ -41,13 +41,13 @@ function useActivityData(event: any) {
     let body: React.ReactNode = null;
 
     if (event?.topic === "received") {
-      const donor = normalizeAddress(getEventField(event, 1));
+      const donor = normalizeAddress(getEventField(event, "donor"));
       icon = <ArrowUpRight className="w-4 h-4 text-green-500" />;
       iconBg = "bg-green-500/10";
       label = "Donated";
       body = (
         <>
-          <span className="font-bold">{formatEventAmount(event, 2)}</span> donated
+          <span className="font-bold">{formatEventAmount(event, "amount")}</span> donated
           {donor ? (
             <>
               {" "}
@@ -67,17 +67,17 @@ function useActivityData(event: any) {
       body = (
         <>
           New campaign{id && <> #{id}</>} created with a target of{" "}
-          <span className="font-bold">{formatEventAmount(event, 3)}</span>
+          <span className="font-bold">{formatEventAmount(event, "target_amount")}</span>
         </>
       );
     } else if (event?.topic === "claimed") {
-      const beneficiary = normalizeAddress(getEventField(event, 1));
+      const beneficiary = normalizeAddress(getEventField(event, "beneficiary"));
       icon = <Trophy className="w-4 h-4 text-purple-500" />;
       iconBg = "bg-purple-500/10";
       label = "Claimed";
       body = (
         <>
-          <span className="font-bold">{formatEventAmount(event, 3)}</span> claimed
+          <span className="font-bold">{formatEventAmount(event, "amount")}</span> claimed
           {beneficiary ? (
             <>
               {" "}

@@ -10,6 +10,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:a11y": "vitest run src --testNamePattern=accessibility",
     "generate:bindings": "stellar contract bindings typescript --wasm ../contracts/stellar-give/target/wasm32-unknown-unknown/release/stellar_give.wasm --output-dir ./src/lib/bindings --overwrite",
     "storybook": "storybook dev -p 6006",

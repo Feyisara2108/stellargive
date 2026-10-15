@@ -11,7 +11,13 @@ export default defineConfig({
     // jsdom + axe audits and full integration flows exceed the 5s default when the
     // suite runs in parallel (and on slower CI runners), causing load-dependent flakes.
     testTimeout: 20_000,
-    exclude: ["**/node_modules/**", "**/dist/**", "**/e2e/**"],
+    exclude: [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/e2e/**",
+      // Live Quickstart suite — run via `npm run test:integration` with RUN_LOCAL_STELLAR=1
+      "**/__tests__/integration/**",
+    ],
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov", "json-summary"],

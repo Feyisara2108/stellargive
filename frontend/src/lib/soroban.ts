@@ -360,14 +360,9 @@ export interface SubmitOptions {
   onHighGasWarning?: (feeStroops: number) => void;
 }
 
-export async function submitTransaction(
-  sender: string,
-  func: string,
-  args: any[],
-  options: SubmitOptions = {},
-) {
+async function prepareInvokeTransaction(sender: string, func: string, args: any[]) {
   const account = await server.getAccount(sender);
-  const tx = new TransactionBuilder(account, {
+  return new TransactionBuilder(account, {
     fee: "1000",
     networkPassphrase: NETWORK_PASSPHRASE,
   })
@@ -380,8 +375,12 @@ export async function submitTransaction(
     )
     .setTimeout(30)
     .build();
+}
 
-  // Simulate first to check resource fee before asking the user to sign.
+async function simulateAndWarn(
+  tx: ReturnType<TransactionBuilder["build"]>,
+  options: SubmitOptions,
+) {
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
     console.error("[soroban] simulation failed:", sim.error);
@@ -396,19 +395,11 @@ export async function submitTransaction(
       options.onHighGasWarning(minFee);
     }
   }
+}
 
-  const preparedTx = await server.prepareTransaction(tx);
-  const { signTransaction } = await import("@stellar/freighter-api");
-  const result = await signTransaction(preparedTx.toXDR(), {
-    networkPassphrase: NETWORK_PASSPHRASE,
-  });
-
-  if ("error" in result) {
-    throw new Error(`Wallet error: ${result.error}`);
-  }
-
+async function sendAndConfirm(signedXdr: string) {
   const sendResponse = await server.sendTransaction(
-    TransactionBuilder.fromXDR(result.signedTxXdr, NETWORK_PASSPHRASE) as any,
+    TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE) as any,
   );
 
   if (sendResponse.status === "ERROR") {
@@ -429,14 +420,65 @@ export async function submitTransaction(
   if (txResult.status === rpc.Api.GetTransactionStatus.SUCCESS) {
     (txResult as any).hash = sendResponse.hash;
     return txResult;
-  } else {
-    throw new Error(`Transaction failed: ${txResult.status}`);
   }
+  throw new Error(`Transaction failed: ${txResult.status}`);
 }
 
+export async function submitTransaction(
+  sender: string,
+  func: string,
+  args: any[],
+  options: SubmitOptions = {},
+) {
+  const tx = await prepareInvokeTransaction(sender, func, args);
+  await simulateAndWarn(tx, options);
+
+  const preparedTx = await server.prepareTransaction(tx);
+  const { signTransaction } = await import("@stellar/freighter-api");
+  const result = await signTransaction(preparedTx.toXDR(), {
+    networkPassphrase: NETWORK_PASSPHRASE,
+  });
+
+  if ("error" in result) {
+    throw new Error(`Wallet error: ${result.error}`);
+  }
+
+  return sendAndConfirm(result.signedTxXdr);
+}
+
+/**
+ * Same invoke path as `submitTransaction`, but signs with a Keypair.
+ * Used by local-network integration tests (no Freighter / browser wallet).
+ */
+export async function submitTransactionWithKeypair(
+  keypair: Keypair,
+  func: string,
+  args: any[],
+  options: SubmitOptions = {},
+) {
+  const tx = await prepareInvokeTransaction(keypair.publicKey(), func, args);
+  await simulateAndWarn(tx, options);
+
+  const preparedTx = await server.prepareTransaction(tx);
+  preparedTx.sign(keypair);
+  return sendAndConfirm(preparedTx.toXDR());
+}
+
+/** How far back from the tip to scan for contract events (ledgers ≈ 5s each). */
+const EVENT_LOOKBACK_LEDGERS = 10_000;
+
 export async function getEvents(limit = 20) {
+  // Real Soroban RPC rejects `startLedger: 0`. Anchor near the tip instead.
+  let startLedger = 1;
+  try {
+    const latest = await server.getLatestLedger();
+    startLedger = Math.max(1, latest.sequence - EVENT_LOOKBACK_LEDGERS);
+  } catch {
+    // Fall through with startLedger = 1 if the tip cannot be read.
+  }
+
   const response = await server.getEvents({
-    startLedger: 0,
+    startLedger,
     filters: [
       {
         type: "contract",
@@ -449,12 +491,15 @@ export async function getEvents(limit = 20) {
   return response.events.map((event) => {
     const topics = event.topic.map((t) => scValToNative(t));
     const value = scValToNative(event.value);
+    // Dual-topic events (e.g. donation/received) put the UI label in topics[1];
+    // single-topic events (e.g. created) only have topics[0].
+    const topic = topics[1] ?? topics[0];
     return {
       id: event.id,
       txHash: (event as any).txHash || event.id,
       ledger: event.ledger,
       createdAt: event.ledgerClosedAt,
-      topic: topics[1], // e.g., 'created', 'received', 'claimed'
+      topic,
       data: value,
     };
   });

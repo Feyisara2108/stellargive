@@ -61,7 +61,7 @@ export default function ProfilePage() {
           e &&
           typeof e === "object" &&
           e.topic === "received" &&
-          normalizeAddress(getEventField(e, 1)) === address,
+          normalizeAddress(getEventField(e, "donor")) === address,
       );
       const supportedIds = new Set(
         myDonations.map((e: any) => getCampaignId(e) ?? "").filter(Boolean),
@@ -70,7 +70,7 @@ export default function ProfilePage() {
 
       const totalRaised = created.reduce((acc, c) => acc + c.raised_amount, 0n);
       const totalDonated = myDonations.reduce(
-        (acc: bigint, e: any) => acc + getAmountStroops(e, 2),
+        (acc: bigint, e: any) => acc + getAmountStroops(e, "amount"),
         0n,
       );
       const activeCount = created.filter((c) => c.status === "Active").length;
@@ -341,7 +341,7 @@ function DonationsSection({
         <div className="flex flex-col gap-4">
           {donations.map((event, idx) => {
             const campaignId = getCampaignId(event);
-            const amount = formatEventAmount(event, 2);
+            const amount = formatEventAmount(event, "amount");
             const campaign = campaignId
               ? campaigns.find((c) => c.id.toString() === campaignId)
               : undefined;

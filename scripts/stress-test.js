@@ -109,10 +109,13 @@ async function run() {
     ])
   ]);
 
+  // create_campaign expects 10 args: creator, beneficiaries, title, description,
+  // metadata_uri, category, target_amount, deadline, accepted_token, max_per_donor
   const campaignArgs = [
     new Address(masterKeypair.publicKey()).toScVal(),
     beneficiariesVal,
     nativeToScVal("Stress Test Campaign", { type: "string" }),
+    nativeToScVal("Automated stress-test campaign for concurrent donation load.", { type: "string" }),
     nativeToScVal("https://example.com/meta", { type: "string" }),
     nativeToScVal("relief", { type: "symbol" }),
     nativeToScVal(20000000000n, { type: "i128" }), // 20,000 XLM target

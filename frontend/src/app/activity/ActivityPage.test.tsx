@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import ActivityPage from "./page";
+import {
+  makeCreatedEvent,
+  makeDonationEvent,
+  NATIVE_TOKEN_ADDRESS,
+} from "@/test/factories";
 
 // fromStroops is the only soroban export the page reaches (via @/lib/eventData).
 vi.mock("@/lib/soroban", () => ({
@@ -33,10 +38,10 @@ const ActivityFeedMock = vi.hoisted(() => {
     return `${value.substring(0, 8)}...${value.substring(value.length - 4)}`;
   };
 
-  const formatEventAmountMock = (event: any, index: number) => {
+  const formatEventAmountMock = (event: any, field: string) => {
     const data = event?.data;
-    if (!data || !Array.isArray(data)) return "—";
-    const val = data[index];
+    if (!data || typeof data !== "object" || Array.isArray(data)) return "—";
+    const val = data[field];
     if (val === null || val === undefined || val === "") return "—";
     try {
       return `${BigInt(val).toString()} XLM`;
@@ -58,11 +63,11 @@ const ActivityFeedMock = vi.hoisted(() => {
           const txLabel = formatTxHashMock(event?.txHash) || "N/A";
           let amountStr = "";
           if (event?.topic === "received") {
-            amountStr = formatEventAmountMock(event, 2);
+            amountStr = formatEventAmountMock(event, "amount");
           } else if (event?.topic === "created") {
-            amountStr = formatEventAmountMock(event, 3);
+            amountStr = formatEventAmountMock(event, "target_amount");
           } else if (event?.topic === "claimed") {
-            amountStr = formatEventAmountMock(event, 3);
+            amountStr = formatEventAmountMock(event, "amount");
           }
           return React.createElement(
             "tr",
@@ -90,6 +95,7 @@ vi.mock("next/dynamic", () => ({
 import { useEvents } from "@/hooks/useSoroban";
 
 const DONOR = "G" + "B".repeat(55);
+const OTHER = "G" + "C".repeat(55);
 
 beforeEach(() => {
   replaceMock.mockReset();
@@ -97,14 +103,25 @@ beforeEach(() => {
 });
 
 describe("ActivityPage - malformed event payloads", () => {
-  it("renders placeholders instead of crashing on short or garbage data arrays", async () => {
+  it("renders placeholders instead of crashing on short or garbage struct payloads", async () => {
     vi.mocked(useEvents).mockReturnValue({
       data: [
-        // Donation event with no amount at data[2]
-        { id: "e1", topic: "received", ledger: 10, data: [1, DONOR] },
-        // Creation event with a non-numeric target at data[3]
-        { id: "e2", topic: "created", ledger: 11, data: [2, DONOR, 0, "not-a-number"] },
-        // Claim event with no data array at all
+        // Donation event with no amount
+        {
+          id: "e1",
+          topic: "received",
+          ledger: 10,
+          data: {
+            campaign_id: 1n,
+            donor: DONOR,
+            total_raised: 0n,
+            accepted_token: NATIVE_TOKEN_ADDRESS,
+            comment: null,
+          },
+        },
+        // Creation event with a non-numeric target
+        makeCreatedEvent("e2", { id: 2n, creator: DONOR, target_amount: "not-a-number" as any }, 11),
+        // Claim event with no data at all
         { id: "e3", topic: "claimed", ledger: 12 },
         // Entries that are not events at all
         null,
@@ -127,7 +144,7 @@ describe("ActivityPage - malformed event payloads", () => {
 
   it("keeps ledger and tx-hash cells safe when those fields are missing", async () => {
     vi.mocked(useEvents).mockReturnValue({
-      data: [{ id: "e4", topic: "received", data: [] }],
+      data: [{ id: "e4", topic: "received", data: {} }],
       isLoading: false,
       isError: false,
     } as any);
@@ -144,7 +161,7 @@ describe("ActivityPage - malformed event payloads", () => {
 
   it("still renders well-formed events", async () => {
     vi.mocked(useEvents).mockReturnValue({
-      data: [{ id: "e5", topic: "received", ledger: 20, data: [3, DONOR, 5000000] }],
+      data: [makeDonationEvent("e5", DONOR, 5_000_000n, 3n, 20)],
       isLoading: false,
       isError: false,
     } as any);
@@ -161,13 +178,8 @@ describe("ActivityPage - search filtering", () => {
   it("filters the activity list when a donor address is typed", async () => {
     vi.mocked(useEvents).mockReturnValue({
       data: [
-        { id: "s1", topic: "received", ledger: 30, data: [3, DONOR, 1000000] },
-        {
-          id: "s2",
-          topic: "received",
-          ledger: 31,
-          data: [3, "G" + "C".repeat(55), 2000000],
-        },
+        makeDonationEvent("s1", DONOR, 1_000_000n, 3n, 30),
+        makeDonationEvent("s2", OTHER, 2_000_000n, 3n, 31),
       ],
       isLoading: false,
       isError: false,
@@ -194,8 +206,8 @@ describe("ActivityPage - search filtering", () => {
   it("filters the activity list when a campaign id is typed", async () => {
     vi.mocked(useEvents).mockReturnValue({
       data: [
-        { id: "c1", topic: "received", ledger: 40, data: [3, DONOR, 1000000] },
-        { id: "c2", topic: "received", ledger: 41, data: [9, DONOR, 2000000] },
+        makeDonationEvent("c1", DONOR, 1_000_000n, 3n, 40),
+        makeDonationEvent("c2", DONOR, 2_000_000n, 9n, 41),
       ],
       isLoading: false,
       isError: false,
@@ -221,7 +233,7 @@ describe("ActivityPage - search filtering", () => {
 
   it("shows a helpful empty state with a clear action when nothing matches", async () => {
     vi.mocked(useEvents).mockReturnValue({
-      data: [{ id: "e6", topic: "received", ledger: 50, data: [3, DONOR, 1000000] }],
+      data: [makeDonationEvent("e6", DONOR, 1_000_000n, 3n, 50)],
       isLoading: false,
       isError: false,
     } as any);
@@ -251,7 +263,7 @@ describe("ActivityPage - search filtering", () => {
 
   it("syncs the search term to the ?search= URL parameter", async () => {
     vi.mocked(useEvents).mockReturnValue({
-      data: [{ id: "e7", topic: "received", ledger: 60, data: [3, DONOR, 1000000] }],
+      data: [makeDonationEvent("e7", DONOR, 1_000_000n, 3n, 60)],
       isLoading: false,
       isError: false,
     } as any);
@@ -279,7 +291,7 @@ describe("ActivityPage - search filtering", () => {
   it("hydrates the search term from ?search= on mount", async () => {
     currentParams = new URLSearchParams("search=abc123");
     vi.mocked(useEvents).mockReturnValue({
-      data: [{ id: "e8", topic: "received", ledger: 70, data: [3, DONOR, 1000000] }],
+      data: [makeDonationEvent("e8", DONOR, 1_000_000n, 3n, 70)],
       isLoading: false,
       isError: false,
     } as any);

@@ -1,6 +1,63 @@
-# Cross-Browser Testing Guide
+# Testing Guide
 
-This document outlines the manual testing procedures for StellarGive across major browsers to ensure consistent user experience and performance.
+This document covers automated suites (unit, local-network integration, stress)
+and the manual cross-browser checklist.
+
+## Stress test (testnet)
+
+`scripts/stress-test.js` funds 100 temporary accounts, creates a campaign, and
+fires 100 parallel donations against the deployed testnet contract.
+
+**Prerequisites**
+
+- `NEXT_PUBLIC_CONTRACT_ID` set in `frontend/.env.local`
+- Optional: `NEXT_PUBLIC_SOROBAN_RPC_URL` / `NEXT_PUBLIC_NETWORK_PASSPHRASE`
+  (defaults to public testnet)
+- Root dependencies installed (`npm install` at repo root) so
+  `@stellar/stellar-sdk` and `dotenv` resolve
+
+**Run**
+
+```bash
+npm run stress-test
+```
+
+On success the script writes `stress-test-results.json` and
+`STRESS_TEST_FINDINGS.md` at the repo root.
+
+## Local Stellar integration suite
+
+Every frontend unit test mocks RPC. The integration suite spins real traffic
+through `frontend/src/lib/soroban.ts` against Docker Quickstart so mismatches
+(struct events, `startLedger`, donation minimum, refund) are caught.
+
+**Prerequisites**
+
+- Docker
+- Stellar / Soroban CLI
+- Rust toolchain with the `wasm32v1-none` target
+
+**Run locally**
+
+```bash
+docker compose up -d stellar
+./scripts/deploy-local.sh
+cd frontend
+RUN_LOCAL_STELLAR=1 \
+  NEXT_PUBLIC_CONTRACT_ID=<from deploy output> \
+  NEXT_PUBLIC_SOROBAN_RPC_URL=http://localhost:8000/rpc \
+  NEXT_PUBLIC_NETWORK_PASSPHRASE='Standalone Network ; February 2017' \
+  npm run test:integration
+```
+
+`deploy-local.sh` also writes the `NEXT_PUBLIC_*` values into
+`frontend/.env.local`. CI runs the same flow nightly and on changes under
+`contracts/**`, `frontend/src/lib/soroban.ts`, and the integration helpers
+(see `.github/workflows/local-integration.yml`).
+
+## Cross-Browser Testing Guide
+
+This section outlines the manual testing procedures for StellarGive across major browsers to ensure consistent user experience and performance.
 
 ## Browser Versions Tested
 

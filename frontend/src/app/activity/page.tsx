@@ -30,7 +30,10 @@ function eventMatchesSearch(event: any, query: string): boolean {
   if (!query) return true;
   const campaignId = getCampaignId(event);
   if (campaignId && campaignId.includes(query)) return true;
-  const participant = normalizeAddress(getEventField(event, 1));
+  const participant =
+    normalizeAddress(getEventField(event, "donor")) ??
+    normalizeAddress(getEventField(event, "beneficiary")) ??
+    normalizeAddress(getEventField(event, "creator"));
   if (participant && participant.toLowerCase().includes(query)) return true;
   return false;
 }

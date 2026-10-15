@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useEvents } from "@/hooks/useSoroban";
-import { fromStroops } from "@/lib/soroban";
+import { formatEventAmount, getCampaignId } from "@/lib/eventData";
 import { getStellarExpertTxUrl } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -193,19 +193,21 @@ export function EventFeed() {
                   <td className="px-4 py-3">
                     {event.topic === "received" && (
                       <>
-                        <span className="font-bold">{fromStroops(event.data[2])} XLM</span> donated
-                        to Campaign #{event.data[0].toString()}
+                        <span className="font-bold">{formatEventAmount(event, "amount")}</span> donated
+                        to Campaign #{getCampaignId(event) ?? "—"}
                       </>
                     )}
                     {event.topic === "created" && (
                       <>
                         New campaign created with a target of{" "}
-                        <span className="font-bold">{fromStroops(event.data[3])} XLM</span>
+                        <span className="font-bold">
+                          {formatEventAmount(event, "target_amount")}
+                        </span>
                       </>
                     )}
                     {event.topic === "claimed" && (
                       <>
-                        <span className="font-bold">{fromStroops(event.data[3])} XLM</span> claimed
+                        <span className="font-bold">{formatEventAmount(event, "amount")}</span> claimed
                         by beneficiary
                       </>
                     )}
@@ -245,19 +247,19 @@ export function EventFeed() {
               <p className="text-sm">
                 {event.topic === "received" && (
                   <>
-                    <span className="font-bold">{fromStroops(event.data[2])} XLM</span> donated to
-                    Campaign #{event.data[0].toString()}
+                    <span className="font-bold">{formatEventAmount(event, "amount")}</span> donated to
+                    Campaign #{getCampaignId(event) ?? "—"}
                   </>
                 )}
                 {event.topic === "created" && (
                   <>
                     New campaign created with a target of{" "}
-                    <span className="font-bold">{fromStroops(event.data[3])} XLM</span>
+                    <span className="font-bold">{formatEventAmount(event, "target_amount")}</span>
                   </>
                 )}
                 {event.topic === "claimed" && (
                   <>
-                    <span className="font-bold">{fromStroops(event.data[3])} XLM</span> claimed by
+                    <span className="font-bold">{formatEventAmount(event, "amount")}</span> claimed by
                     beneficiary
                   </>
                 )}
