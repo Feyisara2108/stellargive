@@ -178,14 +178,24 @@ function isCategoryKey(value: string | null): value is CategoryKey {
 }
 
 /**
+ * Maps a campaign's raw category onto the CategoryKey its tab uses.
+ * Kept in sync with matchesCategory so a tab's count always equals the
+ * number of campaigns the filter shows: "other" and empty/missing
+ * categories land on "uncategorized" (#1090).
+ */
+function normalizeCategory(campaign: Campaign): CategoryKey {
+  const value = (campaign.category ?? "").trim().toLowerCase();
+  if (value === "" || value === "other") return "uncategorized";
+  return value as CategoryKey;
+}
+
+/**
  * Mirrors CampaignCard's badge logic: a campaign with an empty or "other"
  * category is labelled "Uncategorized", so that tab must match those too.
  */
 function matchesCategory(campaign: Campaign, category: CategoryKey): boolean {
   if (category === "all") return true;
-  const value = (campaign.category ?? "").trim().toLowerCase();
-  if (category === "uncategorized") return value === "" || value === "other";
-  return value === category;
+  return normalizeCategory(campaign) === category;
 }
 
 function sortCampaigns(campaigns: Campaign[], sortBy: SortKey): Campaign[] {
@@ -293,10 +303,12 @@ function ExploreContent() {
   const hasMore = data?.hasMore ?? false;
 
   // Per-category campaign counts for the CategorySelector (#817).
+  // normalizeCategory is shared with matchesCategory so each tab's count
+  // is exactly the number of campaigns its filter shows (#1090).
   const categoryCounts = useMemo(() => {
     const counts: Partial<Record<CategoryKey, number>> = { all: campaigns.length };
     for (const c of campaigns) {
-      const cat = (c.category || "uncategorized") as CategoryKey;
+      const cat = normalizeCategory(c);
       counts[cat] = (counts[cat] ?? 0) + 1;
     }
     return counts;

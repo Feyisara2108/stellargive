@@ -219,3 +219,44 @@ describe("ExplorePage - Saved view", () => {
     expect(screen.queryByText("Alpha")).not.toBeInTheDocument();
   });
 });
+
+describe("ExplorePage - Uncategorized category count (#1090)", () => {
+  it("counts 'other' and empty/missing categories under Uncategorized", async () => {
+    mockState.campaigns = [
+      buildCampaign({ id: 1n, title: "Other A", category: "other" }),
+      buildCampaign({ id: 2n, title: "Other B", category: "Other" }), // case-insensitive
+      buildCampaign({ id: 3n, title: "Empty", category: "" }),
+      buildCampaign({
+        id: 4n,
+        title: "Missing",
+        category: undefined as unknown as string,
+      }),
+      buildCampaign({ id: 5n, title: "Medical", category: "medical" }),
+    ];
+    renderPage();
+
+    const tab = await screen.findByRole("tab", { name: /uncategorized/i });
+    expect(tab).toHaveTextContent("(4)");
+  });
+
+  it("Uncategorized tab count matches the campaigns its filter shows", async () => {
+    mockState.campaigns = [
+      buildCampaign({ id: 1n, title: "Other A", category: "other" }),
+      buildCampaign({ id: 2n, title: "Empty", category: "" }),
+      buildCampaign({ id: 3n, title: "Medical", category: "medical" }),
+    ];
+    renderPage();
+
+    const tab = await screen.findByRole("tab", { name: /uncategorized/i });
+    expect(tab).toHaveTextContent("(2)");
+
+    fireEvent.click(tab);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("campaign-card")).toHaveLength(2);
+    });
+    const cards = screen.getAllByTestId("campaign-card");
+    expect(cards.map((c) => c.textContent).sort()).toEqual(["Empty", "Other A"]);
+    expect(cards.some((c) => c.textContent === "Medical")).toBe(false);
+  });
+});
