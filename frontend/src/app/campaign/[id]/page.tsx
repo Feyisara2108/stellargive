@@ -53,7 +53,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       siteName: "StellarGive",
     },
     twitter: {
-      card: "summary",
+      // App-wide default OG/Twitter images now exist, so cards can always use
+      // summary_large_image; campaign images are added below when available.
+      card: "summary_large_image",
       title: `Campaign #${resolvedParams.id} | StellarGive`,
       description: defaultDescription,
     },
@@ -90,7 +92,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         ...(imageUrl && { images: [{ url: imageUrl }] }),
       },
       twitter: {
-        card: imageUrl ? "summary_large_image" : "summary",
+        // summary_large_image always: the app-wide default twitter-image is used
+        // when this campaign has no image of its own.
+        card: "summary_large_image",
         title,
         description,
         ...(imageUrl && { images: [imageUrl] }),

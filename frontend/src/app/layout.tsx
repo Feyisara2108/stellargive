@@ -9,6 +9,9 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
+  // File-convention assets (icon, apple-icon, opengraph-image, twitter-image) are
+  // emitted as absolute URLs; keep in sync with the PRODUCTION_URL deploy var.
+  metadataBase: new URL("https://stellargive.org"),
   title: "stellarGive | Relief Grant Platform",
   description: "A decentralized donation platform built on Stellar",
 };
