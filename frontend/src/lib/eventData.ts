@@ -4,14 +4,23 @@ import { fromStroops } from "@/lib/soroban";
 export const MISSING_FIELD = "—";
 
 /**
- * Contract events arrive as a loosely-typed `data` array straight off the RPC
- * response, so a malformed, truncated, or re-shaped payload must never take a
- * page down. Everything below reads defensively and degrades to a placeholder.
+ * Contract events arrive as structs via `scValToNative` (plain objects with
+ * field names). Older fixtures used positional arrays; readers must never throw
+ * on a malformed, truncated, or re-shaped payload.
  */
-export function getEventField(event: unknown, index: number): unknown {
+export function getEventPayload(event: unknown): Record<string, unknown> | null {
   const data = (event as { data?: unknown })?.data;
-  if (!Array.isArray(data)) return undefined;
-  return data[index];
+  if (data !== null && typeof data === "object" && !Array.isArray(data)) {
+    return data as Record<string, unknown>;
+  }
+  return null;
+}
+
+/** Reads a named field from a struct event payload. */
+export function getEventField(event: unknown, field: string): unknown {
+  const payload = getEventPayload(event);
+  if (!payload) return undefined;
+  return payload[field];
 }
 
 /** Parses a scalar into a bigint, or null when it is missing/garbage. */
@@ -25,20 +34,24 @@ export function parseBigInt(value: unknown): bigint | null {
   }
 }
 
-/** Campaign id at `data[index]` as a decimal string, or null when unusable. */
-export function getCampaignId(event: unknown, index = 0): string | null {
-  const parsed = parseBigInt(getEventField(event, index));
+/**
+ * Campaign id from a contract event struct.
+ * Donation/Claimed/Refund use `campaign_id`; Created/Cancelled use `id`.
+ */
+export function getCampaignId(event: unknown): string | null {
+  const parsed =
+    parseBigInt(getEventField(event, "campaign_id")) ?? parseBigInt(getEventField(event, "id"));
   return parsed === null ? null : parsed.toString();
 }
 
-/** Stroop amount at `data[index]` as a bigint, defaulting to 0n. */
-export function getAmountStroops(event: unknown, index: number): bigint {
-  return parseBigInt(getEventField(event, index)) ?? 0n;
+/** Stroop amount from a named field (default `amount`), defaulting to 0n. */
+export function getAmountStroops(event: unknown, field = "amount"): bigint {
+  return parseBigInt(getEventField(event, field)) ?? 0n;
 }
 
-/** Human amount at `data[index]`, e.g. "12.5 XLM", or "—" when unusable. */
-export function formatEventAmount(event: unknown, index: number): string {
-  const parsed = parseBigInt(getEventField(event, index));
+/** Human amount from a named field, e.g. "12.5 XLM", or "—" when unusable. */
+export function formatEventAmount(event: unknown, field = "amount"): string {
+  const parsed = parseBigInt(getEventField(event, field));
   if (parsed === null) return MISSING_FIELD;
   try {
     return `${fromStroops(parsed)} XLM`;

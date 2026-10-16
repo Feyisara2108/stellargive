@@ -322,11 +322,17 @@ On recovery it automatically closes the tracking issue.
 
 | Secret | Purpose |
 |---|---|
-| `SOROBAN_RPC_URL` | RPC endpoint to monitor |
+| `SOROBAN_RPC_URL` | Primary RPC endpoint to monitor |
+| `SOROBAN_RPC_FALLBACK_URL` | Optional backup; probed if the primary fails |
+| `SOROBAN_RPC_URLS` | Optional comma-separated list (overrides the two above) |
 | `SLACK_WEBHOOK_URL` | Slack incoming webhook (optional) |
 | `DISCORD_WEBHOOK_URL` | Discord incoming webhook (optional) |
 
-See `.env.example` for all available configuration variables.
+The monitor (`scripts/monitor-rpc.js`) exits 0 if **any** configured endpoint is
+healthy (`getHealth` + best-effort `getLatestLedger`), and only opens an outage
+issue when every endpoint fails.
+
+See `frontend/.env.example` for all available configuration variables.
 
 ---
 

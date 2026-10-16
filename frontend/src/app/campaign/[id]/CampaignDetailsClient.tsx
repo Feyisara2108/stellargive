@@ -52,12 +52,27 @@ function TopDonors({ campaignId }: { campaignId: bigint }) {
   if (isLoading) return <Skeleton className="h-32 w-full mt-6" />;
 
   const donationsByDonor = allEvents
-    ?.filter((e: any) => e.topic === "received" && e.data && BigInt(e.data[0]) === campaignId)
+    ?.filter((e: any) => {
+      try {
+        return (
+          e.topic === "received" &&
+          e.data?.campaign_id !== undefined &&
+          BigInt(e.data.campaign_id) === campaignId
+        );
+      } catch {
+        return false;
+      }
+    })
     .reduce(
       (acc: any, event: any) => {
-        const donor = event.data[1]?.toString();
-        const amount = BigInt(event.data[2]);
-        if (donor && donor !== ZERO_ADDRESS) {
+        const donor = event.data?.donor?.toString?.();
+        let amount = 0n;
+        try {
+          amount = BigInt(event.data?.amount ?? 0);
+        } catch {
+          amount = 0n;
+        }
+        if (donor && donor !== ZERO_ADDRESS && amount > 0n) {
           acc[donor] = (acc[donor] || 0n) + amount;
         }
         return acc;

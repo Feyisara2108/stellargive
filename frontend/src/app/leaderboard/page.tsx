@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useEvents, useResolvedName } from "@/hooks/useSoroban";
 import { fromStroops } from "@/lib/soroban";
+import { getAmountStroops, getCampaignId, getEventField } from "@/lib/eventData";
 import { toCSV, downloadTextFile } from "@/utils/format";
 import { Trophy, ArrowDown, Download, User } from "lucide-react";
 import { useWallet } from "@/lib/WalletProvider";
@@ -56,21 +57,19 @@ function aggregateDonors(events: any[] | undefined, timeRange: TimeRange): Donor
       if (eventTime < cutoff) continue;
     }
 
-    const donor = event.data[1]?.toString();
+    const donorRaw = getEventField(event, "donor");
+    const donor = donorRaw?.toString();
     if (!donor || donor === ZERO_ADDRESS) continue;
 
-    let amount: bigint;
-    try {
-      amount = BigInt(event.data[2]);
-    } catch {
-      continue;
-    }
+    const amount = getAmountStroops(event, "amount");
+    if (amount <= 0n) continue;
 
     const entry = totals.get(donor) ?? { total: 0n, donations: 0, campaigns: new Set<string>() };
     entry.total += amount;
     entry.donations += 1;
-    if (event.data[0] !== undefined && event.data[0] !== null) {
-      entry.campaigns.add(event.data[0].toString());
+    const campaignId = getCampaignId(event);
+    if (campaignId) {
+      entry.campaigns.add(campaignId);
     }
     totals.set(donor, entry);
   }

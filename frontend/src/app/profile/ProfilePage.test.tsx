@@ -72,10 +72,29 @@ describe("ProfilePage - malformed event payloads", () => {
     vi.mocked(useRecentCampaigns).mockReturnValue({ data: [], isLoading: false } as any);
     vi.mocked(useEvents).mockReturnValue({
       data: [
-        // No campaign id at data[0] and no amount at data[2]
-        { id: "d1", topic: "received", data: [undefined, TEST_ADDRESS] },
-        // Garbage id, still no amount
-        { id: "d2", topic: "received", data: ["oops", TEST_ADDRESS] },
+        // Donor present but no campaign_id / amount
+        {
+          id: "d1",
+          topic: "received",
+          data: {
+            donor: TEST_ADDRESS,
+            total_raised: 0n,
+            accepted_token: "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+            comment: null,
+          },
+        },
+        // Garbage campaign_id, still no amount
+        {
+          id: "d2",
+          topic: "received",
+          data: {
+            campaign_id: "oops",
+            donor: TEST_ADDRESS,
+            total_raised: 0n,
+            accepted_token: "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+            comment: null,
+          },
+        },
         null,
         "garbage",
       ],

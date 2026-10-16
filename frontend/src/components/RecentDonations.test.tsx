@@ -293,8 +293,9 @@ describe("RecentDonations — load more pagination", () => {
 
 describe("RecentDonations — dedication messages", () => {
   it("renders the message when present, sanitized", () => {
-    const event = makeDonationEvent("0-1", REAL_DONOR, 50_000_000n, CAMPAIGN_ID);
-    event.data = [...event.data, "<b>Stay strong</b><script>alert(1)</script>"];
+    const event = makeDonationEvent("0-1", REAL_DONOR, 50_000_000n, CAMPAIGN_ID, 100, {
+      comment: "<b>Stay strong</b><script>alert(1)</script>",
+    });
     vi.mocked(useEvents).mockReturnValue({
       data: [event],
       isLoading: false,

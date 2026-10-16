@@ -2,28 +2,18 @@ import type { Meta, StoryObj } from "@storybook/react";
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { EventFeed } from "./EventFeed";
+import { makeClaimedEvent, makeCreatedEvent, makeDonationEvent } from "@/test/factories";
 
 const stroops = (xlm: number): bigint => BigInt(xlm) * 10_000_000n;
 
 const mockEvents = [
-  {
-    id: "evt-1",
-    topic: "received",
-    ledger: 52301,
-    data: [1n, "GABC", stroops(250), "GDONATE"],
-  },
-  {
-    id: "evt-2",
-    topic: "created",
-    ledger: 52280,
-    data: [2n, "GCREATOR", "relief", stroops(500_000)],
-  },
-  {
-    id: "evt-3",
-    topic: "claimed",
-    ledger: 52260,
-    data: [3n, "GCREATOR", "GBENE", stroops(120_000)],
-  },
+  makeDonationEvent("evt-1", "GABC", stroops(250), 1n, 52301),
+  makeCreatedEvent("evt-2", { id: 2n, creator: "GCREATOR", target_amount: stroops(500_000) }, 52280),
+  makeClaimedEvent(
+    "evt-3",
+    { campaign_id: 3n, beneficiary: "GBENE", amount: stroops(120_000) },
+    52260,
+  ),
 ];
 
 function makeClient(data?: typeof mockEvents) {

@@ -668,7 +668,7 @@ export function countUniqueDonors(events: any[] | undefined): number {
   for (const event of events ?? []) {
     if (event?.topic !== "received" || !event.data) continue;
 
-    const donor = event.data[1]?.toString();
+    const donor = event.data?.donor != null ? String(event.data.donor) : undefined;
     if (!donor || donor === ZERO_ADDRESS) continue;
 
     donors.add(donor);
@@ -684,8 +684,8 @@ export function countUniqueDonors(events: any[] | undefined): number {
  * resource (the event feed rather than the campaign list), and an unreachable
  * event feed shouldn't be able to take the campaign totals down with it.
  *
- * `getEvents` pages from ledger 0, so the count covers the contract's first
- * `DONOR_SCAN_EVENT_LIMIT` events — the same window the leaderboard ranks
+ * `getEvents` scans a lookback window from the ledger tip, so the count covers
+ * recent `DONOR_SCAN_EVENT_LIMIT` events — the same window the leaderboard ranks
  * donors from — and is a complete total only while the contract has emitted
  * that few events. No polling, like the campaign stats: this is hero copy, not
  * a live feed.

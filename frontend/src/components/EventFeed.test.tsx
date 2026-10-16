@@ -18,7 +18,7 @@ vi.mock("sonner", () => ({
 
 import { useEvents } from "@/hooks/useSoroban";
 
-import { makeEvent } from "@/test/factories";
+import { makeClaimedEvent, makeCreatedEvent, makeDonationEvent } from "@/test/factories";
 
 beforeEach(() => {
   vi.mocked(useEvents).mockReset();
@@ -79,7 +79,7 @@ describe("EventFeed — empty state", () => {
 describe("EventFeed — populated state", () => {
   it("renders a 'received' donation event with amount and campaign id", () => {
     vi.mocked(useEvents).mockReturnValue({
-      data: [makeEvent("0-1", "received", [1n, "GABC", 10_000_000n])],
+      data: [makeDonationEvent("0-1", "GABC", 10_000_000n, 1n)],
       isLoading: false,
     } as any);
     render(<EventFeed />);
@@ -91,7 +91,7 @@ describe("EventFeed — populated state", () => {
 
   it("renders a 'created' campaign event with target amount", () => {
     vi.mocked(useEvents).mockReturnValue({
-      data: [makeEvent("0-2", "created", [2n, "title", "cat", 100_000_000n])],
+      data: [makeCreatedEvent("0-2", { id: 2n, target_amount: 100_000_000n })],
       isLoading: false,
     } as any);
     render(<EventFeed />);
@@ -102,7 +102,7 @@ describe("EventFeed — populated state", () => {
 
   it("renders a 'claimed' event with claimed amount", () => {
     vi.mocked(useEvents).mockReturnValue({
-      data: [makeEvent("0-3", "claimed", [3n, "creator", "beneficiary", 50_000_000n])],
+      data: [makeClaimedEvent("0-3", { campaign_id: 3n, amount: 50_000_000n })],
       isLoading: false,
     } as any);
     render(<EventFeed />);
@@ -113,7 +113,7 @@ describe("EventFeed — populated state", () => {
 
   it("renders the ledger number for each event", () => {
     vi.mocked(useEvents).mockReturnValue({
-      data: [makeEvent("0-1", "received", [1n, "GABC", 10_000_000n], 123456)],
+      data: [makeDonationEvent("0-1", "GABC", 10_000_000n, 1n, 123456)],
       isLoading: false,
     } as any);
     render(<EventFeed />);
@@ -123,9 +123,9 @@ describe("EventFeed — populated state", () => {
   it("renders multiple events without deduplication", () => {
     vi.mocked(useEvents).mockReturnValue({
       data: [
-        makeEvent("0-1", "received", [1n, "GABC", 10_000_000n]),
-        makeEvent("0-2", "created", [2n, "title", "cat", 100_000_000n]),
-        makeEvent("0-3", "claimed", [3n, "creator", "beneficiary", 50_000_000n]),
+        makeDonationEvent("0-1", "GABC", 10_000_000n),
+        makeCreatedEvent("0-2", { id: 2n, target_amount: 100_000_000n }),
+        makeClaimedEvent("0-3", { campaign_id: 3n, amount: 50_000_000n }),
       ],
       isLoading: false,
     } as any);
@@ -137,7 +137,7 @@ describe("EventFeed — populated state", () => {
 
   it("does not show the empty-state message when events are present", () => {
     vi.mocked(useEvents).mockReturnValue({
-      data: [makeEvent("0-1", "received", [1n, "GABC", 10_000_000n])],
+      data: [makeDonationEvent("0-1", "GABC", 10_000_000n)],
       isLoading: false,
     } as any);
     render(<EventFeed />);
@@ -149,9 +149,9 @@ describe("EventFeed — icons and legend", () => {
   it("renders a distinct icon accent and text label per event type", () => {
     vi.mocked(useEvents).mockReturnValue({
       data: [
-        makeEvent("0-1", "received", [1n, "GABC", 10_000_000n]),
-        makeEvent("0-2", "created", [1n, "GABC", "GDEF", 10_000_000n]),
-        makeEvent("0-3", "claimed", [1n, "GABC", "GDEF", 10_000_000n]),
+        makeDonationEvent("0-1", "GABC", 10_000_000n),
+        makeCreatedEvent("0-2", { id: 1n, target_amount: 10_000_000n }),
+        makeClaimedEvent("0-3", { campaign_id: 1n, amount: 10_000_000n }),
       ],
       isLoading: false,
     } as any);

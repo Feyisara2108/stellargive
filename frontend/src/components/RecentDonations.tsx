@@ -10,6 +10,7 @@ import { Heart, ArrowUpRight, RotateCcw, HeartHandshake, User } from "lucide-rea
 import { AddressLink } from "@/components/AddressLink";
 import { RelativeTime } from "@/components/RelativeTime";
 import { sanitizeMessage } from "@/lib/sanitize";
+import { getAmountStroops, getCampaignId, getEventField } from "@/lib/eventData";
 
 const INITIAL_BATCH_SIZE = 10;
 const BATCH_SIZE = 10;
@@ -50,10 +51,13 @@ function DonorAvatar({ address, name }: { address: string | null; name: string }
   );
 }
 
-/** Reads the optional dedication (`data[5]`) from a `received` event payload. */
-function getDonationMessage(data: any): string {
-  const raw = Array.isArray(data) ? data[5] : undefined;
-  return typeof raw === "string" ? sanitizeMessage(raw) : "";
+/** Reads the optional dedication (`comment`) from a `DonationEvent` payload. */
+function getDonationMessage(data: unknown): string {
+  if (data !== null && typeof data === "object" && !Array.isArray(data)) {
+    const raw = (data as { comment?: unknown }).comment;
+    return typeof raw === "string" ? sanitizeMessage(raw) : "";
+  }
+  return "";
 }
 
 export function RecentDonations({
@@ -122,12 +126,12 @@ export function RecentDonations({
     );
   }
 
-  // Filter for donations to this specific campaign, sorted by ledger descending
-  // data: [campaign_id, donor, amount, raised_amount, accepted_token]
+  // Filter for donations to this specific campaign, sorted by ledger descending.
+  // DonationEvent: { campaign_id, donor, amount, total_raised, accepted_token, comment }
   const donations = allEvents
     ?.filter((e) => {
       try {
-        return e.topic === "received" && e.data && e.data[0] && BigInt(e.data[0]) === campaignId;
+        return e.topic === "received" && getCampaignId(e) === campaignId.toString();
       } catch {
         return false;
       }
@@ -166,8 +170,9 @@ export function RecentDonations({
         {visibleDonations && visibleDonations.length > 0 ? (
           <div className="space-y-4">
             {visibleDonations.map((event: any) => {
-              const donorAddress = normalizeDonorAddress(event.data[1]);
+              const donorAddress = normalizeDonorAddress(getEventField(event, "donor"));
               const message = getDonationMessage(event.data);
+              const amountStroops = getAmountStroops(event, "amount");
               return (
                 <div
                   key={event.id}
@@ -179,7 +184,7 @@ export function RecentDonations({
                   />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm truncate">
-                      <span className="font-bold">{formatTokenAmount(event.data[2], 7)} XLM</span>{" "}
+                      <span className="font-bold">{formatTokenAmount(amountStroops, 7)} XLM</span>{" "}
                       donated by{" "}
                       {donorAddress ? (
                         <AddressLink address={donorAddress} className="text-muted-foreground" />
@@ -208,7 +213,7 @@ export function RecentDonations({
                       variant="ghost"
                       size="sm"
                       className="shrink-0 h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-primary"
-                      onClick={() => onDonateAgain(formatTokenAmount(event.data[2], 7))}
+                      onClick={() => onDonateAgain(formatTokenAmount(amountStroops, 7))}
                     >
                       <RotateCcw className="h-3 w-3" aria-hidden="true" />
                       Donate again

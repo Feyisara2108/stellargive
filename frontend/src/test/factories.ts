@@ -1,7 +1,10 @@
-import type { Campaign, CampaignBeneficiary } from "@/lib/soroban";
+import type { Campaign } from "@/lib/soroban";
 import { xdr, Address, nativeToScVal } from "@stellar/stellar-sdk";
 
 export const WALLET_ADDRESS = "GA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVSGZ";
+
+/** Native XLM SAC on Testnet — matches `scValToNative` Address string form. */
+export const NATIVE_TOKEN_ADDRESS = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
 
 export const makeCampaign = (overrides?: Partial<Campaign>): Campaign => ({
   id: 1n,
@@ -14,22 +17,59 @@ export const makeCampaign = (overrides?: Partial<Campaign>): Campaign => ({
   target_amount: 1_000_000_000n,
   raised_amount: 350_000_000n,
   deadline: BigInt(Math.floor(Date.now() / 1000) + 86_400),
-  accepted_token: "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+  accepted_token: NATIVE_TOKEN_ADDRESS,
   status: "Active",
   ...overrides,
 });
 
+export type ContractEventTopic = "received" | "created" | "claimed";
+
+export type ContractEventPayload = Record<string, unknown>;
+
+export type ContractEvent = {
+  id: string;
+  topic: ContractEventTopic;
+  data: ContractEventPayload;
+  ledger: number;
+  txHash: string;
+  createdAt?: string;
+};
+
+/**
+ * Shared envelope for contract events. `data` must be a struct-shaped object
+ * matching what `scValToNative` returns for each `#[contracttype]` event.
+ */
 export const makeEvent = (
   id: string,
-  topic: "received" | "created" | "claimed",
-  data: (bigint | string | number | null)[],
+  topic: ContractEventTopic,
+  data: ContractEventPayload,
   ledger = 100,
-) => ({
+): ContractEvent => ({
   id,
   topic,
   data,
   ledger,
   txHash: "0000000000000000000000000000000000000000000000000000000000000000",
+});
+
+/** Payload shape for `DonationEvent` after `scValToNative`. */
+export type DonationEventData = {
+  campaign_id: bigint;
+  donor: string | null;
+  amount: bigint;
+  total_raised: bigint;
+  accepted_token: string;
+  comment: string | null;
+};
+
+export const makeDonationEventData = (
+  overrides: Partial<DonationEventData> & Pick<DonationEventData, "donor" | "amount">,
+): DonationEventData => ({
+  campaign_id: 1n,
+  total_raised: 0n,
+  accepted_token: NATIVE_TOKEN_ADDRESS,
+  comment: null,
+  ...overrides,
 });
 
 export const makeDonationEvent = (
@@ -38,13 +78,63 @@ export const makeDonationEvent = (
   amountStroops: bigint,
   campaignId: bigint = 1n,
   ledger = 100,
-) => ({
-  id,
-  topic: "received",
-  data: [campaignId, donor, amountStroops, 0n, "native"],
-  ledger,
-  txHash: "0000000000000000000000000000000000000000000000000000000000000000",
+  overrides?: Partial<DonationEventData>,
+): ContractEvent =>
+  makeEvent(
+    id,
+    "received",
+    makeDonationEventData({
+      campaign_id: campaignId,
+      donor,
+      amount: amountStroops,
+      ...overrides,
+    }),
+    ledger,
+  );
+
+/** Payload shape for `CreatedEvent` after `scValToNative`. */
+export type CreatedEventData = {
+  id: bigint;
+  creator: string;
+  target_amount: bigint;
+};
+
+export const makeCreatedEventData = (
+  overrides?: Partial<CreatedEventData>,
+): CreatedEventData => ({
+  id: 1n,
+  creator: WALLET_ADDRESS,
+  target_amount: 100_000_000n,
+  ...overrides,
 });
+
+export const makeCreatedEvent = (
+  id: string,
+  overrides?: Partial<CreatedEventData>,
+  ledger = 100,
+): ContractEvent => makeEvent(id, "created", makeCreatedEventData(overrides), ledger);
+
+/** Payload shape for `ClaimedEvent` after `scValToNative`. */
+export type ClaimedEventData = {
+  campaign_id: bigint;
+  amount: bigint;
+  beneficiary: string;
+};
+
+export const makeClaimedEventData = (
+  overrides?: Partial<ClaimedEventData>,
+): ClaimedEventData => ({
+  campaign_id: 1n,
+  amount: 50_000_000n,
+  beneficiary: WALLET_ADDRESS,
+  ...overrides,
+});
+
+export const makeClaimedEvent = (
+  id: string,
+  overrides?: Partial<ClaimedEventData>,
+  ledger = 100,
+): ContractEvent => makeEvent(id, "claimed", makeClaimedEventData(overrides), ledger);
 
 // Aliases for Issue #390 compliance
 export const buildCampaign = makeCampaign;
