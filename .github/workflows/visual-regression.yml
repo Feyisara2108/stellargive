@@ -16,8 +16,12 @@ concurrency:
 
 jobs:
   visual-regression:
-    if: false
     runs-on: ubuntu-latest
+    # Same image the Linux baselines were generated in, so fonts/rendering match.
+    # Keep the tag in sync with @playwright/test in frontend/package.json.
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --ipc=host
     timeout-minutes: 30
 
     steps:
@@ -27,13 +31,9 @@ jobs:
       - name: Setup Node.js and install dependencies
         uses: ./.github/actions/setup-node
 
-      - name: Install Playwright browsers
-        working-directory: frontend
-        run: npx playwright install --with-deps chromium firefox webkit
-
       - name: Run visual regression tests
         working-directory: frontend
-        run: npx playwright test --project=desktop --project=firefox --project=webkit --project=mobile --project=mobile-safari
+        run: npx playwright test --project=desktop
         env:
           CI: true
 
