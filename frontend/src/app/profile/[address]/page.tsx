@@ -6,11 +6,11 @@ import { StatCard } from "@/components/ui/stat-card";
 import { UserCircle, TrendingUp, HandCoins, Megaphone } from "lucide-react";
 
 interface PublicProfileProps {
-  params: { address: string };
+  params: Promise<{ address: string }>;
 }
 
 export async function generateMetadata({ params }: PublicProfileProps): Promise<Metadata> {
-  const { address } = params;
+  const { address } = await params;
   const truncatedAddress = `${address.slice(0, 6)}...${address.slice(-4)}`;
 
   return {
@@ -30,8 +30,8 @@ export async function generateMetadata({ params }: PublicProfileProps): Promise<
   };
 }
 
-export default function PublicProfilePage({ params }: PublicProfileProps) {
-  const { address } = params;
+export default async function PublicProfilePage({ params }: PublicProfileProps) {
+  const { address } = await params;
 
   return (
     <div className="flex flex-col min-h-screen">
