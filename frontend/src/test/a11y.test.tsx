@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
-import { render } from "@/test/render";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, act } from "@/test/render";
 import { axe, toHaveNoViolations } from "jest-axe";
 import React from "react";
 
@@ -39,18 +39,19 @@ vi.mock("@stellar/stellar-sdk", async (importActual) => {
   };
 });
 
-// Mock hooks
+// Mock hooks. Each hook is a `vi.fn` so individual accessibility tests can
+// supply page-specific mocked data while sharing a single module mock.
 vi.mock("@/hooks/useSoroban", () => ({
-  useCampaignsPaged: () => ({
+  useCampaignsPaged: vi.fn(() => ({
     data: { campaigns: [], hasMore: false },
     isLoading: false,
     isFetching: false,
-  }),
-  useRecentCampaigns: () => ({
+  })),
+  useRecentCampaigns: vi.fn(() => ({
     data: [],
     isLoading: false,
-  }),
-  useCampaign: () => ({
+  })),
+  useCampaign: vi.fn(() => ({
     data: {
       id: 1n,
       title: "Test Campaign",
@@ -63,30 +64,44 @@ vi.mock("@/hooks/useSoroban", () => ({
       deadline: 0n,
     },
     isLoading: false,
-  }),
-  useCancelCampaign: () => ({
+  })),
+  useCancelCampaign: vi.fn(() => ({
     mutateAsync: vi.fn(),
     isPending: false,
-  }),
-  useEvents: () => ({
+  })),
+  useEvents: vi.fn(() => ({
     data: [],
     isLoading: false,
-  }),
-  useCreateCampaign: () => ({
+    isError: false,
+    refetch: vi.fn(),
+  })),
+  useCreateCampaign: vi.fn(() => ({
     mutateAsync: vi.fn(),
     isPending: false,
-  }),
-  useWalletBalance: () => ({
+  })),
+  useWalletBalance: vi.fn(() => ({
     data: "100",
     isLoading: false,
-  }),
-  useTokenMetadataBatch: () => ({
+  })),
+  useTokenMetadataBatch: vi.fn(() => ({
     data: {},
     isLoading: false,
-  }),
-  useResolvedName: () => ({ data: null, isFetching: false }),
-  useTokenMetadata: () => ({ data: undefined, isLoading: false }),
-  useXlmPrice: () => ({ data: undefined, isLoading: false }),
+  })),
+  useResolvedName: vi.fn(() => ({ data: null, isFetching: false })),
+  useTokenMetadata: vi.fn(() => ({ data: undefined, isLoading: false })),
+  useXlmPrice: vi.fn(() => ({ data: undefined, isLoading: false })),
+  // Consumed by the lazy-loaded AdminPanel.
+  usePlatformConfig: vi.fn(() => ({
+    data: null,
+    isLoading: false,
+    isError: false,
+    isFetching: false,
+    refetch: vi.fn(),
+  })),
+  useAddToWhitelist: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
+  useAddUpdate: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
+  usePauseContract: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
+  useUnpauseContract: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
 }));
 
 // Mock WalletProvider
@@ -127,7 +142,7 @@ vi.mock("@/components/Breadcrumbs", () => ({
   Breadcrumbs: () => <div data-testid="breadcrumbs" />,
 }));
 vi.mock("@/components/AddressLink", () => ({
-  AddressLink: () => <div data-testid="address-link" />,
+  AddressLink: () => <span data-testid="address-link" />,
 }));
 vi.mock("@/components/RefundButton", () => ({
   RefundButton: () => <div data-testid="refund-button" />,
@@ -146,6 +161,65 @@ import ExplorePage from "@/app/explore/page";
 import { CreateCampaignForm } from "@/components/CreateCampaignForm";
 import { CampaignDetailsClient } from "@/app/campaign/[id]/CampaignDetailsClient";
 import ProfilePage from "@/app/profile/page";
+import LeaderboardPage from "@/app/leaderboard/page";
+import ActivityPage from "@/app/activity/page";
+import AdminPage from "@/app/admin/page";
+import FaqPage from "@/app/faq/page";
+import { useEvents, useRecentCampaigns, useResolvedName } from "@/hooks/useSoroban";
+
+// A valid 56-char G-address so address helpers treat it as a real donor.
+const DONOR_ADDRESS = `G${"A".repeat(55)}`;
+
+/** A `donation`/`received` event shaped like the decoded RPC payload. */
+const RECEIVED_EVENT = {
+  id: "event-1",
+  topic: "received",
+  ledger: 1000,
+  createdAt: "2026-01-01T00:00:00Z",
+  txHash: "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+  data: [1n, DONOR_ADDRESS, 50_000_000n],
+};
+
+/** A campaign owned by the mocked wallet, used to reach the AdminPanel. */
+const OWNED_CAMPAIGN = {
+  id: 1n,
+  title: "Test Campaign",
+  creator: "GA",
+  beneficiary: "GB",
+  status: "Active",
+  deadline: 0n,
+  raised_amount: 0n,
+  target_amount: 100n,
+  accepted_token: "GC",
+};
+
+// Reset the shared hook mocks to their empty defaults before each test, so a
+// test that supplies page-specific data never leaks into the next one.
+beforeEach(() => {
+  vi.mocked(useEvents).mockReturnValue({
+    data: [],
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  } as any);
+  vi.mocked(useRecentCampaigns).mockReturnValue({ data: [], isLoading: false } as any);
+  vi.mocked(useResolvedName).mockReturnValue({ data: null, isFetching: false } as any);
+});
+
+/**
+ * Flush the async resolution of lazily loaded route chunks (`next/dynamic`)
+ * inside `act`, so axe audits the fully mounted page rather than the empty
+ * Suspense fallback.
+ */
+async function flushLazyRoute() {
+  // The chunk import resolves across several macrotasks; give each one an
+  // `act`-wrapped flush so React commits the mounted component.
+  for (let i = 0; i < 20; i++) {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    });
+  }
+}
 
 /**
  * Helper to run axe-core against a rendered container, filtering for
@@ -185,6 +259,52 @@ describe("Core Pages Accessibility Suite", () => {
 
   it("Profile page accessibility", async () => {
     const { container } = render(<ProfilePage />);
+    await checkAccessibility(container);
+  });
+
+  it("Leaderboard page accessibility", async () => {
+    vi.mocked(useEvents).mockReturnValue({
+      data: [RECEIVED_EVENT],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    } as any);
+
+    const { container } = render(<LeaderboardPage />);
+    // The ranked table renders once the mocked events are aggregated.
+    expect(screen.getByText("Donors ranked")).toBeInTheDocument();
+    await checkAccessibility(container);
+  });
+
+  it("Activity page accessibility", async () => {
+    vi.mocked(useEvents).mockReturnValue({
+      data: [RECEIVED_EVENT],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    } as any);
+
+    const { container } = render(<ActivityPage />);
+    await flushLazyRoute();
+    expect(screen.getByRole("heading", { name: "Transaction History" })).toBeInTheDocument();
+    await checkAccessibility(container);
+  });
+
+  it("Admin page accessibility", async () => {
+    vi.mocked(useRecentCampaigns).mockReturnValue({
+      data: [OWNED_CAMPAIGN],
+      isLoading: false,
+    } as any);
+
+    const { container } = render(<AdminPage />);
+    // The ownership gate resolves and the lazy AdminPanel mounts.
+    await flushLazyRoute();
+    expect(screen.getByText("Campaign Management")).toBeInTheDocument();
+    await checkAccessibility(container);
+  });
+
+  it("FAQ page accessibility", async () => {
+    const { container } = render(<FaqPage />);
     await checkAccessibility(container);
   });
 });
