@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { cn, calculateProgress, getCampaignImageUrl } from "./utils";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { cn, calculateProgress, getCampaignImageUrl, getStellarExpertTxUrl } from "./utils";
 
 describe("utils", () => {
   describe("cn", () => {
@@ -67,6 +67,53 @@ describe("utils", () => {
     it("should return undefined for other unsupported uri schemes", () => {
       expect(getCampaignImageUrl("ftp://example.com")).toBeUndefined();
       expect(getCampaignImageUrl("data:image/png;base64,...")).toBeUndefined();
+    });
+  });
+
+  describe("getStellarExpertTxUrl", () => {
+    const TX_HASH = "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90";
+
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("links to the public explorer for the Public Global passphrase", () => {
+      vi.stubEnv(
+        "NEXT_PUBLIC_NETWORK_PASSPHRASE",
+        "Public Global Stellar Network ; September 2015",
+      );
+      expect(getStellarExpertTxUrl(TX_HASH)).toBe(
+        `https://stellar.expert/explorer/mainnet/tx/${TX_HASH}`,
+      );
+    });
+
+    it("links to the testnet explorer for the Test SDF passphrase", () => {
+      vi.stubEnv("NEXT_PUBLIC_NETWORK_PASSPHRASE", "Test SDF Network ; September 2015");
+      expect(getStellarExpertTxUrl(TX_HASH)).toBe(
+        `https://stellar.expert/explorer/testnet/tx/${TX_HASH}`,
+      );
+    });
+
+    it("defaults to testnet when the passphrase is empty", () => {
+      vi.stubEnv("NEXT_PUBLIC_NETWORK_PASSPHRASE", "");
+      expect(getStellarExpertTxUrl(TX_HASH)).toBe(
+        `https://stellar.expert/explorer/testnet/tx/${TX_HASH}`,
+      );
+    });
+
+    it("defaults to testnet for an unrecognised passphrase (fail-safe, never mainnet)", () => {
+      vi.stubEnv("NEXT_PUBLIC_NETWORK_PASSPHRASE", "Standalone Network ; February 2017");
+      expect(getStellarExpertTxUrl(TX_HASH)).toContain("/explorer/testnet/");
+    });
+
+    it("only treats a passphrase that starts with 'Public Global' as mainnet", () => {
+      vi.stubEnv("NEXT_PUBLIC_NETWORK_PASSPHRASE", "Not Public Global Stellar Network");
+      expect(getStellarExpertTxUrl(TX_HASH)).toContain("/explorer/testnet/");
+    });
+
+    it("embeds the given transaction hash at the end of the URL", () => {
+      vi.stubEnv("NEXT_PUBLIC_NETWORK_PASSPHRASE", "Test SDF Network ; September 2015");
+      expect(getStellarExpertTxUrl("abc123").endsWith("/tx/abc123")).toBe(true);
     });
   });
 });

@@ -52,8 +52,10 @@ function aggregateDonors(events: any[] | undefined, timeRange: TimeRange): Donor
     if (event?.topic !== "received" || !event.data) continue;
 
     // Filter by time range if not "all"
-    if (cutoff > 0 && event.timestamp) {
-      const eventTime = new Date(event.timestamp).getTime();
+    // `getEvents` stamps events with `createdAt` (ledger close time); `timestamp` is the legacy name.
+    const eventStamp = event.createdAt ?? event.timestamp;
+    if (cutoff > 0 && eventStamp) {
+      const eventTime = new Date(eventStamp).getTime();
       if (eventTime < cutoff) continue;
     }
 
