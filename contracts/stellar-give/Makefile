@@ -14,7 +14,7 @@ TARGET?=5000000
 DEADLINE?=2000000000
 TITLE?="Stellar Relief Campaign"
 
-.PHONY: test build wasm optimize deploy invoke-create invoke-donate invoke-claim friendbot
+.PHONY: test build wasm fixture optimize deploy invoke-create invoke-donate invoke-claim friendbot
 
 test:
 	cargo test
@@ -24,6 +24,12 @@ build:
 
 wasm:
 	cargo build --target wasm32-unknown-unknown --release
+
+# Rebuilds the WASM used as the upgrade target in tests/test_upgrade.rs from
+# ../upgrade-fixture and copies it into tests/fixtures/.
+fixture:
+	cd ../upgrade-fixture && cargo build --locked --release --target wasm32v1-none
+	cp ../upgrade-fixture/target/wasm32v1-none/release/upgrade_fixture.wasm tests/fixtures/upgrade_fixture.wasm
 
 optimize: wasm
 	stellar contract optimize --wasm $(WASM_PATH)
