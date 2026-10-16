@@ -36,7 +36,7 @@ jobs:
           days-before-close: 14
           stale-issue-label: stale
           stale-pr-label: stale
-          exempt-issue-labels: pinned,security,rpc-outage
+          exempt-issue-labels: "pinned,security,rpc-outage,Stellar Wave,good first issue,help wanted"
           exempt-pr-labels: pinned,security
           exempt-all-milestones: true
           exempt-assignees: true
