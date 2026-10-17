@@ -32,15 +32,16 @@ if (!SECRET_KEY || !CONTRACT_ID) {
 
 // 1. Validate CLI Arguments
 const args = process.argv.slice(2);
-if (args.length !== 3) {
-  console.error("Usage: node donate-cli.js <campaign_id> <amount> <token_contract>");
-  console.error("Example: node donate-cli.js 1 10000000 CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC");
+if (args.length < 3 || args.length > 5) {
+  console.error("Usage: node donate-cli.js <campaign_id> <amount> <token_contract> [is_anonymous] [comment]");
+  console.error("Example: node donate-cli.js 1 10000000 CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC false "Great cause"");
   process.exit(1);
 }
 
-const [campaignIdStr, amountStr, tokenContractId] = args;
+const [campaignIdStr, amountStr, tokenContractId, isAnonymousStr, comment] = args;
 const campaignId = parseInt(campaignIdStr, 10);
 const amount = BigInt(amountStr);
+const isAnonymous = isAnonymousStr === 'true';
 
 if (isNaN(campaignId) || campaignId <= 0) {
   console.error("Error: <campaign_id> must be a positive integer.");
@@ -141,11 +142,13 @@ async function donate() {
   console.log(`Token: ${tokenContractId}`);
   
   // Convert arguments to ScVals for the `donate` method:
-  // donate(donor: Address, campaign_id: u64, amount: i128)
+  // donate(donor: Address, campaign_id: u64, amount: i128, is_anonymous: bool, comment: Option<String>)
   const contractArgs = [
     nativeToScVal(donorAddress, { type: 'address' }),
     nativeToScVal(campaignId, { type: 'u64' }),
     nativeToScVal(amount, { type: 'i128' }),
+    nativeToScVal(isAnonymous, { type: 'bool' }),
+    comment ? nativeToScVal(comment, { type: 'string' }) : nativeToScVal(null, { type: 'option' }),
   ];
 
   try {
