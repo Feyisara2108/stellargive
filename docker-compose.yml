@@ -1,9 +1,8 @@
-version: "3.9"
-
 services:
   stellar:
-    image: stellar/quickstart:testing
-    command: --standalone --enable-soroban --protocol-version 21
+    # Pin a tag that supports Soroban protocol features used by soroban-sdk 27 (#1121)
+    image: stellar/quickstart:soroban-dev
+    command: --standalone --enable-soroban --protocol-version 23
     ports:
       - "${STELLAR_PORT_RPC:-8000}:8000"
       - "${STELLAR_PORT_FRIENDBOT:-8001}:8001"
@@ -24,8 +23,11 @@ services:
       - ./frontend:/app
       - frontend_node_modules:/app/node_modules
     environment:
-      - NODE_ENV=${NODE_ENV:-development}
-      - CHOKIDAR_USEPOLLING=${CHOKIDAR_USEPOLLING:-true}
+      # Quickstart serves Soroban RPC at /soroban/rpc (not /rpc) (#1121)
+      NEXT_PUBLIC_SOROBAN_RPC_URL: http://localhost:8000/soroban/rpc
+      NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015"
+      NODE_ENV: ${NODE_ENV:-development}
+      CHOKIDAR_USEPOLLING: ${CHOKIDAR_USEPOLLING:-true}
     depends_on:
       stellar:
         condition: service_healthy

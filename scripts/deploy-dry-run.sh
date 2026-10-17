@@ -34,9 +34,9 @@ echo "Checking deployment configuration..."
 echo "RPC URL: $MAINNET_RPC_URL"
 
 echo "Building contract..."
-cargo build --target wasm32-unknown-unknown --release
+cargo build --target wasm32v1-none --release
 
-WASM_FILE="target/wasm32-unknown-unknown/release/stellargive.wasm"
+WASM_FILE="target/wasm32v1-none/release/stellar_give.wasm"
 
 if [ ! -f "$WASM_FILE" ]; then
     echo "Error: WASM file not found at $WASM_FILE."

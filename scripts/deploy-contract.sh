@@ -10,7 +10,7 @@ DEPLOY_RECORD="$ROOT_DIR/scripts/deployments.json"
 # Default values
 NETWORK="testnet"
 SOURCE="deployer"
-WASM="$ROOT_DIR/contracts/stellar-give/target/wasm32-unknown-unknown/release/stellar_give.wasm"
+WASM="$ROOT_DIR/contracts/stellar-give/target/wasm32v1-none/release/stellar_give.wasm"
 FORCE=false
 
 usage() {
@@ -125,8 +125,8 @@ if [ ! -f "$WASM" ]; then
   [ -d "$CONTRACT_DIR" ] || { echo "error: $CONTRACT_DIR not found" >&2; exit 1; }
   (
     cd "$CONTRACT_DIR"
-    rustup target add wasm32-unknown-unknown >/dev/null 2>&1 || true
-    cargo build --target wasm32-unknown-unknown --release
+    rustup target add wasm32v1-none >/dev/null 2>&1 || true
+    cargo build --target wasm32v1-none --release
   )
 fi
 [ -f "$WASM" ] || { echo "error: WASM not found at $WASM" | tee -a "$LOG_FILE" >&2; exit 1; }

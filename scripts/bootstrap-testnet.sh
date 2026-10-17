@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # bootstrap-testnet.sh — one-command testnet setup for StellarGive
 #
 # Takes a fresh clone to a fully-working testnet environment:
@@ -88,10 +89,10 @@ if [ ! -d "$CONTRACT_DIR" ]; then
   exit 1
 fi
 
-rustup target add wasm32-unknown-unknown >/dev/null 2>&1 || true
+rustup target add wasm32v1-none >/dev/null 2>&1 || true
 (
   cd "$CONTRACT_DIR"
-  cargo build --target wasm32-unknown-unknown --release
+  cargo build --target wasm32v1-none --release
 )
 ok "Contract built"
 

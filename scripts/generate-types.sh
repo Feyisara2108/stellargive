@@ -1,4 +1,6 @@
-#!/bin/bash
-# Script to generate TypeScript types from Soroban contract metadata
-echo "Generating types..."
-# stellar contract typescript generate --wasm target/wasm32-unknown-unknown/release/stellar_give.wasm --output-dir frontend/src/types/contract
+#!/usr/bin/env bash
+# Type generation lives in the frontend package script (removed stub, #1120).
+set -euo pipefail
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR/frontend"
+npm run generate:bindings

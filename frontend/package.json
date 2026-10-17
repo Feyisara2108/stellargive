@@ -12,7 +12,7 @@
     "test:watch": "vitest",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:a11y": "vitest run src --testNamePattern=accessibility",
-    "generate:bindings": "stellar contract bindings typescript --wasm ../contracts/stellar-give/target/wasm32-unknown-unknown/release/stellar_give.wasm --output-dir ./src/lib/bindings --overwrite",
+    "generate:bindings": "stellar contract bindings typescript --wasm ../contracts/stellar-give/target/wasm32v1-none/release/stellar_give.wasm --output-dir ./src/lib/bindings --overwrite",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "test:e2e": "playwright test",
