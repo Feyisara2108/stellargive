@@ -1,5 +1,5 @@
 CONTRACT_NAME=stellar_give
-WASM_PATH=target/wasm32-unknown-unknown/release/$(CONTRACT_NAME).wasm
+WASM_PATH=target/wasm32v1-none/release/$(CONTRACT_NAME).wasm
 NETWORK=testnet
 RPC_URL=https://soroban-testnet.stellar.org
 NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
@@ -23,7 +23,7 @@ build:
 	cargo build
 
 wasm:
-	cargo build --target wasm32-unknown-unknown --release
+	cargo build --target wasm32v1-none --release
 
 # Rebuilds the WASM used as the upgrade target in tests/test_upgrade.rs from
 # ../upgrade-fixture and copies it into tests/fixtures/.

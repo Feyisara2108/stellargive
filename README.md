@@ -74,7 +74,7 @@ docs/                    Security, deployment, architecture, contributing docs
 
 ## 🎥 Quick Start
 
-[Watch the 3-minute tutorial](https://youtu.be/PLACEHOLDER) to create your first campaign.
+See [docs/VIDEO_TRANSCRIPT.md](docs/VIDEO_TRANSCRIPT.md) for a written walkthrough of creating your first campaign (video coming soon).
 
 > Video covers wallet connection, campaign creation, donation flow, and transaction confirmation with captions for accessibility.
 
@@ -85,7 +85,7 @@ docs/                    Security, deployment, architecture, contributing docs
 | Contract format | `cd contracts/stellar-give && cargo fmt --check` |
 | Contract lint | `cd contracts/stellar-give && cargo clippy -- -D warnings` |
 | Contract test | `cd contracts/stellar-give && cargo test` |
-| Contract wasm build | `cd contracts/stellar-give && cargo build --release --target wasm32-unknown-unknown` |
+| Contract wasm build | `cd contracts/stellar-give && cargo build --release --target wasm32v1-none` |
 | Frontend lint | `cd frontend && npm run lint` |
 | Frontend build | `cd frontend && npm run build` |
 | Frontend dev | `cd frontend && npm run dev` |

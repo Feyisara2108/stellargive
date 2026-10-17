@@ -282,3 +282,14 @@ To ensure a smooth developer experience, we recommend using:
   - `esbenp.prettier-vscode` (Prettier for code formatting)
   - `vadimcn.vscode-lldb` (CodeLLDB for Rust debugging)
   - `eamodio.gitlens` (GitLens for in-editor git blame and history)
+
+## Docker Compose local stack (#1121)
+
+```bash
+docker compose up
+```
+
+- Stellar quickstart is pinned (`stellar/quickstart:soroban-dev`) with `--protocol-version 23` (matches soroban-sdk 27).
+- Soroban RPC is exposed at `http://localhost:8000/soroban/rpc`.
+- The frontend container is wired to that RPC URL and the testnet passphrase via `NEXT_PUBLIC_SOROBAN_RPC_URL` / `NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE`.
+- Build contracts for `wasm32v1-none` (same target as CI): `./scripts/build-contract.sh`.

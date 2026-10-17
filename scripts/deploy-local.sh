@@ -4,7 +4,7 @@
 # Prerequisites:
 #   docker compose up -d stellar
 #   stellar (or soroban) CLI installed
-#   Rust toolchain with wasm32v1-none (or wasm32-unknown-unknown) target
+#   Rust toolchain with wasm32v1-none (or wasm32v1-none) target
 #
 # Usage:
 #   ./scripts/deploy-local.sh
@@ -74,7 +74,7 @@ bash "$ROOT_DIR/scripts/build-contract.sh"
 WASM_CANDIDATES=(
   "$ROOT_DIR/contracts/stellar-give/target/wasm32v1-none/release/stellar_give.optimized.wasm"
   "$ROOT_DIR/contracts/stellar-give/target/wasm32v1-none/release/stellar_give.wasm"
-  "$ROOT_DIR/contracts/stellar-give/target/wasm32-unknown-unknown/release/stellar_give.wasm"
+  "$ROOT_DIR/contracts/stellar-give/target/wasm32v1-none/release/stellar_give.wasm"
 )
 WASM=""
 for candidate in "${WASM_CANDIDATES[@]}"; do
