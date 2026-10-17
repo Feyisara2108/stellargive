@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import { StrKey } from "@stellar/stellar-sdk";
 
 // Mock rpc.Server so the module-level `new rpc.Server(RPC_URL)` doesn't throw in tests
 vi.mock("@stellar/stellar-sdk", async (importActual) => {
@@ -15,7 +16,7 @@ vi.mock("@stellar/stellar-sdk", async (importActual) => {
   };
 });
 
-import { fromStroops, toStroops, resolveAddressName } from "@/lib/soroban";
+import { fromStroops, toStroops, resolveAddressName, isValidStellarAddress } from "@/lib/soroban";
 
 describe("fromStroops", () => {
   it("returns '0' for 0 stroops", () => {
@@ -177,5 +178,82 @@ describe("resolveAddressName", () => {
     expect(name).toBeNull();
 
     vi.unstubAllGlobals();
+  });
+});
+
+describe("isValidStellarAddress", () => {
+  const G_ADDRESS = StrKey.encodeEd25519PublicKey(Buffer.alloc(32, 42));
+  const SECRET = StrKey.encodeEd25519SecretSeed(Buffer.alloc(32, 3));
+  const C_ADDRESS = StrKey.encodeContract(Buffer.alloc(32, 7));
+
+  /** Swaps the final character so the length and alphabet stay valid but the CRC16 no longer matches. */
+  function withBrokenChecksum(address: string): string {
+    const last = address.slice(-1);
+    return address.slice(0, -1) + (last === "A" ? "B" : "A");
+  }
+
+  it("accepts a valid G (ed25519 public key) address", () => {
+    expect(G_ADDRESS).toMatch(/^G[A-Z2-7]{55}$/);
+    expect(isValidStellarAddress(G_ADDRESS)).toBe(true);
+  });
+
+  it("accepts a well-known fixed G address", () => {
+    expect(isValidStellarAddress("GA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVSGZ")).toBe(
+      true,
+    );
+  });
+
+  it("rejects a valid C (contract) address, since beneficiaries must be G accounts", () => {
+    expect(StrKey.isValidContract(C_ADDRESS)).toBe(true);
+    expect(C_ADDRESS).toMatch(/^C[A-Z2-7]{55}$/);
+    expect(isValidStellarAddress(C_ADDRESS)).toBe(false);
+  });
+
+  it("rejects a G address with a bad checksum", () => {
+    const broken = withBrokenChecksum(G_ADDRESS);
+    expect(broken).not.toBe(G_ADDRESS);
+    expect(broken).toHaveLength(56);
+    expect(broken.startsWith("G")).toBe(true);
+    expect(isValidStellarAddress(broken)).toBe(false);
+  });
+
+  it("rejects a G address when any single character is altered", () => {
+    const chars = G_ADDRESS.split("");
+    for (const i of [1, 10, 28, 45, 54]) {
+      const mutated = [...chars];
+      mutated[i] = mutated[i] === "A" ? "B" : "A";
+      expect(isValidStellarAddress(mutated.join(""))).toBe(false);
+    }
+  });
+
+  it("rejects a C address with a bad checksum", () => {
+    expect(isValidStellarAddress(withBrokenChecksum(C_ADDRESS))).toBe(false);
+  });
+
+  it("rejects wrong prefixes even when the rest is shaped like a key", () => {
+    expect(isValidStellarAddress(SECRET)).toBe(false); // S... secret seed
+    expect(isValidStellarAddress(`S${G_ADDRESS.slice(1)}`)).toBe(false);
+    expect(isValidStellarAddress(`X${G_ADDRESS.slice(1)}`)).toBe(false);
+    expect(isValidStellarAddress(`M${G_ADDRESS.slice(1)}`)).toBe(false);
+    expect(isValidStellarAddress(`0x${G_ADDRESS.slice(2)}`)).toBe(false);
+  });
+
+  it("rejects empty and whitespace-only input", () => {
+    expect(isValidStellarAddress("")).toBe(false);
+    expect(isValidStellarAddress("   ")).toBe(false);
+  });
+
+  it("rejects wrong lengths, padding and lowercase", () => {
+    expect(isValidStellarAddress(G_ADDRESS.slice(0, 55))).toBe(false);
+    expect(isValidStellarAddress(`${G_ADDRESS}A`)).toBe(false);
+    expect(isValidStellarAddress(` ${G_ADDRESS}`)).toBe(false);
+    expect(isValidStellarAddress(`${G_ADDRESS} `)).toBe(false);
+    expect(isValidStellarAddress(G_ADDRESS.toLowerCase())).toBe(false);
+    expect(isValidStellarAddress("G")).toBe(false);
+  });
+
+  it("rejects characters outside the base32 alphabet", () => {
+    expect(isValidStellarAddress(`${G_ADDRESS.slice(0, 55)}1`)).toBe(false);
+    expect(isValidStellarAddress(`${G_ADDRESS.slice(0, 55)}!`)).toBe(false);
   });
 });
