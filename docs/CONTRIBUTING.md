@@ -29,7 +29,7 @@ See `examples/` for CLI interaction patterns and Soroban integration examples.
 Contract tooling:
 ```bash
 rustup toolchain install stable
-rustup target add wasm32-unknown-unknown
+rustup target add wasm32v1-none
 ```
 
 Frontend tooling:
@@ -48,7 +48,7 @@ cd contracts/stellar-give
 cargo fmt --check
 cargo clippy -- -D warnings
 cargo test
-cargo build --release --target wasm32-unknown-unknown
+cargo build --release --target wasm32v1-none
 
 # Frontend checks
 cd ../../frontend
@@ -163,7 +163,7 @@ types stay in sync** (this prevents silent drift between contract and UI).
 
 Prerequisites: the [Stellar CLI](https://developers.stellar.org/docs/tools/cli)
 installed and the contract built to WASM
-(`cargo build --target wasm32-unknown-unknown --release` in `contracts/stellar-give`).
+(`cargo build --target wasm32v1-none --release` in `contracts/stellar-give`).
 
 ```bash
 cd frontend
@@ -171,7 +171,7 @@ npm run generate:bindings
 ```
 
 This runs `stellar contract bindings typescript` against
-`contracts/stellar-give/target/wasm32-unknown-unknown/release/stellar_give.wasm`
+`contracts/stellar-give/target/wasm32v1-none/release/stellar_give.wasm`
 and writes the bindings to `frontend/src/lib/bindings/`.
 
 > The step is intentionally **not** part of `npm run build`: production/CI builds

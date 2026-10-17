@@ -79,12 +79,12 @@ Verify the compiled WebAssembly binary before deployment to ensure reproducibili
 
 **Build Command:**
 ```bash
-cargo build --target wasm32-unknown-unknown --release
+cargo build --target wasm32v1-none --release
 ```
 
 **Verification Command:**
 ```bash
-ls -lh target/wasm32-unknown-unknown/release/*.wasm
+ls -lh target/wasm32v1-none/release/*.wasm
 ```
 
 **Checklist:**
