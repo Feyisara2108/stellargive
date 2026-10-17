@@ -1,5 +1,13 @@
 # Auto-merge Dependabot patch-level PRs when CI passes
 # Closes #788 – Enable dependabot auto-merge for patch updates
+#
+# Repository setting required: "Allow GitHub Actions to create and approve pull requests"
+# When this setting is off, the approval step is skipped gracefully and auto-merge
+# is still enabled. Enable the setting in repo Settings > Actions > General for
+# the approval step to work.
+#
+# Trade-off: Disabling the setting means PRs won't be auto-approved but will still
+# auto-merge when CI passes and all required reviews are satisfied.
 
 name: Dependabot Auto-merge (patch only)
 
@@ -23,9 +31,15 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Auto-approve patch PRs
+      - name: Auto-approve patch PRs (graceful if not permitted)
         if: steps.metadata.outputs.update-type == 'version-update:semver-patch'
-        run: gh pr review --approve "$PR_URL"
+        run: |
+          # Attempt approval; if the "Allow GitHub Actions to approve PRs" setting
+          # is off, gh will fail with "GitHub Actions is not permitted to approve
+          # pull requests" — we catch that and continue so auto-merge still runs.
+          gh pr review --approve "$PR_URL" || {
+            echo "::warning::Could not approve PR (GitHub Actions approval permission may be disabled). Continuing with auto-merge."
+          }
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
