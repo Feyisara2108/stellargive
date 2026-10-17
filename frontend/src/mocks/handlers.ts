@@ -28,7 +28,10 @@ export function generateUpdatesArrayXdr() {
 
 export const handlers = [
   http.post("*/rpc", async ({ request }) => {
-    const body = (await request.json()) as any;
+    const body = (await request.json()) as {
+      method?: string;
+      params?: { transaction?: string; [key: string]: unknown } & [string?];
+    };
     const method = body.method;
 
     if (method === "simulateTransaction") {
@@ -66,7 +69,7 @@ export const handlers = [
         }
       }
 
-      const resultObj: any = {
+      const resultObj: Record<string, unknown> = {
         latestLedger: 1000,
         transactionData: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
         minResourceFee: "52521",
@@ -243,7 +246,7 @@ export const errorHandlers = {
 
   transactionFailed: [
     http.post("*/rpc", async ({ request }) => {
-      const body = (await request.json()) as any;
+      const body = (await request.json()) as { id?: string | number; method?: string };
       const method = body.method;
 
       if (method === "simulateTransaction") {

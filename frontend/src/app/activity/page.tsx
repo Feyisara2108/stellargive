@@ -11,6 +11,7 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { Activity, Loader2, AlertTriangle, RotateCw, Search, X } from "lucide-react";
 import { getCampaignId, getEventField } from "@/lib/eventData";
 import { normalizeAddress } from "@/utils/format";
+import type { SorobanEvent } from "@/lib/soroban";
 import dynamic from "next/dynamic";
 
 const HISTORY_LIMIT = 50;
@@ -26,7 +27,7 @@ const FILTERS: { key: FilterKey; label: string }[] = [
 ];
 
 /** True when the event's donor/beneficiary address or campaign id contains `query`. */
-function eventMatchesSearch(event: any, query: string): boolean {
+function eventMatchesSearch(event: SorobanEvent, query: string): boolean {
   if (!query) return true;
   const campaignId = getCampaignId(event);
   if (campaignId && campaignId.includes(query)) return true;
@@ -78,7 +79,7 @@ function ActivityContent() {
   const { data: fetchedEvents, isLoading, isError, refetch } = useEvents(limit);
   const [filter, setFilter] = useState<FilterKey>("all");
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get("search") ?? "");
-  const [events, setEvents] = useState<any[]>([]);
+  const [events, setEvents] = useState<SorobanEvent[]>([]);
   const [showIndicator, setShowIndicator] = useState(false);
 
   const debouncedSearch = useDebouncedValue(searchTerm.trim().toLowerCase(), SEARCH_DEBOUNCE_MS);
@@ -89,8 +90,8 @@ function ActivityContent() {
         const existingIds = new Set(prev.map((e) => e.id));
         // Drop non-object entries up front so the render path only ever deals
         // with (possibly incomplete) event objects.
-        const newEvents = fetchedEvents.filter(
-          (e: any) => e && typeof e === "object" && !existingIds.has(e.id),
+        const newEvents = (fetchedEvents as SorobanEvent[]).filter(
+          (e: SorobanEvent) => e && typeof e === "object" && !existingIds.has(e.id),
         );
         if (newEvents.length > 0) {
           if (prev.length > 0) {
@@ -119,14 +120,14 @@ function ActivityContent() {
   }, [router, searchParams, searchTerm]);
 
   const sorted = useMemo(
-    () => events.slice().sort((a: any, b: any) => Number(b.ledger) - Number(a.ledger)),
+    () => events.slice().sort((a, b) => Number(b.ledger) - Number(a.ledger)),
     [events],
   );
 
   const visible = useMemo(() => {
-    const byFilter = filter === "all" ? sorted : sorted.filter((e: any) => e.topic === filter);
+    const byFilter = filter === "all" ? sorted : sorted.filter((e) => e.topic === filter);
     if (!debouncedSearch) return byFilter;
-    return byFilter.filter((e: any) => eventMatchesSearch(e, debouncedSearch));
+    return byFilter.filter((e) => eventMatchesSearch(e, debouncedSearch));
   }, [sorted, filter, debouncedSearch]);
 
   const canLoadMore =

@@ -27,8 +27,8 @@ export function WalletConnect() {
     try {
       const balBigInt = await getSACBalance(NATIVE_XLM_CONTRACT_ID, address);
       setBalance(fromStroops(balBigInt));
-    } catch (e: any) {
-      setBalanceError(e.message || "Failed to fetch XLM balance");
+    } catch (e: unknown) {
+      setBalanceError(e instanceof Error ? e.message : "Failed to fetch XLM balance");
     } finally {
       setIsLoadingBalance(false);
     }
@@ -68,8 +68,9 @@ export function WalletConnect() {
 
   const handleDisconnect = () => {
     try {
-      if (typeof (freighter as any).disconnect === "function") {
-        (freighter as any).disconnect();
+      const freighterObj = freighter as unknown as { disconnect?: () => void };
+      if (typeof freighterObj.disconnect === "function") {
+        freighterObj.disconnect();
       }
     } catch (err) {
       console.warn("Freighter disconnect method not available", err);

@@ -65,12 +65,13 @@ function restoreFromStorage(client: QueryClient): void {
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY);
     if (!raw) return;
-    const queries: Array<{ queryKey: unknown[]; state: unknown }> = JSON.parse(raw);
+    const queries: Array<{ queryKey: readonly unknown[]; state: { data?: unknown } }> =
+      JSON.parse(raw);
     for (const { queryKey, state } of queries) {
       // Only restore if the query isn't already fresh in the client.
-      const existing = client.getQueryCache().find({ queryKey: queryKey as any[] });
+      const existing = client.getQueryCache().find({ queryKey });
       if (!existing || existing.state.status === "pending") {
-        client.setQueryData(queryKey as any[], (state as any).data);
+        client.setQueryData(queryKey, state?.data);
       }
     }
   } catch {

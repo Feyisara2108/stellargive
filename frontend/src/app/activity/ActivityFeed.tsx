@@ -14,6 +14,7 @@ import {
 import { RelativeTime } from "@/components/RelativeTime";
 import { normalizeAddress } from "@/utils/format";
 import { ArrowUpRight, Megaphone, Trophy } from "lucide-react";
+import type { SorobanEvent } from "@/lib/soroban";
 
 function ledgerLabel(ledger: unknown): string {
   return ledger === null || ledger === undefined || ledger === "" ? MISSING_FIELD : String(ledger);
@@ -23,7 +24,7 @@ function ledgerLabel(ledger: unknown): string {
 // Shared data-preparation hook — keeps row components thin
 // ---------------------------------------------------------------------------
 
-function useActivityData(event: any) {
+function useActivityData(event: SorobanEvent) {
   const id = getCampaignId(event);
   const ledger = ledgerLabel(event?.ledger);
   const createdAt = event?.createdAt ? new Date(event.createdAt) : null;
@@ -109,7 +110,7 @@ function useActivityData(event: any) {
 // Row renderers
 // ---------------------------------------------------------------------------
 
-function ActivityRowDesktop({ event }: { event: any }) {
+function ActivityRowDesktop({ event }: { event: SorobanEvent }) {
   const { icon, iconBg, label, body, when, ledger, txHash, txLabel } = useActivityData(event);
 
   return (
@@ -144,7 +145,7 @@ function ActivityRowDesktop({ event }: { event: any }) {
   );
 }
 
-function ActivityRowMobile({ event }: { event: any }) {
+function ActivityRowMobile({ event }: { event: SorobanEvent }) {
   const { icon, iconBg, label, body, when, txHash, txLabel } = useActivityData(event);
 
   return (
@@ -183,7 +184,7 @@ function ActivityRowMobile({ event }: { event: any }) {
 // ---------------------------------------------------------------------------
 
 interface ActivityFeedProps {
-  visible: any[];
+  visible: SorobanEvent[];
   showIndicator: boolean;
 }
 
@@ -208,7 +209,7 @@ export function ActivityFeed({ visible, showIndicator }: ActivityFeedProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {visible.map((event: any, idx: number) => (
+              {visible.map((event, idx: number) => (
                 <ActivityRowDesktop key={event?.id ?? `event-${idx}`} event={event} />
               ))}
             </tbody>
@@ -223,7 +224,7 @@ export function ActivityFeed({ visible, showIndicator }: ActivityFeedProps) {
             New activity
           </div>
         )}
-        {visible.map((event: any, idx: number) => (
+        {visible.map((event, idx: number) => (
           <ActivityRowMobile key={event?.id ?? `event-${idx}`} event={event} />
         ))}
       </div>

@@ -11,6 +11,7 @@ const {
   mockUseAddUpdate,
   AdminPanelMock,
 } = vi.hoisted(() => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- required inside hoisted mock factory before imports are evaluated
   const React = require("react");
   const mockUseWallet = vi.fn();
   const mockUseRecentCampaigns = vi.fn();

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useEvents, useResolvedName } from "@/hooks/useSoroban";
-import { fromStroops } from "@/lib/soroban";
+import { fromStroops, type SorobanEvent } from "@/lib/soroban";
 import { getAmountStroops, getCampaignId, getEventField } from "@/lib/eventData";
 import { toCSV, downloadTextFile } from "@/utils/format";
 import { Trophy, ArrowDown, Download, User } from "lucide-react";
@@ -35,7 +35,7 @@ interface DonorTotal {
  * amount donated across all campaigns. Anonymous donations (the zero address)
  * are excluded so they can't occupy a rank.
  */
-function aggregateDonors(events: any[] | undefined, timeRange: TimeRange): DonorTotal[] {
+function aggregateDonors(events: SorobanEvent[] | undefined, timeRange: TimeRange): DonorTotal[] {
   const totals = new Map<string, { total: bigint; donations: number; campaigns: Set<string> }>();
 
   // Calculate time cutoff based on selected range

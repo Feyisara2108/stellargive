@@ -31,6 +31,7 @@ vi.mock("@/components/AddressLink", () => ({
 }));
 
 const ActivityFeedMock = vi.hoisted(() => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- required inside hoisted mock factory before imports are evaluated
   const React = require("react");
 
   const formatTxHashMock = (value: any) => {

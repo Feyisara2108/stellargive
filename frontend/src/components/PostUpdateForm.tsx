@@ -78,11 +78,17 @@ export const PostUpdateForm: React.FC<PostUpdateFormProps> = ({
           localStorage.removeItem(`${DRAFT_KEY_PREFIX}${campaignId}`);
         } catch {}
         onSuccess();
-      } catch (err: any) {
+      } catch (err: unknown) {
         // Restore the content so the user can retry without retyping.
         setContent(trimmedContent);
         console.error("Failed to submit update to Soroban:", err);
-        setError(err?.message || "Transaction failed. Please try again.");
+        const msg =
+          err instanceof Error
+            ? err.message
+            : typeof err === "object" && err !== null && "message" in err
+              ? String((err as { message: unknown }).message)
+              : "Transaction failed. Please try again.";
+        setError(msg);
       } finally {
         setIsSubmitting(false);
       }
@@ -95,9 +101,15 @@ export const PostUpdateForm: React.FC<PostUpdateFormProps> = ({
           localStorage.removeItem(`${DRAFT_KEY_PREFIX}${campaignId}`);
         } catch {}
         onSuccess();
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Failed to submit update to Soroban:", err);
-        setError(err?.message || "Transaction failed. Please try again.");
+        const msg =
+          err instanceof Error
+            ? err.message
+            : typeof err === "object" && err !== null && "message" in err
+              ? String((err as { message: unknown }).message)
+              : "Transaction failed. Please try again.";
+        setError(msg);
       } finally {
         setIsSubmitting(false);
       }

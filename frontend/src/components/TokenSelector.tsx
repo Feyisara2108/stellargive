@@ -177,8 +177,10 @@ export function TokenSelector({ value, onChange, label, allowCustom = true }: To
         tokenMetadataCache[customAddress] = metadata;
         setCustomTokenMeta(metadata);
         toast.success(`Validated SAC compliant token: ${metadata.symbol}`);
-      } catch (err: any) {
-        setValidationError(err.message || "Failed to validate SAC interface compliance");
+      } catch (err: unknown) {
+        setValidationError(
+          err instanceof Error ? err.message : "Failed to validate SAC interface compliance",
+        );
       } finally {
         setIsValidating(false);
       }

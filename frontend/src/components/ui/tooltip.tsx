@@ -160,7 +160,7 @@ export const TooltipTrigger = React.forwardRef<HTMLSpanElement, TooltipTriggerPr
         // If the child is not a valid React element we render it as-is.
       >
         {React.isValidElement(children)
-          ? React.cloneElement(children as React.ReactElement<any>, {
+          ? React.cloneElement(children as React.ReactElement<Record<string, unknown>>, {
               "aria-describedby": contentId,
             })
           : children}

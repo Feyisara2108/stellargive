@@ -1,7 +1,7 @@
 "use client";
 
 import { NATIVE_XLM_CONTRACT_ID } from "@/lib/tokens";
-import { useForm } from "react-hook-form";
+import { useForm, type Path } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useCreateCampaign, useResolvedName } from "@/hooks/useSoroban";
@@ -166,7 +166,9 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
   const [step, setStep] = useState(1);
   const totalSteps = 3;
 
-  const STEP_FIELDS: Record<number, any[]> = {
+  type FormValues = z.infer<typeof formSchema>;
+
+  const STEP_FIELDS: Record<number, Path<FormValues>[]> = {
     1: ["title", "description", "category", "website", "twitter", "metadataUri"],
     2: ["beneficiary", "acceptedToken", "targetAmount", "deadlineDays"],
   };
@@ -181,7 +183,7 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
 
   const prevStep = () => setStep((s) => Math.max(s - 1, 1));
 
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     // Live validation so character counters, range errors, and the
     // submit-disabled state all update on every keystroke instead of
@@ -211,7 +213,7 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
           if (key === "tags" && Array.isArray(val)) {
             setTags(val as string[]);
           } else if (val !== undefined && key !== "tags") {
-            form.setValue(key as any, val, { shouldDirty: true });
+            form.setValue(key as Path<FormValues>, val as string, { shouldDirty: true });
           }
         });
       } catch (e) {
@@ -321,7 +323,7 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
       router.push(`/campaign/${campaignId}`);
       setUploadError("");
       setUploadProgress(0);
-    } catch (e: any) {
+    } catch (e: unknown) {
       // Errors are already handled/displayed by the sonner toast inside the useCreateCampaign hook mutation wrapper,
       // but we catch it here to prevent uncaught promise rejections.
       console.error(e);

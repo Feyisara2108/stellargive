@@ -1,4 +1,5 @@
 import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
+import nextTypeScript from "eslint-config-next/typescript";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -8,10 +9,24 @@ const rootDir = dirname(fileURLToPath(import.meta.url));
 // calls ESLint directly with the same core-web-vitals preset the old .eslintrc used.
 const eslintConfig = [
   ...nextCoreWebVitals,
+  ...nextTypeScript,
   {
     // Lets the Next.js rules find the app when ESLint runs from the repo root
     // (the pre-commit hook) rather than from frontend/.
     settings: { next: { rootDir } },
+  },
+  {
+    // Scope no-explicit-any relaxation to test files only per Issue #1046
+    files: [
+      "**/*.test.ts",
+      "**/*.test.tsx",
+      "**/__tests__/**",
+      "**/tests/**",
+      "**/test/**",
+    ],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+    },
   },
   {
     // eslint-config-next 16 newly enables the React Compiler rules as errors. They flag

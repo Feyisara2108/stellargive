@@ -11,6 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { PostUpdateForm } from "./PostUpdateForm";
 import { notify } from "@/lib/toast";
 import { renderMarkdown } from "@/lib/sanitize";
+import type { CampaignUpdate } from "@/lib/soroban";
 
 type OptimisticUpdate = {
   id: string;
@@ -48,7 +49,7 @@ export function ProjectUpdates({ campaignId }: { campaignId: bigint }) {
 
     // Prepend optimistically to local state and query cache immediately.
     setOptimisticUpdates((prev) => [optimisticUpdate, ...prev]);
-    queryClient.setQueryData(["updates", campaignId.toString()], (old: any[] = []) => [
+    queryClient.setQueryData<CampaignUpdate[]>(["updates", campaignId.toString()], (old = []) => [
       optimisticUpdate,
       ...old,
     ]);
@@ -62,18 +63,24 @@ export function ProjectUpdates({ campaignId }: { campaignId: bigint }) {
       await queryClient.invalidateQueries({ queryKey: ["updates", campaignId.toString()] });
       setOptimisticUpdates((prev) => prev.filter((u) => u.id !== optimisticUpdate.id));
       notify.success("Update posted successfully");
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Rollback: remove optimistic entry from both local state and query cache.
       setOptimisticUpdates((prev) => prev.filter((u) => u.id !== optimisticUpdate.id));
-      queryClient.setQueryData(["updates", campaignId.toString()], (old: any[] = []) =>
-        old.filter((u: any) => {
+      queryClient.setQueryData<CampaignUpdate[]>(["updates", campaignId.toString()], (old = []) =>
+        old.filter((u) => {
           if (typeof u?.id === "string" && u.id) {
             return u.id !== optimisticUpdate.id;
           }
           return true;
         }),
       );
-      notify.error(error?.message || "Unable to post update. Please try again.");
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === "object" && error !== null && "message" in error
+            ? String((error as { message: unknown }).message)
+            : "Unable to post update. Please try again.";
+      notify.error(message);
       throw error;
     }
   };

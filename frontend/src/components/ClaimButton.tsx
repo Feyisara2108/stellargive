@@ -85,7 +85,7 @@ export function ClaimButton({ campaign }: { campaign: Campaign }) {
   const handleClaim = async () => {
     if (claim.isPending || claim.isSuccess) return;
     try {
-      const result: any = await claim.mutateAsync(campaign.id);
+      const result = await claim.mutateAsync(campaign.id);
       setTxHash(typeof result?.hash === "string" ? result.hash : null);
       setClaimedNow(true);
       if (!prefersReducedMotion) {
@@ -93,7 +93,7 @@ export function ClaimButton({ campaign }: { campaign: Campaign }) {
           .then((module) => module.default({ spread: 90, particleCount: 120 }))
           .catch(() => {});
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
     }
   };
