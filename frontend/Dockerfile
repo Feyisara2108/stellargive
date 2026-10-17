@@ -20,7 +20,11 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-RUN --mount=type=cache,target=/app/.next/cache \
+# Sentry source-map upload: the token is passed as a BuildKit secret so it
+# is never baked into the image layers (#1116).
+RUN --mount=type=secret,id=sentry_auth_token \
+    --mount=type=cache,target=/app/.next/cache \
+    SENTRY_AUTH_TOKEN=$(cat /run/secrets/sentry_auth_token 2>/dev/null || echo "") \
     NEXT_BUILD_TARGET=docker npm run build
 
 # -----------------------

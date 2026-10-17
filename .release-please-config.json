@@ -6,6 +6,10 @@
       "release-type": "node",
       "package-name": "stellargive"
     },
+    "frontend": {
+      "release-type": "node",
+      "package-name": "stellargive-frontend"
+    },
     "contracts/stellar-give": {
       "release-type": "rust",
       "package-name": "stellar-give"
