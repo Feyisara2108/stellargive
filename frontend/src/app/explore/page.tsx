@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { CampaignSkeletonGrid } from "@/components/CampaignSkeleton";
 import { EmptyState } from "@/components/ui/empty-state";
-import type { Campaign } from "@/lib/soroban";
+import type { Campaign, TokenMetadata } from "@/lib/soroban";
 
 // ---------------------------------------------------------------------------
 // Virtualisation constants
@@ -93,7 +93,7 @@ function useContainerWidth(ref: React.RefObject<HTMLDivElement>): number {
 // Grid row renderer — up to `columnCount` cards per row.
 // ---------------------------------------------------------------------------
 interface GridRowData {
-  rows: { campaign: Campaign; tokenMeta: any; detailHrefSearch: string }[][];
+  rows: { campaign: Campaign; tokenMeta?: TokenMetadata; detailHrefSearch: string }[][];
   columnCount: number;
   listWidth: number;
   isRefreshing: boolean;
@@ -142,7 +142,7 @@ function GridRow({ index, style, data }: ListChildComponentProps<GridRowData>) {
 // List row renderer — single card per row.
 // ---------------------------------------------------------------------------
 interface ListRowData {
-  campaigns: { campaign: Campaign; tokenMeta: any; detailHrefSearch: string }[];
+  campaigns: { campaign: Campaign; tokenMeta?: TokenMetadata; detailHrefSearch: string }[];
   isRefreshing: boolean;
 }
 
@@ -858,7 +858,7 @@ function ExploreContent() {
 interface GridVirtualContainerProps {
   containerRef: React.RefObject<HTMLDivElement>;
   totalHeight: number;
-  rows: { campaign: Campaign; tokenMeta: any; detailHrefSearch: string }[][];
+  rows: { campaign: Campaign; tokenMeta?: TokenMetadata; detailHrefSearch: string }[][];
   columnCount: number;
   rowHeight: number;
   isRefreshing: boolean;
@@ -919,7 +919,7 @@ function GridVirtualContainer({
 interface ListVirtualContainerProps {
   containerRef: React.RefObject<HTMLDivElement>;
   totalHeight: number;
-  items: { campaign: Campaign; tokenMeta: any; detailHrefSearch: string }[];
+  items: { campaign: Campaign; tokenMeta?: TokenMetadata; detailHrefSearch: string }[];
   rowHeight: number;
   isRefreshing: boolean;
 }

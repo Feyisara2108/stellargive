@@ -14,12 +14,13 @@ import {
 } from "@/components/ui/dialog";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Loader2, RefreshCcw } from "lucide-react";
+import { WRONG_NETWORK_MESSAGE } from "@/lib/network";
 
 const ELIGIBILITY_EXPLAINER =
   "Refunds are available when a campaign is cancelled, or when it expired without reaching its funding goal.";
 const INELIGIBLE_REASON =
   "Not refundable: the campaign must be cancelled or expired unfunded, and this wallet must have a refundable donation.";
-const WRONG_NETWORK_REASON = "Please switch wallet network to Stellar Testnet";
+const WRONG_NETWORK_REASON = WRONG_NETWORK_MESSAGE;
 
 export function RefundButton({
   campaignId,

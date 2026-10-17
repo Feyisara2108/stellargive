@@ -48,9 +48,14 @@ export function setAnalyticsConsent(consent: "accepted" | "declined"): void {
 /**
  * Checks if the error is an expected user-driven error (e.g. rejecting a wallet prompt).
  */
-const isExpectedError = (error: any): boolean => {
+const isExpectedError = (error: unknown): boolean => {
   if (!error) return false;
-  const message = error?.message || error?.toString() || "";
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "object" && error !== null && "message" in error
+        ? String((error as { message: unknown }).message)
+        : String(error);
 
   const expectedKeywords = [
     "User declined",
@@ -69,7 +74,7 @@ const isExpectedError = (error: any): boolean => {
   return false;
 };
 
-export const captureRpcError = (error: any, context?: Record<string, any>) => {
+export const captureRpcError = (error: unknown, context?: Record<string, unknown>) => {
   if (isExpectedError(error) || !hasAnalyticsConsent()) return;
 
   Sentry.captureException(error, {
@@ -80,7 +85,7 @@ export const captureRpcError = (error: any, context?: Record<string, any>) => {
   });
 };
 
-export const captureTransactionError = (error: any, context?: Record<string, any>) => {
+export const captureTransactionError = (error: unknown, context?: Record<string, unknown>) => {
   if (isExpectedError(error) || !hasAnalyticsConsent()) return;
 
   Sentry.captureException(error, {
@@ -91,7 +96,7 @@ export const captureTransactionError = (error: any, context?: Record<string, any
   });
 };
 
-export const captureUnexpectedError = (error: any, context?: Record<string, any>) => {
+export const captureUnexpectedError = (error: unknown, context?: Record<string, unknown>) => {
   if (isExpectedError(error) || !hasAnalyticsConsent()) return;
 
   Sentry.captureException(error, {
@@ -108,7 +113,7 @@ export const captureUnexpectedError = (error: any, context?: Record<string, any>
  * Next.js error digest so the report can be cross-referenced with the
  * server-side log.
  */
-export const captureRouteError = (error: any, context?: Record<string, any>) => {
+export const captureRouteError = (error: unknown, context?: Record<string, unknown>) => {
   if (isExpectedError(error) || !hasAnalyticsConsent()) return;
 
   Sentry.captureException(error, {

@@ -15,6 +15,8 @@ import {
   getSACBalance,
   resolveAddressName,
   Campaign,
+  SorobanEvent,
+  SubmitTransactionResult,
 } from "@/lib/soroban";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { Address, nativeToScVal, xdr } from "@stellar/stellar-sdk";
@@ -354,8 +356,13 @@ export function getCrossedMilestones(
   return MILESTONE_PERCENTS.filter((m) => pctBefore < m && pctAfter >= m);
 }
 
-export function mapTransactionError(error: any): string {
-  const msg = error?.message || String(error);
+export function mapTransactionError(error: unknown): string {
+  const msg =
+    error instanceof Error
+      ? error.message
+      : typeof error === "object" && error !== null && "message" in error
+        ? String((error as { message: unknown }).message)
+        : String(error);
   if (
     msg.includes("User declined") ||
     msg.includes("cancelled") ||
@@ -431,7 +438,7 @@ export function useCreateCampaign() {
       const toastId = notify.loading();
       return { toastId };
     },
-    onSuccess: (data: any, variables: any, context: any) => {
+    onSuccess: (data: SubmitTransactionResult, _variables, context) => {
       notify.success("Transaction confirmed", {
         id: context?.toastId,
         hash: data?.hash,
@@ -439,7 +446,7 @@ export function useCreateCampaign() {
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
       queryClient.invalidateQueries({ queryKey: ["events"] });
     },
-    onError: (error: any, variables: any, context: any) => {
+    onError: (error: unknown, _variables, context) => {
       const mappedError = mapTransactionError(error);
       notify.error(mappedError, { id: context?.toastId });
     },
@@ -471,7 +478,13 @@ export function useDonate() {
 
       return submitTransaction(address, "donate", args);
     },
-    onMutate: async (variables: any) => {
+    onMutate: async (variables: {
+      campaignId: bigint;
+      amount: string;
+      isAnonymous: boolean;
+      decimals: number;
+      message?: string;
+    }) => {
       await queryClient.cancelQueries({ queryKey: ["campaign", variables.campaignId.toString()] });
       await queryClient.cancelQueries({ queryKey: ["campaigns"] });
 
@@ -497,10 +510,10 @@ export function useDonate() {
       // Update campaigns lists (recent, paged)
       queryClient.setQueriesData<{ campaigns: Campaign[]; hasMore: boolean }>(
         { queryKey: ["campaigns"] },
-        (old: any) => {
+        (old) => {
           if (!old) return old;
           const newCampaigns =
-            old.campaigns?.map((c: any) =>
+            old.campaigns?.map((c) =>
               c.id === variables.campaignId
                 ? { ...c, raised_amount: c.raised_amount + amountRaw }
                 : c,
@@ -512,7 +525,7 @@ export function useDonate() {
       const toastId = notify.loading();
       return { previousCampaign, previousCampaignsQueries, toastId };
     },
-    onSuccess: (data: any, variables: any, context: any) => {
+    onSuccess: (data: SubmitTransactionResult, variables, context) => {
       notify.success("Transaction confirmed", {
         id: context?.toastId,
         hash: data?.hash,
@@ -523,7 +536,7 @@ export function useDonate() {
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
       queryClient.invalidateQueries({ queryKey: ["events"] });
     },
-    onError: (error: any, variables: any, context: any) => {
+    onError: (error: unknown, variables, context) => {
       if (context?.previousCampaign) {
         queryClient.setQueryData(
           ["campaign", variables.campaignId.toString()],
@@ -531,15 +544,17 @@ export function useDonate() {
         );
       }
       if (context?.previousCampaignsQueries) {
-        context.previousCampaignsQueries.forEach(([queryKey, previousData]: any) => {
+        context.previousCampaignsQueries.forEach(([queryKey, previousData]) => {
           queryClient.setQueryData(queryKey, previousData);
         });
       }
       const mappedError = mapTransactionError(error);
       notify.error(mappedError, { id: context?.toastId });
     },
-    onSettled: (data: any, error: any, variables: any) => {
-      queryClient.invalidateQueries({ queryKey: ["campaign", variables.campaignId.toString()] });
+    onSettled: (_data, _error, variables) => {
+      if (variables) {
+        queryClient.invalidateQueries({ queryKey: ["campaign", variables.campaignId.toString()] });
+      }
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
     },
   });
@@ -561,7 +576,7 @@ export function useClaimFunds() {
       const toastId = notify.loading();
       return { toastId };
     },
-    onSuccess: (data: any, campaignId: any, context: any) => {
+    onSuccess: (data: SubmitTransactionResult, campaignId, context) => {
       notify.success("Transaction confirmed", {
         id: context?.toastId,
         hash: data?.hash,
@@ -569,7 +584,7 @@ export function useClaimFunds() {
       queryClient.invalidateQueries({ queryKey: ["campaign", campaignId.toString()] });
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
     },
-    onError: (error: any, variables: any, context: any) => {
+    onError: (error: unknown, _variables, context) => {
       const mappedError = mapTransactionError(error);
       notify.error(mappedError, { id: context?.toastId });
     },
@@ -592,7 +607,7 @@ export function useClaimRefund() {
       const toastId = notify.loading("Claiming refund...");
       return { toastId };
     },
-    onSuccess: (data: any, campaignId: any, context: any) => {
+    onSuccess: (data: SubmitTransactionResult, campaignId, context) => {
       notify.success("Refund claimed successfully", {
         id: context?.toastId,
         hash: data?.hash,
@@ -600,7 +615,7 @@ export function useClaimRefund() {
       queryClient.invalidateQueries({ queryKey: ["campaign", campaignId.toString()] });
       queryClient.invalidateQueries({ queryKey: ["refund-eligibility", campaignId.toString()] });
     },
-    onError: (error: any, _variables: any, context: any) => {
+    onError: (_error: unknown, _variables, context) => {
       notify.error("Unable to claim refund. Please try again.", { id: context?.toastId });
     },
   });
@@ -662,13 +677,14 @@ const ZERO_ADDRESS = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
  * Exported so the pure aggregation can be exercised without the RPC, and so the
  * counting query below only has to wire it up.
  */
-export function countUniqueDonors(events: any[] | undefined): number {
+export function countUniqueDonors(events: SorobanEvent[] | undefined): number {
   const donors = new Set<string>();
 
   for (const event of events ?? []) {
     if (event?.topic !== "received" || !event.data) continue;
 
-    const donor = event.data?.donor != null ? String(event.data.donor) : undefined;
+    const dataObj = event.data as { donor?: unknown } | undefined;
+    const donor = dataObj?.donor != null ? String(dataObj.donor) : undefined;
     if (!donor || donor === ZERO_ADDRESS) continue;
 
     donors.add(donor);
@@ -789,14 +805,14 @@ export function useAddUpdate() {
       const toastId = notify.loading();
       return { toastId };
     },
-    onSuccess: (data: any, variables: any, context: any) => {
+    onSuccess: (data: SubmitTransactionResult, variables, context) => {
       notify.success("Transaction confirmed", {
         id: context?.toastId,
         hash: data?.hash,
       });
       queryClient.invalidateQueries({ queryKey: ["updates", variables.campaignId.toString()] });
     },
-    onError: (error: any, variables: any, context: any) => {
+    onError: (error: unknown, _variables, context) => {
       const mappedError = mapTransactionError(error);
       notify.error(mappedError, { id: context?.toastId });
     },
@@ -856,7 +872,7 @@ export function useCancelCampaign() {
       const toastId = notify.loading("Cancelling campaign...");
       return { toastId };
     },
-    onSuccess: (data: any, campaignId: any, context: any) => {
+    onSuccess: (data: SubmitTransactionResult, campaignId, context) => {
       notify.success("Campaign cancelled", {
         id: context?.toastId,
         hash: data?.hash,
@@ -864,7 +880,7 @@ export function useCancelCampaign() {
       queryClient.invalidateQueries({ queryKey: ["campaign", campaignId.toString()] });
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
     },
-    onError: (error: any, _variables: any, context: any) => {
+    onError: (error: unknown, _variables, context) => {
       const mappedError = mapTransactionError(error);
       notify.error(mappedError, { id: context?.toastId });
     },
@@ -890,7 +906,7 @@ export function useAddToWhitelist() {
       const toastId = notify.loading("Whitelisting address...");
       return { toastId };
     },
-    onSuccess: (data: any, variables: any, context: any) => {
+    onSuccess: (data: SubmitTransactionResult, variables, context) => {
       notify.success("Address whitelisted", {
         id: context?.toastId,
         hash: data?.hash,
@@ -899,7 +915,7 @@ export function useAddToWhitelist() {
         queryKey: ["campaign", variables.campaignId.toString()],
       });
     },
-    onError: (error: any, _variables: any, context: any) => {
+    onError: (error: unknown, _variables, context) => {
       const mappedError = mapTransactionError(error);
       notify.error(mappedError, { id: context?.toastId });
     },
@@ -919,11 +935,11 @@ function usePauseToggle(method: "pause" | "unpause", pending: string, done: stri
       const toastId = notify.loading(pending);
       return { toastId };
     },
-    onSuccess: (data: any, _variables: void, context: any) => {
+    onSuccess: (data: SubmitTransactionResult, _variables: void, context) => {
       notify.success(done, { id: context?.toastId, hash: data?.hash });
       queryClient.invalidateQueries({ queryKey: ["platform-config"] });
     },
-    onError: (error: any, _variables: void, context: any) => {
+    onError: (error: unknown, _variables: void, context) => {
       notify.error(mapTransactionError(error), { id: context?.toastId });
     },
   });

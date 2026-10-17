@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatCard } from "@/components/ui/stat-card";
 import { useRecentCampaigns, useEvents } from "@/hooks/useSoroban";
-import { type Campaign } from "@/lib/soroban";
+import { type Campaign, type SorobanEvent } from "@/lib/soroban";
 import {
   MISSING_FIELD,
   formatEventAmount,
@@ -55,22 +55,22 @@ export default function ProfilePage() {
 
       // Events are loosely-typed RPC payloads: a truncated or re-shaped `data`
       // array must be skipped, never indexed blindly.
-      const allEvents: any[] = Array.isArray(events) ? events : [];
+      const allEvents: SorobanEvent[] = Array.isArray(events) ? events : [];
       const myDonations = allEvents.filter(
-        (e: any) =>
+        (e) =>
           e &&
           typeof e === "object" &&
           e.topic === "received" &&
           normalizeAddress(getEventField(e, "donor")) === address,
       );
       const supportedIds = new Set(
-        myDonations.map((e: any) => getCampaignId(e) ?? "").filter(Boolean),
+        myDonations.map((e) => getCampaignId(e) ?? "").filter(Boolean),
       );
       const supported = all.filter((c) => supportedIds.has(c.id.toString()));
 
       const totalRaised = created.reduce((acc, c) => acc + c.raised_amount, 0n);
       const totalDonated = myDonations.reduce(
-        (acc: bigint, e: any) => acc + getAmountStroops(e, "amount"),
+        (acc: bigint, e) => acc + getAmountStroops(e, "amount"),
         0n,
       );
       const activeCount = created.filter((c) => c.status === "Active").length;
@@ -320,7 +320,7 @@ function DonationsSection({
   emptyText,
   action,
 }: {
-  donations: any[];
+  donations: SorobanEvent[];
   campaigns: Campaign[];
   emptyText: string;
   action?: React.ReactNode;

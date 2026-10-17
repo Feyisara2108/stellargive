@@ -36,6 +36,16 @@ interface MockWalletContextType {
 
 const MockWalletContext = createContext<MockWalletContextType | undefined>(undefined);
 
+interface MockWalletWindow extends Window {
+  __mockWallet?: {
+    address: string;
+    signedTxXdr: string;
+    connected: boolean;
+  };
+  __mockWalletDisconnected?: boolean;
+  __mockWalletAddress?: string;
+}
+
 /**
  * Installs global mock overrides for `@stellar/freighter-api` functions so
  * that any code importing them at runtime gets deterministic responses.
@@ -43,7 +53,7 @@ const MockWalletContext = createContext<MockWalletContextType | undefined>(undef
 function installFreighterMocks(address: string, signedTxXdr: string) {
   if (typeof window !== "undefined") {
     // Patch window.__mockWallet so Playwright tests can read/set state
-    (window as any).__mockWallet = {
+    (window as unknown as MockWalletWindow).__mockWallet = {
       address,
       signedTxXdr,
       connected: true,
@@ -62,7 +72,7 @@ export function MockWalletProvider({ children }: { children: React.ReactNode }) 
   //   window.__mockWalletAddress      — pin the connected account
   //   window.__mockWalletDisconnected — start signed out
   React.useEffect(() => {
-    const w = window as any;
+    const w = window as unknown as MockWalletWindow;
     if (w.__mockWalletDisconnected) {
       setAddress(null);
       setIsConnected(false);
@@ -77,7 +87,7 @@ export function MockWalletProvider({ children }: { children: React.ReactNode }) 
   }, [address, mockSignedTxXdr]);
 
   const connect = useCallback(async () => {
-    const override = (window as any).__mockWalletAddress;
+    const override = (window as unknown as MockWalletWindow).__mockWalletAddress;
     setAddress(typeof override === "string" ? override : DEFAULT_MOCK_ADDRESS);
     setIsConnected(true);
   }, []);

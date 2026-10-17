@@ -6,6 +6,7 @@ import { vi } from "vitest";
 vi.mock("next/dynamic", () => {
   return {
     default: (loader: any) => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- required inside vi.mock factory closure
       const React = require("react");
       const LazyComponent = React.lazy(() => {
         let loadPromise;

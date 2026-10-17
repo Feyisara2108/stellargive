@@ -38,6 +38,7 @@ const DonateModal = dynamic(
 );
 import { AddressLink } from "@/components/AddressLink";
 import { sanitizeUrl } from "@/lib/sanitize";
+import type { Campaign, SorobanEvent } from "@/lib/soroban";
 import { RefundButton } from "@/components/RefundButton";
 import { StickyDonateBar } from "@/components/StickyDonateBar";
 import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
@@ -52,23 +53,27 @@ function TopDonors({ campaignId }: { campaignId: bigint }) {
   if (isLoading) return <Skeleton className="h-32 w-full mt-6" />;
 
   const donationsByDonor = allEvents
-    ?.filter((e: any) => {
+    ?.filter((e) => {
       try {
+        const dataObj = e.data as { campaign_id?: unknown } | undefined;
         return (
           e.topic === "received" &&
-          e.data?.campaign_id !== undefined &&
-          BigInt(e.data.campaign_id) === campaignId
+          dataObj?.campaign_id !== undefined &&
+          BigInt(dataObj.campaign_id as string | number | bigint) === campaignId
         );
       } catch {
         return false;
       }
     })
-    .reduce(
-      (acc: any, event: any) => {
-        const donor = event.data?.donor?.toString?.();
+    .reduce<Record<string, bigint>>(
+      (acc, event) => {
+        const dataObj = event.data as
+          | { donor?: { toString(): string }; amount?: string | number | bigint }
+          | undefined;
+        const donor = dataObj?.donor?.toString?.();
         let amount = 0n;
         try {
-          amount = BigInt(event.data?.amount ?? 0);
+          amount = BigInt(dataObj?.amount ?? 0);
         } catch {
           amount = 0n;
         }
@@ -77,7 +82,7 @@ function TopDonors({ campaignId }: { campaignId: bigint }) {
         }
         return acc;
       },
-      {} as Record<string, bigint>,
+      {},
     );
 
   const topDonors = Object.entries((donationsByDonor as Record<string, bigint>) || {})
@@ -119,14 +124,20 @@ function TopDonors({ campaignId }: { campaignId: bigint }) {
   );
 }
 
-function CampaignTimeline({ campaign }: { campaign: any }) {
+function CampaignTimeline({ campaign }: { campaign: Campaign }) {
   const { data: allEvents, isLoading } = useEvents();
 
   if (isLoading) return <Skeleton className="h-32 w-full mt-6" />;
 
-  const createdEvent = allEvents?.find(
-    (e: any) => e.topic === "created" && e.data && BigInt(e.data[0]) === campaign.id,
-  );
+  const createdEvent = allEvents?.find((e) => {
+    if (e.topic !== "created" || !e.data) return false;
+    const cid = Array.isArray(e.data) ? e.data[0] : (e.data as { id?: unknown })?.id;
+    try {
+      return cid != null && BigInt(cid as string | number | bigint) === campaign.id;
+    } catch {
+      return false;
+    }
+  });
 
   return (
     <div className="space-y-4 pt-6 border-t mt-6">

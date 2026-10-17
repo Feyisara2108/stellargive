@@ -19,8 +19,12 @@ import {
 export const CONTRACT_ID =
   process.env.NEXT_PUBLIC_CONTRACT_ID || "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
 export const RPC_URL = process.env.NEXT_PUBLIC_SOROBAN_RPC_URL || "http://localhost:8000/rpc";
-export const NETWORK_PASSPHRASE =
-  process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE || "Standalone Network ; February 2017";
+export {
+  NETWORK_PASSPHRASE,
+  getNetworkDisplayName,
+  getWrongNetworkMessage,
+  WRONG_NETWORK_MESSAGE,
+} from "./network";
 
 export const server = new rpc.Server(RPC_URL, { allowHttp: true });
 
@@ -95,27 +99,43 @@ export interface Campaign {
   tags?: string[];
 }
 
-function parseCampaign(native: any): Campaign {
-  const bens = (native.beneficiaries || []).map((b: any) => ({
-    address: String(b[0]),
-    share: Number(b[1]),
-  }));
+export type SubmitTransactionResult = rpc.Api.GetSuccessfulTransactionResponse & { hash: string };
+
+export interface SorobanEvent {
+  id: string;
+  txHash: string;
+  ledger: number;
+  createdAt: string;
+  topic: string;
+  data: unknown;
+  timestamp?: string | number;
+}
+
+function parseCampaign(native: Record<string, unknown>): Campaign {
+  const rawBens = Array.isArray(native.beneficiaries) ? native.beneficiaries : [];
+  const bens = rawBens.map((b: unknown) => {
+    const pair = Array.isArray(b) ? b : [];
+    return {
+      address: String(pair[0] ?? ""),
+      share: Number(pair[1] ?? 0),
+    };
+  });
   return {
-    id: BigInt(native.id),
-    creator: native.creator,
-    beneficiary: bens[0]?.address || native.beneficiary || "",
+    id: BigInt(native.id as string | number | bigint | boolean),
+    creator: String(native.creator ?? ""),
+    beneficiary: bens[0]?.address || (native.beneficiary ? String(native.beneficiary) : ""),
     beneficiaries: bens,
-    title: native.title.toString(),
-    description: native.description.toString(),
+    title: String(native.title ?? ""),
+    description: String(native.description ?? ""),
     category:
       typeof native.category === "symbol"
         ? (native.category.description ?? "relief")
         : String(native.category ?? "relief").replace(/^Symbol\((.*)\)$/, "$1"),
-    target_amount: BigInt(native.target_amount),
-    raised_amount: BigInt(native.raised_amount),
-    deadline: BigInt(native.deadline),
-    accepted_token: native.accepted_token,
-    status: (Object.keys(native.status || {})[0] ??
+    target_amount: BigInt(native.target_amount as string | number | bigint | boolean),
+    raised_amount: BigInt(native.raised_amount as string | number | bigint | boolean),
+    deadline: BigInt(native.deadline as string | number | bigint | boolean),
+    accepted_token: String(native.accepted_token ?? ""),
+    status: (Object.keys((native.status as object) || {})[0] ??
       (typeof native.status === "object" && native.status
         ? Object.getOwnPropertySymbols(native.status)[0]?.description
         : undefined) ??
@@ -196,7 +216,7 @@ export async function getRecentCampaigns(limit = 20): Promise<Campaign[]> {
       }
 
       const result = scValToNative(sim.result.retval);
-      const batch = (result as any[]).map(parseCampaign);
+      const batch = (result as Record<string, unknown>[]).map(parseCampaign);
 
       if (batch.length === 0) {
         break;
@@ -329,7 +349,7 @@ export async function getCampaignsPage(
 export async function estimateFee(
   sender: string,
   func: string,
-  args: any[],
+  args: xdr.ScVal[],
 ): Promise<number | null> {
   try {
     const account = await server.getAccount(sender);
@@ -360,7 +380,7 @@ export interface SubmitOptions {
   onHighGasWarning?: (feeStroops: number) => void;
 }
 
-async function prepareInvokeTransaction(sender: string, func: string, args: any[]) {
+async function prepareInvokeTransaction(sender: string, func: string, args: xdr.ScVal[]) {
   const account = await server.getAccount(sender);
   return new TransactionBuilder(account, {
     fee: "1000",
@@ -397,14 +417,17 @@ async function simulateAndWarn(
   }
 }
 
-async function sendAndConfirm(signedXdr: string) {
+async function sendAndConfirm(signedXdr: string): Promise<SubmitTransactionResult> {
+  const parsedTx = TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE);
   const sendResponse = await server.sendTransaction(
-    TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE) as any,
+    parsedTx as Parameters<typeof server.sendTransaction>[0],
   );
 
   if (sendResponse.status === "ERROR") {
+    const errorXdr = "errorResultXdr" in sendResponse ? sendResponse.errorResultXdr : undefined;
+    const errorResult = "errorResult" in sendResponse ? sendResponse.errorResult : undefined;
     throw new Error(
-      `Send failed: ${JSON.stringify((sendResponse as any).errorResultXdr || sendResponse.errorResult)}`,
+      `Send failed: ${JSON.stringify(errorXdr || errorResult)}`,
     );
   }
 
@@ -418,8 +441,7 @@ async function sendAndConfirm(signedXdr: string) {
   }
 
   if (txResult.status === rpc.Api.GetTransactionStatus.SUCCESS) {
-    (txResult as any).hash = sendResponse.hash;
-    return txResult;
+    return Object.assign(txResult, { hash: sendResponse.hash });
   }
   throw new Error(`Transaction failed: ${txResult.status}`);
 }
@@ -427,9 +449,9 @@ async function sendAndConfirm(signedXdr: string) {
 export async function submitTransaction(
   sender: string,
   func: string,
-  args: any[],
+  args: xdr.ScVal[],
   options: SubmitOptions = {},
-) {
+): Promise<SubmitTransactionResult> {
   const tx = await prepareInvokeTransaction(sender, func, args);
   await simulateAndWarn(tx, options);
 
@@ -453,9 +475,9 @@ export async function submitTransaction(
 export async function submitTransactionWithKeypair(
   keypair: Keypair,
   func: string,
-  args: any[],
+  args: xdr.ScVal[],
   options: SubmitOptions = {},
-) {
+): Promise<SubmitTransactionResult> {
   const tx = await prepareInvokeTransaction(keypair.publicKey(), func, args);
   await simulateAndWarn(tx, options);
 
@@ -493,10 +515,10 @@ export async function getEvents(limit = 20) {
     const value = scValToNative(event.value);
     // Dual-topic events (e.g. donation/received) put the UI label in topics[1];
     // single-topic events (e.g. created) only have topics[0].
-    const topic = topics[1] ?? topics[0];
+    const topic = (topics[1] ?? topics[0]) as string;
     return {
       id: event.id,
-      txHash: (event as any).txHash || event.id,
+      txHash: ("txHash" in event && typeof event.txHash === "string" ? event.txHash : event.id),
       ledger: event.ledger,
       createdAt: event.ledgerClosedAt,
       topic,
@@ -535,9 +557,10 @@ export async function getUpdates(campaignId: bigint): Promise<CampaignUpdate[]> 
   }
   if (!sim.result) return [];
   const result = scValToNative(sim.result.retval);
-  return (result as any[]).map((u) => ({
-    content: u.content.toString(),
-    timestamp: BigInt(u.timestamp),
+  const rawList = Array.isArray(result) ? result : [];
+  return rawList.map((u: Record<string, unknown>) => ({
+    content: String(u.content ?? ""),
+    timestamp: BigInt(u.timestamp as string | number | bigint),
   }));
 }
 
@@ -550,11 +573,11 @@ export async function getSACBalance(contractId: string, userAddress: string): Pr
     },
   )
     .addOperation(
-      Operation.invokeHostFunction({
-        func: "balance",
-        contractId: contractId,
+      Operation.invokeContractFunction({
+        contract: contractId,
+        function: "balance",
         args: [new Address(userAddress).toScVal()],
-      } as any),
+      }),
     )
     .setTimeout(30)
     .build();
@@ -583,11 +606,11 @@ export async function getTokenMetadata(contractId: string): Promise<TokenMetadat
     },
   )
     .addOperation(
-      Operation.invokeHostFunction({
-        func: "symbol",
-        contractId,
+      Operation.invokeContractFunction({
+        contract: contractId,
+        function: "symbol",
         args: [],
-      } as any),
+      }),
     )
     .setTimeout(30)
     .build();
@@ -606,11 +629,11 @@ export async function getTokenMetadata(contractId: string): Promise<TokenMetadat
     },
   )
     .addOperation(
-      Operation.invokeHostFunction({
-        func: "decimals",
-        contractId,
+      Operation.invokeContractFunction({
+        contract: contractId,
+        function: "decimals",
         args: [],
-      } as any),
+      }),
     )
     .setTimeout(30)
     .build();

@@ -26,9 +26,9 @@ export function getEventField(event: unknown, field: string): unknown {
 /** Parses a scalar into a bigint, or null when it is missing/garbage. */
 export function parseBigInt(value: unknown): bigint | null {
   if (value === null || value === undefined || value === "") return null;
-  if (typeof value === "object" && typeof (value as any).toString !== "function") return null;
+  if (typeof value === "object" && typeof (value as { toString?: unknown }).toString !== "function") return null;
   try {
-    return BigInt(value as any);
+    return BigInt(value as string | number | bigint | boolean);
   } catch {
     return null;
   }

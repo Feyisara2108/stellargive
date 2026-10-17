@@ -141,9 +141,9 @@ export function RecentDonations({
   const visibleDonations = donations?.slice(0, visibleCount);
   const hasMore = Boolean(donations && visibleCount < donations.length);
 
-  const normalizeDonorAddress = (donor: any): string | null => {
+  const normalizeDonorAddress = (donor: unknown): string | null => {
     if (!donor) return null;
-    const str = donor.toString();
+    const str = String(donor);
     if (str === "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF") {
       return null;
     }
@@ -169,7 +169,7 @@ export function RecentDonations({
       <CardContent className="space-y-4">
         {visibleDonations && visibleDonations.length > 0 ? (
           <div className="space-y-4">
-            {visibleDonations.map((event: any) => {
+            {visibleDonations.map((event) => {
               const donorAddress = normalizeDonorAddress(getEventField(event, "donor"));
               const message = getDonationMessage(event.data);
               const amountStroops = getAmountStroops(event, "amount");

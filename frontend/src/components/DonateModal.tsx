@@ -14,6 +14,7 @@ import {
 } from "@/hooks/useSoroban";
 import { Campaign } from "@/lib/soroban";
 import { useWallet } from "@/lib/WalletProvider";
+import { WRONG_NETWORK_MESSAGE } from "@/lib/network";
 import { formatTokenAmount, toRawAmount } from "@/utils/format";
 import { GasWarning } from "@/components/GasWarning";
 import { Button } from "@/components/ui/button";
@@ -45,8 +46,14 @@ const MILESTONE_COPY: Record<MilestonePercent, { title: string; description: str
   100: { title: "Fully funded!", description: "100% of the goal raised." },
 };
 
-function mapOnChainError(error: any): string | null {
-  const msg = (error?.message || String(error)).trim();
+function mapOnChainError(error: unknown): string | null {
+  const msg = (
+    error instanceof Error
+      ? error.message
+      : typeof error === "object" && error !== null && "message" in error
+        ? String((error as { message: unknown }).message)
+        : String(error)
+  ).trim();
   if (msg.includes("User declined") || msg.includes("cancelled") || msg.includes("User rejected")) {
     return null; // user-initiated, no inline error needed
   }
@@ -219,7 +226,7 @@ export function DonateModal({
         console.error("Failed to compute milestone toasts", milestoneErr);
       }
       setSuccessAmount(data.amount);
-      setSuccessTxHash((result as any).hash || "");
+      setSuccessTxHash((result as { hash?: string })?.hash || "");
       setSuccessAnnouncement(`Donation of ${data.amount} ${symbol} confirmed`);
       try {
         if (typeof window !== "undefined") {
@@ -233,7 +240,7 @@ export function DonateModal({
       setValue("amount", "");
       setIsAnonymous(false);
       setMessage("");
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
       const inlineMsg = mapOnChainError(e);
       if (inlineMsg) setSubmitError(inlineMsg);
@@ -279,7 +286,7 @@ export function DonateModal({
               <TooltipContent side="top" id="donate-disabled-reason">
                 {!address
                   ? "Connect your wallet to donate"
-                  : "Please switch wallet network to Stellar Testnet"}
+                  : WRONG_NETWORK_MESSAGE}
               </TooltipContent>
             )}
           </Tooltip>

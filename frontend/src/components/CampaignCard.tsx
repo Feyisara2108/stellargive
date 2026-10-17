@@ -5,7 +5,7 @@ import React, { useState, useCallback, useRef } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { Campaign, getCampaign } from "@/lib/soroban";
+import { Campaign, getCampaign, type TokenMetadata } from "@/lib/soroban";
 import { formatTokenAmount, formatUSD } from "@/utils/format";
 import { useTokenMetadata, useXlmPrice } from "@/hooks/useSoroban";
 import { calculateProgress, getCampaignImageUrl, CAMPAIGN_IMAGE_BLUR_DATA_URL } from "@/lib/utils";
@@ -88,7 +88,7 @@ function CampaignCardComponent({
   isPreview = false,
 }: {
   campaign: Campaign;
-  preloadedTokenMeta?: any;
+  preloadedTokenMeta?: TokenMetadata;
   detailHrefSearch?: string;
   /** Renders a small ribbon (e.g. from a homepage highlight reel) over the image. */
   highlightLabel?: CampaignHighlightLabel;

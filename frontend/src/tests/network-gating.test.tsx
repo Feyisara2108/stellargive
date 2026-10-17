@@ -50,10 +50,17 @@ vi.mock("@/lib/soroban", () => ({
   MAX_SIMULATION_FEE_STROOPS: 10_000_000,
 }));
 
-const APP_NETWORK =
-  process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE || "Standalone Network ; February 2017";
-const UNSUPPORTED_NETWORK = "Public Global Stellar Network ; September 2015";
-const WRONG_NETWORK_REASON = "Please switch wallet network to Stellar Testnet";
+import { Networks } from "@stellar/stellar-sdk";
+import {
+  NETWORK_PASSPHRASE,
+  getNetworkDisplayName,
+  getWrongNetworkMessage,
+  WRONG_NETWORK_MESSAGE,
+} from "@/lib/network";
+
+const APP_NETWORK = NETWORK_PASSPHRASE;
+const UNSUPPORTED_NETWORK = Networks.PUBLIC;
+const WRONG_NETWORK_REASON = WRONG_NETWORK_MESSAGE;
 
 function makeQueryClient() {
   return new QueryClient({
@@ -264,5 +271,48 @@ describe("Integration: wrong-network action gating across actions", () => {
     expect(donateButton).toHaveAttribute("aria-describedby", "donate-disabled-reason");
     expect(claimButton).toHaveAttribute("aria-describedby", "claim-disabled-reason");
     expect(refundButton).toHaveAttribute("aria-describedby", "refund-disabled-reason");
+  });
+});
+
+describe("network display name helper", () => {
+  it("maps Networks.TESTNET to Testnet", () => {
+    expect(getNetworkDisplayName(Networks.TESTNET)).toBe("Testnet");
+    expect(getWrongNetworkMessage(Networks.TESTNET)).toBe(
+      "Please switch wallet network to Stellar Testnet",
+    );
+  });
+
+  it("maps Networks.PUBLIC to Mainnet", () => {
+    expect(getNetworkDisplayName(Networks.PUBLIC)).toBe("Mainnet");
+    expect(getWrongNetworkMessage(Networks.PUBLIC)).toBe(
+      "Please switch wallet network to Stellar Mainnet",
+    );
+  });
+
+  it("maps Networks.FUTURENET to Futurenet", () => {
+    expect(getNetworkDisplayName(Networks.FUTURENET)).toBe("Futurenet");
+    expect(getWrongNetworkMessage(Networks.FUTURENET)).toBe(
+      "Please switch wallet network to Stellar Futurenet",
+    );
+  });
+
+  it("maps Networks.STANDALONE to Standalone", () => {
+    expect(getNetworkDisplayName(Networks.STANDALONE)).toBe("Standalone");
+    expect(getWrongNetworkMessage(Networks.STANDALONE)).toBe(
+      "Please switch wallet network to Stellar Standalone",
+    );
+  });
+
+  it("maps unknown passphrases to a sensible label without throwing", () => {
+    expect(getNetworkDisplayName("Unknown Custom Network ; 2026")).toBe("Unknown");
+    expect(getNetworkDisplayName("")).toBe("Unknown");
+    expect(getWrongNetworkMessage("Unknown Custom Network ; 2026")).toBe(
+      "Please switch wallet network to Stellar Unknown",
+    );
+  });
+
+  it("uses the configured network passphrase by default", () => {
+    expect(getNetworkDisplayName()).toBe(getNetworkDisplayName(NETWORK_PASSPHRASE));
+    expect(getWrongNetworkMessage()).toBe(WRONG_NETWORK_MESSAGE);
   });
 });

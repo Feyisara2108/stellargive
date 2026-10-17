@@ -90,10 +90,12 @@ export function ShareButton({ campaign }: { campaign: ShareableCampaign }) {
           url: url,
         });
         toast.success("Thanks for sharing!");
-      } catch (err: any) {
+      } catch (err: unknown) {
         // If user cancelled the share sheet, AbortError is thrown. We ignore it.
         // For other errors, we fallback to our manual dialog.
-        if (err.name !== "AbortError") {
+        const isAbort =
+          typeof err === "object" && err !== null && "name" in err && err.name === "AbortError";
+        if (!isAbort) {
           setOpen(true);
         }
       }

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useEvents } from "@/hooks/useSoroban";
+import type { SorobanEvent } from "@/lib/soroban";
 import { formatEventAmount, getCampaignId } from "@/lib/eventData";
 import { getStellarExpertTxUrl } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -112,10 +113,10 @@ export function EventFeed() {
     if (!events?.length) return;
 
     const newDonations = events.filter(
-      (e: any) => e.topic === "received" && !prevIdsRef.current.has(e.id),
+      (e) => e.topic === "received" && !prevIdsRef.current.has(e.id),
     );
 
-    const currentIds = new Set<string>(events.map((e: any) => e.id as string));
+    const currentIds = new Set<string>(events.map((e) => e.id));
 
     if (prevIdsRef.current.size > 0 && newDonations.length > 0) {
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -180,7 +181,7 @@ export function EventFeed() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {events?.map((event: any) => (
+              {events?.map((event) => (
                 <tr key={event.id} className="hover:bg-muted/10 transition-colors">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
@@ -232,7 +233,7 @@ export function EventFeed() {
 
         {/* Mobile View */}
         <div className="md:hidden space-y-4">
-          {events?.map((event: any) => (
+          {events?.map((event) => (
             <div key={event.id} className="flex flex-col gap-3 p-4 border rounded-lg bg-card">
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
