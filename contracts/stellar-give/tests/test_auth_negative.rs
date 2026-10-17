@@ -213,3 +213,52 @@ fn test_upgrade_rejects_non_owner() {
         .try_upgrade(&hash);
     assert!(result.is_err());
 }
+
+// #1149 — assert Unauthorized and AlreadyInitialized errors explicitly
+
+#[test]
+fn test_unauthorized_error_asserted() {
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) =
+        register_and_setup_without_auth_mock();
+    set_timestamp(&env, 1_000);
+
+    let campaign_id = create_default_campaign(
+        &env,
+        &client.mock_all_auths(),
+        &creator,
+        &beneficiary,
+        &token_client.address,
+        2_000,
+    );
+
+    let attacker = Address::generate(&env);
+    let result = client
+        .mock_auths(&[MockAuth {
+            address: &attacker,
+            invoke: &MockAuthInvoke {
+                contract: &client.address,
+                fn_name: "cancel_campaign",
+                args: (campaign_id,).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .try_cancel_campaign(&campaign_id);
+
+    assert_eq!(result, Err(Ok(stellar_give::ContractError::Unauthorized)));
+}
+
+#[test]
+fn test_already_initialized_error_asserted() {
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) =
+        register_and_setup_without_auth_mock();
+
+    // Initialize once
+    client.mock_all_auths().initialize(&creator);
+
+    // Initialize again should fail
+    let result = client.try_initialize(&creator);
+    assert_eq!(
+        result,
+        Err(Ok(stellar_give::ContractError::AlreadyInitialized))
+    );
+}

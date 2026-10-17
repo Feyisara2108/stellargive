@@ -31,10 +31,12 @@ export default defineConfig({
         "**/stories/**",
       ],
       thresholds: {
-        statements: 50,
-        branches: 50,
-        functions: 50,
-        lines: 50,
+        // #1142 — ratcheted to just below current coverage (80/72/74/83)
+        // rounded down to nearest 5%. Raise these as coverage improves.
+        statements: 75,
+        branches: 70,
+        functions: 70,
+        lines: 80,
       },
     },
   },
