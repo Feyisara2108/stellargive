@@ -6,6 +6,8 @@
 //! - `claim_refund` rejects non-cancelled campaign with CampaignNotCancelled
 //! - `claim_refund` rejects zeroed donor with NothingToRefund
 //! - Double-refund protection: calling either twice errors
+//! - `claim_refund` surfaces RefundTransferFailed when the escrow cannot pay,
+//!   and rolls the contribution back so the refund stays claimable (#1151)
 
 mod helpers;
 
@@ -322,4 +324,81 @@ fn test_claim_refund_clears_raised_amount() {
         c_after.raised_amount, 0,
         "raised_amount must be zeroed after claim_refund"
     );
+}
+
+// ── claim_refund: failing escrow transfer (#37) ────────────────────────────
+
+#[test]
+fn test_claim_refund_returns_transfer_failed_when_escrow_cannot_pay() {
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let campaign_id = create_default_campaign(
+        &env,
+        &client,
+        &creator,
+        &beneficiary,
+        &token_client.address,
+        2_000,
+    );
+    let donation = 5_000_000_i128;
+    client.donate(&donor, &campaign_id, &donation, &false, &None);
+    client.cancel_campaign(&campaign_id);
+
+    // Drain the escrow out from under the refund. The recorded contribution
+    // survives while the tokens backing it do not, which is the only state in
+    // which `try_transfer` can fail on the happy path's final step.
+    token_client.burn(&client.address, &donation);
+    assert_eq!(
+        token_client.balance(&client.address),
+        0,
+        "escrow must be empty before the refund is attempted"
+    );
+
+    let result = client.try_claim_refund(&donor, &campaign_id);
+    assert_eq!(
+        result,
+        Err(Ok(ContractError::RefundTransferFailed)),
+        "a failing escrow transfer must surface as RefundTransferFailed"
+    );
+}
+
+#[test]
+fn test_claim_refund_transfer_failure_rolls_back_contribution() {
+    let (env, client, creator, beneficiary, donor, _admin, token_client, token_admin) =
+        register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let campaign_id = create_default_campaign(
+        &env,
+        &client,
+        &creator,
+        &beneficiary,
+        &token_client.address,
+        2_000,
+    );
+    let donation = 5_000_000_i128;
+    client.donate(&donor, &campaign_id, &donation, &false, &None);
+    client.cancel_campaign(&campaign_id);
+
+    token_client.burn(&client.address, &donation);
+    assert_eq!(
+        client.try_claim_refund(&donor, &campaign_id),
+        Err(Ok(ContractError::RefundTransferFailed))
+    );
+
+    // The zeroing of the contribution happens before the transfer, so the
+    // failure must roll it back — otherwise a transient token failure would
+    // burn the donor's claim permanently.
+    let campaign = client.get_campaign(&campaign_id);
+    assert_eq!(
+        campaign.raised_amount, donation,
+        "raised_amount must survive a failed refund"
+    );
+
+    // Refill the escrow and the very same refund settles, which only holds if
+    // the failed attempt left the contribution intact.
+    token_admin.mint(&client.address, &donation);
+    assert_eq!(client.claim_refund(&donor, &campaign_id), donation);
+    assert_eq!(client.get_campaign(&campaign_id).raised_amount, 0);
 }
