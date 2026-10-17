@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@/test/render";
 import { axe, toHaveNoViolations } from "jest-axe";
 import { CreateCampaignForm } from "./CreateCampaignForm";
+import { createSorobanMock } from "@/test/mockSoroban";
 
 expect.extend(toHaveNoViolations);
 
@@ -17,13 +18,12 @@ const resolvedNameState = vi.hoisted(() => ({
   isFetching: false,
 }));
 
-vi.mock("@/hooks/useSoroban", () => ({
-  useCreateCampaign: () => createCampaignState,
-  useResolvedName: () => resolvedNameState,
-  // Used by the live CampaignCard preview.
-  useTokenMetadata: () => ({ data: undefined, isLoading: false }),
-  useXlmPrice: () => ({ data: undefined, isLoading: false }),
-}));
+vi.mock("@/hooks/useSoroban", () =>
+  createSorobanMock({
+    useCreateCampaign: () => createCampaignState,
+    useResolvedName: () => resolvedNameState,
+  }),
+);
 
 vi.mock("next/navigation", () => ({
   useRouter: vi.fn().mockReturnValue({ push: vi.fn() }),

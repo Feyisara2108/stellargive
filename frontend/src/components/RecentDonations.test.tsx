@@ -1,11 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { RecentDonations } from "./RecentDonations";
+import { createSorobanMock } from "@/test/mockSoroban";
 
-vi.mock("@/hooks/useSoroban", () => ({
-  useEvents: vi.fn(),
-  useResolvedName: vi.fn().mockReturnValue({ data: undefined }),
-}));
+vi.mock("@/hooks/useSoroban", () =>
+  createSorobanMock({
+    useEvents: vi.fn(),
+    useResolvedName: vi.fn().mockReturnValue({ data: undefined }),
+  }),
+);
 
 vi.mock("@/lib/soroban", () => ({
   fromStroops: (stroops: bigint | string | number): string => {

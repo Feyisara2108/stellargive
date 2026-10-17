@@ -6,6 +6,7 @@ import {
   makeDonationEvent,
   NATIVE_TOKEN_ADDRESS,
 } from "@/test/factories";
+import { createSorobanMock } from "@/test/mockSoroban";
 
 // fromStroops is the only soroban export the page reaches (via @/lib/eventData).
 vi.mock("@/lib/soroban", () => ({
@@ -21,9 +22,11 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => currentParams,
 }));
 
-vi.mock("@/hooks/useSoroban", () => ({
-  useEvents: vi.fn(() => ({ data: [], isLoading: false, isError: false })),
-}));
+vi.mock("@/hooks/useSoroban", () =>
+  createSorobanMock({
+    useEvents: vi.fn(() => ({ data: [], isLoading: false, isError: false })),
+  }),
+);
 
 vi.mock("@/components/Navbar", () => ({ Navbar: () => <div /> }));
 vi.mock("@/components/AddressLink", () => ({

@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AdminPanel } from "./AdminPanel";
 import type { Campaign } from "@/lib/soroban";
+import { createSorobanMock } from "@/test/mockSoroban";
 
 const hooks = vi.hoisted(() => {
   const makeMutation = () => ({ mutateAsync: vi.fn(), isPending: false });
@@ -23,15 +24,17 @@ const hooks = vi.hoisted(() => {
   };
 });
 
-vi.mock("@/hooks/useSoroban", () => ({
-  useAddToWhitelist: () => hooks.addToWhitelist,
-  useCancelCampaign: () => hooks.cancelCampaign,
-  useAddUpdate: () => hooks.addUpdate,
-  usePauseContract: () => hooks.pauseContract,
-  useUnpauseContract: () => hooks.unpauseContract,
-  usePlatformConfig: () => hooks.platformConfig,
-  useResolvedName: () => ({ data: undefined }),
-}));
+vi.mock("@/hooks/useSoroban", () =>
+  createSorobanMock({
+    useAddToWhitelist: () => hooks.addToWhitelist,
+    useCancelCampaign: () => hooks.cancelCampaign,
+    useAddUpdate: () => hooks.addUpdate,
+    usePauseContract: () => hooks.pauseContract,
+    useUnpauseContract: () => hooks.unpauseContract,
+    usePlatformConfig: () => hooks.platformConfig,
+    useResolvedName: () => ({ data: undefined }),
+  }),
+);
 
 vi.mock("sonner", () => ({
   toast: { error: hooks.toastError, success: vi.fn() },

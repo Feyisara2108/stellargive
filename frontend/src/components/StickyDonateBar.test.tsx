@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import "@testing-library/jest-dom";
 import type { Campaign } from "@/lib/soroban";
+import { createSorobanMock } from "@/test/mockSoroban";
 
 // ---------------------------------------------------------------------------
 // Mocks for rendering the bar inside CampaignDetailsClient, which owns the
@@ -19,16 +20,18 @@ const walletState = vi.hoisted(() => ({
 
 const campaignState = vi.hoisted(() => ({ campaign: null as unknown }));
 
-vi.mock("@/hooks/useSoroban", () => ({
-  useCampaign: () => ({
-    data: campaignState.campaign,
-    isLoading: false,
-    isError: false,
-    refetch: vi.fn(),
+vi.mock("@/hooks/useSoroban", () =>
+  createSorobanMock({
+    useCampaign: () => ({
+      data: campaignState.campaign,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    }),
+    useCancelCampaign: () => ({ mutateAsync: vi.fn(), isPending: false }),
+    useEvents: () => ({ data: [], isLoading: false }),
   }),
-  useCancelCampaign: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useEvents: () => ({ data: [], isLoading: false }),
-}));
+);
 
 vi.mock("@/lib/WalletProvider", () => ({
   useWallet: () => walletState,
