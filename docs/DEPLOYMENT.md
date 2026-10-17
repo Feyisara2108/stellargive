@@ -116,6 +116,8 @@ Vercel allows assigning environment variables to specific target environments (*
 
 Make sure to deselect the environments appropriately when adding each key to prevent preview URLs from pulling Mainnet configuration.
 
+> **Note:** `frontend/vercel.json` does **not** contain network configuration. All `NEXT_PUBLIC_*` variables must be set through Vercel's per-environment variable settings (Production, Preview, Development) so each deployment target can point to the correct network (#1117).
+
 ### 3. Enable Preview Deployments in Vercel Git Settings
 1. In your Vercel project, go to **Settings** > **Git**.
 2. Under the **Preview Deployments** section, ensure auto-deployments are **Enabled** for all branch pushes except the production branch (`main`).
