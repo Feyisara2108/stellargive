@@ -18,10 +18,7 @@ const eslintConfig = [
     // real issues but predate this config, so they warn until they are fixed down.
     rules: {
       "react-hooks/set-state-in-effect": "warn",
-      "react-hooks/error-boundaries": "warn",
       "react-hooks/refs": "warn",
-      "react-hooks/purity": "warn",
-      "react-hooks/immutability": "warn",
     },
   },
   {

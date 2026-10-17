@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { calculateProgress } from "@/lib/utils";
@@ -19,10 +20,11 @@ export function CampaignStatusBadge({
   targetAmount,
   progress,
 }: CampaignStatusBadgeProps) {
+  const [nowMs] = useState(() => Date.now());
   let displayStatus = status;
 
   if (status === "Active" && deadline !== undefined) {
-    const isExpired = Date.now() / 1000 > Number(deadline);
+    const isExpired = nowMs / 1000 > Number(deadline);
     if (isExpired) {
       displayStatus = "Expired";
     }

@@ -15,7 +15,7 @@ interface TabsContextValue {
   /** Callback fired when the user selects a tab. */
   onSelect: (value: string) => void;
   /** Ordered list of tab values, kept in sync by TabsTrigger registration. */
-  values: React.MutableRefObject<string[]>;
+  valuesRef: React.MutableRefObject<string[]>;
 }
 
 const TabsContext = React.createContext<TabsContextValue | null>(null);
@@ -56,7 +56,7 @@ const Tabs = React.forwardRef<HTMLDivElement, TabsProps>(
     const baseId = React.useId();
 
     // Ordered registry of tab values, populated by TabsTrigger on mount.
-    const values = React.useRef<string[]>([]);
+    const valuesRef = React.useRef<string[]>([]);
 
     const onSelect = React.useCallback(
       (value: string) => {
@@ -67,7 +67,7 @@ const Tabs = React.forwardRef<HTMLDivElement, TabsProps>(
     );
 
     return (
-      <TabsContext.Provider value={{ selected, baseId, onSelect, values }}>
+      <TabsContext.Provider value={{ selected, baseId, onSelect, valuesRef }}>
         <div ref={ref} className={cn("w-full", className)} {...props}>
           {children}
         </div>
@@ -94,11 +94,11 @@ export interface TabsListProps extends React.HTMLAttributes<HTMLDivElement> {
  */
 const TabsList = React.forwardRef<HTMLDivElement, TabsListProps>(
   ({ className, children, ...props }, ref) => {
-    const { values } = useTabsContext("TabsList");
+    const { valuesRef } = useTabsContext("TabsList");
 
     // Reset the registry on each render pass so stale entries from unmounted
     // triggers are cleared before children re-register themselves.
-    values.current = [];
+    valuesRef.current = [];
 
     return (
       <div
@@ -129,15 +129,15 @@ export interface TabsTriggerProps extends React.ButtonHTMLAttributes<HTMLButtonE
  */
 const TabsTrigger = React.forwardRef<HTMLButtonElement, TabsTriggerProps>(
   ({ value, className, children, onClick, onKeyDown, ...props }, ref) => {
-    const { selected, baseId, onSelect, values } = useTabsContext("TabsTrigger");
+    const { selected, baseId, onSelect, valuesRef } = useTabsContext("TabsTrigger");
 
     const isSelected = selected === value;
 
     // Register this value into the ordered list on every render pass.
     // TabsList clears the array before each render, so the order naturally
     // mirrors DOM order.
-    if (!values.current.includes(value)) {
-      values.current.push(value);
+    if (!valuesRef.current.includes(value)) {
+      valuesRef.current.push(value);
     }
 
     // Resolve the DOM node for a given tab value so we can move focus.
@@ -147,7 +147,7 @@ const TabsTrigger = React.forwardRef<HTMLButtonElement, TabsTriggerProps>(
     };
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
-      const all = values.current;
+      const all = valuesRef.current;
       const currentIndex = all.indexOf(value);
       let nextValue: string | undefined;
 

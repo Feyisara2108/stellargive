@@ -106,6 +106,10 @@ const formSchema = z.object({
 });
 
 /** Build a synthetic Campaign object from current form values for preview. */
+function calculateDeadlineTimestamp(deadlineDaysStr: string): number {
+  return Math.floor(Date.now() / 1000) + parseInt(deadlineDaysStr, 10) * 24 * 60 * 60;
+}
+
 function buildPreviewCampaign(
   values: Partial<z.infer<typeof formSchema>>,
   tags: string[],
@@ -292,7 +296,7 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
     if (createCampaign.isPending || isUploadingImage) return; // Prevent duplicate submissions
 
     try {
-      const deadline = Math.floor(Date.now() / 1000) + parseInt(values.deadlineDays) * 24 * 60 * 60;
+      const deadline = calculateDeadlineTimestamp(values.deadlineDays);
       const result = await createCampaign.mutateAsync({
         title: values.title,
         description: values.description,
