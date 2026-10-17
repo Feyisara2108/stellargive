@@ -19,7 +19,9 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
-          workspaces: contracts/stellar-give
+          workspaces: |
+            contracts/stellar-give
+            contracts/upgrade-fixture
 
       - name: Format check
         working-directory: contracts/stellar-give
@@ -28,6 +30,12 @@ jobs:
       - name: Clippy
         working-directory: contracts/stellar-give
         run: cargo clippy -- -D warnings
+
+      # Rebuild the upgrade-test WASM from source so CI never relies on a stale
+      # committed binary (tests/fixtures/upgrade_fixture.wasm).
+      - name: Build upgrade fixture
+        working-directory: contracts/stellar-give
+        run: make fixture
 
       - name: Test
         working-directory: contracts/stellar-give

@@ -3,15 +3,18 @@
 use soroban_sdk::{
     symbol_short,
     testutils::{Address as _, MockAuth, MockAuthInvoke},
-    Address, BytesN, IntoVal, String, Vec,
+    Address, BytesN, IntoVal, String, Symbol, Vec,
 };
 use stellar_give::ContractError;
 
 mod helpers;
 use helpers::register_and_setup_without_auth_mock;
 
+/// Minimal upgrade-target contract, built from `contracts/upgrade-fixture`.
+/// Rebuild with `make fixture` (CI does this before running the tests).
+const UPGRADE_FIXTURE_WASM: &[u8] = include_bytes!("fixtures/upgrade_fixture.wasm");
+
 #[test]
-#[ignore = "needs a real uploaded WASM fixture; a made-up hash fails with Storage::MissingValue"]
 fn test_upgrade_success_and_preserves_state() {
     let (env, client, creator, beneficiary, _donor, admin, token_client, _) =
         register_and_setup_without_auth_mock();
@@ -32,7 +35,9 @@ fn test_upgrade_success_and_preserves_state() {
         &None,
     );
 
-    let new_wasm_hash = BytesN::from_array(&env, &[1; 32]);
+    // Upload a real WASM so the host can find it by hash (a made-up hash fails
+    // with Storage::MissingValue).
+    let new_wasm_hash = env.deployer().upload_contract_wasm(UPGRADE_FIXTURE_WASM);
 
     client
         .mock_auths(&[MockAuth {
@@ -46,10 +51,27 @@ fn test_upgrade_success_and_preserves_state() {
         }])
         .upgrade(&new_wasm_hash);
 
-    // Ensure state persists
-    assert_eq!(client.get_owner(), admin);
-    let campaign = client.get_campaign(&campaign_id);
-    assert_eq!(campaign.id, campaign_id);
+    // The new code is now the one executing...
+    let version: u32 = env.invoke_contract(
+        &client.address,
+        &Symbol::new(&env, "version"),
+        Vec::new(&env),
+    );
+    assert_eq!(version, 2);
+
+    // ...and state written by the old code (owner, campaigns) survived.
+    let owner: Address = env.invoke_contract(
+        &client.address,
+        &Symbol::new(&env, "get_owner"),
+        Vec::new(&env),
+    );
+    assert_eq!(owner, admin);
+    let has_campaign: bool = env.invoke_contract(
+        &client.address,
+        &Symbol::new(&env, "has_campaign"),
+        (campaign_id,).into_val(&env),
+    );
+    assert!(has_campaign);
 }
 
 #[test]
