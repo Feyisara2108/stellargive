@@ -51,7 +51,7 @@ jobs:
           elif command -v soroban >/dev/null 2>&1; then
             echo "soroban CLI already installed"
           else
-            cargo install --locked stellar-cli
+            cargo install --locked stellar-cli --version 27.1.0
           fi
           echo "CLI=$(command -v stellar || command -v soroban)" >> "$GITHUB_ENV"
 
