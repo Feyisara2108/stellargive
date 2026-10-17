@@ -47,10 +47,13 @@ import {
   useActiveCampaigns,
   useCampaignsByCategory,
   useFilteredCampaigns,
+  sortCampaignsList,
+  parseQueryOptions,
 } from "./useSoroban";
 import { useWallet } from "@/lib/WalletProvider";
 import { toast } from "sonner";
-import { WALLET_ADDRESS } from "@/test/factories";
+import { WALLET_ADDRESS, makeCampaign } from "@/test/factories";
+import type { Campaign } from "@/lib/soroban";
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -563,6 +566,179 @@ describe("useSoroban", () => {
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
       expect(result.current.data).toBeDefined();
+    });
+  });
+
+  describe("sortCampaignsList", () => {
+    // Deadlines are plain seconds so the expected order is readable; ids
+    // double as labels in the assertions.
+    const byId = (list: ReturnType<typeof makeCampaign>[]) => list.map((c) => Number(c.id));
+
+    const a = makeCampaign({ id: 1n, deadline: 300n, raised_amount: 10n, target_amount: 100n });
+    const b = makeCampaign({ id: 2n, deadline: 100n, raised_amount: 90n, target_amount: 100n });
+    const c = makeCampaign({ id: 3n, deadline: 200n, raised_amount: 50n, target_amount: 100n });
+
+    it("returns the input array itself when no sort key is given", () => {
+      const list = [a, b, c];
+      // Not just equal — the same reference, so callers relying on React
+      // Query's referential stability are not forced into a re-render.
+      expect(sortCampaignsList(list)).toBe(list);
+      expect(sortCampaignsList(list, undefined)).toBe(list);
+    });
+
+    it("does not mutate the input array for any sort mode", () => {
+      const list = [a, b, c];
+      const snapshot = [...list];
+
+      for (const mode of ["newest", "oldest", "ending-soon", "near-goal", "most-raised"] as const) {
+        const sorted = sortCampaignsList(list, mode);
+        expect(sorted).not.toBe(list);
+        expect(list).toEqual(snapshot);
+      }
+    });
+
+    it("sorts 'newest' by descending deadline", () => {
+      expect(byId(sortCampaignsList([a, b, c], "newest"))).toEqual([1, 3, 2]);
+    });
+
+    it("sorts 'oldest' by ascending deadline", () => {
+      expect(byId(sortCampaignsList([a, b, c], "oldest"))).toEqual([2, 3, 1]);
+    });
+
+    it("sorts 'ending-soon' by ascending deadline, matching 'oldest'", () => {
+      const list = [a, b, c];
+      expect(byId(sortCampaignsList(list, "ending-soon"))).toEqual(
+        byId(sortCampaignsList(list, "oldest")),
+      );
+    });
+
+    it("sorts 'near-goal' by descending funded ratio, not absolute amount", () => {
+      // 1 is 10% of a small goal, 2 is 90%, 3 is 50% — and 4 raised the most
+      // in absolute terms while being the least funded.
+      const biggest = makeCampaign({
+        id: 4n,
+        raised_amount: 1_000n,
+        target_amount: 1_000_000n,
+      });
+      expect(byId(sortCampaignsList([a, b, c, biggest], "near-goal"))).toEqual([2, 3, 1, 4]);
+    });
+
+    it("treats a zero-target campaign as 0% funded under 'near-goal'", () => {
+      // Guards the division: a zero target must not produce NaN or a throw.
+      const zeroTarget = makeCampaign({ id: 9n, raised_amount: 500n, target_amount: 0n });
+      expect(byId(sortCampaignsList([zeroTarget, c], "near-goal"))).toEqual([3, 9]);
+    });
+
+    it("sorts 'most-raised' by descending raised amount", () => {
+      expect(byId(sortCampaignsList([a, b, c], "most-raised"))).toEqual([2, 3, 1]);
+    });
+
+    it("returns an empty array for every sort mode given an empty list", () => {
+      for (const mode of ["newest", "oldest", "ending-soon", "near-goal", "most-raised"] as const) {
+        expect(sortCampaignsList([], mode)).toEqual([]);
+      }
+    });
+
+    it("returns the single element for every sort mode given a one-item list", () => {
+      for (const mode of ["newest", "oldest", "ending-soon", "near-goal", "most-raised"] as const) {
+        expect(sortCampaignsList([a], mode)).toEqual([a]);
+      }
+    });
+
+    it("keeps tied campaigns in their input order for every sort mode", () => {
+      // Array.prototype.sort is specified as stable, so equal keys must come
+      // out in the order they went in — list order stays predictable when
+      // several campaigns share a deadline or an amount.
+      const t1 = makeCampaign({ id: 11n, deadline: 500n, raised_amount: 7n, target_amount: 100n });
+      const t2 = makeCampaign({ id: 12n, deadline: 500n, raised_amount: 7n, target_amount: 100n });
+      const t3 = makeCampaign({ id: 13n, deadline: 500n, raised_amount: 7n, target_amount: 100n });
+
+      for (const mode of ["newest", "oldest", "ending-soon", "near-goal", "most-raised"] as const) {
+        expect(byId(sortCampaignsList([t1, t2, t3], mode))).toEqual([11, 12, 13]);
+        expect(byId(sortCampaignsList([t3, t1, t2], mode))).toEqual([13, 11, 12]);
+      }
+    });
+
+    it("orders bigint stroop amounts and deadlines at realistic magnitudes", () => {
+      // 100M XLM in stroops — far above what fits in a JS number literal
+      // comfortably, but still inside Number's exactly-representable range.
+      const huge = makeCampaign({
+        id: 21n,
+        raised_amount: 1_000_000_000_000_000n,
+        target_amount: 2_000_000_000_000_000n,
+        deadline: 4_000_000_000n,
+      });
+      const mid = makeCampaign({
+        id: 22n,
+        raised_amount: 500_000_000_000_000n,
+        target_amount: 2_000_000_000_000_000n,
+        deadline: 3_000_000_000n,
+      });
+      const small = makeCampaign({
+        id: 23n,
+        raised_amount: 1n,
+        target_amount: 2_000_000_000_000_000n,
+        deadline: 2_000_000_000n,
+      });
+
+      expect(byId(sortCampaignsList([small, huge, mid], "most-raised"))).toEqual([21, 22, 23]);
+      expect(byId(sortCampaignsList([small, huge, mid], "newest"))).toEqual([21, 22, 23]);
+      expect(byId(sortCampaignsList([small, huge, mid], "near-goal"))).toEqual([21, 22, 23]);
+    });
+
+    it("cannot separate amounts beyond Number's safe integer range", () => {
+      // Known limit: the 'most-raised' and deadline comparators coerce bigints
+      // through Number(), so two amounts that collapse to the same double
+      // compare as a tie and fall back to input order. Recorded here so the
+      // ceiling is visible rather than discovered in production.
+      const lower = makeCampaign({ id: 31n, raised_amount: 2n ** 53n });
+      const higher = makeCampaign({ id: 32n, raised_amount: 2n ** 53n + 1n });
+
+      expect(Number(higher.raised_amount)).toBe(Number(lower.raised_amount));
+      expect(byId(sortCampaignsList([lower, higher], "most-raised"))).toEqual([31, 32]);
+      expect(byId(sortCampaignsList([higher, lower], "most-raised"))).toEqual([32, 31]);
+    });
+  });
+
+  describe("parseQueryOptions", () => {
+    it("wraps a bare select function into an options object", () => {
+      const select = (campaigns: Campaign[]) => campaigns.length;
+      const parsed = parseQueryOptions<number, Campaign[]>(select);
+
+      expect(parsed).toEqual({ select });
+      expect(parsed.select).toBe(select);
+      expect(parsed.enabled).toBeUndefined();
+      expect(parsed.staleTime).toBeUndefined();
+    });
+
+    it("returns an options object unchanged, by reference", () => {
+      const select = (campaigns: Campaign[]) => campaigns.length;
+      const options = { select, enabled: false, staleTime: 5_000 };
+
+      expect(parseQueryOptions<number, Campaign[]>(options)).toBe(options);
+    });
+
+    it("preserves enabled: false rather than dropping a falsy flag", () => {
+      // `enabled: false` is the one value a careless `||` default would lose.
+      expect(parseQueryOptions<number, Campaign[]>({ enabled: false }).enabled).toBe(false);
+      expect(parseQueryOptions<number, Campaign[]>({ staleTime: 0 }).staleTime).toBe(0);
+    });
+
+    it("returns an empty options object when nothing is passed", () => {
+      expect(parseQueryOptions()).toEqual({});
+      expect(parseQueryOptions(undefined)).toEqual({});
+    });
+
+    it("returns a fresh empty object per call so callers cannot share state", () => {
+      expect(parseQueryOptions()).not.toBe(parseQueryOptions());
+    });
+
+    it("applies the parsed select to real query data", () => {
+      // Parsing is only useful if the extracted selector still works.
+      const campaigns = [makeCampaign({ id: 1n }), makeCampaign({ id: 2n })];
+      const parsed = parseQueryOptions<bigint[], Campaign[]>((list) => list.map((c) => c.id));
+
+      expect(parsed.select?.(campaigns)).toEqual([1n, 2n]);
     });
   });
 });

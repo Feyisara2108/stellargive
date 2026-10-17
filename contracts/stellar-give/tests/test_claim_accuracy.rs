@@ -4,7 +4,8 @@ use soroban_sdk::testutils::Address as _;
 use soroban_sdk::{symbol_short, String};
 
 mod helpers;
-use helpers::{register_and_setup, set_timestamp, single_ben};
+use helpers::{create_default_campaign, register_and_setup, set_timestamp, single_ben};
+use stellar_give::{CampaignStatus, ContractError, StellarGiveContractClient};
 
 fn to_stroops(amount: &str) -> i128 {
     let parts: Vec<&str> = amount.split('.').collect();
@@ -531,4 +532,126 @@ fn test_split_3_beneficiaries_1_1_9998() {
 #[test]
 fn test_split_5_beneficiaries() {
     run_split_fixture(&[500, 1_500, 2_000, 3_000, 3_000]);
+}
+
+// ── claim_funds: ClaimNotAllowed guard (#7, #1151) ─────────────────────────
+//
+// `claim_funds` only settles once the campaign has either met its target or
+// passed its deadline. Every other shape of a live campaign must be refused
+// with ClaimNotAllowed rather than paying out early.
+
+/// Builds an under-target, pre-deadline campaign and returns its id.
+///
+/// Target is 10_000_000 stroops (the `create_default_campaign` default) and
+/// the ledger sits at 1_000 with a deadline of 5_000.
+fn under_target_live_campaign(
+    env: &soroban_sdk::Env,
+    client: &StellarGiveContractClient<'static>,
+    creator: &soroban_sdk::Address,
+    beneficiary: &soroban_sdk::Address,
+    token: &soroban_sdk::Address,
+) -> u64 {
+    set_timestamp(env, 1_000);
+    create_default_campaign(env, client, creator, beneficiary, token, 5_000)
+}
+
+#[test]
+fn test_claim_before_deadline_under_target_is_not_allowed() {
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
+    let campaign_id =
+        under_target_live_campaign(&env, &client, &creator, &beneficiary, &token_client.address);
+
+    client.donate(&donor, &campaign_id, &4_000_000, &false, &None);
+    let campaign = client.get_campaign(&campaign_id);
+    assert!(
+        campaign.raised_amount < campaign.target_amount,
+        "fixture must stay under target"
+    );
+
+    assert_eq!(
+        client.try_claim_funds(&creator, &campaign_id),
+        Err(Ok(ContractError::ClaimNotAllowed)),
+        "creator must not claim an under-target campaign before the deadline"
+    );
+}
+
+#[test]
+fn test_claim_before_deadline_under_target_is_not_allowed_for_beneficiary() {
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
+    let campaign_id =
+        under_target_live_campaign(&env, &client, &creator, &beneficiary, &token_client.address);
+
+    client.donate(&donor, &campaign_id, &9_999_999, &false, &None);
+
+    // One stroop short: the guard is about the target, not about authorization.
+    assert_eq!(
+        client.try_claim_funds(&beneficiary, &campaign_id),
+        Err(Ok(ContractError::ClaimNotAllowed)),
+        "beneficiary must not claim one stroop short of the target"
+    );
+}
+
+#[test]
+fn test_claim_at_exact_deadline_under_target_is_not_allowed() {
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
+    let campaign_id =
+        under_target_live_campaign(&env, &client, &creator, &beneficiary, &token_client.address);
+
+    client.donate(&donor, &campaign_id, &4_000_000, &false, &None);
+
+    // The guard is `now > deadline`, so standing exactly on the deadline is
+    // still too early.
+    set_timestamp(&env, 5_000);
+    assert_eq!(
+        client.try_claim_funds(&creator, &campaign_id),
+        Err(Ok(ContractError::ClaimNotAllowed)),
+        "claiming at exactly the deadline must be refused"
+    );
+
+    // One second later the same call settles, which pins the boundary.
+    set_timestamp(&env, 5_001);
+    assert_eq!(
+        client.claim_funds(&creator, &campaign_id),
+        4_000_000,
+        "the same claim must succeed once the deadline has passed"
+    );
+}
+
+#[test]
+fn test_claim_with_no_donations_before_deadline_reports_claim_not_allowed() {
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
+    let campaign_id =
+        under_target_live_campaign(&env, &client, &creator, &beneficiary, &token_client.address);
+
+    // ClaimNotAllowed is checked before NothingToClaim, so an empty live
+    // campaign reports the timing guard rather than the empty-balance one.
+    assert_eq!(
+        client.try_claim_funds(&creator, &campaign_id),
+        Err(Ok(ContractError::ClaimNotAllowed)),
+        "an empty, live campaign must report ClaimNotAllowed"
+    );
+
+    set_timestamp(&env, 5_001);
+    assert_eq!(
+        client.try_claim_funds(&creator, &campaign_id),
+        Err(Ok(ContractError::NothingToClaim)),
+        "past the deadline the empty balance becomes the blocking reason"
+    );
+}
+
+#[test]
+fn test_claim_not_allowed_leaves_campaign_claimable_later() {
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
+    let campaign_id =
+        under_target_live_campaign(&env, &client, &creator, &beneficiary, &token_client.address);
+
+    client.donate(&donor, &campaign_id, &4_000_000, &false, &None);
+    let _ = client.try_claim_funds(&creator, &campaign_id);
+
+    // The refused claim must not have moved money or burned the campaign.
+    let campaign = client.get_campaign(&campaign_id);
+    assert_eq!(campaign.raised_amount, 4_000_000);
+    assert_eq!(campaign.status, CampaignStatus::Active);
+    assert_eq!(token_client.balance(&beneficiary), 0);
+    assert_eq!(token_client.balance(&client.address), 4_000_000);
 }
