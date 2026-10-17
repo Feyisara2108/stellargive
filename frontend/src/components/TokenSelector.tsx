@@ -11,8 +11,8 @@ import { useTokenMetadata } from "@/hooks/useSoroban";
 import { toast } from "sonner";
 import { NATIVE_XLM_CONTRACT_ID, USDC_CONTRACT_ID } from "@/lib/tokens";
 
-// Predefined tokens for campaign creation. Addresses are network-specific, so XLM is
-// derived from the configured passphrase and USDC only appears when configured.
+// Predefined tokens for campaign creation. Addresses are network-specific: XLM and USDC
+// are derived from the configured network passphrase (USDC can also be overridden via env).
 export const PREDEFINED_TOKENS = [
   {
     symbol: "XLM",
