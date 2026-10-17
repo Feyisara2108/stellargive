@@ -1,7 +1,8 @@
 //! Shared test helpers for integration tests.
 //!
-//! Mirrors the `setup()` and `set_timestamp()` helpers from the inline
-//! `#[cfg(test)]` module in `lib.rs`, exposed for use by external test files.
+//! `register_and_setup()` and `set_timestamp()` are the harness the external
+//! test binaries share; the inline `#[cfg(test)]` module in `lib.rs` keeps
+//! private copies for the handful of tests that must stay there.
 
 use soroban_sdk::{
     symbol_short,
@@ -9,6 +10,18 @@ use soroban_sdk::{
     token, Address, Env, String, TryFromVal, Vec,
 };
 use stellar_give::{StellarGiveContract, StellarGiveContractClient};
+
+/// The platform fee the contract will take from `amount`, in stroops.
+///
+/// Mirrors the private `calculate_platform_fee` in `src/lib.rs`: basis points
+/// with a round-half-up bias. Kept here rather than exported from the contract
+/// so a change to the fee formula shows up as a failing assertion instead of
+/// being silently reflected by the expectation.
+#[allow(dead_code)] // shared helper; not used by every test binary
+pub fn expected_platform_fee(amount: i128) -> i128 {
+    (amount * stellar_give::FEE_BPS + stellar_give::FEE_DENOMINATOR / 2)
+        / stellar_give::FEE_DENOMINATOR
+}
 
 /// Set the ledger timestamp for time-dependent test scenarios.
 pub fn set_timestamp(env: &Env, timestamp: u64) {
