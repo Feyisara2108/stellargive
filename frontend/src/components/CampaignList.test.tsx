@@ -299,3 +299,49 @@ describe("CampaignList - Empty state", () => {
     expect(screen.queryByTestId("skeleton-grid")).not.toBeInTheDocument();
   });
 });
+
+describe("CampaignList - Virtualisation with react-window v2", () => {
+  it("mounts only a window of rows for a long list when container width is measured", async () => {
+    // Generate 60 campaigns
+    const manyCampaigns = Array.from({ length: 60 }, (_, i) =>
+      buildCampaign({ id: BigInt(i + 1), title: `Campaign ${i + 1}` }),
+    );
+    mockRecentCampaignsReturn = {
+      data: manyCampaigns,
+      isLoading: false,
+      error: null,
+    };
+
+    // Mock getBoundingClientRect on HTMLDivElement to return a width so listWidth > 0
+    const originalGetBoundingClientRect = HTMLElement.prototype.getBoundingClientRect;
+    HTMLElement.prototype.getBoundingClientRect = function () {
+      return {
+        width: 1000,
+        height: 800,
+        top: 0,
+        left: 0,
+        bottom: 800,
+        right: 1000,
+        x: 0,
+        y: 0,
+        toJSON: () => {},
+      };
+    };
+
+    try {
+      const Wrapper = makeWrapper();
+      render(<CampaignList />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByRole("grid", { name: /Campaign list/i })).toBeInTheDocument();
+      });
+
+      // All 60 campaigns should NOT be mounted at once; only a window of rows should be in the DOM
+      const mountedCards = screen.queryAllByTestId("campaign-card");
+      expect(mountedCards.length).toBeGreaterThan(0);
+      expect(mountedCards.length).toBeLessThan(60);
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = originalGetBoundingClientRect;
+    }
+  });
+});
