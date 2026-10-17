@@ -266,3 +266,86 @@ fn test_refund_underflow_guard() {
     let result = client.try_claim_refund(&donor, &id);
     assert_eq!(result, Err(Ok(ContractError::NothingToRefund)));
 }
+
+// #1150 — assert InvalidToken, InvalidUrl, and CommentTooLong errors
+
+#[test]
+fn test_invalid_token_rejected() {
+    let (env, client, creator, beneficiary, _donor, _admin, _token_client, _token_admin_client) =
+        register_and_setup();
+    set_timestamp(&env, 1_000);
+    let bens = single_ben(&env, &beneficiary);
+
+    // Use an address that is not a token contract
+    let invalid_token = Address::generate(&env);
+
+    let result = client.try_create_campaign(
+        &creator,
+        &bens,
+        &String::from_str(&env, "Invalid Token Campaign"),
+        &String::from_str(&env, "Description"),
+        &String::from_str(&env, "https://example.com"),
+        &symbol_short!("relief"),
+        &10_000_000_i128,
+        &2_000_u64,
+        &invalid_token,
+        &None,
+    );
+
+    assert_eq!(result, Err(Ok(ContractError::InvalidToken)));
+}
+
+#[test]
+fn test_invalid_url_rejected() {
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _token_admin_client) =
+        register_and_setup();
+    set_timestamp(&env, 1_000);
+    let bens = single_ben(&env, &beneficiary);
+
+    let result = client.try_create_campaign(
+        &creator,
+        &bens,
+        &String::from_str(&env, "Invalid URL Campaign"),
+        &String::from_str(&env, "Description"),
+        &String::from_str(&env, "not-a-valid-url"),
+        &symbol_short!("relief"),
+        &10_000_000_i128,
+        &2_000_u64,
+        &token_client.address,
+        &None,
+    );
+
+    assert_eq!(result, Err(Ok(ContractError::InvalidUrl)));
+}
+
+#[test]
+fn test_comment_too_long_rejected() {
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _token_admin_client) =
+        register_and_setup();
+    set_timestamp(&env, 1_000);
+    let bens = single_ben(&env, &beneficiary);
+
+    let id = client.create_campaign(
+        &creator,
+        &bens,
+        &String::from_str(&env, "Comment Test Campaign"),
+        &String::from_str(&env, "Description"),
+        &String::from_str(&env, "https://example.com"),
+        &symbol_short!("relief"),
+        &10_000_000_i128,
+        &2_000_u64,
+        &token_client.address,
+        &None,
+    );
+
+    // Create a comment exceeding MAX_COMMENT_LEN
+    extern crate std;
+    let mut long_comment_raw = std::string::String::new();
+    for _ in 0..2_000 {
+        long_comment_raw.push('C');
+    }
+    let long_comment = String::from_str(&env, &long_comment_raw);
+
+    let result = client.try_donate(&donor, &id, &1_000_i128, &false, &Some(long_comment));
+    assert_eq!(result, Err(Ok(ContractError::CommentTooLong)));
+}
