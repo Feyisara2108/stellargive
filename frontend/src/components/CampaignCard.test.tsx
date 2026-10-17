@@ -4,14 +4,16 @@ import userEvent from "@testing-library/user-event";
 import { axe, toHaveNoViolations } from "jest-axe";
 import { CampaignCard, getDeadlineUrgency } from "./CampaignCard";
 import type { Campaign } from "@/lib/soroban";
+import { createSorobanMock } from "@/test/mockSoroban";
 
 expect.extend(toHaveNoViolations);
 
-// ... rest of mocks ...
-vi.mock("@/hooks/useSoroban", () => ({
-  useTokenMetadata: vi.fn().mockReturnValue({ data: undefined, isLoading: false }),
-  useXlmPrice: vi.fn().mockReturnValue({ data: undefined, isLoading: false }),
-}));
+vi.mock("@/hooks/useSoroban", () =>
+  createSorobanMock({
+    useTokenMetadata: vi.fn().mockReturnValue({ data: undefined, isLoading: false }),
+    useXlmPrice: vi.fn().mockReturnValue({ data: undefined, isLoading: false }),
+  }),
+);
 
 // Deterministic relative-time formatting so countdown assertions don't
 // depend on wall-clock timing.

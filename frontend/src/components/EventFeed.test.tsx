@@ -1,10 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { EventFeed } from "./EventFeed";
+import { createSorobanMock } from "@/test/mockSoroban";
 
-vi.mock("@/hooks/useSoroban", () => ({
-  useEvents: vi.fn(),
-}));
+vi.mock("@/hooks/useSoroban", () =>
+  createSorobanMock({
+    useEvents: vi.fn(),
+  }),
+);
 
 vi.mock("@/lib/soroban", () => ({
   fromStroops: (stroops: bigint | string | number): string => {

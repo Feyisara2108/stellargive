@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { axe, toHaveNoViolations } from "jest-axe";
 import { DonateModal } from "./DonateModal";
 import type { Campaign } from "@/lib/soroban";
+import { createSorobanMock } from "@/test/mockSoroban";
 
 expect.extend(toHaveNoViolations);
 
@@ -33,13 +34,15 @@ const crossedMilestonesState = vi.hoisted(() => ({
   value: [] as number[],
 }));
 
-vi.mock("@/hooks/useSoroban", () => ({
-  useDonate: () => donateState,
-  useDonateFeeEstimate: () => ({ data: null }),
-  useWalletBalance: () => walletBalanceState,
-  getCrossedMilestones: () => crossedMilestonesState.value,
-  useTokenMetadata: vi.fn().mockReturnValue({ data: { decimals: 7, symbol: "XLM" } }),
-}));
+vi.mock("@/hooks/useSoroban", () =>
+  createSorobanMock({
+    useDonate: () => donateState,
+    useDonateFeeEstimate: () => ({ data: null }),
+    useWalletBalance: () => walletBalanceState,
+    getCrossedMilestones: () => crossedMilestonesState.value,
+    useTokenMetadata: vi.fn().mockReturnValue({ data: { decimals: 7, symbol: "XLM" } }),
+  }),
+);
 
 const toastSuccess = vi.hoisted(() => vi.fn());
 vi.mock("sonner", () => ({
