@@ -39,14 +39,25 @@ export const handlers = [
       let xdrResult = "";
       if (txXdr) {
         try {
-          const env = xdr.TransactionEnvelope.fromXDR(txXdr, "base64");
-          const op = env.v1().tx().operations()[0].body().invokeHostFunctionOp();
-          const funcName = op.hostFunction().invokeContract().functionName().toString();
+          const fromFn = (xdr.TransactionEnvelope as any).fromXDR ?? (xdr.TransactionEnvelope as any).fromXdr;
+          const env = fromFn.call(xdr.TransactionEnvelope, txXdr, "base64");
+          const v1 = typeof (env as any).v1 === "function" ? (env as any).v1() : (env as any).v1;
+          const tx = v1 ? (typeof v1.tx === "function" ? v1.tx() : v1.tx) : null;
+          const ops = tx ? (typeof tx.operations === "function" ? tx.operations() : tx.operations) : [];
+          const op = ops?.[0];
+          const opBody = op ? (typeof op.body === "function" ? op.body() : op.body) : null;
+          const hostFnOp = opBody ? (typeof opBody.invokeHostFunctionOp === "function" ? opBody.invokeHostFunctionOp() : (opBody.invokeHostFunctionOp ?? opBody.value)) : null;
+          const hostFn = hostFnOp ? (typeof hostFnOp.hostFunction === "function" ? hostFnOp.hostFunction() : (hostFnOp.hostFunction ?? hostFnOp.value)) : null;
+          const ic = hostFn ? (typeof hostFn.invokeContract === "function" ? hostFn.invokeContract() : (hostFn.invokeContract ?? hostFn.value)) : null;
+          const fnNameVal = ic ? (typeof ic.functionName === "function" ? ic.functionName() : ic.functionName) : null;
+          const funcName = fnNameVal?.toString() ?? "";
 
           if (funcName === "get_campaign") {
-            const args = op.hostFunction().invokeContract().args();
+            const args = ic ? (typeof ic.args === "function" ? ic.args() : ic.args) : [];
             if (args.length > 0) {
-              const reqId = Number(args[0].u64().low);
+              const u64Val = typeof args[0].u64 === "function" ? args[0].u64() : (args[0].u64 ?? args[0].value);
+              const low = u64Val?.low ?? u64Val;
+              const reqId = Number(low);
               const campaign = MOCK_CAMPAIGNS.find((c) => Number(c.id) === reqId);
               if (campaign) {
                 xdrResult = campaignToXdr(campaign).toXDR("base64");

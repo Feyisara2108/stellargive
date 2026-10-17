@@ -66,12 +66,24 @@ function campaignScVal(c: Seed): string {
 
 function decodeInvocation(txXdr: string): { fn: string; args: unknown[] } | null {
   try {
-    const env = xdr.TransactionEnvelope.fromXDR(txXdr, "base64");
-    const op = env.v1().tx().operations()[0];
-    const ic = op.body().invokeHostFunctionOp().hostFunction().invokeContract();
+    const fromFn = (xdr.TransactionEnvelope as any).fromXDR ?? (xdr.TransactionEnvelope as any).fromXdr;
+    const env = fromFn.call(xdr.TransactionEnvelope, txXdr, "base64");
+    const v1 = typeof (env as any).v1 === "function" ? (env as any).v1() : (env as any).v1;
+    const tx = v1 ? (typeof v1.tx === "function" ? v1.tx() : v1.tx) : null;
+    const ops = tx ? (typeof tx.operations === "function" ? tx.operations() : tx.operations) : [];
+    const op = ops?.[0];
+    const opBody = op ? (typeof op.body === "function" ? op.body() : op.body) : null;
+    const hostFnOp = opBody ? (typeof opBody.invokeHostFunctionOp === "function" ? opBody.invokeHostFunctionOp() : (opBody.invokeHostFunctionOp ?? opBody.value)) : null;
+    const hostFn = hostFnOp ? (typeof hostFnOp.hostFunction === "function" ? hostFnOp.hostFunction() : (hostFnOp.hostFunction ?? hostFnOp.value)) : null;
+    const ic = hostFn ? (typeof hostFn.invokeContract === "function" ? hostFn.invokeContract() : (hostFn.invokeContract ?? hostFn.value)) : null;
+    if (!ic) return null;
+    const fnNameVal = typeof ic.functionName === "function" ? ic.functionName() : ic.functionName;
+    const fn = fnNameVal?.toString() ?? "";
+    const argsVal = typeof ic.args === "function" ? ic.args() : ic.args;
+    const args = Array.isArray(argsVal) ? argsVal.map((a: any) => scValToNative(a)) : [];
     return {
-      fn: ic.functionName().toString(),
-      args: ic.args().map((a) => scValToNative(a)),
+      fn,
+      args,
     };
   } catch {
     return null;
