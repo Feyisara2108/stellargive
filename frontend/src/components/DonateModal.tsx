@@ -14,6 +14,7 @@ import {
 } from "@/hooks/useSoroban";
 import { Campaign } from "@/lib/soroban";
 import { useWallet } from "@/lib/WalletProvider";
+import { WRONG_NETWORK_MESSAGE } from "@/lib/network";
 import { formatTokenAmount, toRawAmount } from "@/utils/format";
 import { GasWarning } from "@/components/GasWarning";
 import { Button } from "@/components/ui/button";
@@ -279,7 +280,7 @@ export function DonateModal({
               <TooltipContent side="top" id="donate-disabled-reason">
                 {!address
                   ? "Connect your wallet to donate"
-                  : "Please switch wallet network to Stellar Testnet"}
+                  : WRONG_NETWORK_MESSAGE}
               </TooltipContent>
             )}
           </Tooltip>

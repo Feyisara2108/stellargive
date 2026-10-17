@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { Loader2, CheckCircle2, Info, ExternalLink } from "lucide-react";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { getStellarExpertTxUrl } from "@/lib/utils";
+import { WRONG_NETWORK_MESSAGE } from "@/lib/network";
 
 export function ClaimButton({ campaign }: { campaign: Campaign }) {
   const { address, isWrongNetwork } = useWallet();
@@ -98,7 +99,7 @@ export function ClaimButton({ campaign }: { campaign: Campaign }) {
   };
 
   const disabledReason = isWrongNetwork
-    ? "Please switch wallet network to Stellar Testnet"
+    ? WRONG_NETWORK_MESSAGE
     : !canClaim
       ? campaign.status === "Active"
         ? "Campaign must be fully funded or expired before claiming"
