@@ -5,7 +5,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
-  contents: write
+  contents: read
   pull-requests: write
 
 jobs:
@@ -33,15 +33,18 @@ jobs:
           echo "files=$FILES" >> $GITHUB_OUTPUT
           echo "adds=$ADDS" >> $GITHUB_OUTPUT
           echo "dels=$DELS" >> $GITHUB_OUTPUT
+          # Use random delimiter per write to prevent injection via PR body (#1113).
+          TITLE_DELIM="DELIM_$(openssl rand -hex 16)"
+          BODY_DELIM="DELIM_$(openssl rand -hex 16)"
           {
-            echo "title<<GHA_DELIM"
+            echo "title<<${TITLE_DELIM}"
             echo "$TITLE"
-            echo "GHA_DELIM"
+            echo "${TITLE_DELIM}"
           } >> $GITHUB_OUTPUT
           {
-            echo "pr_body<<GHA_DELIM"
+            echo "pr_body<<${BODY_DELIM}"
             echo "$BODY"
-            echo "GHA_DELIM"
+            echo "${BODY_DELIM}"
           } >> $GITHUB_OUTPUT
           gh pr diff "$PR_NUM" > /tmp/pr-diff.txt 2>/dev/null || true
           DIFF_BYTES=$(wc -c < /tmp/pr-diff.txt | tr -d ' ')
@@ -281,10 +284,11 @@ jobs:
           echo "decision=$DECISION" >> $GITHUB_OUTPUT
           echo "confidence=$CONFIDENCE" >> $GITHUB_OUTPUT
           echo "fraud_type=$FRAUD_TYPE" >> $GITHUB_OUTPUT
+          REVIEW_DELIM="DELIM_$(openssl rand -hex 16)"
           {
-            echo "body<<REVIEW_EOF"
+            echo "body<<${REVIEW_DELIM}"
             echo "$REVIEW_BODY"
-            echo "REVIEW_EOF"
+            echo "${REVIEW_DELIM}"
           } >> $GITHUB_OUTPUT
 
       - name: Handle pre-flight detected empty PR (auto-close)
