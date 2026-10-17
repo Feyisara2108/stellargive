@@ -210,7 +210,7 @@ cargo clippy -- -D warnings
 cargo test
 
 # Build WASM
-cargo build --release --target wasm32-unknown-unknown
+cargo build --release --target wasm32v1-none
 ```
 
 **Frontend Operations**:
@@ -239,7 +239,7 @@ npm run build
 | `node-gyp` issues | Missing build tools for Node.js modules | On Linux, install `build-essential`. On Windows, stick to WSL2 or install Windows Build Tools. |
 | WSL networking issues | Port forwarding failing between Windows and WSL | Run `wsl --shutdown` and restart your terminal. Ensure the dev server binds to `0.0.0.0` if necessary. |
 | `npm install` failures | Incompatible Node.js version or network issue | Ensure you are on Node v20.x or higher. Clear cache with `npm cache clean --force` and retry. Use `npm ci` instead of `npm install`. |
-| Rust target missing / wasm32 target issues | Missing WASM toolchain | Run `rustup target add wasm32-unknown-unknown` to install the target. |
+| Rust target missing / wasm32v1-none target issues | Missing WASM toolchain | Run `rustup target add wasm32v1-none` to install the target. |
 
 ## 13. Common Contributor Workflow
 

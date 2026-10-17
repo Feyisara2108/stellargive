@@ -97,7 +97,7 @@ jobs:
       - name: Check outdated Cargo crates
         working-directory: contracts/stellar-give
         run: |
-          cargo install cargo-outdated --locked 2>/dev/null || true
+          cargo install cargo-outdated --locked --version 0.17.0 2>/dev/null || true
           echo "## 🦀 Cargo – Outdated Crates" >> "$GITHUB_STEP_SUMMARY"
           cargo outdated --root-deps-only --format json > /tmp/cargo-outdated.json 2>/dev/null || true
 

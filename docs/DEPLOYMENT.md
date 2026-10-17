@@ -59,7 +59,7 @@ This creates/uses the alias and funds it through Friendbot.
 ```
 
 Script actions:
-1. Builds release Wasm (`wasm32-unknown-unknown`)
+1. Builds release Wasm (`wasm32v1-none`)
 2. Deploys via `stellar contract deploy`
 3. Writes contract ID to `frontend/.env.local`
 4. Prints explorer link and RPC reference
@@ -269,3 +269,38 @@ cosign verify \
 - **Unsigned Image:** Fails with an error (`no matching signatures found`) and non-zero exit code.
 - **Tampered / Impersonated Image:** Fails if the OIDC certificate identity or issuer does not match the official repository.
 
+
+
+---
+
+## Required GitHub Actions Secrets and Variables
+
+The table below lists every secret and variable referenced by the repository's
+workflows. Missing required items cause workflows to skip silently (see the
+warning output in each workflow's job summary).
+
+| Name | Type | Required | Workflow(s) | Description |
+|---|---|---|---|---|
+| `GITHUB_TOKEN` | secret | Automatic | All | Provided by GitHub Actions automatically |
+| `CODECOV_TOKEN` | secret | No | `ci.yml` | Codecov upload token for coverage reports |
+| `SENTRY_AUTH_TOKEN` | secret | No | `ci.yml` | Sentry source map upload |
+| `SENTRY_ORG` | secret | No | `ci.yml` | Sentry organization slug |
+| `SENTRY_PROJECT` | secret | No | `ci.yml` | Sentry project slug |
+| `PRODUCTION_URL` | variable | No | `uptime.yml` | Production frontend URL to monitor |
+| `EXPECTED_CONTENT` | variable | No | `uptime.yml` | Expected page content for uptime check |
+| `SITE_TIMEOUT_MS` | variable | No | `uptime.yml` | Timeout for uptime check (default 10000) |
+| `RPC_TIMEOUT_MS` | variable | No | `rpc-health.yml` | RPC health check timeout (default 10000) |
+| `SOROBAN_RPC_URL` | secret | No | `rpc-health.yml` | Primary Soroban RPC endpoint |
+| `SOROBAN_RPC_FALLBACK_URL` | secret | No | `rpc-health.yml` | Fallback Soroban RPC endpoint |
+| `SOROBAN_RPC_URLS` | secret | No | `rpc-health.yml` | Comma-separated RPC endpoints |
+| `SLACK_WEBHOOK_URL` | secret | No | `uptime.yml`, `rpc-health.yml` | Slack alert webhook |
+| `DISCORD_WEBHOOK_URL` | secret | No | `uptime.yml`, `rpc-health.yml` | Discord alert webhook |
+| `STELLAR_SECRET_KEY` | secret | No | `deploy-contract.yml`, `rollback-contract.yml` | Stellar deployer secret key |
+| `PINATA_JWT` | secret | No | `deploy-frontend.yml` | Pinata IPFS upload JWT |
+| `SSH_PRIVATE_KEY` | secret | No | `deploy-frontend.yml` | SSH key for server deploy |
+| `DEPLOY_HOST` | secret | No | `deploy-frontend.yml` | Deployment target host |
+| `DEPLOY_USER` | secret | No | `deploy-frontend.yml` | Deployment SSH user |
+
+> **Note:** Workflows with optional config (uptime, RPC health) print a
+> `::warning::` to the job summary when a required variable is missing,
+> so skipped checks are visible rather than silently green.
