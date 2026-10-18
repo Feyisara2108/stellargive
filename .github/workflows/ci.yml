@@ -27,6 +27,7 @@ jobs:
     outputs:
       contracts: ${{ steps.filter.outputs.contracts }}
       frontend: ${{ steps.filter.outputs.frontend }}
+      storybook: ${{ steps.filter.outputs.storybook }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -53,6 +54,12 @@ jobs:
               - 'package.json'
               - 'package-lock.json'
               - '.gitignore'
+            storybook:
+              - 'frontend/**/*.stories.*'
+              - 'frontend/src/components/**'
+              - 'frontend/.storybook/**'
+              - 'frontend/package.json'
+              - 'frontend/package-lock.json'
 
   lockfile-sync:
     name: Verify lockfiles are in sync
@@ -80,11 +87,6 @@ jobs:
             echo "🔧 To fix: run 'cargo check' in contracts/stellar-give, commit Cargo.lock, and push."
             exit 1
           fi
-
-  contract-checks:
-    needs: [change-detection, lockfile-sync]
-    if: ${{ github.event_name == 'merge_group' || needs.change-detection.outputs.contracts == 'true' }}
-    uses: ./.github/workflows/contract-checks.yml
 
   rust-and-contract:
     needs: [change-detection, lockfile-sync]
@@ -263,6 +265,31 @@ jobs:
           npx sentry-cli releases set-commits ${{ github.sha }} --auto
           npx sentry-cli releases finalize ${{ github.sha }}
 
+  storybook:
+    name: Storybook build
+    needs: [change-detection, lockfile-sync]
+    if: ${{ needs.change-detection.outputs.storybook == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js and install dependencies
+        uses: ./.github/actions/setup-node
+
+      - name: Build Storybook
+        working-directory: frontend
+        run: npm run build-storybook
+
+      - name: Upload Storybook static build
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: storybook-static
+          path: frontend/storybook-static
+          retention-days: 7
+          if-no-files-found: error
+
   # Cross-version coverage. The primary `frontend` and `rust-and-contract` jobs
   # above remain the required status checks (pinned to .nvmrc Node and stable
   # Rust). These jobs surface breakage on other supported toolchains early.
@@ -336,7 +363,7 @@ jobs:
   # durations can be tracked across runs.
   job-metrics:
     name: CI job duration metrics
-    needs: [change-detection, lockfile-sync, contract-checks, rust-and-contract, frontend, frontend-node-matrix, contract-msrv]
+    needs: [change-detection, lockfile-sync, rust-and-contract, frontend, storybook, frontend-node-matrix, contract-msrv]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -394,7 +421,7 @@ jobs:
           retention-days: 90
 
   notify:
-    needs: [contract-checks, rust-and-contract, frontend]
+    needs: [rust-and-contract, frontend, storybook]
     if: always() && failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5

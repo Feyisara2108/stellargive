@@ -59,6 +59,10 @@ title = "Gitleaks config for stellarGive"
       # Public Stellar account (G...) and contract (C...) addresses; secret keys
       # start with S and are caught by the stellar-secret-key rule.
       '''(?-i)^[GC][A-Z2-7]{55}$''',
+      # Code reference in the integration helpers: `acceptedToken:
+      # nativeTokenContractId()` was matched as a generic secret. This is a
+      # function name, not a credential.
+      '''^nativeTokenContractId$''',
     ]
 
 [[rules]]

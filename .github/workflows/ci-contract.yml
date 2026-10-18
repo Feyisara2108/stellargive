@@ -41,35 +41,8 @@ jobs:
               - 'package-lock.json'
               - '.gitignore'
 
-  lockfile-sync:
-    name: Verify lockfiles are in sync
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: frontend/.nvmrc
-      - name: Verify npm lockfile
-        working-directory: frontend
-        run: |
-          if ! npm ci --ignore-scripts 2>/tmp/npm-ci-error.log; then
-            echo "::error::❌ package-lock.json is out of sync with package.json!"
-            echo "🔧 To fix: run 'npm install' locally, commit package-lock.json, and push."
-            cat /tmp/npm-ci-error.log
-            exit 1
-          fi
-      - name: Verify Cargo lockfile
-        working-directory: contracts/stellar-give
-        run: |
-          if ! cargo metadata --locked --format-version 1 > /dev/null; then
-            echo "::error::❌ Cargo.lock is out of sync with Cargo.toml!"
-            echo "🔧 To fix: run 'cargo check' in contracts/stellar-give, commit Cargo.lock, and push."
-            exit 1
-          fi
-
   contract-checks:
-    needs: [change-detection, lockfile-sync]
+    needs: [change-detection]
     if: ${{ github.event_name == 'merge_group' || needs.change-detection.outputs.contracts == 'true' }}
     uses: ./.github/workflows/contract-checks.yml
 

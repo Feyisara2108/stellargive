@@ -4,6 +4,11 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Full-history re-scan: catches secrets hidden in old commits after rule
+  # changes, not just the commits in the current push/PR.
+  schedule:
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -11,6 +16,7 @@ permissions:
 
 jobs:
   gitleaks:
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -27,6 +33,7 @@ jobs:
 
   validate-config:
     name: Validate gitleaks configuration
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -122,3 +129,64 @@ jobs:
               echo "_No report file produced._"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+
+
+  full-history:
+    name: Full-history gitleaks scan
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        run: |
+          GITLEAKS_VERSION="8.21.2"
+          curl -sSfL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+
+      - name: Scan all history and report findings
+        run: |
+          REPORT="/tmp/gitleaks-full-history.json"
+          STATUS=0
+          gitleaks detect \
+            --source . \
+            --config .gitleaks.toml \
+            --log-opts="--all" \
+            --report-format json \
+            --report-path "$REPORT" \
+            --redact \
+            --exit-code 1 \
+            || STATUS=$?
+
+          {
+            echo "## Full-history gitleaks scan"
+            echo ""
+            if [ -f "$REPORT" ]; then
+              COUNT=$(jq 'length' "$REPORT" 2>/dev/null || echo "0")
+              echo "**Findings:** $COUNT"
+              echo ""
+              if [ "$COUNT" -gt 0 ]; then
+                echo "| Rule | File | Commit | Description |"
+                echo "| --- | --- | --- | --- |"
+                jq -r '.[] | "| \(.RuleID) | \(.File) | \(.Commit // "") | \(.Description) |"' "$REPORT"
+              fi
+            else
+              echo "_No report file produced._"
+            fi
+            echo ""
+            if [ "$STATUS" -eq 0 ]; then
+              echo "Result: clean."
+            else
+              echo "Result: findings or scanner error (exit $STATUS). See the table above."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$STATUS" -ne 0 ]; then
+            exit "$STATUS"
+          fi

@@ -45,6 +45,10 @@ jobs:
           SOROBAN_RPC_FALLBACK_URL: ${{ secrets.SOROBAN_RPC_FALLBACK_URL }}
           SOROBAN_RPC_URLS: ${{ secrets.SOROBAN_RPC_URLS }}
           RPC_TIMEOUT_MS: ${{ vars.RPC_TIMEOUT_MS || '10000' }}
+          # Transient blips must not open an outage issue: try each endpoint
+          # three times with exponential backoff before the job fails.
+          RPC_PROBE_ATTEMPTS: ${{ vars.RPC_PROBE_ATTEMPTS || '3' }}
+          RPC_RETRY_BASE_MS: ${{ vars.RPC_RETRY_BASE_MS || '1000' }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: node scripts/monitor-rpc.js
