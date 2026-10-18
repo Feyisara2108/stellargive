@@ -2,6 +2,7 @@ import React from "react";
 import { vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { TokenSelector, PREDEFINED_TOKENS } from "./TokenSelector";
+import { createSorobanMock } from "@/test/mockSoroban";
 import "@testing-library/jest-dom";
 
 // USDC is only listed when configured; give the picker a second token to select.
@@ -26,9 +27,11 @@ vi.mock("@/lib/soroban", () => ({
 
 // TokenSelector calls useTokenMetadata (react-query) for non-predefined tokens.
 // Mock the hook so the component renders without a QueryClientProvider.
-vi.mock("@/hooks/useSoroban", () => ({
-  useTokenMetadata: vi.fn().mockReturnValue({ data: undefined, isLoading: false }),
-}));
+vi.mock("@/hooks/useSoroban", () =>
+  createSorobanMock({
+    useTokenMetadata: vi.fn().mockReturnValue({ data: undefined, isLoading: false }),
+  }),
+);
 
 vi.mock("sonner", () => ({
   toast: {

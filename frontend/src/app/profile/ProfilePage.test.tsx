@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import ProfilePage from "./page";
+import { createSorobanMock } from "@/test/mockSoroban";
 
 // Valid 56-char G-address so the page's donor matching accepts it.
 const { TEST_ADDRESS } = vi.hoisted(() => ({ TEST_ADDRESS: "G" + "B".repeat(55) }));
@@ -37,10 +38,12 @@ vi.mock("@/lib/WalletProvider", () => ({
 }));
 
 // Mock hooks
-vi.mock("@/hooks/useSoroban", () => ({
-  useRecentCampaigns: vi.fn(() => ({ data: [], isLoading: false })),
-  useEvents: vi.fn(() => ({ data: [], isLoading: false })),
-}));
+vi.mock("@/hooks/useSoroban", () =>
+  createSorobanMock({
+    useRecentCampaigns: vi.fn(() => ({ data: [], isLoading: false })),
+    useEvents: vi.fn(() => ({ data: [], isLoading: false })),
+  }),
+);
 
 // Mock components
 vi.mock("@/components/Navbar", () => ({ Navbar: () => <div /> }));

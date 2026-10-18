@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, act } from "@/test/render";
 import { axe, toHaveNoViolations } from "jest-axe";
+import { createSorobanMock } from "@/test/mockSoroban";
 import React from "react";
 
 // Extend Vitest's expect with the toHaveNoViolations matcher
@@ -41,68 +42,70 @@ vi.mock("@stellar/stellar-sdk", async (importActual) => {
 
 // Mock hooks. Each hook is a `vi.fn` so individual accessibility tests can
 // supply page-specific mocked data while sharing a single module mock.
-vi.mock("@/hooks/useSoroban", () => ({
-  useCampaignsPaged: vi.fn(() => ({
-    data: { campaigns: [], hasMore: false },
-    isLoading: false,
-    isFetching: false,
-  })),
-  useRecentCampaigns: vi.fn(() => ({
-    data: [],
-    isLoading: false,
-  })),
-  useCampaign: vi.fn(() => ({
-    data: {
-      id: 1n,
-      title: "Test Campaign",
-      description: "A test description",
-      creator: "GB",
-      beneficiary: "GC",
-      status: "Active",
-      raised_amount: 0n,
-      target_amount: 100n,
-      deadline: 0n,
-    },
-    isLoading: false,
-  })),
-  useCancelCampaign: vi.fn(() => ({
-    mutateAsync: vi.fn(),
-    isPending: false,
-  })),
-  useEvents: vi.fn(() => ({
-    data: [],
-    isLoading: false,
-    isError: false,
-    refetch: vi.fn(),
-  })),
-  useCreateCampaign: vi.fn(() => ({
-    mutateAsync: vi.fn(),
-    isPending: false,
-  })),
-  useWalletBalance: vi.fn(() => ({
-    data: "100",
-    isLoading: false,
-  })),
-  useTokenMetadataBatch: vi.fn(() => ({
-    data: {},
-    isLoading: false,
-  })),
-  useResolvedName: vi.fn(() => ({ data: null, isFetching: false })),
-  useTokenMetadata: vi.fn(() => ({ data: undefined, isLoading: false })),
-  useXlmPrice: vi.fn(() => ({ data: undefined, isLoading: false })),
-  // Consumed by the lazy-loaded AdminPanel.
-  usePlatformConfig: vi.fn(() => ({
-    data: null,
-    isLoading: false,
-    isError: false,
-    isFetching: false,
-    refetch: vi.fn(),
-  })),
-  useAddToWhitelist: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
-  useAddUpdate: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
-  usePauseContract: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
-  useUnpauseContract: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
-}));
+vi.mock("@/hooks/useSoroban", () =>
+  createSorobanMock({
+    useCampaignsPaged: vi.fn(() => ({
+      data: { campaigns: [], hasMore: false },
+      isLoading: false,
+      isFetching: false,
+    })),
+    useRecentCampaigns: vi.fn(() => ({
+      data: [],
+      isLoading: false,
+    })),
+    useCampaign: vi.fn(() => ({
+      data: {
+        id: 1n,
+        title: "Test Campaign",
+        description: "A test description",
+        creator: "GB",
+        beneficiary: "GC",
+        status: "Active",
+        raised_amount: 0n,
+        target_amount: 100n,
+        deadline: 0n,
+      },
+      isLoading: false,
+    })),
+    useCancelCampaign: vi.fn(() => ({
+      mutateAsync: vi.fn(),
+      isPending: false,
+    })),
+    useEvents: vi.fn(() => ({
+      data: [],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    })),
+    useCreateCampaign: vi.fn(() => ({
+      mutateAsync: vi.fn(),
+      isPending: false,
+    })),
+    useWalletBalance: vi.fn(() => ({
+      data: "100",
+      isLoading: false,
+    })),
+    useTokenMetadataBatch: vi.fn(() => ({
+      data: {},
+      isLoading: false,
+    })),
+    useResolvedName: vi.fn(() => ({ data: null, isFetching: false })),
+    useTokenMetadata: vi.fn(() => ({ data: undefined, isLoading: false })),
+    useXlmPrice: vi.fn(() => ({ data: undefined, isLoading: false })),
+    // Consumed by the lazy-loaded AdminPanel.
+    usePlatformConfig: vi.fn(() => ({
+      data: null,
+      isLoading: false,
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn(),
+    })),
+    useAddToWhitelist: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
+    useAddUpdate: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
+    usePauseContract: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
+    useUnpauseContract: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
+  }),
+);
 
 // Mock WalletProvider
 vi.mock("@/lib/WalletProvider", () => ({

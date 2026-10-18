@@ -1,11 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { RefundButton } from "./RefundButton";
+import { createSorobanMock } from "@/test/mockSoroban";
 
-vi.mock("@/hooks/useSoroban", () => ({
-  useRefundEligibility: vi.fn(),
-  useClaimRefund: vi.fn(),
-}));
+vi.mock("@/hooks/useSoroban", () =>
+  createSorobanMock({
+    useRefundEligibility: vi.fn(),
+    useClaimRefund: vi.fn(),
+  }),
+);
 
 vi.mock("@/lib/WalletProvider", () => ({
   useWallet: vi.fn(),

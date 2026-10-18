@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import LeaderboardPage from "./page";
+import { createSorobanMock } from "@/test/mockSoroban";
 
 vi.mock("@/lib/soroban", () => ({
   fromStroops: (stroops: bigint | string | number): string => BigInt(stroops).toString(),
@@ -22,10 +23,12 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => currentParams,
 }));
 
-vi.mock("@/hooks/useSoroban", () => ({
-  useEvents: vi.fn(),
-  useResolvedName: vi.fn(() => ({ data: null })),
-}));
+vi.mock("@/hooks/useSoroban", () =>
+  createSorobanMock({
+    useEvents: vi.fn(),
+    useResolvedName: vi.fn(() => ({ data: null })),
+  }),
+);
 
 const { downloadTextFile } = vi.hoisted(() => ({ downloadTextFile: vi.fn() }));
 vi.mock("@/utils/format", async (importActual) => {
