@@ -6,12 +6,12 @@ services:
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
+    # NEXT_PUBLIC_* (RPC URL, network passphrase, contract ID, Sentry DSN) are
+    # inlined into the client bundle when the image is built, so they cannot be
+    # set here. They come from the repository variables docker-publish.yml
+    # passes as build args — see docs/DEPLOYMENT.md (#1099).
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_SOROBAN_RPC_URL=${NEXT_PUBLIC_SOROBAN_RPC_URL:-https://soroban-testnet.stellar.org}
-      - NEXT_PUBLIC_NETWORK_PASSPHRASE=${NEXT_PUBLIC_NETWORK_PASSPHRASE:-Test SDF Network ; September 2015}
-      - NEXT_PUBLIC_CONTRACT_ID=${NEXT_PUBLIC_CONTRACT_ID}
-      - NEXT_PUBLIC_SENTRY_DSN=${NEXT_PUBLIC_SENTRY_DSN:-}
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1"]
       interval: 30s
