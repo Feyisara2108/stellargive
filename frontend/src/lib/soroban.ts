@@ -12,6 +12,11 @@ import {
   Operation,
   StrKey,
 } from "@stellar/stellar-sdk";
+import {
+  isNativeCampaign,
+  isNativeCampaignUpdate,
+  type NativeCampaign,
+} from "./bindings/stellarGive";
 // NOTE: @stellar/freighter-api is browser-only, so it is imported lazily inside
 // submitTransaction. This keeps the read-only helpers (getCampaign, getEvents…)
 // safe to import on the server — e.g. from a route's generateMetadata.
@@ -111,35 +116,24 @@ export interface SorobanEvent {
   timestamp?: string | number;
 }
 
-function parseCampaign(native: Record<string, unknown>): Campaign {
-  const rawBens = Array.isArray(native.beneficiaries) ? native.beneficiaries : [];
-  const bens = rawBens.map((b: unknown) => {
-    const pair = Array.isArray(b) ? b : [];
-    return {
-      address: String(pair[0] ?? ""),
-      share: Number(pair[1] ?? 0),
-    };
-  });
+function parseCampaign(native: NativeCampaign): Campaign {
+  const bens = native.beneficiaries.map(([address, share]) => ({ address, share }));
   return {
-    id: BigInt(native.id as string | number | bigint | boolean),
-    creator: String(native.creator ?? ""),
-    beneficiary: bens[0]?.address || (native.beneficiary ? String(native.beneficiary) : ""),
+    id: native.id,
+    creator: native.creator,
+    beneficiary: bens[0]?.address || "",
     beneficiaries: bens,
-    title: String(native.title ?? ""),
-    description: String(native.description ?? ""),
+    title: native.title,
+    description: native.description,
     category:
       typeof native.category === "symbol"
         ? (native.category.description ?? "relief")
         : String(native.category ?? "relief").replace(/^Symbol\((.*)\)$/, "$1"),
-    target_amount: BigInt(native.target_amount as string | number | bigint | boolean),
-    raised_amount: BigInt(native.raised_amount as string | number | bigint | boolean),
-    deadline: BigInt(native.deadline as string | number | bigint | boolean),
-    accepted_token: String(native.accepted_token ?? ""),
-    status: (Object.keys((native.status as object) || {})[0] ??
-      (typeof native.status === "object" && native.status
-        ? Object.getOwnPropertySymbols(native.status)[0]?.description
-        : undefined) ??
-      "Active") as CampaignStatus,
+    target_amount: native.target_amount,
+    raised_amount: native.raised_amount,
+    deadline: native.deadline,
+    accepted_token: native.accepted_token,
+    status: native.status,
     website: native.website?.toString(),
     twitter: native.twitter?.toString(),
   };
@@ -169,6 +163,7 @@ export async function getCampaign(id: bigint): Promise<Campaign> {
   }
   if (!sim.result) throw new Error("Failed to get campaign: no result");
   const result = scValToNative(sim.result.retval);
+  if (!isNativeCampaign(result)) throw new Error("Invalid campaign result");
   return parseCampaign(result);
 }
 
@@ -216,7 +211,10 @@ export async function getRecentCampaigns(limit = 20): Promise<Campaign[]> {
       }
 
       const result = scValToNative(sim.result.retval);
-      const batch = (result as Record<string, unknown>[]).map(parseCampaign);
+      if (!Array.isArray(result) || !result.every(isNativeCampaign)) {
+        throw new Error("Invalid campaign batch result");
+      }
+      const batch = result.map(parseCampaign);
 
       if (batch.length === 0) {
         break;
@@ -369,7 +367,7 @@ export async function estimateFee(
 
     const sim = await server.simulateTransaction(tx);
     if (rpc.Api.isSimulationError(sim)) return null;
-    return Number((sim as rpc.Api.SimulateTransactionSuccessResponse).minResourceFee ?? 0);
+    return Number(sim.minResourceFee ?? 0);
   } catch {
     return null;
   }
@@ -407,7 +405,7 @@ async function simulateAndWarn(
     throw new Error(`Simulation failed: ${sim.error}`);
   }
 
-  const minFee = Number((sim as rpc.Api.SimulateTransactionSuccessResponse).minResourceFee ?? 0);
+  const minFee = Number(sim.minResourceFee ?? 0);
   if (minFee > MAX_SIMULATION_FEE_STROOPS) {
     const msg = `High gas: simulated fee ${minFee} stroops exceeds threshold ${MAX_SIMULATION_FEE_STROOPS}`;
     console.warn(`[soroban] ⚠️ ${msg}`);
@@ -419,9 +417,7 @@ async function simulateAndWarn(
 
 async function sendAndConfirm(signedXdr: string): Promise<SubmitTransactionResult> {
   const parsedTx = TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE);
-  const sendResponse = await server.sendTransaction(
-    parsedTx as Parameters<typeof server.sendTransaction>[0],
-  );
+  const sendResponse = await server.sendTransaction(parsedTx);
 
   if (sendResponse.status === "ERROR") {
     const errorXdr = "errorResultXdr" in sendResponse ? sendResponse.errorResultXdr : undefined;
@@ -515,7 +511,8 @@ export async function getEvents(limit = 20) {
     const value = scValToNative(event.value);
     // Dual-topic events (e.g. donation/received) put the UI label in topics[1];
     // single-topic events (e.g. created) only have topics[0].
-    const topic = (topics[1] ?? topics[0]) as string;
+    const topicValue = topics[1] ?? topics[0];
+    const topic = typeof topicValue === "string" ? topicValue : String(topicValue);
     return {
       id: event.id,
       txHash: ("txHash" in event && typeof event.txHash === "string" ? event.txHash : event.id),
@@ -557,10 +554,12 @@ export async function getUpdates(campaignId: bigint): Promise<CampaignUpdate[]> 
   }
   if (!sim.result) return [];
   const result = scValToNative(sim.result.retval);
-  const rawList = Array.isArray(result) ? result : [];
-  return rawList.map((u: Record<string, unknown>) => ({
-    content: String(u.content ?? ""),
-    timestamp: BigInt(u.timestamp as string | number | bigint),
+  if (!Array.isArray(result) || !result.every(isNativeCampaignUpdate)) {
+    throw new Error("Invalid updates result");
+  }
+  return result.map((u) => ({
+    content: u.content,
+    timestamp: u.timestamp,
   }));
 }
 
