@@ -1,4 +1,4 @@
-use soroban_sdk::{symbol_short, String};
+use soroban_sdk::{symbol_short, testutils::Address as _, Address, String};
 
 mod helpers;
 use helpers::{register_and_setup, set_timestamp, single_ben};

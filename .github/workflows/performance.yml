@@ -184,7 +184,7 @@ jobs:
             echo "LHCI_GITHUB_APP_TOKEN is configured — PR status comments enabled."
           else
             echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=LHCI PR comments skipped::Repository secret LHCI_GITHUB_APP_TOKEN is not set. Lighthouse still runs and uploads artifacts; automated PR comments are disabled. See docs/CONTRIBUTING.md#lighthouse-ci-pr-comments for setup."
+            echo "::notice title=LHCI PR comments skipped::Repository secret LHCI_GITHUB_APP_TOKEN is not set. Lighthouse still runs and uploads artifacts; automated PR comments are disabled. See CONTRIBUTING.md#lighthouse-ci-pr-comments for setup."
           fi
 
       - name: Run Lighthouse CI

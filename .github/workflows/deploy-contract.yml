@@ -18,9 +18,13 @@ on:
         required: false
         type: string
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     environment:
       name: production
     # Shared concurrency group per network so deploy and rollback queue

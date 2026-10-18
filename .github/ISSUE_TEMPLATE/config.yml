@@ -10,7 +10,7 @@ contact_links:
     about: Read the project docs including architecture, API reference, deployment guides, and more.
 
   - name: 🔐 Security Vulnerability
-    url: https://github.com/Feyisara2108/stellargive/blob/main/docs/SECURITY.md
+    url: https://github.com/Feyisara2108/stellargive/blob/main/SECURITY.md
     about: Please do NOT file a public issue for security vulnerabilities. Follow our responsible disclosure policy instead.
 
   - name: 💡 Start a Discussion
