@@ -81,7 +81,7 @@ body:
     attributes:
       label: Mentorship / Help Available
       description: Is there a maintainer available to help? Any hints or resources for the contributor?
-      placeholder: "e.g. Ping @rindicomfort on Discord for guidance. See docs/CONTRIBUTING.md for context."
+      placeholder: "e.g. Ping @rindicomfort on Discord for guidance. See CONTRIBUTING.md for context."
     validations:
       required: false
 

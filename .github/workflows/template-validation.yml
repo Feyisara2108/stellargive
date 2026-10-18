@@ -12,6 +12,7 @@ jobs:
   validate-template:
     name: Check PR template sections
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Check required sections and nudge author
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
