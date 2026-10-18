@@ -25,23 +25,26 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
-    concurrency: production
+    # Shared concurrency group per network so deploy and rollback queue
+    # instead of running in parallel (#1111).
+    concurrency:
+      group: contract-ops-${{ github.event.inputs.network || 'testnet' }}
+      cancel-in-progress: false
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Validate WASM hash format
+        env:
+          WASM_HASH: ${{ github.event.inputs.wasm_hash }}
         run: |
-          WASM_HASH="${{ github.event.inputs.wasm_hash }}"
-          
           # Validate SHA256 hash format (64 hex characters)
           if ! echo "$WASM_HASH" | grep -qE '^[a-f0-9]{64}$'; then
             echo "::error::Invalid WASM hash format"
             echo "::error::Expected 64-character hexadecimal SHA256 hash, got: $WASM_HASH"
             exit 1
           fi
-          
           echo "✅ WASM hash format validated: $WASM_HASH"
 
       - name: Install Soroban / Stellar CLI
@@ -56,17 +59,25 @@ jobs:
           echo "CLI=$(command -v stellar || command -v soroban)" >> "$GITHUB_ENV"
 
       - name: Record rollback initiation
+        env:
+          NETWORK: ${{ github.event.inputs.network }}
+          WASM_HASH: ${{ github.event.inputs.wasm_hash }}
+          REASON: ${{ github.event.inputs.rollback_reason }}
+          ACTOR: ${{ github.actor }}
+          SERVER_URL: ${{ github.server_url }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
         run: |
           cat >> "$GITHUB_STEP_SUMMARY" <<-EOF
           ## Contract Rollback Initiated
 
           | Field | Value |
           |---|---|
-          | Network | ${{ github.event.inputs.network }} |
-          | Target WASM Hash | \`${{ github.event.inputs.wasm_hash }}\` |
-          | Reason | ${{ github.event.inputs.rollback_reason }} |
-          | Initiated by | @${{ github.actor }} |
-          | Workflow Run | ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} |
+          | Network | ${NETWORK} |
+          | Target WASM Hash | \`${WASM_HASH}\` |
+          | Reason | ${REASON} |
+          | Initiated by | @${ACTOR} |
+          | Workflow Run | ${SERVER_URL}/${REPO}/actions/runs/${RUN_ID} |
           | Timestamp | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |
 
           **⚠️ This is a critical operation that will upgrade the contract to a previous version.**
@@ -75,10 +86,10 @@ jobs:
           echo "========================================"
           echo "CONTRACT ROLLBACK INITIATED"
           echo "========================================"
-          echo "Network: ${{ github.event.inputs.network }}"
-          echo "Target WASM Hash: ${{ github.event.inputs.wasm_hash }}"
-          echo "Reason: ${{ github.event.inputs.rollback_reason }}"
-          echo "Initiated by: ${{ github.actor }}"
+          echo "Network: ${NETWORK}"
+          echo "Target WASM Hash: ${WASM_HASH}"
+          echo "Reason: ${REASON}"
+          echo "Initiated by: ${ACTOR}"
           echo "Timestamp: $(date -u)"
           echo "========================================"
 
@@ -118,6 +129,10 @@ jobs:
 
       - name: Record rollback completion
         if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          CONTRACT_ID: ${{ steps.deploy.outputs.contract_id }}
+          WASM_HASH: ${{ steps.deploy.outputs.wasm_hash }}
         run: |
           cat >> "$GITHUB_STEP_SUMMARY" <<-EOF
 
@@ -125,9 +140,9 @@ jobs:
 
           | Field | Value |
           |---|---|
-          | Status | ${{ job.status }} |
-          | Contract ID | \`${{ steps.deploy.outputs.contract_id }}\` |
-          | WASM Hash | \`${{ steps.deploy.outputs.wasm_hash }}\` |
+          | Status | ${JOB_STATUS} |
+          | Contract ID | \`${CONTRACT_ID}\` |
+          | WASM Hash | \`${WASM_HASH}\` |
 
           **Audit Record:** This rollback operation has been logged for audit purposes.
           EOF
@@ -135,7 +150,7 @@ jobs:
           echo "========================================"
           echo "ROLLBACK OPERATION COMPLETED"
           echo "========================================"
-          echo "Status: ${{ job.status }}"
-          echo "Contract ID: ${{ steps.deploy.outputs.contract_id }}"
-          echo "WASM Hash: ${{ steps.deploy.outputs.wasm_hash }}"
+          echo "Status: ${JOB_STATUS}"
+          echo "Contract ID: ${CONTRACT_ID}"
+          echo "WASM Hash: ${WASM_HASH}"
           echo "========================================"

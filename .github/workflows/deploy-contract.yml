@@ -23,17 +23,21 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
-    concurrency: production
+    # Shared concurrency group per network so deploy and rollback queue
+    # instead of running in parallel (#1111).
+    concurrency:
+      group: contract-ops-${{ github.event.inputs.network || 'testnet' }}
+      cancel-in-progress: false
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Validate network confirmation
+        env:
+          NETWORK: ${{ github.event.inputs.network || 'testnet' }}
+          CONFIRMATION: ${{ github.event.inputs.network_confirmation }}
         run: |
-          NETWORK="${{ github.event.inputs.network || 'testnet' }}"
-          CONFIRMATION="${{ github.event.inputs.network_confirmation }}"
-
           if [ "$NETWORK" = "mainnet" ]; then
             if [ -z "$CONFIRMATION" ]; then
               echo "::error::Network confirmation is required for mainnet deployment"
@@ -109,18 +113,24 @@ jobs:
           echo "Contract deployed: $CONTRACT_ID"
 
       - name: Create release summary
+        env:
+          NETWORK: ${{ github.event.inputs.network || 'testnet' }}
+          CONTRACT_ID: ${{ steps.deploy.outputs.contract_id }}
+          WASM_HASH: ${{ steps.deploy.outputs.wasm_hash }}
+          TAG: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
         run: |
           cat >> "$GITHUB_STEP_SUMMARY" <<-EOF
           ## Contract Deployment
 
           | Field | Value |
           |---|---|
-          | Network | ${{ github.event.inputs.network || 'testnet' }} |
-          | Contract ID | \`${{ steps.deploy.outputs.contract_id }}\` |
-          | WASM Hash | \`${{ steps.deploy.outputs.wasm_hash }}\` |
-          | Tag | ${{ github.ref_name }} |
+          | Network | ${NETWORK} |
+          | Contract ID | \`${CONTRACT_ID}\` |
+          | WASM Hash | \`${WASM_HASH}\` |
+          | Tag | ${TAG} |
 
-          Deployed via commit ${{ github.sha }}.
+          Deployed via commit ${SHA}.
           EOF
 
       - name: Upload WASM artifact
