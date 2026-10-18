@@ -121,16 +121,31 @@ test.describe("Create Campaign — RPC failure path", () => {
     await mockSorobanRPC(page);
   });
 
-  test("surfaces the mapped error and keeps the user on the form", async ({ page }) => {
-    await page.goto("/create");
+  test("surfaces the mapped error and keeps the user on the review step", async ({ page }) => {
+    await page.goto("/");
 
-    await expect(page.getByRole("heading", { name: /Create a New Campaign/i })).toBeVisible();
+    await page
+      .getByRole("button", { name: /Start a Campaign/i })
+      .first()
+      .click();
+    await expect(page.getByRole("heading", { name: /Create Relief Campaign/i })).toBeVisible();
 
+    // Step 1: Details
     await page.getByLabel(/Campaign Title/i).fill("Flood Relief 2024");
+    await page
+      .getByLabel(/Campaign Description/i)
+      .fill("Emergency relief support for families affected by flooding.");
+    await page.getByRole("button", { name: /Continue/i }).click();
+
+    // Step 2: Funding
+    await expect(page.getByText(/Step 2 of 3/i)).toBeVisible();
     await page.getByLabel(/Beneficiary Address/i).fill(VALID_BENEFICIARY);
     await page.getByLabel(/Target/i).fill("10");
     await page.getByLabel(/Duration/i).fill("30");
+    await page.getByRole("button", { name: /Continue/i }).click();
 
+    // Step 3: Review — submit into the mocked RPC failure.
+    await expect(page.getByText(/Step 3 of 3/i)).toBeVisible();
     await page.getByRole("button", { name: /Launch Campaign/i }).click();
 
     // The mapped send failure is surfaced as a toast.
@@ -139,16 +154,21 @@ test.describe("Create Campaign — RPC failure path", () => {
     });
 
     // No success navigation and no explorer affordance.
-    await expect(page).toHaveURL(/\/create$/);
+    await expect(page).toHaveURL("/");
     await expect(page).not.toHaveURL(/\/campaign\/\d+/);
     await expect(page.getByRole("button", { name: /View Explorer/i })).toHaveCount(0);
     await expect(page.locator('a[href*="stellar.expert"]')).toHaveCount(0);
 
-    // The form still holds everything the user typed, so they can retry.
-    await expect(page.getByLabel(/Campaign Title/i)).toHaveValue("Flood Relief 2024");
+    // The wizard stays on the review step with everything the user typed, so they can retry.
+    await expect(page.getByText(/Step 3 of 3/i)).toBeVisible();
+    await expect(page.getByRole("button", { name: /Launch Campaign/i })).toBeEnabled();
+
+    await page.getByRole("button", { name: /Back/i }).click();
     await expect(page.getByLabel(/Beneficiary Address/i)).toHaveValue(VALID_BENEFICIARY);
     await expect(page.getByLabel(/Target/i)).toHaveValue("10");
     await expect(page.getByLabel(/Duration/i)).toHaveValue("30");
-    await expect(page.getByRole("button", { name: /Launch Campaign/i })).toBeEnabled();
+
+    await page.getByRole("button", { name: /Back/i }).click();
+    await expect(page.getByLabel(/Campaign Title/i)).toHaveValue("Flood Relief 2024");
   });
 });
