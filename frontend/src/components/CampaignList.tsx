@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { FixedSizeList, type ListChildComponentProps } from "react-window";
+import { List, type RowComponentProps } from "react-window";
 import { useRecentCampaigns } from "@/hooks/useSoroban";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { CampaignCard } from "@/components/CampaignCard";
@@ -105,14 +105,19 @@ function useContainerWidth(ref: React.RefObject<HTMLDivElement>): number {
 // ---------------------------------------------------------------------------
 // Row renderer for react-window — renders up to `columnCount` cards per row.
 // ---------------------------------------------------------------------------
-interface RowData {
+interface CampaignRowProps {
   rows: Campaign[][];
   columnCount: number;
   listWidth: number;
 }
 
-function CampaignRow({ index, style, data }: ListChildComponentProps<RowData>) {
-  const { rows, columnCount, listWidth } = data;
+function CampaignRow({
+  index,
+  style,
+  rows,
+  columnCount,
+  listWidth,
+}: RowComponentProps<CampaignRowProps>) {
   const row = rows[index];
   if (!row) return null;
 
@@ -343,17 +348,14 @@ function CampaignListContent() {
               ))}
             </div>
           ) : (
-            <FixedSizeList
-              height={listHeight}
-              width={listWidth}
-              itemCount={rows.length}
-              itemSize={rowHeight}
-              itemData={{ rows, columnCount, listWidth }}
+            <List
+              rowCount={rows.length}
+              rowHeight={rowHeight}
+              rowComponent={CampaignRow}
+              rowProps={{ rows, columnCount, listWidth }}
               overscanCount={2}
-              style={{ outline: "none", overflow: "visible" }}
-            >
-              {CampaignRow}
-            </FixedSizeList>
+              style={{ height: listHeight, width: listWidth, outline: "none", overflow: "visible" }}
+            />
           )}
         </div>
       )}

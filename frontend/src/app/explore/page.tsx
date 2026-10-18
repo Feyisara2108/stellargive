@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FixedSizeList, type ListChildComponentProps } from "react-window";
+import { List, type RowComponentProps } from "react-window";
 import { Navbar } from "@/components/Navbar";
 import { CampaignCard } from "@/components/CampaignCard";
 import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
@@ -92,15 +92,24 @@ function useContainerWidth(ref: React.RefObject<HTMLDivElement>): number {
 // ---------------------------------------------------------------------------
 // Grid row renderer — up to `columnCount` cards per row.
 // ---------------------------------------------------------------------------
-interface GridRowData {
+// ---------------------------------------------------------------------------
+// Grid row renderer — up to `columnCount` cards per row.
+// ---------------------------------------------------------------------------
+interface GridRowProps {
   rows: { campaign: Campaign; tokenMeta?: TokenMetadata; detailHrefSearch: string }[][];
   columnCount: number;
   listWidth: number;
   isRefreshing: boolean;
 }
 
-function GridRow({ index, style, data }: ListChildComponentProps<GridRowData>) {
-  const { rows, columnCount, listWidth, isRefreshing } = data;
+function GridRow({
+  index,
+  style,
+  rows,
+  columnCount,
+  listWidth,
+  isRefreshing,
+}: RowComponentProps<GridRowProps>) {
   const row = rows[index];
   if (!row) return null;
 
@@ -141,13 +150,17 @@ function GridRow({ index, style, data }: ListChildComponentProps<GridRowData>) {
 // ---------------------------------------------------------------------------
 // List row renderer — single card per row.
 // ---------------------------------------------------------------------------
-interface ListRowData {
+interface ListRowProps {
   campaigns: { campaign: Campaign; tokenMeta?: TokenMetadata; detailHrefSearch: string }[];
   isRefreshing: boolean;
 }
 
-function ListRow({ index, style, data }: ListChildComponentProps<ListRowData>) {
-  const { campaigns, isRefreshing } = data;
+function ListRow({
+  index,
+  style,
+  campaigns,
+  isRefreshing,
+}: RowComponentProps<ListRowProps>) {
   const item = campaigns[index];
   if (!item) return null;
   return (
@@ -900,17 +913,14 @@ function GridVirtualContainer({
           ))}
         </div>
       ) : (
-        <FixedSizeList
-          height={totalHeight}
-          width={listWidth}
-          itemCount={rows.length}
-          itemSize={rowHeight}
-          itemData={{ rows, columnCount, listWidth, isRefreshing }}
+        <List
+          rowCount={rows.length}
+          rowHeight={rowHeight}
+          rowComponent={GridRow}
+          rowProps={{ rows, columnCount, listWidth, isRefreshing }}
           overscanCount={2}
-          style={{ outline: "none", overflow: "visible" }}
-        >
-          {GridRow}
-        </FixedSizeList>
+          style={{ height: totalHeight, width: listWidth, outline: "none", overflow: "visible" }}
+        />
       )}
     </div>
   );
@@ -959,17 +969,14 @@ function ListVirtualContainer({
           ))}
         </div>
       ) : (
-        <FixedSizeList
-          height={totalHeight}
-          width={listWidth}
-          itemCount={items.length}
-          itemSize={rowHeight}
-          itemData={{ campaigns: items, isRefreshing }}
+        <List
+          rowCount={items.length}
+          rowHeight={rowHeight}
+          rowComponent={ListRow}
+          rowProps={{ campaigns: items, isRefreshing }}
           overscanCount={3}
-          style={{ outline: "none", overflow: "visible" }}
-        >
-          {ListRow}
-        </FixedSizeList>
+          style={{ height: totalHeight, width: listWidth, outline: "none", overflow: "visible" }}
+        />
       )}
     </div>
   );
