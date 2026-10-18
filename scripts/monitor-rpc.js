@@ -14,6 +14,8 @@
  *   SOROBAN_RPC_URLS         Comma-separated list (overrides the two above when set)
  *   NEXT_PUBLIC_SOROBAN_RPC_URL  Fallback if none of the above are set
  *   RPC_TIMEOUT_MS           Per-request timeout in ms (default: 10000)
+ *   RPC_PROBE_ATTEMPTS       Attempts per endpoint before it counts as down (default: 3)
+ *   RPC_RETRY_BASE_MS        Base backoff between attempts in ms (default: 1000)
  *   SLACK_WEBHOOK_URL        Slack incoming-webhook URL  (optional)
  *   DISCORD_WEBHOOK_URL      Discord incoming-webhook URL (optional)
  *
@@ -51,6 +53,8 @@ function resolveRpcUrls() {
 
 const RPC_URLS = resolveRpcUrls();
 const TIMEOUT_MS = Number(process.env.RPC_TIMEOUT_MS || 10_000);
+const PROBE_ATTEMPTS = Math.max(1, Number(process.env.RPC_PROBE_ATTEMPTS || 3));
+const RETRY_BASE_MS = Math.max(0, Number(process.env.RPC_RETRY_BASE_MS || 1_000));
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL || "";
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL || "";
 
@@ -119,35 +123,55 @@ async function rpcCall(url, method) {
   }
 }
 
-async function checkEndpoint(url) {
-  try {
-    const { body, latency } = await rpcCall(url, "getHealth");
-    const status = body?.result?.status;
-    if (status !== "healthy") {
-      throw new Error(`unexpected status: ${JSON.stringify(body?.result ?? body)}`);
-    }
-
-    // Stronger probe: a node can report healthy while lagging on ledger sync.
-    try {
-      const ledger = await rpcCall(url, "getLatestLedger");
-      const sequence = ledger.body?.result?.sequence;
-      if (typeof sequence !== "number" || sequence <= 0) {
-        throw new Error(`invalid latest ledger: ${JSON.stringify(ledger.body?.result)}`);
-      }
-      console.log(`✅ RPC healthy — ${url} (${latency}ms, ledger ${sequence})`);
-    } catch (ledgerErr) {
-      // getLatestLedger is best-effort; do not fail solely on it if getHealth passed,
-      // but log so operators notice stalled nodes.
-      console.warn(`⚠️  getLatestLedger weak on ${url}: ${ledgerErr.message}`);
-      console.log(`✅ RPC healthy — ${url} (${latency}ms)`);
-    }
-
-    return { ok: true, url, latency };
-  } catch (err) {
-    const reason = err.name === "AbortError" ? `timeout after ${TIMEOUT_MS}ms` : err.message;
-    console.error(`❌ RPC unhealthy — ${url}: ${reason}`);
-    return { ok: false, url, reason };
+async function probeOnce(url) {
+  const { body, latency } = await rpcCall(url, "getHealth");
+  const status = body?.result?.status;
+  if (status !== "healthy") {
+    throw new Error(`unexpected status: ${JSON.stringify(body?.result ?? body)}`);
   }
+
+  // Stronger probe: a node can report healthy while lagging on ledger sync.
+  try {
+    const ledger = await rpcCall(url, "getLatestLedger");
+    const sequence = ledger.body?.result?.sequence;
+    if (typeof sequence !== "number" || sequence <= 0) {
+      throw new Error(`invalid latest ledger: ${JSON.stringify(ledger.body?.result)}`);
+    }
+    console.log(`✅ RPC healthy — ${url} (${latency}ms, ledger ${sequence})`);
+  } catch (ledgerErr) {
+    // getLatestLedger is best-effort; do not fail solely on it if getHealth passed,
+    // but log so operators notice stalled nodes.
+    console.warn(`⚠️  getLatestLedger weak on ${url}: ${ledgerErr.message}`);
+    console.log(`✅ RPC healthy — ${url} (${latency}ms)`);
+  }
+
+  return { ok: true, url, latency };
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function checkEndpoint(url) {
+  let lastErr;
+  for (let attempt = 1; attempt <= PROBE_ATTEMPTS; attempt++) {
+    try {
+      return await probeOnce(url);
+    } catch (err) {
+      lastErr = err;
+      const reason = err.name === "AbortError" ? `timeout after ${TIMEOUT_MS}ms` : err.message;
+      if (attempt < PROBE_ATTEMPTS) {
+        const backoff = RETRY_BASE_MS * 2 ** (attempt - 1);
+        console.warn(
+          `⚠️  RPC probe ${attempt}/${PROBE_ATTEMPTS} failed for ${url}: ${reason}; retrying in ${backoff}ms`,
+        );
+        await sleep(backoff);
+      } else {
+        console.error(`❌ RPC unhealthy after ${PROBE_ATTEMPTS} attempts — ${url}: ${reason}`);
+      }
+    }
+  }
+
+  const reason = lastErr?.name === "AbortError" ? `timeout after ${TIMEOUT_MS}ms` : lastErr?.message;
+  return { ok: false, url, reason, attempts: PROBE_ATTEMPTS };
 }
 
 async function checkHealth() {
@@ -166,7 +190,7 @@ async function checkHealth() {
   }
 
   const summary = failures.map((f) => `${f.url}: ${f.reason}`).join("; ");
-  const msg = `❌ All RPC endpoints unhealthy (${RPC_URLS.length}): ${summary}`;
+  const msg = `❌ All RPC endpoints unhealthy after ${PROBE_ATTEMPTS} attempt(s) (${RPC_URLS.length}): ${summary}`;
   console.error(msg);
   await dispatchAlerts(msg);
   return false;

@@ -292,6 +292,8 @@ warning output in each workflow's job summary).
 | `EXPECTED_CONTENT` | variable | No | `uptime.yml` | Expected page content for uptime check |
 | `SITE_TIMEOUT_MS` | variable | No | `uptime.yml` | Timeout for uptime check (default 10000) |
 | `RPC_TIMEOUT_MS` | variable | No | `rpc-health.yml` | RPC health check timeout (default 10000) |
+| `RPC_PROBE_ATTEMPTS` | variable | No | `rpc-health.yml` | Attempts per endpoint before an outage is reported (default 3) |
+| `RPC_RETRY_BASE_MS` | variable | No | `rpc-health.yml` | Base exponential backoff between attempts (default 1000) |
 | `SOROBAN_RPC_URL` | secret | No | `rpc-health.yml` | Primary Soroban RPC endpoint |
 | `SOROBAN_RPC_FALLBACK_URL` | secret | No | `rpc-health.yml` | Fallback Soroban RPC endpoint |
 | `SOROBAN_RPC_URLS` | secret | No | `rpc-health.yml` | Comma-separated RPC endpoints |
