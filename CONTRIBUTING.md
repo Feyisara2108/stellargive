@@ -20,7 +20,9 @@ Examples:
 
 ### Frontend Setup (Node.js)
 
-We enforce a consistent Node.js version using `.nvmrc` located in the `frontend` directory.
+We enforce a consistent Node.js version — **Node.js 22 LTS** — using `.nvmrc` located in the
+`frontend` directory. CI (`actions/setup-node` with `node-version-file: frontend/.nvmrc`), the
+Docker image, and `engines.node` in `frontend/package.json` all follow the same version.
 
 ```bash
 git clone https://github.com/Feyisara2108/stellargive.git

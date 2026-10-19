@@ -4,13 +4,76 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
+  # Build and scan (never push) on PRs so Dockerfile breakage is caught before
+  # merge rather than after (#1102).
+  pull_request:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/docker-publish.yml"
+
+# Superseded PR runs are cancelled; push runs get a unique group (run_id) so a
+# main/tag publish is never queued behind or dropped for another one.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/stellargive-frontend
+  # NEXT_PUBLIC_* values are inlined into the client bundle at build time, so
+  # they are baked into the image here from repository *variables* (public
+  # values only — never secrets). See docs/DEPLOYMENT.md (#1099).
+  BUILD_ARGS: |
+    NEXT_PUBLIC_SOROBAN_RPC_URL=${{ vars.NEXT_PUBLIC_SOROBAN_RPC_URL }}
+    NEXT_PUBLIC_NETWORK_PASSPHRASE=${{ vars.NEXT_PUBLIC_NETWORK_PASSPHRASE }}
+    NEXT_PUBLIC_CONTRACT_ID=${{ vars.NEXT_PUBLIC_CONTRACT_ID }}
+    NEXT_PUBLIC_USDC_CONTRACT_ID=${{ vars.NEXT_PUBLIC_USDC_CONTRACT_ID }}
+    NEXT_PUBLIC_SENTRY_DSN=${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
+    NEXT_PUBLIC_APP_URL=${{ vars.NEXT_PUBLIC_APP_URL }}
 
 jobs:
+  # PR-only: build with Buildx and scan with Trivy. No registry login, no push,
+  # no signing, no write permissions, and no secrets.
+  build-pr:
+    name: Build & scan Docker image (PR)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build Docker image (local only, not pushed)
+        uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85 # v6.7.0
+        with:
+          context: frontend
+          file: frontend/Dockerfile
+          load: true
+          push: false
+          tags: stellargive-frontend:pr-${{ github.event.pull_request.number }}
+          build-args: ${{ env.BUILD_ARGS }}
+          # Read the cache main populates (PRs can read the base branch's GHA
+          # cache). Writing back is skipped: PR cache entries are scoped to the
+          # PR ref, so exporting them would cost time without helping main.
+          cache-from: type=gha,scope=stellargive-frontend
+
+      - name: Scan Docker image with Trivy
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: stellargive-frontend:pr-${{ github.event.pull_request.number }}
+          format: 'table'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '1'
+
   build-and-push:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -62,6 +125,7 @@ jobs:
           push: false
           tags: ${{ env.IMAGE }}:${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: ${{ env.BUILD_ARGS }}
           cache-from: type=gha,scope=stellargive-frontend
           cache-to: type=gha,mode=max,scope=stellargive-frontend
           secrets: |
@@ -92,6 +156,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: ${{ env.BUILD_ARGS }}
           cache-from: type=gha,scope=stellargive-frontend
           cache-to: type=gha,mode=max,scope=stellargive-frontend
           secrets: |
