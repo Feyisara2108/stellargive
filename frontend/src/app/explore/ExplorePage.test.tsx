@@ -188,6 +188,30 @@ describe("ExplorePage - Integrated Search & Hydration", () => {
   });
 });
 
+describe("ExplorePage - Category counts (#1090)", () => {
+  it("counts 'other' and empty categories under Uncategorized, matching its filter", async () => {
+    mockState.campaigns = [
+      buildCampaign({ id: 1n, title: "Other One", category: "other" }),
+      buildCampaign({ id: 2n, title: "Blank One", category: "" }),
+      buildCampaign({ id: 3n, title: "Shouty Other", category: " Other " }),
+      buildCampaign({ id: 4n, title: "Food One", category: "food" }),
+    ];
+    renderPage();
+
+    const select = (await screen.findByLabelText("Select Category")) as HTMLSelectElement;
+    const option = (value: string) =>
+      Array.from(select.options).find((o) => o.value === value)?.textContent;
+    expect(option("uncategorized")).toBe("Uncategorized (3)");
+    expect(option("food")).toBe("Food (1)");
+
+    fireEvent.change(select, { target: { value: "uncategorized" } });
+    await waitFor(() => {
+      expect(screen.getAllByTestId("campaign-card")).toHaveLength(3);
+    });
+    expect(screen.queryByText("Food One")).not.toBeInTheDocument();
+  });
+});
+
 describe("ExplorePage - Saved view", () => {
   beforeEach(() => {
     window.localStorage.clear();

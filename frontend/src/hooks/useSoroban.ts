@@ -29,26 +29,7 @@ import {
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useWallet } from "@/lib/WalletProvider";
 import { toRawAmount } from "@/utils/format";
-import {
-  CONTRACT_ERROR_CODES,
-  EXCEEDS_DONOR_CAP_MESSAGE,
-  INVALID_SHARES_MESSAGE,
-  getContractErrorCode,
-} from "@/lib/contractErrors";
-import { TOTAL_SHARE_BPS, validateBeneficiaries } from "@/lib/beneficiaries";
-
-/**
- * The Stellar SDK (and everything in `@/lib/soroban` built on it) is the bulk of
- * the client bundle. Hooks load it when a query or mutation first runs instead
- * of at import time, so a route that renders a shell before its data — or never
- * touches the chain at all (FAQ) — doesn't ship it in its first-load JS.
- */
-// Memoized so concurrent first calls share one import (vitest's module mocks can
-// otherwise hand a racing second `import()` the real module).
-let sorobanModule: Promise<typeof import("@/lib/soroban")> | undefined;
-let sdkModule: Promise<typeof import("@stellar/stellar-sdk")> | undefined;
-const loadSoroban = () => (sorobanModule ??= import("@/lib/soroban"));
-const loadSdk = () => (sdkModule ??= import("@stellar/stellar-sdk"));
+import { NO_IMAGE_METADATA_URI } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
 // Selector Memoization & Referential Stability Utilities
@@ -479,7 +460,7 @@ export function useCreateCampaign() {
         beneficiariesVec, // 2. beneficiaries: Vec<(Address, u32)>
         nativeToScVal(params.title, { type: "string" }), // 3. title: String
         nativeToScVal(params.description, { type: "string" }), // 4. description: String
-        nativeToScVal(params.metadataUri || "https://example.com", { type: "string" }), // 5. metadata_uri: String
+        nativeToScVal(params.metadataUri || NO_IMAGE_METADATA_URI, { type: "string" }), // 5. metadata_uri: String
         nativeToScVal(params.category || "relief", { type: "symbol" }), // 6. category: Symbol
         nativeToScVal(toStroops(params.targetAmount), { type: "i128" }), // 7. target_amount: i128
         nativeToScVal(BigInt(params.deadline), { type: "u64" }), // 8. deadline: u64

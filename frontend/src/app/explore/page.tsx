@@ -24,19 +24,207 @@ import type { CategoryKey } from "@/components/CategorySelector";
 import { Compass, Loader2 } from "lucide-react";
 import { CampaignSkeletonGrid } from "@/components/CampaignSkeleton";
 import { EmptyState } from "@/components/ui/empty-state";
-import type { Campaign } from "@/lib/soroban";
-import {
-  PAGE_SIZE,
-  STATUS_TABS,
-  RESULTS_PANEL_ID,
-  matchesCategory,
-  sortCampaigns,
-  type ViewMode,
-} from "./exploreUtils";
-import { useExploreUrlState } from "./useExploreUrlState";
-import { ExploreFilters } from "./ExploreFilters";
-import { CampaignGridView, CampaignListView } from "./CampaignVirtualViews";
-import { ExploreErrorState, SavedEmptyState } from "./ExploreResultStates";
+import type { Campaign, TokenMetadata } from "@/lib/soroban";
+
+// ---------------------------------------------------------------------------
+// Virtualisation constants
+// ---------------------------------------------------------------------------
+/** Estimated card height (grid mode). Generous to avoid clipping. */
+const GRID_CARD_HEIGHT = 340;
+/** Estimated row height (list mode). */
+const LIST_CARD_HEIGHT = 160;
+/** gap-6 = 1.5rem = 24px */
+const GRID_GAP = 24;
+
+// ---------------------------------------------------------------------------
+// Responsive column count — mirrors Tailwind md/lg breakpoints.
+// ---------------------------------------------------------------------------
+function useColumnCount(): number {
+  const getCount = useCallback(() => {
+    if (typeof window === "undefined") return 1;
+    if (window.matchMedia("(min-width: 1024px)").matches) return 3;
+    if (window.matchMedia("(min-width: 768px)").matches) return 2;
+    return 1;
+  }, []);
+
+  const [columns, setColumns] = useState(getCount);
+
+  useEffect(() => {
+    const mdMq = window.matchMedia("(min-width: 768px)");
+    const lgMq = window.matchMedia("(min-width: 1024px)");
+    const update = () => setColumns(getCount());
+    mdMq.addEventListener("change", update);
+    lgMq.addEventListener("change", update);
+    return () => {
+      mdMq.removeEventListener("change", update);
+      lgMq.removeEventListener("change", update);
+    };
+  }, [getCount]);
+
+  return columns;
+}
+
+// ---------------------------------------------------------------------------
+// ResizeObserver-based width measurement — avoids adding AutoSizer as a dep.
+// ---------------------------------------------------------------------------
+function useContainerWidth(ref: React.RefObject<HTMLDivElement>): number {
+  const [width, setWidth] = useState(0);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    setWidth(el.getBoundingClientRect().width);
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(([entry]) => {
+      if (entry) setWidth(entry.contentRect.width);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref]);
+
+  return width;
+}
+
+// ---------------------------------------------------------------------------
+// Grid row renderer — up to `columnCount` cards per row.
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Grid row renderer — up to `columnCount` cards per row.
+// ---------------------------------------------------------------------------
+interface GridRowProps {
+  rows: { campaign: Campaign; tokenMeta?: TokenMetadata; detailHrefSearch: string }[][];
+  columnCount: number;
+  listWidth: number;
+  isRefreshing: boolean;
+}
+
+function GridRow({
+  index,
+  style,
+  rows,
+  columnCount,
+  listWidth,
+  isRefreshing,
+}: RowComponentProps<GridRowProps>) {
+  const row = rows[index];
+  if (!row) return null;
+
+  const cellWidth = listWidth > 0 ? (listWidth - GRID_GAP * (columnCount - 1)) / columnCount : 0;
+
+  return (
+    <div role="row" style={{ ...style, display: "flex", gap: GRID_GAP, paddingBottom: GRID_GAP }}>
+      {row.map(({ campaign, tokenMeta, detailHrefSearch }) => (
+        <div
+          key={campaign.id.toString()}
+          role="gridcell"
+          style={{
+            width: cellWidth,
+            flexShrink: 0,
+            opacity: isRefreshing ? 0.5 : 1,
+            transition: "opacity 200ms",
+          }}
+        >
+          <CampaignCard
+            campaign={campaign}
+            preloadedTokenMeta={tokenMeta}
+            detailHrefSearch={detailHrefSearch}
+          />
+        </div>
+      ))}
+      {Array.from({ length: columnCount - row.length }).map((_, i) => (
+        <div
+          key={`phantom-${i}`}
+          role="presentation"
+          aria-hidden="true"
+          style={{ width: cellWidth, flexShrink: 0 }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// List row renderer — single card per row.
+// ---------------------------------------------------------------------------
+interface ListRowProps {
+  campaigns: { campaign: Campaign; tokenMeta?: TokenMetadata; detailHrefSearch: string }[];
+  isRefreshing: boolean;
+}
+
+function ListRow({ index, style, campaigns, isRefreshing }: RowComponentProps<ListRowProps>) {
+  const item = campaigns[index];
+  if (!item) return null;
+  return (
+    <div
+      role="row"
+      style={{
+        ...style,
+        paddingBottom: GRID_GAP,
+        opacity: isRefreshing ? 0.5 : 1,
+        transition: "opacity 200ms",
+      }}
+    >
+      <div role="gridcell">
+        <CampaignCard
+          campaign={item.campaign}
+          preloadedTokenMeta={item.tokenMeta}
+          detailHrefSearch={item.detailHrefSearch}
+        />
+      </div>
+    </div>
+  );
+}
+
+const PAGE_SIZE = 9;
+
+function isCategoryKey(value: string | null): value is CategoryKey {
+  return value !== null && (CATEGORIES as readonly string[]).includes(value);
+}
+
+/**
+ * Mirrors CampaignCard's badge logic: a campaign with an empty or "other"
+ * category is labelled "Uncategorized". Both the filter and the per-tab counts
+ * go through this so they can never disagree (#1090).
+ */
+function campaignCategoryKey(campaign: Campaign): string {
+  const value = (campaign.category ?? "").trim().toLowerCase();
+  return value === "" || value === "other" ? "uncategorized" : value;
+}
+
+function matchesCategory(campaign: Campaign, category: CategoryKey): boolean {
+  if (category === "all") return true;
+  return campaignCategoryKey(campaign) === category;
+}
+
+function sortCampaigns(campaigns: Campaign[], sortBy: SortKey): Campaign[] {
+  const sorted = [...campaigns];
+  switch (sortBy) {
+    case "newest":
+      return sorted.sort((a, b) => Number(b.deadline) - Number(a.deadline));
+    case "ending-soon":
+      return sorted.sort((a, b) => Number(a.deadline) - Number(b.deadline));
+    case "most-funded":
+    case "near-goal": {
+      const progress = (c: Campaign) =>
+        c.target_amount === 0n ? 0 : Number((c.raised_amount * 10_000n) / c.target_amount);
+      return sorted.sort((a, b) => progress(b) - progress(a));
+    }
+    case "most-raised":
+      return sorted.sort((a, b) => Number(b.raised_amount) - Number(a.raised_amount));
+    case "trending": {
+      const now = Date.now() / 1000;
+      const trendingScore = (c: Campaign) => {
+        const progress =
+          c.target_amount === 0n ? 0 : Number(c.raised_amount) / Number(c.target_amount);
+        const daysLeft = Math.max((Number(c.deadline) - now) / 86400, 0.1);
+        return progress / daysLeft;
+      };
+      return sorted.sort((a, b) => trendingScore(b) - trendingScore(a));
+    }
+    default:
+      return sorted;
+  }
+}
 
 const EMPTY_CAMPAIGNS: Campaign[] = [];
 
@@ -68,7 +256,7 @@ function ExploreContent() {
   const categoryCounts = useMemo(() => {
     const counts: Partial<Record<CategoryKey, number>> = { all: campaigns.length };
     for (const c of campaigns) {
-      const cat = (c.category || "uncategorized") as CategoryKey;
+      const cat = campaignCategoryKey(c) as CategoryKey;
       counts[cat] = (counts[cat] ?? 0) + 1;
     }
     return counts;

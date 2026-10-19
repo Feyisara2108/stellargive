@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 const sentry = vi.hoisted(() => ({
   init: vi.fn(),
   captureException: vi.fn(),
+  getClient: vi.fn(),
+  captureRouterTransitionStart: vi.fn(),
 }));
 
 vi.mock("@sentry/nextjs", () => sentry);
@@ -139,17 +141,34 @@ describe("preference changes take effect dynamically", () => {
   });
 });
 
-describe("client initialization", () => {
-  async function loadClientConfig() {
+describe("client initialization (instrumentation-client.ts)", () => {
+  async function loadClientInstrumentation() {
     vi.resetModules();
-    await import("../../sentry.client.config");
+    await import("../instrumentation-client");
   }
 
-  it("passes the DSN, environment, and release to Sentry.init", async () => {
+  it("does not start Sentry before the visitor has consented", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SENTRY_DSN", "https://key@o0.ingest.sentry.io/1");
+
+    await loadClientInstrumentation();
+
+    expect(sentry.init).not.toHaveBeenCalled();
+  });
+
+  it("does not start Sentry when consent was declined", async () => {
+    localStorage.setItem(CONSENT_KEY, "declined");
+
+    await loadClientInstrumentation();
+
+    expect(sentry.init).not.toHaveBeenCalled();
+  });
+
+  it("starts Sentry with the DSN, environment, and release for returning consenters", async () => {
+    localStorage.setItem(CONSENT_KEY, "accepted");
     vi.stubEnv("NEXT_PUBLIC_SENTRY_DSN", "https://key@o0.ingest.sentry.io/1");
     vi.stubEnv("SENTRY_RELEASE", "stellargive@1.2.3");
 
-    await loadClientConfig();
+    await loadClientInstrumentation();
 
     expect(sentry.init).toHaveBeenCalledTimes(1);
     expect(sentry.init).toHaveBeenCalledWith(
@@ -162,10 +181,45 @@ describe("client initialization", () => {
   });
 
   it("leaves the DSN unset when none is configured, so the SDK stays disabled", async () => {
+    localStorage.setItem(CONSENT_KEY, "accepted");
     vi.stubEnv("NEXT_PUBLIC_SENTRY_DSN", undefined);
 
-    await loadClientConfig();
+    await loadClientInstrumentation();
 
     expect(sentry.init).toHaveBeenCalledWith(expect.objectContaining({ dsn: undefined }));
+  });
+
+  it("exports the router transition hook Next.js calls on navigation", async () => {
+    vi.resetModules();
+    const mod = await import("../instrumentation-client");
+
+    expect(mod.onRouterTransitionStart).toBe(sentry.captureRouterTransitionStart);
+  });
+});
+
+describe("after initialization", () => {
+  it("does not initialise twice once a client exists", () => {
+    localStorage.setItem(CONSENT_KEY, "accepted");
+    sentry.getClient.mockReturnValueOnce({});
+
+    initAnalytics();
+
+    expect(sentry.init).not.toHaveBeenCalled();
+  });
+
+  it("drops automatically captured events once consent is revoked", () => {
+    localStorage.setItem(CONSENT_KEY, "accepted");
+    initAnalytics();
+    const { beforeSend, beforeSendTransaction } = sentry.init.mock.calls[0][0];
+    const event = { message: "boom" };
+
+    expect(beforeSend(event)).toBe(event);
+    expect(beforeSendTransaction(event)).toBe(event);
+
+    localStorage.setItem(CONSENT_KEY, "declined");
+    localStorage.setItem("stellargive_consent", "declined");
+
+    expect(beforeSend(event)).toBeNull();
+    expect(beforeSendTransaction(event)).toBeNull();
   });
 });
