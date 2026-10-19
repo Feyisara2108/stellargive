@@ -23,6 +23,7 @@ import {
   useAddToWhitelist,
   useCancelCampaign,
   useAddUpdate,
+  useGetUpdates,
   usePauseContract,
   useUnpauseContract,
   usePlatformConfig,
@@ -101,6 +102,9 @@ export function AdminPanel({ ownedCampaigns }: AdminPanelProps) {
 
   const [campaignToCancel, setCampaignToCancel] = useState<Campaign | null>(null);
   const [updateCampaign, setUpdateCampaign] = useState<Campaign | null>(null);
+  const { data: updateCampaignUpdates } = useGetUpdates(updateCampaign?.id ?? 0n, {
+    enabled: !!updateCampaign,
+  });
   const [showPauseConfirm, setShowPauseConfirm] = useState<boolean>(false);
   const [showUnpauseConfirm, setShowUnpauseConfirm] = useState<boolean>(false);
   const [pauseConfirmText, setPauseConfirmText] = useState<string>("");
@@ -547,6 +551,7 @@ export function AdminPanel({ ownedCampaigns }: AdminPanelProps) {
               addUpdateMutation={async (id, content) => {
                 await addUpdate.mutateAsync({ campaignId: BigInt(id), content });
               }}
+              updateCount={updateCampaignUpdates?.length}
             />
           )}
         </DialogContent>

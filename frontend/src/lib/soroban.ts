@@ -12,6 +12,14 @@ import {
   Operation,
 } from "@stellar/stellar-sdk";
 import { NETWORK_PASSPHRASE } from "./network";
+import { CONTRACT_ID, RPC_URL } from "./config";
+import { MAX_SIMULATION_FEE_STROOPS, STROOP_PRECISION, fromStroops, toStroops } from "./amounts";
+import { isValidAccountAddress } from "./strkey";
+import {
+  isNativeCampaign,
+  isNativeCampaignUpdate,
+  type NativeCampaign,
+} from "./bindings/stellarGive";
 // NOTE: the wallet layer (./wallet — Freighter, Albedo, …) is browser-only, so it
 // is imported lazily inside submitTransaction. This keeps the read-only
 // helpers (getCampaign, getEvents…) safe to import on the server — e.g. from a
@@ -34,16 +42,6 @@ export {
 
 export const server = new rpc.Server(RPC_URL, { allowHttp: true });
 
-export const STROOP_PRECISION = 7;
-
-/**
- * Maximum resource fee (in stroops) we expect any single contract call to
- * consume.  Transactions simulating above this threshold are flagged so the UI
- * can warn the user before they sign.  The hard cap set here is deliberately
- * generous (10 M CPU units worth of fee headroom); tighten per-call if needed.
- */
-export const MAX_SIMULATION_FEE_STROOPS = 10_000_000;
-
 /**
  * Smallest donation the contract accepts, in the token's base units. Mirrors
  * `MIN_DONATION` in contracts/stellar-give/src/lib.rs (0.1 XLM for 7-decimal
@@ -62,40 +60,6 @@ export const DEFAULT_DONATE_FEE_STROOPS = 1_000_000n;
 
 /** Inclusion fee headroom added on top of a simulated resource fee. */
 export const INCLUSION_FEE_BUFFER_STROOPS = 100_000n;
-
-export function toStroops(amount: string | number): bigint {
-  const str = amount.toString().trim();
-
-  // Reject non-numeric inputs
-  if (!/^\d+(\.\d+)?$/.test(str)) {
-    if (str.startsWith("-")) {
-      throw new Error("Invalid amount: negative values not allowed");
-    }
-    throw new Error("Invalid amount: not a number");
-  }
-
-  const parts = str.split(".");
-
-  // Reject excessive decimal places (more than 7)
-  if (parts.length > 1 && parts[1].length > STROOP_PRECISION) {
-    throw new Error(`Invalid amount: exceeds ${STROOP_PRECISION} decimal places`);
-  }
-
-  let stroops = BigInt(parts[0]) * BigInt(10 ** STROOP_PRECISION);
-  if (parts.length > 1) {
-    const decimals = parts[1].padEnd(STROOP_PRECISION, "0");
-    stroops += BigInt(decimals);
-  }
-  return stroops;
-}
-
-export function fromStroops(stroops: bigint | string | number): string {
-  const n = BigInt(stroops);
-  const intPart = (n / 10_000_000n).toString();
-  const decRaw = (n % 10_000_000n).toString().padStart(7, "0");
-  const decPart = decRaw.replace(/0+$/, "");
-  return decPart.length > 0 ? `${intPart}.${decPart}` : intPart;
-}
 
 export type CampaignStatus = "Active" | "Funded" | "Claimed" | "Expired" | "Cancelled";
 
@@ -220,9 +184,10 @@ export async function getCampaign(id: bigint): Promise<Campaign> {
   return parseCampaign(result);
 }
 
-export async function getRecentCampaigns(limit = 20): Promise<Campaign[]> {
+/** Up to `limit` campaigns in contract order, starting `offset` campaigns in. */
+export async function getRecentCampaigns(limit = 20, offset = 0): Promise<Campaign[]> {
   const campaigns: Campaign[] = [];
-  let currentOffset = 0n;
+  let currentOffset = BigInt(offset);
   const batchSize = 20;
 
   while (campaigns.length < limit) {
@@ -388,13 +353,36 @@ export async function getPlatformConfig(): Promise<PlatformConfig> {
   };
 }
 
-export async function getCampaignsPage(
-  limit: number,
-): Promise<{ campaigns: Campaign[]; hasMore: boolean }> {
-  // Fetch one extra to detect whether more campaigns exist beyond `limit`.
-  const all = await getRecentCampaigns(limit + 1);
-  const hasMore = all.length > limit;
-  return { campaigns: all.slice(0, limit), hasMore };
+export interface CampaignsPage {
+  campaigns: Campaign[];
+  hasMore: boolean;
+  /** Offset to pass for the following page. */
+  nextOffset: number;
+}
+
+/**
+ * One page of campaigns starting at `offset`. Only that page is read from the
+ * contract, so loading page N costs the same as loading page 1.
+ */
+export async function getCampaignsPage(offset: number, limit: number): Promise<CampaignsPage> {
+  // Fetch one extra to detect whether more campaigns exist beyond this page.
+  const batch = await getRecentCampaigns(limit + 1, offset);
+  const campaigns = batch.slice(0, limit);
+  return { campaigns, hasMore: batch.length > limit, nextOffset: offset + campaigns.length };
+}
+
+/**
+ * Loads specific campaigns by id (e.g. bookmarks). Campaigns the contract no
+ * longer knows about are skipped; any other failure is rethrown.
+ */
+export async function getCampaignsByIds(ids: readonly bigint[]): Promise<Campaign[]> {
+  const results = await Promise.allSettled(ids.map((id) => getCampaign(id)));
+  const campaigns: Campaign[] = [];
+  for (const result of results) {
+    if (result.status === "fulfilled") campaigns.push(result.value);
+    else if (!isCampaignNotFoundError(result.reason)) throw result.reason;
+  }
+  return campaigns;
 }
 
 export async function estimateFee(
@@ -654,21 +642,6 @@ export function dedupeClaimEvents<T extends { topic: string; txHash: string }>(e
     if (seen.has(event.txHash)) return false;
     seen.add(event.txHash);
     return true;
-  return response.events.map((event) => {
-    const topics = event.topic.map((t) => scValToNative(t));
-    const value = scValToNative(event.value);
-    // Dual-topic events (e.g. donation/received) put the UI label in topics[1];
-    // single-topic events (e.g. created) only have topics[0].
-    const topicValue = topics[1] ?? topics[0];
-    const topic = typeof topicValue === "string" ? topicValue : String(topicValue);
-    return {
-      id: event.id,
-      txHash: "txHash" in event && typeof event.txHash === "string" ? event.txHash : event.id,
-      ledger: event.ledger,
-      createdAt: event.ledgerClosedAt,
-      topic,
-      data: value,
-    };
   });
 }
 

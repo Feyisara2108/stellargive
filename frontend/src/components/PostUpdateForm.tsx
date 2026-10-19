@@ -12,9 +12,17 @@ interface PostUpdateFormProps {
    * before on-chain confirmation, so the UI feels instant.
    */
   onSubmit?: (content: string) => Promise<void> | void;
+  /**
+   * Updates the campaign already has. When known, the form shows how many of
+   * the contract's MAX_CAMPAIGN_UPDATES are used and locks at the limit.
+   */
+  updateCount?: number;
 }
 
 const MAX_CHARACTER_LIMIT = 280;
+
+/** Mirrors the cap in the contract's `add_update`; the 11th fails with `TooManyUpdates`. */
+export const MAX_CAMPAIGN_UPDATES = 10;
 
 const DRAFT_KEY_PREFIX = "stellargive_update_draft_";
 
@@ -23,6 +31,7 @@ export const PostUpdateForm: React.FC<PostUpdateFormProps> = ({
   onSuccess,
   addUpdateMutation,
   onSubmit,
+  updateCount,
 }) => {
   const [content, setContent] = useState(() => {
     try {
@@ -53,6 +62,7 @@ export const PostUpdateForm: React.FC<PostUpdateFormProps> = ({
 
   const remainingCharacters = MAX_CHARACTER_LIMIT - content.length;
   const isOverLimit = content.length > MAX_CHARACTER_LIMIT;
+  const atUpdateLimit = updateCount !== undefined && updateCount >= MAX_CAMPAIGN_UPDATES;
 
   const handleContentChange = (value: string) => {
     const nextValue =
@@ -63,7 +73,7 @@ export const PostUpdateForm: React.FC<PostUpdateFormProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedContent = content.trim();
-    if (!trimmedContent || isOverLimit) return;
+    if (!trimmedContent || isOverLimit || atUpdateLimit) return;
 
     setIsSubmitting(true);
     setError(null);
@@ -118,7 +128,23 @@ export const PostUpdateForm: React.FC<PostUpdateFormProps> = ({
 
   return (
     <div className="p-4 border rounded-lg bg-card text-card-foreground shadow-sm my-4">
-      <h3 className="text-lg font-semibold mb-2">Post a Campaign Update</h3>
+      <div className="flex items-baseline justify-between gap-2 mb-2">
+        <h3 className="text-lg font-semibold">Post a Campaign Update</h3>
+        {updateCount !== undefined && (
+          <span
+            className={`text-sm ${atUpdateLimit ? "text-destructive font-medium" : "text-muted-foreground"}`}
+            data-testid="update-count"
+          >
+            {Math.min(updateCount, MAX_CAMPAIGN_UPDATES)} of {MAX_CAMPAIGN_UPDATES} updates used
+          </span>
+        )}
+      </div>
+      {atUpdateLimit && (
+        <p className="text-sm text-muted-foreground mb-3" role="status" id="update-limit-reached">
+          This campaign has reached the limit of {MAX_CAMPAIGN_UPDATES} updates allowed by the
+          contract, so no more updates can be posted.
+        </p>
+      )}
       <form onSubmit={handleSubmit} className="space-y-3">
         <div>
           <textarea
@@ -128,9 +154,11 @@ export const PostUpdateForm: React.FC<PostUpdateFormProps> = ({
             placeholder="Tell your backers what's happening..."
             value={content}
             onChange={(e) => handleContentChange(e.target.value)}
-            disabled={isSubmitting}
+            disabled={isSubmitting || atUpdateLimit}
             aria-label="Campaign update content"
-            aria-describedby="update-char-count"
+            aria-describedby={
+              atUpdateLimit ? "update-char-count update-limit-reached" : "update-char-count"
+            }
           />
           <div className="flex justify-between items-center mt-1 text-sm gap-2">
             <span
@@ -155,7 +183,7 @@ export const PostUpdateForm: React.FC<PostUpdateFormProps> = ({
         <button
           type="submit"
           className="px-4 py-2 bg-primary text-primary-foreground rounded-md font-medium disabled:opacity-50"
-          disabled={isSubmitting || !content.trim() || isOverLimit}
+          disabled={isSubmitting || !content.trim() || isOverLimit || atUpdateLimit}
         >
           {isSubmitting ? "Submitting to Soroban..." : "Post Update"}
         </button>
