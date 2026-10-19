@@ -13,6 +13,12 @@ import {
   type MilestonePercent,
 } from "@/hooks/useSoroban";
 import type { Campaign } from "@/lib/soroban";
+import { Campaign } from "@/lib/soroban";
+import {
+  CONTRACT_ERROR_CODES,
+  EXCEEDS_DONOR_CAP_MESSAGE,
+  getContractErrorCode,
+} from "@/lib/contractErrors";
 import { useWallet } from "@/lib/WalletProvider";
 import { WRONG_NETWORK_MESSAGE } from "@/lib/network";
 import { formatTokenAmount, toRawAmount } from "@/utils/format";
@@ -56,6 +62,9 @@ function mapOnChainError(error: unknown): string | null {
   ).trim();
   if (msg.includes("User declined") || msg.includes("cancelled") || msg.includes("User rejected")) {
     return null; // user-initiated, no inline error needed
+  }
+  if (getContractErrorCode(msg) === CONTRACT_ERROR_CODES.ExceedsDonorCap) {
+    return EXCEEDS_DONOR_CAP_MESSAGE;
   }
   if (msg.includes("Simulation failed") || msg.includes("Transaction failed")) {
     return "The transaction was rejected on-chain. Check the donation amount and try again.";
@@ -113,6 +122,10 @@ export function DonateModal({
   const symbol = tokenMeta?.symbol ?? "XLM";
   const divisor = 10 ** decimals;
   const minDonation = 1 / divisor;
+  // The cap is cumulative per donor on-chain; a single amount above it can be
+  // rejected locally, anything closer is caught by the contract (ExceedsDonorCap).
+  const maxPerDonor =
+    campaign.max_per_donor != null ? Number(campaign.max_per_donor) / divisor : null;
 
   const target = Number(displayCampaign.target_amount) / divisor;
   const raised = Number(displayCampaign.raised_amount) / divisor;
@@ -284,9 +297,7 @@ export function DonateModal({
             </TooltipTrigger>
             {(!address || isWrongNetwork) && (
               <TooltipContent side="top" id="donate-disabled-reason">
-                {!address
-                  ? "Connect your wallet to donate"
-                  : WRONG_NETWORK_MESSAGE}
+                {!address ? "Connect your wallet to donate" : WRONG_NETWORK_MESSAGE}
               </TooltipContent>
             )}
           </Tooltip>
@@ -347,6 +358,8 @@ export function DonateModal({
                       if (num < minDonation)
                         return `Minimum donation is ${formatNum(minDonation)} ${symbol}`;
                       if (num > remaining) return "This exceeds the remaining goal";
+                      if (maxPerDonor !== null && num > maxPerDonor)
+                        return EXCEEDS_DONOR_CAP_MESSAGE;
                       if (balanceTokens !== null && num > balanceTokens)
                         return `Insufficient balance — you have ${formatNum(balanceTokens)} ${symbol}`;
                       return true;
@@ -434,6 +447,11 @@ export function DonateModal({
                     ) : null}
                   </span>
                 </div>
+                {maxPerDonor !== null && (
+                  <span className="text-xs text-muted-foreground">
+                    Maximum per donor: {formatNum(maxPerDonor)} {symbol}
+                  </span>
+                )}
                 {errors.amount && (
                   <span
                     id="amount-error"

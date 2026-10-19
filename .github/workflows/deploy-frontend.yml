@@ -58,11 +58,11 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           envs: IMAGE,GITHUB_REF_NAME
+          # NEXT_PUBLIC_* config is baked into the image at build time by
+          # docker-publish.yml; passing it to `docker run` has no effect on the
+          # already-built client bundle, so none is passed here (#1099).
           script: |
             TAG=${GITHUB_REF_NAME#v}
-            export NEXT_PUBLIC_SOROBAN_RPC_URL="${{ secrets.NEXT_PUBLIC_SOROBAN_RPC_URL }}"
-            export NEXT_PUBLIC_NETWORK_PASSPHRASE="${{ secrets.NEXT_PUBLIC_NETWORK_PASSPHRASE }}"
-            export NEXT_PUBLIC_CONTRACT_ID="${{ secrets.NEXT_PUBLIC_CONTRACT_ID }}"
             docker pull ${IMAGE}:${TAG}
             docker stop stellargive-frontend || true
             docker rm stellargive-frontend || true
@@ -71,9 +71,6 @@ jobs:
               --restart unless-stopped \
               -p 3000:3000 \
               -e NODE_ENV=production \
-              -e NEXT_PUBLIC_SOROBAN_RPC_URL \
-              -e NEXT_PUBLIC_NETWORK_PASSPHRASE \
-              -e NEXT_PUBLIC_CONTRACT_ID \
               ${IMAGE}:${TAG}
 
       - name: Verify deployment

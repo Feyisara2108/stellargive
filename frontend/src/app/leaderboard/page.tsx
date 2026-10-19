@@ -14,7 +14,23 @@ import { fromStroops } from "@/lib/amounts";
 import { formatEventWindow, parseDonationEvent } from "@/lib/eventData";
 import { toCSV, downloadTextFile } from "@/utils/format";
 import { Trophy, ArrowDown, Download, User } from "lucide-react";
+import { useEvents, useResolvedName, useTokenMetadataBatch } from "@/hooks/useSoroban";
+import { toCSV, downloadTextFile, formatTokenAmount } from "@/utils/format";
+import { Trophy, ArrowDown, Download } from "lucide-react";
 import { useWallet } from "@/lib/WalletProvider";
+import { NATIVE_XLM_CONTRACT_ID } from "@/lib/tokens";
+import {
+  describeToken,
+  formatTokenTotals,
+  tokensNeedingMetadata,
+  type TokenDisplay,
+} from "@/lib/tokenTotals";
+import {
+  aggregateDonorsByToken,
+  pickLeaderboardToken,
+  type DonorTotal,
+  type TimeRange,
+} from "./aggregateDonors";
 
 // Rankings are aggregated client-side from every donation event the RPC still
 // retains, paged with the RPC cursor (see `getEventHistory`) instead of a single
@@ -102,6 +118,8 @@ function describePeriod(
   }
   return formatEventWindow(start, windowEnd);
 }
+/** How many on-chain events to aggregate the ranking from. */
+const EVENT_LIMIT = 200;
 
 /** Medal colours for the podium; every other rank uses the muted badge. */
 const RANK_STYLES: Record<number, string> = {
@@ -126,10 +144,12 @@ function LeaderboardRow({
   entry,
   rank,
   isCurrentUser,
+  token,
 }: {
   entry: DonorTotal;
   rank: number;
   isCurrentUser: boolean;
+  token: TokenDisplay;
 }) {
   const { data: resolvedName } = useResolvedName(entry.donor);
 
@@ -154,7 +174,9 @@ function LeaderboardRow({
         </div>
       </div>
       <div className="shrink-0 text-right">
-        <p className="font-bold text-primary tabular-nums">{fromStroops(entry.total)} XLM</p>
+        <p className="font-bold text-primary tabular-nums">
+          {formatTokenAmount(entry.total, token.decimals)} {token.symbol}
+        </p>
         <p className="text-xs text-muted-foreground">
           {donationLabel} · {campaignLabel}
         </p>
@@ -180,12 +202,52 @@ function LeaderboardContent() {
   );
 
   const totalDonated = useMemo(() => donors.reduce((sum, d) => sum + d.total, 0n), [donors]);
+  const donorsByToken = useMemo(
+    () => aggregateDonorsByToken(events, timeRange),
+    [events, timeRange],
+  );
+  const tokenIds = useMemo(() => Array.from(donorsByToken.keys()), [donorsByToken]);
+  const { data: tokenMetas } = useTokenMetadataBatch(tokensNeedingMetadata(tokenIds));
 
-  const handleRangeChange = useCallback(
-    (range: TimeRange) => {
-      router.push(`/leaderboard?range=${range}`);
+  // Amounts in different tokens can't be compared, so donors are ranked within one token.
+  const selectedToken = pickLeaderboardToken(
+    donorsByToken,
+    searchParams.get("token"),
+    NATIVE_XLM_CONTRACT_ID,
+  );
+  const donors = useMemo(
+    () => (selectedToken === null ? [] : (donorsByToken.get(selectedToken) ?? [])),
+    [donorsByToken, selectedToken],
+  );
+  const tokenDisplay = describeToken(selectedToken ?? "", tokenMetas?.[selectedToken ?? ""]);
+
+  // One figure per token; never a combined total.
+  const totalsByToken = useMemo(
+    () =>
+      formatTokenTotals(
+        new Map(
+          Array.from(donorsByToken, ([token, ranked]) => [
+            token,
+            ranked.reduce((sum, d) => sum + d.total, 0n),
+          ]),
+        ),
+        tokenMetas ?? {},
+      ),
+    [donorsByToken, tokenMetas],
+  );
+
+  const navigate = useCallback(
+    (range: TimeRange, token: string | null) => {
+      const params = new URLSearchParams({ range });
+      if (token) params.set("token", token);
+      router.push(`/leaderboard?${params.toString()}`);
     },
     [router],
+  );
+
+  const handleRangeChange = useCallback(
+    (range: TimeRange) => navigate(range, searchParams.get("token")),
+    [navigate, searchParams],
   );
 
   const scrollToMyRank = useCallback(() => {
@@ -200,18 +262,24 @@ function LeaderboardContent() {
   const myRank = address ? donors.findIndex((d) => d.donor === address) + 1 : null;
 
   const handleExportCSV = useCallback(() => {
-    const headers = ["Rank", "Donor Address", "Total Donated (XLM)", "Donations", "Campaigns"];
+    const headers = [
+      "Rank",
+      "Donor Address",
+      `Total Donated (${tokenDisplay.symbol})`,
+      "Donations",
+      "Campaigns",
+    ];
     const rows = donors.map((d, index) => [
       index + 1,
       d.donor,
-      fromStroops(d.total),
+      formatTokenAmount(d.total, tokenDisplay.decimals),
       d.donations,
       d.campaigns,
     ]);
     const csv = toCSV(headers, rows);
     const date = new Date().toISOString().slice(0, 10);
     downloadTextFile(`stellargive-leaderboard-${timeRange}-${date}.csv`, csv);
-  }, [donors, timeRange]);
+  }, [donors, timeRange, tokenDisplay.symbol, tokenDisplay.decimals]);
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -250,6 +318,24 @@ function LeaderboardContent() {
               </Button>
             ))}
           </div>
+          {tokenIds.length > 1 && (
+            <>
+              <span className="ml-2 text-sm text-muted-foreground">Token:</span>
+              <div className="flex gap-1" role="group" aria-label="Rank by token">
+                {tokenIds.map((token) => (
+                  <Button
+                    key={token}
+                    variant={token === selectedToken ? "default" : "outline"}
+                    size="sm"
+                    aria-pressed={token === selectedToken}
+                    onClick={() => navigate(timeRange, token)}
+                  >
+                    {describeToken(token, tokenMetas?.[token]).symbol}
+                  </Button>
+                ))}
+              </div>
+            </>
+          )}
           {myRank && (
             <Button variant="outline" size="sm" onClick={scrollToMyRank} className="ml-auto">
               <ArrowDown className="w-4 h-4 mr-1.5" />
@@ -295,7 +381,14 @@ function LeaderboardContent() {
                 </div>
                 <div>
                   <p className="text-muted-foreground">Total donated</p>
-                  <p className="text-2xl font-bold tabular-nums">{fromStroops(totalDonated)} XLM</p>
+                  <ul
+                    className="text-2xl font-bold tabular-nums"
+                    aria-label="Total donated per token"
+                  >
+                    {totalsByToken.map((label) => (
+                      <li key={label}>{label}</li>
+                    ))}
+                  </ul>
                 </div>
                 {myRank && (
                   <div>
@@ -318,6 +411,7 @@ function LeaderboardContent() {
                     entry={entry}
                     rank={index + 1}
                     isCurrentUser={address ? entry.donor === address : false}
+                    token={tokenDisplay}
                   />
                 ))}
               </ol>
@@ -327,6 +421,9 @@ function LeaderboardContent() {
               Aggregated from every on-chain donation event the Soroban RPC still retains (a rolling
               window of about a week), so &ldquo;All Time&rdquo; means all retained history.
               {history?.truncated && " Only the oldest part of the window could be scanned."}
+              Aggregated from the most recent {EVENT_LIMIT} on-chain contract events.
+              {tokenIds.length > 1 &&
+                ` Ranked by donations in ${tokenDisplay.symbol}; amounts in different tokens aren't added together.`}
             </p>
           </>
         )}

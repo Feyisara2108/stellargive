@@ -5,9 +5,35 @@ import { parseDonationEvent } from "@/lib/eventData";
 import { CONTRACT_ID } from "@/lib/config";
 import { toStroops } from "@/lib/amounts";
 import { isValidAccountAddress } from "@/lib/strkey";
+import {
+  getCampaign,
+  getRecentCampaigns,
+  getCampaignsPage,
+  submitTransaction,
+  estimateFee,
+  toStroops,
+  getEvents,
+  getUpdates,
+  getTopDonors,
+  getTotalCampaigns,
+  getPlatformConfig,
+  getSACBalance,
+  resolveAddressName,
+  Campaign,
+  CampaignBeneficiary,
+  SorobanEvent,
+  SubmitTransactionResult,
+} from "@/lib/soroban";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useWallet } from "@/lib/WalletProvider";
 import { toRawAmount } from "@/utils/format";
+import {
+  CONTRACT_ERROR_CODES,
+  EXCEEDS_DONOR_CAP_MESSAGE,
+  INVALID_SHARES_MESSAGE,
+  getContractErrorCode,
+} from "@/lib/contractErrors";
+import { TOTAL_SHARE_BPS, validateBeneficiaries } from "@/lib/beneficiaries";
 
 /**
  * The Stellar SDK (and everything in `@/lib/soroban` built on it) is the bulk of
@@ -356,6 +382,12 @@ export function getCrossedMilestones(
 }
 
 export function mapTransactionError(error: unknown): string {
+  switch (getContractErrorCode(error)) {
+    case CONTRACT_ERROR_CODES.ExceedsDonorCap:
+      return EXCEEDS_DONOR_CAP_MESSAGE;
+    case CONTRACT_ERROR_CODES.InvalidShares:
+      return INVALID_SHARES_MESSAGE;
+  }
   const msg =
     error instanceof Error
       ? error.message
@@ -390,6 +422,11 @@ export function useCreateCampaign() {
   return useMutation({
     mutationFn: async (params: {
       beneficiary: string;
+      /**
+       * Full payout split with basis-point shares (10000 = 100%). When omitted,
+       * `beneficiary` receives the whole amount.
+       */
+      beneficiaries?: CampaignBeneficiary[];
       title: string;
       description: string;
       category?: string;
@@ -417,6 +454,23 @@ export function useCreateCampaign() {
           nativeToScVal(10000, { type: "u32" }),
         ]),
       ]);
+      const beneficiaries =
+        params.beneficiaries && params.beneficiaries.length > 0
+          ? params.beneficiaries
+          : [{ address: params.beneficiary, share: TOTAL_SHARE_BPS }];
+      const beneficiariesError = validateBeneficiaries(beneficiaries);
+      if (beneficiariesError) throw new Error(beneficiariesError);
+
+      // The contract's beneficiaries argument is Vec<(Address, u32)>: one
+      // [Address, basis-point share] tuple per beneficiary.
+      const beneficiariesVec = xdr.ScVal.scvVec(
+        beneficiaries.map((b) =>
+          xdr.ScVal.scvVec([
+            new Address(b.address).toScVal(),
+            nativeToScVal(b.share, { type: "u32" }),
+          ]),
+        ),
+      );
 
       const args = [
         new Address(address).toScVal(), // 1. creator: Address
@@ -538,6 +592,7 @@ export function useDonate() {
       });
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
       queryClient.invalidateQueries({ queryKey: ["events"] });
+      queryClient.invalidateQueries({ queryKey: ["top-donors", variables.campaignId.toString()] });
     },
     onError: (error: unknown, variables, context) => {
       if (context?.previousCampaign) {
@@ -649,22 +704,31 @@ export function useRefundEligibility(campaignId: bigint, isCancelled: boolean) {
   });
 }
 
+/**
+ * Campaign counts plus the amount raised per accepted token. Campaigns can
+ * accept different tokens with different decimals, so raised amounts are kept
+ * per token contract id (as decimal strings, since the query cache is persisted
+ * as JSON) and never summed into one figure.
+ */
 export function usePlatformStats() {
   return useQuery({
     queryKey: ["platform-stats"],
     queryFn: async () => {
       const { getTotalCampaigns, getRecentCampaigns } = await loadSoroban();
       const totalCampaigns = await getTotalCampaigns();
-      let totalRaised = BigInt(0);
+      const raised = new Map<string, bigint>();
       let activeCampaigns = 0;
       if (totalCampaigns > 0n) {
         const campaigns = await getRecentCampaigns(Number(totalCampaigns));
         for (const c of campaigns) {
-          totalRaised += c.raised_amount;
+          raised.set(c.accepted_token, (raised.get(c.accepted_token) ?? 0n) + c.raised_amount);
           if (c.status === "Active") activeCampaigns++;
         }
       }
-      return { totalCampaigns, totalRaised: totalRaised.toString(), activeCampaigns };
+      const raisedByToken: Record<string, string> = Object.fromEntries(
+        Array.from(raised, ([token, amount]) => [token, amount.toString()]),
+      );
+      return { totalCampaigns, raisedByToken, activeCampaigns };
     },
     staleTime: 60_000,
   });
@@ -786,6 +850,19 @@ export function useEvents(limit = 20) {
     },
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
+  });
+}
+
+/**
+ * The contract's top-5 donor leaderboard for a campaign. Anonymous donations
+ * are aggregated on-chain under the zero address; callers should label that
+ * entry rather than link to it.
+ */
+export function useTopDonors(campaignId: bigint) {
+  return useQuery({
+    queryKey: ["top-donors", campaignId.toString()],
+    queryFn: () => getTopDonors(campaignId),
+    staleTime: 30_000,
   });
 }
 
@@ -1128,3 +1205,8 @@ export function useXlmPrice() {
     retry: 2,
   });
 }
+// Stable public entrypoint. Keep feature code in focused hook modules.
+export * from "./campaignQueries";
+export * from "./campaignMutations";
+export * from "./events";
+export * from "./tokens";

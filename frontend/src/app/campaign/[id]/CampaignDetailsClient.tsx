@@ -1,4 +1,3 @@
-/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -38,6 +37,7 @@ const DonateModal = dynamic(
   { ssr: false },
 );
 import { AddressLink } from "@/components/AddressLink";
+import { TopDonors } from "@/components/TopDonors";
 import { sanitizeUrl } from "@/lib/sanitize";
 import type { Campaign, SorobanEvent } from "@/lib/soroban";
 import { RefundButton } from "@/components/RefundButton";
@@ -375,6 +375,15 @@ export function CampaignDetailsClient({
                     showValueLabel={true}
                   />
                 </div>
+
+                {campaign.max_per_donor != null && (
+                  <p className="text-sm text-muted-foreground">
+                    Maximum per donor:{" "}
+                    <span className="font-medium text-foreground">
+                      {formatTokenAmount(campaign.max_per_donor, 7)} XLM
+                    </span>
+                  </p>
+                )}
 
                 {showFundTheGap && (
                   <div className="flex items-center justify-between gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">

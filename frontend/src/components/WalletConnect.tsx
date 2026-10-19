@@ -1,7 +1,7 @@
 "use client";
 
 import { NATIVE_XLM_CONTRACT_ID } from "@/lib/tokens";
-import { useWallet } from "@/lib/WalletProvider";
+import { FREIGHTER_INSTALL_URL, useWallet } from "@/lib/WalletProvider";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Loader2, Wallet, LogOut, RefreshCw, ChevronDown } from "lucide-react";
@@ -60,10 +60,22 @@ export function WalletConnect() {
   const handleConnect = async () => {
     setIsConnecting(true);
     try {
-      await connect();
-      toast.success("Wallet connected!");
-    } catch (e) {
-      toast.error("Failed to connect wallet");
+      const result = await connect();
+      if (result.success) {
+        toast.success("Wallet connected!");
+      } else if (result.reason === "not-installed") {
+        toast.error("Freighter wallet not found", {
+          description: "Install the Freighter browser extension, then try connecting again.",
+          action: {
+            label: "Install Freighter",
+            onClick: () => window.open(FREIGHTER_INSTALL_URL, "_blank", "noopener,noreferrer"),
+          },
+        });
+      } else if (result.reason === "rejected") {
+        toast.error("Connection request was rejected");
+      } else {
+        toast.error("Failed to connect wallet");
+      }
     } finally {
       setIsConnecting(false);
     }
