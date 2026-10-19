@@ -8,7 +8,7 @@ import { Loader2, Wallet, LogOut, RefreshCw, ChevronDown } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { formatAddress } from "@/utils/format";
-import { getSACBalance, fromStroops } from "@/lib/soroban";
+import { fromStroops } from "@/lib/amounts";
 import * as freighter from "@stellar/freighter-api";
 
 export function WalletConnect() {
@@ -25,6 +25,9 @@ export function WalletConnect() {
     setIsLoadingBalance(true);
     setBalanceError(null);
     try {
+      // Loaded on demand: the navbar renders on every route, and the SDK behind
+      // this is only needed once a wallet is connected.
+      const { getSACBalance } = await import("@/lib/soroban");
       const balBigInt = await getSACBalance(NATIVE_XLM_CONTRACT_ID, address);
       setBalance(fromStroops(balBigInt));
     } catch (e: unknown) {

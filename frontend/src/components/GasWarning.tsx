@@ -2,7 +2,7 @@
 
 import { NATIVE_XLM_CONTRACT_ID } from "@/lib/tokens";
 import { useEffect, useId, useRef, useState } from "react";
-import { MAX_SIMULATION_FEE_STROOPS } from "@/lib/soroban";
+import { MAX_SIMULATION_FEE_STROOPS } from "@/lib/amounts";
 import { useWalletBalance } from "@/hooks/useSoroban";
 import { useWallet } from "@/lib/WalletProvider";
 import { Skeleton } from "@/components/ui/skeleton";

@@ -29,6 +29,7 @@ export function generateUpdatesArrayXdr() {
 export const handlers = [
   http.post("*/rpc", async ({ request }) => {
     const body = (await request.json()) as {
+      id?: string | number;
       method?: string;
       params?: { transaction?: string; [key: string]: unknown } & [string?];
     };

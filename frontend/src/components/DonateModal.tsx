@@ -12,6 +12,7 @@ import {
   useTokenMetadata,
   type MilestonePercent,
 } from "@/hooks/useSoroban";
+import type { Campaign } from "@/lib/soroban";
 import { Campaign } from "@/lib/soroban";
 import {
   CONTRACT_ERROR_CODES,

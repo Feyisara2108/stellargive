@@ -2,7 +2,6 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import AdminPage from "./page";
 import type { Campaign } from "@/lib/soroban";
-import { createSorobanMock } from "@/test/mockSoroban";
 
 const {
   mockUseWallet,
@@ -88,8 +87,8 @@ vi.mock("@/lib/WalletProvider", () => ({
   useWallet: () => mockUseWallet(),
 }));
 
-vi.mock("@/hooks/useSoroban", () =>
-  createSorobanMock({
+vi.mock("@/hooks/useSoroban", async () =>
+  (await import("@/test/mockSoroban")).createSorobanMock({
     useRecentCampaigns: () => mockUseRecentCampaigns(),
     useAddToWhitelist: () => mockUseAddToWhitelist(),
     useCancelCampaign: () => mockUseCancelCampaign(),

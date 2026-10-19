@@ -17,6 +17,8 @@ const resolvedNameState = vi.hoisted(() => ({
   isFetching: false,
 }));
 
+vi.mock("@/hooks/useSoroban", async () =>
+  (await import("@/test/mockSoroban")).createSorobanMock({
 vi.mock("@/hooks/useSoroban", async () => {
   const { createSorobanMock } = await import("@/test/mockSoroban");
   return createSorobanMock({

@@ -41,6 +41,7 @@ export function createSorobanMock(overrides: Record<string, unknown> = {}) {
       data: { totalCampaigns: 0n, raisedByToken: {}, activeCampaigns: 0 },
     })),
     useUniqueDonors: vi.fn(() => ({ ...idleQuery, data: 0 })),
+    useEventHistory: vi.fn(() => ({ ...idleQuery })),
     usePlatformConfig: vi.fn(() => ({ ...idleQuery })),
     useEvents: vi.fn(() => ({ ...idleQuery, data: [], refetch: vi.fn() })),
     useGetUpdates: vi.fn(() => ({ ...idleQuery, data: [] })),
@@ -63,6 +64,7 @@ export function createSorobanMock(overrides: Record<string, unknown> = {}) {
     useAddToWhitelist: vi.fn(() => ({ ...idleMutation })),
     usePauseContract: vi.fn(() => ({ ...idleMutation })),
     useUnpauseContract: vi.fn(() => ({ ...idleMutation })),
+    useSetOwner: vi.fn(() => ({ ...idleMutation })),
 
     ...overrides,
   };

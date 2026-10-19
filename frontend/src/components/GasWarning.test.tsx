@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { GasWarning, splitFee } from "./GasWarning";
-import { createSorobanMock } from "@/test/mockSoroban";
 
 // vi.mock is hoisted, so use the literal value inside the factory
 vi.mock("@/lib/soroban", () => ({
@@ -15,8 +14,8 @@ vi.mock("@/lib/WalletProvider", () => ({
 
 const walletBalance = vi.hoisted(() => ({ value: null as bigint | null }));
 
-vi.mock("@/hooks/useSoroban", () =>
-  createSorobanMock({
+vi.mock("@/hooks/useSoroban", async () =>
+  (await import("@/test/mockSoroban")).createSorobanMock({
     useWalletBalance: () => ({ data: walletBalance.value }),
   }),
 );

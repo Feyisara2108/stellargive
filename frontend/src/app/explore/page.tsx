@@ -6,6 +6,20 @@ import { Button } from "@/components/ui/button";
 import { useCampaignsPaged, useTokenMetadataBatch } from "@/hooks/useSoroban";
 import { useCampaignSearch } from "@/hooks/useCampaignSearch";
 import { useBookmarks } from "@/hooks/useBookmarks";
+import { TokenSelector } from "@/components/TokenSelector";
+import { CategorySelector, CATEGORIES, type CategoryKey } from "@/components/CategorySelector";
+import { SortSelector, SORT_OPTIONS, type SortKey } from "@/components/SortSelector";
+import {
+  Search,
+  Compass,
+  Loader2,
+  AlertTriangle,
+  RotateCw,
+  LayoutGrid,
+  List as ListIcon,
+  Bookmark,
+  Tag,
+} from "lucide-react";
 import type { CategoryKey } from "@/components/CategorySelector";
 import { Compass, Loader2 } from "lucide-react";
 import { CampaignSkeletonGrid } from "@/components/CampaignSkeleton";
@@ -192,6 +206,162 @@ function ExploreContent() {
           </p>
         </div>
 
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
+            <label htmlFor="explore-search" className="sr-only">
+              Search campaigns
+            </label>
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden="true"
+            />
+            <Input
+              id="explore-search"
+              type="search"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search by title or creator, category, description"
+              autoComplete="off"
+              className="pl-9"
+            />
+          </div>
+          <div className="w-full sm:w-auto min-w-[160px]">
+            <CategorySelector
+              value={categoryFilter}
+              onChange={setCategoryFilter}
+              counts={categoryCounts}
+            />
+          </div>
+          <div className="w-full sm:w-auto min-w-[160px]">
+            <TokenSelector
+              value={tokenFilter}
+              onChange={setTokenFilter}
+              label="Token"
+              allowCustom={false}
+            />
+          </div>
+          <div className="w-full sm:w-auto min-w-[160px]">
+            <SortSelector value={sortBy} onChange={setSortBy} />
+          </div>
+          <div className="flex items-center gap-1 border rounded-md p-0.5">
+            <button
+              type="button"
+              onClick={() => setViewMode("grid")}
+              aria-label="Grid view"
+              aria-pressed={viewMode === "grid"}
+              className={`p-1.5 rounded transition-colors ${
+                viewMode === "grid"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("list")}
+              aria-label="List view"
+              aria-pressed={viewMode === "list"}
+              className={`p-1.5 rounded transition-colors ${
+                viewMode === "list"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <ListIcon className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <button
+            type="button"
+            onClick={() => setSavedOnly((v) => !v)}
+            aria-pressed={savedOnly}
+            className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+              savedOnly
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Bookmark
+              className="h-4 w-4"
+              fill={savedOnly ? "currentColor" : "none"}
+              aria-hidden="true"
+            />
+            Saved{bookmarks.length > 0 ? ` (${bookmarks.length})` : ""}
+          </button>
+        </div>
+
+        {/* Tag filter chips (#848) — only shown when campaigns carry tags */}
+        {allUniqueTags.length > 0 && (
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-xs text-muted-foreground flex items-center gap-1">
+              <Tag className="h-3 w-3" aria-hidden="true" /> Tags:
+            </span>
+            {activeTagFilter && (
+              <button
+                type="button"
+                onClick={() => setActiveTagFilter("")}
+                className="inline-flex items-center gap-1 rounded-full border border-destructive/40 bg-destructive/10 px-2.5 py-0.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/20"
+                aria-label="Clear tag filter"
+              >
+                Clear: #{activeTagFilter} ×
+              </button>
+            )}
+            {allUniqueTags.map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => setActiveTagFilter((prev) => (prev === tag ? "" : tag))}
+                aria-pressed={activeTagFilter === tag}
+                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                  activeTagFilter === tag
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-primary/20 bg-primary/5 text-primary hover:bg-primary/10"
+                }`}
+              >
+                <Tag className="h-2.5 w-2.5" aria-hidden="true" />#{tag}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Status filters — proper ARIA tab pattern with roving tabIndex */}
+        <div
+          role="tablist"
+          aria-label="Campaign status filters"
+          className="flex flex-wrap gap-2 items-center"
+        >
+          {STATUS_TABS.map((tab, i) => {
+            const isSelected = statusFilter === tab.value;
+            return (
+              <button
+                key={tab.value}
+                id={tab.id}
+                ref={(el) => {
+                  tabRefs.current[i] = el;
+                }}
+                role="tab"
+                aria-selected={isSelected}
+                aria-controls={RESULTS_PANEL_ID}
+                tabIndex={isSelected ? 0 : -1}
+                onClick={() => setStatusFilter(tab.value)}
+                onKeyDown={(e) => handleTabKeyDown(e, i)}
+                className="focus:outline-none focus-visible:outline-none ring-offset-background focus:ring-2 focus:ring-primary focus:ring-offset-2 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded transition-all"
+              >
+                <CampaignStatusBadge
+                  status={tab.badgeStatus}
+                  className={`text-sm px-4 py-1.5 transition-opacity ${
+                    isSelected
+                      ? "ring-2 ring-primary ring-offset-2 opacity-100"
+                      : "opacity-60 hover:opacity-100"
+                  }`}
+                />
+              </button>
+            );
+          })}
+        </div>
         <ExploreFilters
           filters={filters}
           categoryCounts={categoryCounts}
@@ -245,6 +415,60 @@ function ExploreContent() {
                 </div>
               )}
 
+              {/* -------------------------------------------------------- */}
+              {/* Virtualised grid view                                      */}
+              {/* role="grid" + role="row" + role="gridcell" preserve the    */}
+              {/* WAI-ARIA grid pattern for screen-reader and keyboard nav.  */}
+              {/* -------------------------------------------------------- */}
+              {viewMode === "grid" &&
+                (() => {
+                  // Build row chunks here so the closure captures `filtered`
+                  // and `columnCount` reactively.
+                  const items = filtered.map((campaign) => ({
+                    campaign,
+                    tokenMeta: tokenMetas?.[campaign.accepted_token] ?? undefined,
+                    detailHrefSearch,
+                  }));
+                  const gridRows: (typeof items)[] = [];
+                  for (let i = 0; i < items.length; i += columnCount) {
+                    gridRows.push(items.slice(i, i + columnCount));
+                  }
+                  const rowH = GRID_CARD_HEIGHT + GRID_GAP;
+                  const totalH = gridRows.length * rowH;
+                  return (
+                    <GridVirtualContainer
+                      containerRef={gridContainerRef}
+                      totalHeight={totalH}
+                      rows={gridRows}
+                      columnCount={columnCount}
+                      rowHeight={rowH}
+                      isRefreshing={isRefreshing}
+                    />
+                  );
+                })()}
+
+              {/* -------------------------------------------------------- */}
+              {/* Virtualised list view                                      */}
+              {/* -------------------------------------------------------- */}
+              {viewMode === "list" &&
+                (() => {
+                  const items = filtered.map((campaign) => ({
+                    campaign,
+                    tokenMeta: tokenMetas?.[campaign.accepted_token] ?? undefined,
+                    detailHrefSearch,
+                  }));
+                  const rowH = LIST_CARD_HEIGHT + GRID_GAP;
+                  const totalH = items.length * rowH;
+                  return (
+                    <ListVirtualContainer
+                      containerRef={listContainerRef}
+                      totalHeight={totalH}
+                      items={items}
+                      rowHeight={rowH}
+                      isRefreshing={isRefreshing}
+                    />
+                  );
+                })()}
               {viewMode === "grid" ? (
                 <CampaignGridView items={items} isRefreshing={isRefreshing} />
               ) : (

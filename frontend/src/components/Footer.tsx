@@ -4,9 +4,9 @@ import Link from "next/link";
 import { useState } from "react";
 import { Check, Copy, Globe, Twitter } from "lucide-react";
 import { toast } from "sonner";
-import { CONTRACT_ID } from "@/lib/soroban";
+import { CONTRACT_ID } from "@/lib/config";
 import { cn } from "@/lib/utils";
-import { NETWORK_PASSPHRASE } from "@/lib/soroban";
+import { NETWORK_PASSPHRASE } from "@/lib/network";
 import { useRpcHealth, type RpcStatus } from "@/hooks/useRpcHealth";
 
 // GitHub is deliberately absent: the quick links beside these icons already

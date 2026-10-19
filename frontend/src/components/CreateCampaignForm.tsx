@@ -7,6 +7,7 @@ import * as z from "zod";
 import { useCreateCampaign, useResolvedName } from "@/hooks/useSoroban";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useWallet } from "@/lib/WalletProvider";
+import { isValidAccountAddress as isValidStellarAddress } from "@/lib/strkey";
 import { CONTRACT_ID, isValidStellarAddress } from "@/lib/soroban";
 import { TOTAL_SHARE_BPS, percentToBps } from "@/lib/beneficiaries";
 import { INVALID_SHARES_MESSAGE } from "@/lib/contractErrors";

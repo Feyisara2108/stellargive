@@ -10,7 +10,7 @@ import { Heart, ArrowUpRight, RotateCcw, HeartHandshake, User } from "lucide-rea
 import { AddressLink } from "@/components/AddressLink";
 import { RelativeTime } from "@/components/RelativeTime";
 import { sanitizeMessage } from "@/lib/sanitize";
-import { getAmountStroops, getCampaignId, getEventField } from "@/lib/eventData";
+import { parseDonationEvent } from "@/lib/eventData";
 
 const INITIAL_BATCH_SIZE = 10;
 const BATCH_SIZE = 10;
@@ -49,15 +49,6 @@ function DonorAvatar({ address, name }: { address: string | null; name: string }
       {address.slice(0, 2).toUpperCase()}
     </div>
   );
-}
-
-/** Reads the optional dedication (`comment`) from a `DonationEvent` payload. */
-function getDonationMessage(data: unknown): string {
-  if (data !== null && typeof data === "object" && !Array.isArray(data)) {
-    const raw = (data as { comment?: unknown }).comment;
-    return typeof raw === "string" ? sanitizeMessage(raw) : "";
-  }
-  return "";
 }
 
 export function RecentDonations({
@@ -129,29 +120,14 @@ export function RecentDonations({
   // Filter for donations to this specific campaign, sorted by ledger descending.
   // DonationEvent: { campaign_id, donor, amount, total_raised, accepted_token, comment }
   const donations = allEvents
-    ?.filter((e) => {
-      try {
-        return e.topic === "received" && getCampaignId(e) === campaignId.toString();
-      } catch {
-        return false;
-      }
+    ?.flatMap((event) => {
+      const donation = parseDonationEvent(event);
+      return donation && donation.campaignId === campaignId.toString() ? [{ event, donation }] : [];
     })
-    .sort((a, b) => Number(b.ledger) - Number(a.ledger));
+    .sort((a, b) => Number(b.event.ledger) - Number(a.event.ledger));
 
   const visibleDonations = donations?.slice(0, visibleCount);
   const hasMore = Boolean(donations && visibleCount < donations.length);
-
-  const normalizeDonorAddress = (donor: unknown): string | null => {
-    if (!donor) return null;
-    const str = String(donor);
-    if (str === "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF") {
-      return null;
-    }
-    if (str.length === 56 && str.startsWith("G")) {
-      return str;
-    }
-    return null;
-  };
 
   return (
     <Card className="h-full">
@@ -169,10 +145,10 @@ export function RecentDonations({
       <CardContent className="space-y-4">
         {visibleDonations && visibleDonations.length > 0 ? (
           <div className="space-y-4">
-            {visibleDonations.map((event) => {
-              const donorAddress = normalizeDonorAddress(getEventField(event, "donor"));
-              const message = getDonationMessage(event.data);
-              const amountStroops = getAmountStroops(event, "amount");
+            {visibleDonations.map(({ event, donation }) => {
+              const donorAddress = donation.donor;
+              const message = donation.comment ? sanitizeMessage(donation.comment) : "";
+              const amountStroops = donation.amount ?? 0n;
               return (
                 <div
                   key={event.id}

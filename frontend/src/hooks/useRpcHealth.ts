@@ -2,7 +2,6 @@
 
 import { useEffect, useRef } from "react";
 import { useQuery, onlineManager } from "@tanstack/react-query";
-import { server } from "@/lib/soroban";
 
 export type RpcStatus = "healthy" | "degraded" | "down" | "loading";
 
@@ -16,6 +15,8 @@ const DEGRADED_THRESHOLD_MS = 1_000;
 async function pingRpc(): Promise<RpcHealth> {
   const start = performance.now();
   try {
+    // Lazy so the footer (rendered on every route) doesn't ship the SDK up front.
+    const { server } = await import("@/lib/soroban");
     await server.getLatestLedger();
     const latencyMs = Math.round(performance.now() - start);
     return {

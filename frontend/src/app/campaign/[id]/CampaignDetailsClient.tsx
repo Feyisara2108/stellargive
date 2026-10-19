@@ -21,6 +21,7 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { formatBasisPoints, formatTokenAmount } from "@/utils/format";
+import { parseCreatedEvent, parseDonationEvent } from "@/lib/eventData";
 import { calculateProgress, getCampaignImageUrl, CAMPAIGN_IMAGE_BLUR_DATA_URL } from "@/lib/utils";
 import dynamic from "next/dynamic";
 const RecentDonations = dynamic(
@@ -47,20 +48,71 @@ import { useCountdown } from "@/hooks/useCountdown";
 import { Breadcrumbs, type BreadcrumbItem } from "@/components/Breadcrumbs";
 import { CampaignDetailSkeleton } from "@/components/CampaignSkeleton";
 
+function TopDonors({ campaignId }: { campaignId: bigint }) {
+  const { data: allEvents, isLoading } = useEvents();
+
+  if (isLoading) return <Skeleton className="h-32 w-full mt-6" />;
+
+  const donationsByDonor = allEvents?.reduce<Record<string, bigint>>((acc, event) => {
+    const donation = parseDonationEvent(event);
+    if (
+      donation?.campaignId === campaignId.toString() &&
+      donation.donor &&
+      donation.amount !== null &&
+      donation.amount > 0n
+    ) {
+      acc[donation.donor] = (acc[donation.donor] || 0n) + donation.amount;
+    }
+    return acc;
+  }, {});
+
+  const topDonors = Object.entries((donationsByDonor as Record<string, bigint>) || {})
+    .sort((a, b) => Number(b[1] - a[1]))
+    .slice(0, 5);
+
+  return (
+    <div className="space-y-4 pt-6 border-t mt-6">
+      <h3 className="text-lg font-bold">Top Donors</h3>
+      {topDonors.length > 0 ? (
+        <div className="space-y-3">
+          {topDonors.map(([donor, amount], index) => (
+            <div
+              key={donor}
+              className="flex justify-between items-center bg-card p-3 rounded-lg border shadow-sm"
+            >
+              <div className="flex items-center gap-3">
+                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-muted text-muted-foreground text-xs font-bold">
+                  {index + 1}
+                </span>
+                <AddressLink address={donor} />
+              </div>
+              <span className="font-bold text-primary">
+                {formatTokenAmount(amount as bigint, 7)} XLM
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div
+          role="status"
+          aria-live="polite"
+          className="text-center py-8 text-muted-foreground space-y-1 bg-muted/20 rounded-lg border border-dashed"
+        >
+          <p className="text-sm font-medium">No donations yet</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CampaignTimeline({ campaign }: { campaign: Campaign }) {
   const { data: allEvents, isLoading } = useEvents();
 
   if (isLoading) return <Skeleton className="h-32 w-full mt-6" />;
 
-  const createdEvent = allEvents?.find((e) => {
-    if (e.topic !== "created" || !e.data) return false;
-    const cid = Array.isArray(e.data) ? e.data[0] : (e.data as { id?: unknown })?.id;
-    try {
-      return cid != null && BigInt(cid as string | number | bigint) === campaign.id;
-    } catch {
-      return false;
-    }
-  });
+  const createdEvent = allEvents?.find(
+    (e) => parseCreatedEvent(e)?.campaignId === campaign.id.toString(),
+  );
 
   return (
     <div className="space-y-4 pt-6 border-t mt-6">
