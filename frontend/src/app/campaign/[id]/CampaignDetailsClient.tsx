@@ -21,7 +21,7 @@ import { Loader2, ImageIcon, Zap, AlertTriangle, RotateCw } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { formatBasisPoints, ZERO_ADDRESS, formatTokenAmount } from "@/utils/format";
+import { formatBasisPoints, formatTokenAmount } from "@/utils/format";
 import { calculateProgress, getCampaignImageUrl, CAMPAIGN_IMAGE_BLUR_DATA_URL } from "@/lib/utils";
 import dynamic from "next/dynamic";
 const RecentDonations = dynamic(
@@ -37,6 +37,7 @@ const DonateModal = dynamic(
   { ssr: false },
 );
 import { AddressLink } from "@/components/AddressLink";
+import { TopDonors } from "@/components/TopDonors";
 import { sanitizeUrl } from "@/lib/sanitize";
 import type { Campaign, SorobanEvent } from "@/lib/soroban";
 import { RefundButton } from "@/components/RefundButton";
@@ -46,83 +47,6 @@ import { Badge } from "@/components/ui/badge";
 import { useCountdown } from "@/hooks/useCountdown";
 import { Breadcrumbs, type BreadcrumbItem } from "@/components/Breadcrumbs";
 import { CampaignDetailSkeleton } from "@/components/CampaignSkeleton";
-
-function TopDonors({ campaignId }: { campaignId: bigint }) {
-  const { data: allEvents, isLoading } = useEvents();
-
-  if (isLoading) return <Skeleton className="h-32 w-full mt-6" />;
-
-  const donationsByDonor = allEvents
-    ?.filter((e) => {
-      try {
-        const dataObj = e.data as { campaign_id?: unknown } | undefined;
-        return (
-          e.topic === "received" &&
-          dataObj?.campaign_id !== undefined &&
-          BigInt(dataObj.campaign_id as string | number | bigint) === campaignId
-        );
-      } catch {
-        return false;
-      }
-    })
-    .reduce<Record<string, bigint>>(
-      (acc, event) => {
-        const dataObj = event.data as
-          | { donor?: { toString(): string }; amount?: string | number | bigint }
-          | undefined;
-        const donor = dataObj?.donor?.toString?.();
-        let amount = 0n;
-        try {
-          amount = BigInt(dataObj?.amount ?? 0);
-        } catch {
-          amount = 0n;
-        }
-        if (donor && donor !== ZERO_ADDRESS && amount > 0n) {
-          acc[donor] = (acc[donor] || 0n) + amount;
-        }
-        return acc;
-      },
-      {},
-    );
-
-  const topDonors = Object.entries((donationsByDonor as Record<string, bigint>) || {})
-    .sort((a, b) => Number(b[1] - a[1]))
-    .slice(0, 5);
-
-  return (
-    <div className="space-y-4 pt-6 border-t mt-6">
-      <h3 className="text-lg font-bold">Top Donors</h3>
-      {topDonors.length > 0 ? (
-        <div className="space-y-3">
-          {topDonors.map(([donor, amount], index) => (
-            <div
-              key={donor}
-              className="flex justify-between items-center bg-card p-3 rounded-lg border shadow-sm"
-            >
-              <div className="flex items-center gap-3">
-                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-muted text-muted-foreground text-xs font-bold">
-                  {index + 1}
-                </span>
-                <AddressLink address={donor} />
-              </div>
-              <span className="font-bold text-primary">
-                {formatTokenAmount(amount as bigint, 7)} XLM
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div
-          role="status"
-          aria-live="polite"
-          className="text-center py-8 text-muted-foreground space-y-1 bg-muted/20 rounded-lg border border-dashed"
-        >
-          <p className="text-sm font-medium">No donations yet</p>
-        </div>
-      )}
-    </div>
-  );
-}
 
 function CampaignTimeline({ campaign }: { campaign: Campaign }) {
   const { data: allEvents, isLoading } = useEvents();
@@ -400,6 +324,15 @@ export function CampaignDetailsClient({
                     showValueLabel={true}
                   />
                 </div>
+
+                {campaign.max_per_donor != null && (
+                  <p className="text-sm text-muted-foreground">
+                    Maximum per donor:{" "}
+                    <span className="font-medium text-foreground">
+                      {formatTokenAmount(campaign.max_per_donor, 7)} XLM
+                    </span>
+                  </p>
+                )}
 
                 {showFundTheGap && (
                   <div className="flex items-center justify-between gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">

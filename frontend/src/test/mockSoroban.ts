@@ -11,7 +11,13 @@ import { vi } from "vitest";
  * to override the ones whose return value the test actually asserts on.
  */
 export function createSorobanMock(overrides: Record<string, unknown> = {}) {
-  const idleQuery = { data: undefined, isLoading: false, isFetching: false, isError: false, error: null };
+  const idleQuery = {
+    data: undefined,
+    isLoading: false,
+    isFetching: false,
+    isError: false,
+    error: null,
+  };
   const idleMutation = {
     mutate: vi.fn(),
     mutateAsync: vi.fn(),
@@ -38,6 +44,7 @@ export function createSorobanMock(overrides: Record<string, unknown> = {}) {
     usePlatformConfig: vi.fn(() => ({ ...idleQuery })),
     useEvents: vi.fn(() => ({ ...idleQuery, data: [], refetch: vi.fn() })),
     useGetUpdates: vi.fn(() => ({ ...idleQuery, data: [] })),
+    useTopDonors: vi.fn(() => ({ ...idleQuery, data: [] })),
     useRefundEligibility: vi.fn(() => ({ ...idleQuery, data: false })),
     useDonateFeeEstimate: vi.fn(() => ({ ...idleQuery, data: null })),
     useWalletBalance: vi.fn(() => ({ ...idleQuery, data: null })),

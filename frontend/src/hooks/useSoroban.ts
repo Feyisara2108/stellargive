@@ -6,15 +6,16 @@ import {
   getCampaignsPage,
   submitTransaction,
   estimateFee,
-  CONTRACT_ID,
   toStroops,
   getEvents,
   getUpdates,
+  getTopDonors,
   getTotalCampaigns,
   getPlatformConfig,
   getSACBalance,
   resolveAddressName,
   Campaign,
+  CampaignBeneficiary,
   SorobanEvent,
   SubmitTransactionResult,
 } from "@/lib/soroban";
@@ -22,6 +23,13 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { Address, nativeToScVal, xdr } from "@stellar/stellar-sdk";
 import { useWallet } from "@/lib/WalletProvider";
 import { toRawAmount } from "@/utils/format";
+import {
+  CONTRACT_ERROR_CODES,
+  EXCEEDS_DONOR_CAP_MESSAGE,
+  INVALID_SHARES_MESSAGE,
+  getContractErrorCode,
+} from "@/lib/contractErrors";
+import { TOTAL_SHARE_BPS, validateBeneficiaries } from "@/lib/beneficiaries";
 
 // ---------------------------------------------------------------------------
 // Selector Memoization & Referential Stability Utilities
@@ -357,6 +365,12 @@ export function getCrossedMilestones(
 }
 
 export function mapTransactionError(error: unknown): string {
+  switch (getContractErrorCode(error)) {
+    case CONTRACT_ERROR_CODES.ExceedsDonorCap:
+      return EXCEEDS_DONOR_CAP_MESSAGE;
+    case CONTRACT_ERROR_CODES.InvalidShares:
+      return INVALID_SHARES_MESSAGE;
+  }
   const msg =
     error instanceof Error
       ? error.message
@@ -391,6 +405,11 @@ export function useCreateCampaign() {
   return useMutation({
     mutationFn: async (params: {
       beneficiary: string;
+      /**
+       * Full payout split with basis-point shares (10000 = 100%). When omitted,
+       * `beneficiary` receives the whole amount.
+       */
+      beneficiaries?: CampaignBeneficiary[];
       title: string;
       description: string;
       category?: string;
@@ -403,19 +422,23 @@ export function useCreateCampaign() {
       maxPerDonor?: string | null;
     }) => {
       if (!address) throw new Error("Wallet not connected");
-      if (params.beneficiary === CONTRACT_ID) {
-        throw new Error("Beneficiary cannot be the campaign contract address.");
-      }
+      const beneficiaries =
+        params.beneficiaries && params.beneficiaries.length > 0
+          ? params.beneficiaries
+          : [{ address: params.beneficiary, share: TOTAL_SHARE_BPS }];
+      const beneficiariesError = validateBeneficiaries(beneficiaries);
+      if (beneficiariesError) throw new Error(beneficiariesError);
 
-      // Pack the single beneficiary address into the format expected by the contract's
-      // beneficiaries argument, which is Vec<(Address, u32)>. We map this to a nested
-      // array packaging: [[Address, 10000]] (100% share to the beneficiary).
-      const beneficiariesVec = xdr.ScVal.scvVec([
-        xdr.ScVal.scvVec([
-          new Address(params.beneficiary).toScVal(),
-          nativeToScVal(10000, { type: "u32" }),
-        ]),
-      ]);
+      // The contract's beneficiaries argument is Vec<(Address, u32)>: one
+      // [Address, basis-point share] tuple per beneficiary.
+      const beneficiariesVec = xdr.ScVal.scvVec(
+        beneficiaries.map((b) =>
+          xdr.ScVal.scvVec([
+            new Address(b.address).toScVal(),
+            nativeToScVal(b.share, { type: "u32" }),
+          ]),
+        ),
+      );
 
       const args = [
         new Address(address).toScVal(), // 1. creator: Address
@@ -535,6 +558,7 @@ export function useDonate() {
       });
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
       queryClient.invalidateQueries({ queryKey: ["events"] });
+      queryClient.invalidateQueries({ queryKey: ["top-donors", variables.campaignId.toString()] });
     },
     onError: (error: unknown, variables, context) => {
       if (context?.previousCampaign) {
@@ -776,6 +800,19 @@ export function useEvents(limit = 20) {
     },
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
+  });
+}
+
+/**
+ * The contract's top-5 donor leaderboard for a campaign. Anonymous donations
+ * are aggregated on-chain under the zero address; callers should label that
+ * entry rather than link to it.
+ */
+export function useTopDonors(campaignId: bigint) {
+  return useQuery({
+    queryKey: ["top-donors", campaignId.toString()],
+    queryFn: () => getTopDonors(campaignId),
+    staleTime: 30_000,
   });
 }
 
