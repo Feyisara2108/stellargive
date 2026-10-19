@@ -3,9 +3,10 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 import { server as rpcServer } from "@/lib/soroban";
-import { Account, Address, nativeToScVal } from "@stellar/stellar-sdk";
+import { Account, Address, Keypair, nativeToScVal } from "@stellar/stellar-sdk";
 import { http, HttpResponse } from "msw";
 import { server, errorHandlers } from "../mocks/setup";
+import { MOCK_CAMPAIGNS, setMockCampaigns } from "../mocks/handlers";
 
 // ─── Mocks ──────────────────────────────────────────────────────────────────
 
@@ -30,6 +31,7 @@ vi.mock("@/lib/wallet", () => ({
 import {
   useCampaign,
   useRecentCampaigns,
+  useCampaignsByCreator,
   useCampaignsPaged,
   useCreateCampaign,
   useDonate,
@@ -545,6 +547,38 @@ describe("useSoroban", () => {
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
       expect(result.current.data).toEqual(["First Campaign", "Second Campaign"]);
+    });
+
+    it("loads a creator campaign beyond the most recent 20", async () => {
+      const originalCampaigns = MOCK_CAMPAIGNS;
+      const otherCreator = Keypair.random().publicKey();
+      const creatorCampaign = makeCampaign({
+        id: 21n,
+        creator: WALLET,
+        title: "Older creator campaign",
+      });
+      setMockCampaigns([
+        ...Array.from({ length: 20 }, (_, index) =>
+          makeCampaign({
+            id: BigInt(index + 1),
+            creator: otherCreator,
+            title: `Recent campaign ${index + 1}`,
+          }),
+        ),
+        creatorCampaign,
+      ]);
+
+      try {
+        const { Wrapper } = makeWrapper();
+        const { result } = renderHook(() => useCampaignsByCreator(WALLET), { wrapper: Wrapper });
+
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+        expect(result.current.data?.map((campaign) => campaign.title)).toEqual([
+          "Older creator campaign",
+        ]);
+      } finally {
+        setMockCampaigns(originalCampaigns);
+      }
     });
 
     it("useActiveCampaigns filters and returns active campaigns", async () => {

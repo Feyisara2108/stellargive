@@ -171,6 +171,7 @@ import ActivityPage from "@/app/activity/page";
 import AdminPage from "@/app/admin/page";
 import FaqPage from "@/app/faq/page";
 import {
+  useCampaignsByCreator,
   useEventHistory,
   useEvents,
   useRecentCampaigns,
@@ -312,7 +313,7 @@ describe("Core Pages Accessibility Suite", () => {
   });
 
   it("Admin page accessibility", async () => {
-    vi.mocked(useRecentCampaigns).mockReturnValue({
+    vi.mocked(useCampaignsByCreator).mockReturnValue({
       data: [OWNED_CAMPAIGN],
       isLoading: false,
     } as any);

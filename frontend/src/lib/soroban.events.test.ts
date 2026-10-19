@@ -16,7 +16,7 @@ vi.mock("@stellar/stellar-sdk", async (importActual) => {
   };
 });
 
-import { dedupeClaimEvents, eventTopicLabel, getEventHistory, server } from "@/lib/soroban";
+import { dedupeClaimEvents, eventTopicLabel, getEventHistory, getEvents, server } from "@/lib/soroban";
 
 const rpcServer = server as unknown as {
   getHealth: ReturnType<typeof vi.fn>;
@@ -110,6 +110,42 @@ describe("getEventHistory", () => {
     await getEventHistory();
 
     expect(rpcServer.getEvents.mock.calls[0][0].startLedger).toBe(1);
+  });
+});
+
+describe("getEvents", () => {
+  it("starts at an available ledger and follows cursors for large requests", async () => {
+    const first = Array.from({ length: 1_000 }, (_, i) => rawDonation(i));
+    const last = [rawDonation(1_000)];
+    rpcServer.getEvents
+      .mockResolvedValueOnce(page(first, "c1"))
+      .mockResolvedValueOnce(page(last, "c2"));
+
+    const events = await getEvents(1_001);
+
+    expect(events).toHaveLength(1_001);
+    expect(rpcServer.getEvents.mock.calls[0][0]).toMatchObject({
+      startLedger: 500,
+      limit: 1_000,
+    });
+    expect(rpcServer.getEvents.mock.calls[1][0]).toMatchObject({
+      cursor: "c1",
+      limit: 1,
+    });
+  });
+
+  it("retries from a refreshed ledger when the requested range is unavailable", async () => {
+    rpcServer.getHealth
+      .mockResolvedValueOnce({ oldestLedger: 500, latestLedger: 2000 })
+      .mockResolvedValueOnce({ oldestLedger: 700, latestLedger: 2000 });
+    rpcServer.getEvents
+      .mockRejectedValueOnce(new Error("startLedger is outside the available ledger range"))
+      .mockResolvedValueOnce(page([rawDonation(0)], "c1"));
+
+    await getEvents(1);
+
+    expect(rpcServer.getEvents.mock.calls[0][0].startLedger).toBe(500);
+    expect(rpcServer.getEvents.mock.calls[1][0].startLedger).toBe(700);
   });
 });
 

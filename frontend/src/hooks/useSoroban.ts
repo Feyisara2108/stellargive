@@ -22,11 +22,10 @@ import { useWallet } from "@/lib/WalletProvider";
 import { toRawAmount } from "@/utils/format";
 import { NO_IMAGE_METADATA_URI } from "@/lib/utils";
 import {
-  CONTRACT_ERROR_CODES,
-  EXCEEDS_DONOR_CAP_MESSAGE,
   INVALID_SHARES_MESSAGE,
-  getContractErrorCode,
+  mapTransactionError,
 } from "@/lib/contractErrors";
+export { mapTransactionError } from "@/lib/contractErrors";
 import { TOTAL_SHARE_BPS, validateBeneficiaries } from "@/lib/beneficiaries";
 
 /**
@@ -289,6 +288,19 @@ export function useRecentCampaigns<TData = Campaign[]>(
   });
 }
 
+/** Loads every campaign owned by one creator directly from the contract. */
+export function useCampaignsByCreator(address: string | null, options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: ["campaigns", "creator", address],
+    queryFn: async () => {
+      if (!address) throw new Error("A creator address is required.");
+      return (await loadSoroban()).getCampaignsByCreator(address);
+    },
+    staleTime: 30_000,
+    enabled: (options.enabled ?? true) && !!address,
+  });
+}
+
 /**
  * Explore's campaign list as offset-based pages. `fetchNextPage` reads only the
  * next `pageSize` campaigns; pages already loaded are never re-fetched.
@@ -393,40 +405,6 @@ export function getCrossedMilestones(
   const pctBefore = Number((beforeStroops * 10_000n) / targetStroops) / 100;
   const pctAfter = Number((afterStroops * 10_000n) / targetStroops) / 100;
   return MILESTONE_PERCENTS.filter((m) => pctBefore < m && pctAfter >= m);
-}
-
-export function mapTransactionError(error: unknown): string {
-  switch (getContractErrorCode(error)) {
-    case CONTRACT_ERROR_CODES.ExceedsDonorCap:
-      return EXCEEDS_DONOR_CAP_MESSAGE;
-    case CONTRACT_ERROR_CODES.InvalidShares:
-      return INVALID_SHARES_MESSAGE;
-  }
-  const msg =
-    error instanceof Error
-      ? error.message
-      : typeof error === "object" && error !== null && "message" in error
-        ? String((error as { message: unknown }).message)
-        : String(error);
-  if (
-    msg.includes("User declined") ||
-    msg.includes("cancelled") ||
-    msg.includes("Wallet error") ||
-    msg.includes("User rejected")
-  ) {
-    return "Transaction was cancelled.";
-  }
-  if (
-    msg.includes("Network Error") ||
-    msg.includes("Failed to fetch") ||
-    msg.includes("Send failed")
-  ) {
-    return "Network error. Please try again.";
-  }
-  if (msg.includes("Simulation failed") || msg.includes("Transaction failed")) {
-    return "Transaction failed on-chain.";
-  }
-  return "Something went wrong. Please try again.";
 }
 
 export function useCreateCampaign() {
@@ -738,7 +716,10 @@ export function usePlatformStats() {
       );
       return { totalCampaigns, raisedByToken, activeCampaigns };
     },
-    staleTime: 60_000,
+    // Keep exact all-campaign aggregates in the persisted query cache for an
+    // hour. This avoids re-running the paged full scan on every page visit.
+    staleTime: 60 * 60_000,
+    gcTime: 24 * 60 * 60_000,
   });
 }
 

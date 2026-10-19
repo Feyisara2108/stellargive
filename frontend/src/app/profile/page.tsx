@@ -10,7 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatCard } from "@/components/ui/stat-card";
-import { useRecentCampaigns, useEvents } from "@/hooks/useSoroban";
+import { useCampaignsByCreator, useRecentCampaigns, useEvents } from "@/hooks/useSoroban";
 import { type Campaign, type SorobanEvent } from "@/lib/soroban";
 import { MISSING_FIELD, formatStroops, parseDonationEvent } from "@/lib/eventData";
 import { AddressLink } from "@/components/AddressLink";
@@ -30,10 +30,16 @@ import {
 export default function ProfilePage() {
   const { address, isConnected } = useWallet();
   const {
-    data: campaigns,
-    isLoading: campaignsLoading,
-    isError: campaignsError,
-    refetch: refetchCampaigns,
+    data: createdCampaigns,
+    isLoading: createdCampaignsLoading,
+    isError: createdCampaignsError,
+    refetch: refetchCreatedCampaigns,
+  } = useCampaignsByCreator(address);
+  const {
+    data: recentCampaigns,
+    isLoading: recentCampaignsLoading,
+    isError: recentCampaignsError,
+    refetch: refetchRecentCampaigns,
   } = useRecentCampaigns();
   const {
     data: events,
@@ -44,8 +50,8 @@ export default function ProfilePage() {
 
   const { created, supported, totalRaised, totalDonated, activeCount, myDonationsEvents } =
     useMemo(() => {
-      const all: Campaign[] = campaigns ?? [];
-      const created = address ? all.filter((c) => c.creator === address) : [];
+      const all: Campaign[] = recentCampaigns ?? [];
+      const created: Campaign[] = address ? (createdCampaigns ?? []) : [];
 
       // Events are loosely-typed RPC payloads: a truncated or re-shaped `data`
       // array must be skipped, never indexed blindly.
@@ -73,7 +79,7 @@ export default function ProfilePage() {
         activeCount,
         myDonationsEvents: myDonations,
       };
-    }, [campaigns, events, address]);
+    }, [createdCampaigns, recentCampaigns, events, address]);
 
   // Status filter for "My Campaigns" tab (#820).
   const [profileStatusFilter, setProfileStatusFilter] = useState<"all" | "Active" | "Funded">(
@@ -110,6 +116,12 @@ export default function ProfilePage() {
     );
   }
 
+  const campaignsLoading = createdCampaignsLoading || recentCampaignsLoading;
+  const campaignsError = createdCampaignsError || recentCampaignsError;
+  const refetchCampaigns = () => {
+    refetchCreatedCampaigns();
+    refetchRecentCampaigns();
+  };
   const bothLoading = campaignsLoading && eventsLoading;
   const bothError = campaignsError && eventsError;
 
