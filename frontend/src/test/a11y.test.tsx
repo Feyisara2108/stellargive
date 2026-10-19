@@ -44,7 +44,10 @@ vi.mock("@stellar/stellar-sdk", async (importActual) => {
 vi.mock("@/hooks/useSoroban", async () =>
   (await import("@/test/mockSoroban")).createSorobanMock({
     useCampaignsPaged: vi.fn(() => ({
-      data: { campaigns: [], hasMore: false },
+      data: { pages: [{ campaigns: [], hasMore: false, nextOffset: 0 }], pageParams: [0] },
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      fetchNextPage: vi.fn(),
       isLoading: false,
       isFetching: false,
     })),

@@ -160,3 +160,32 @@ describe("PostUpdateForm — error handling", () => {
     });
   });
 });
+
+describe("PostUpdateForm — update limit (#1093)", () => {
+  it("shows how many of the 10 updates are used", () => {
+    renderForm({ updateCount: 3 });
+    expect(screen.getByTestId("update-count")).toHaveTextContent("3 of 10 updates used");
+    expect(screen.getByPlaceholderText(/Tell your backers/i)).not.toBeDisabled();
+  });
+
+  it("disables posting with an explanation once 10 updates exist", () => {
+    renderForm({ updateCount: 10 });
+    expect(screen.getByTestId("update-count")).toHaveTextContent("10 of 10 updates used");
+    expect(screen.getByText(/reached the limit of 10 updates/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Tell your backers/i)).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Post Update/i })).toBeDisabled();
+  });
+
+  it("does not submit at the limit even with a restored draft", () => {
+    localStorage.setItem(`stellargive_update_draft_${CAMPAIGN_ID}`, "Draft text");
+    renderForm({ updateCount: 10 });
+    fireEvent.submit(screen.getByRole("button", { name: /Post Update/i }).closest("form")!);
+    expect(addUpdateMutation).not.toHaveBeenCalled();
+    localStorage.removeItem(`stellargive_update_draft_${CAMPAIGN_ID}`);
+  });
+
+  it("hides the counter when the count is unknown", () => {
+    renderForm();
+    expect(screen.queryByTestId("update-count")).not.toBeInTheDocument();
+  });
+});

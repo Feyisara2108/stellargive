@@ -7,6 +7,19 @@ const notFoundMock = vi.hoisted(() =>
 );
 const getCampaignMock = vi.hoisted(() => vi.fn());
 
+// React's `cache` is only available in the server build Next uses for RSC.
+// Stand in a memoizer scoped to one "request" (cleared between tests).
+const requestCache = vi.hoisted(() => new Map<unknown, unknown>());
+vi.mock("react", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("react")>()),
+  cache:
+    <A, R>(fn: (arg: A) => R) =>
+    (arg: A) => {
+      if (!requestCache.has(arg)) requestCache.set(arg, fn(arg));
+      return requestCache.get(arg) as R;
+    },
+}));
+
 vi.mock("next/navigation", () => ({ notFound: notFoundMock }));
 
 vi.mock("@/lib/soroban", () => {
@@ -21,7 +34,7 @@ vi.mock("@/lib/soroban", () => {
 
 vi.mock("./CampaignDetailsClient", () => ({ CampaignDetailsClient: () => null }));
 
-import CampaignPage from "./page";
+import CampaignPage, { generateMetadata } from "./page";
 import { CampaignNotFoundError } from "@/lib/soroban";
 
 const render = (id: string) => CampaignPage({ params: Promise.resolve({ id }) });
@@ -29,6 +42,7 @@ const render = (id: string) => CampaignPage({ params: Promise.resolve({ id }) })
 describe("CampaignPage (server)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    requestCache.clear();
     vi.stubEnv("NEXT_PUBLIC_USE_MOCK_WALLET", "false");
   });
 
@@ -59,6 +73,25 @@ describe("CampaignPage (server)", () => {
   it("404s for ids that can't be a campaign without calling the RPC", async () => {
     await expect(render("not-a-number")).rejects.toThrow("NEXT_NOT_FOUND");
     expect(getCampaignMock).not.toHaveBeenCalled();
+  });
+
+  it("reads the campaign once per render and hands it to the client (#1094)", async () => {
+    const campaign = {
+      title: "Flood Relief",
+      raised_amount: 0n,
+      target_amount: 10n,
+      beneficiaries: [],
+    };
+    getCampaignMock.mockResolvedValue(campaign);
+    const params = Promise.resolve({ id: "1" });
+
+    const metadata = await generateMetadata({ params });
+    const element = await CampaignPage({ params });
+
+    expect(metadata.title).toBe("Flood Relief | StellarGive");
+    expect(getCampaignMock).toHaveBeenCalledTimes(1);
+    expect(element.props.initialCampaign).toBe(campaign);
+    expect(element.props.breadcrumbs.at(-1).label).toBe("Flood Relief");
   });
 
   it("still renders in mock-wallet mode when the server-side read fails", async () => {

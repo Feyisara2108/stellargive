@@ -1,9 +1,4 @@
-export type NativeCampaignStatus =
-  | "Active"
-  | "Funded"
-  | "Claimed"
-  | "Expired"
-  | "Cancelled";
+export type NativeCampaignStatus = "Active" | "Funded" | "Claimed" | "Expired" | "Cancelled";
 
 export interface NativeCampaign {
   id: bigint;
@@ -20,6 +15,7 @@ export interface NativeCampaign {
   status: NativeCampaignStatus;
   website?: string;
   twitter?: string;
+  max_per_donor?: bigint | null;
 }
 
 export interface NativeCampaignUpdate {

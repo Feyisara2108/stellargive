@@ -1,6 +1,9 @@
+/// <reference types="react/canary" />
+import { cache } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getCampaign, fromStroops, isCampaignNotFoundError } from "@/lib/soroban";
+import type { Campaign } from "@/lib/soroban";
 import { formatBasisPoints } from "@/utils/format";
 import { getCampaignImageUrl } from "@/lib/utils";
 import { CampaignDetailsClient } from "./CampaignDetailsClient";
@@ -31,6 +34,17 @@ function buildExploreHref(searchParams?: Record<string, string | string[] | unde
   return serialized ? `/explore?${serialized}` : "/explore";
 }
 
+/** Campaign ids are u64s; anything else can't exist on-chain. */
+function parseCampaignId(id: string): bigint | null {
+  return /^\d+$/.test(id) ? BigInt(id) : null;
+}
+
+/**
+ * generateMetadata and the page both need the campaign. `cache` dedupes the
+ * read within a single server render, so a page view costs one RPC call.
+ */
+const loadCampaign = cache((id: bigint) => getCampaign(id));
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const resolvedParams = await params;
   const defaultTitle = "StellarGive | Relief Grant Platform";
@@ -59,7 +73,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   try {
     const campaignId = parseCampaignId(resolvedParams.id);
     if (campaignId === null) return fallback;
-    const campaign = await getCampaign(campaignId);
+    const campaign = await loadCampaign(campaignId);
     const numBens = campaign.beneficiaries?.length ?? 1;
     const benDesc =
       numBens > 1
@@ -106,7 +120,7 @@ export default async function CampaignPage({
   const resolvedParams = await params;
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const isMockMode = process.env.NEXT_PUBLIC_USE_MOCK_WALLET === "true";
-  let campaignTitle: string | undefined;
+  let campaign: Campaign | undefined;
 
   const campaignId = parseCampaignId(resolvedParams.id);
   if (campaignId === null) {
@@ -114,8 +128,7 @@ export default async function CampaignPage({
   }
 
   try {
-    const campaign = await getCampaign(campaignId);
-    campaignTitle = campaign.title;
+    campaign = await loadCampaign(campaignId);
   } catch (error) {
     // E2E runs mock the RPC in the browser, so the server-side read is expected to fail.
     if (!isMockMode) {
@@ -133,10 +146,18 @@ export default async function CampaignPage({
     { label: "Home", href: "/" },
     { label: "Explore", href: buildExploreHref(resolvedSearchParams) },
     {
-      label: campaignTitle || `Campaign #${resolvedParams.id}`,
+      label: campaign?.title || `Campaign #${resolvedParams.id}`,
       href: `/campaign/${resolvedParams.id}`,
     },
   ];
 
-  return <CampaignDetailsClient params={{ id: resolvedParams.id }} breadcrumbs={breadcrumbs} />;
+  // Hand the server read to the client query as initial data so it doesn't
+  // fetch the same campaign again on mount.
+  return (
+    <CampaignDetailsClient
+      params={{ id: resolvedParams.id }}
+      breadcrumbs={breadcrumbs}
+      initialCampaign={campaign}
+    />
+  );
 }

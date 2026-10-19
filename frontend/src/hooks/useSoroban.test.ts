@@ -193,8 +193,9 @@ describe("useSoroban", () => {
         }
         expect(result.current.isSuccess).toBe(true);
       });
-      expect(result.current.data?.campaigns).toHaveLength(2);
-      expect(result.current.data?.hasMore).toBe(false);
+      expect(result.current.data?.pages).toHaveLength(1);
+      expect(result.current.data?.pages[0].campaigns).toHaveLength(2);
+      expect(result.current.hasNextPage).toBe(false);
     });
 
     it("useEvents returns data on success", async () => {

@@ -17,13 +17,17 @@ export function isCategoryKey(value: string | null): value is CategoryKey {
 
 /**
  * Mirrors CampaignCard's badge logic: a campaign with an empty or "other"
- * category is labelled "Uncategorized", so that tab must match those too.
+ * category is labelled "Uncategorized". Both the filter and the per-tab counts
+ * go through this so they can never disagree (#1090).
  */
+export function campaignCategoryKey(campaign: Campaign): string {
+  const value = (campaign.category ?? "").trim().toLowerCase();
+  return value === "" || value === "other" ? "uncategorized" : value;
+}
+
 export function matchesCategory(campaign: Campaign, category: CategoryKey): boolean {
   if (category === "all") return true;
-  const value = (campaign.category ?? "").trim().toLowerCase();
-  if (category === "uncategorized") return value === "" || value === "other";
-  return value === category;
+  return campaignCategoryKey(campaign) === category;
 }
 
 export function sortCampaigns(campaigns: Campaign[], sortBy: SortKey): Campaign[] {

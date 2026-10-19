@@ -116,6 +116,7 @@ export function ProjectUpdates({ campaignId }: { campaignId: bigint }) {
               await addUpdate.mutateAsync({ campaignId: BigInt(id), content });
             }}
             onSubmit={handleSubmit}
+            updateCount={updates?.length}
           />
         )}
 

@@ -5,29 +5,52 @@ import React from "react";
 // Hoist mock state so it stays in sync across vi.mock closures
 const { mockState } = vi.hoisted(() => ({
   mockState: {
+    /** First page of campaigns. */
     campaigns: [] as any[],
+    /** Pages after the first, served one per fetchNextPage call. */
+    morePages: [] as any[][],
+    fetchNextPageCalls: 0,
     isLoading: false,
     isError: false,
   },
 }));
 
-vi.mock("../../hooks/useSoroban", () => ({
-  useCampaignsPaged: () => ({
-    get data() {
-      return { campaigns: mockState.campaigns, hasMore: false };
+vi.mock("../../hooks/useSoroban", async () => {
+  const { useState, useCallback } = await vi.importActual<typeof import("react")>("react");
+  return {
+    useCampaignsPaged: () => {
+      const [loaded, setLoaded] = useState(1);
+      const allPages = [mockState.campaigns, ...mockState.morePages];
+      const fetchNextPage = useCallback(() => {
+        mockState.fetchNextPageCalls++;
+        setLoaded((n) => n + 1);
+      }, []);
+      return {
+        data: { pages: allPages.slice(0, loaded).map((campaigns) => ({ campaigns })) },
+        hasNextPage: loaded < allPages.length,
+        isFetchingNextPage: false,
+        fetchNextPage,
+        isLoading: mockState.isLoading,
+        isError: mockState.isError,
+        isFetching: false,
+        refetch: vi.fn(),
+      };
     },
-    get isLoading() {
-      return mockState.isLoading;
+    useCampaignsByIds: (ids: string[], { enabled }: { enabled?: boolean } = {}) => {
+      const all = [mockState.campaigns, ...mockState.morePages].flat();
+      return {
+        data: enabled ? all.filter((c) => ids.includes(c.id.toString())) : undefined,
+        isLoading: false,
+        isError: false,
+        isFetching: false,
+        refetch: vi.fn(),
+      };
     },
-    get isError() {
-      return mockState.isError;
-    },
-    refetch: vi.fn(),
-  }),
-  useTokenMetadataBatch: () => ({ data: new Map() }),
-  useTokenMetadata: () => ({ data: undefined, isLoading: false }),
-  useXlmPrice: () => ({ data: undefined, isLoading: false }),
-}));
+    useTokenMetadataBatch: () => ({ data: new Map() }),
+    useTokenMetadata: () => ({ data: undefined, isLoading: false }),
+    useXlmPrice: () => ({ data: undefined, isLoading: false }),
+  };
+});
 
 vi.mock("../../hooks/useCampaignSearch", () => ({
   useCampaignSearch: (campaigns: any[], term: string) => {
@@ -88,6 +111,8 @@ beforeEach(() => {
   replaceMock.mockReset();
   currentParams = new URLSearchParams();
   mockState.campaigns = [];
+  mockState.morePages = [];
+  mockState.fetchNextPageCalls = 0;
   mockState.isLoading = false;
   mockState.isError = false;
   if (queryClient) {
@@ -241,5 +266,54 @@ describe("ExplorePage - Saved view", () => {
     await waitFor(() => expect(screen.getAllByTestId("campaign-card")).toHaveLength(1));
     expect(screen.getByText("Beta")).toBeInTheDocument();
     expect(screen.queryByText("Alpha")).not.toBeInTheDocument();
+  });
+});
+
+describe("ExplorePage - full-set search and Saved (#1091)", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it("finds a campaign that is not on the first page", async () => {
+    mockState.campaigns = [buildCampaign({ id: 1n, title: "Alpha" })];
+    mockState.morePages = [
+      [buildCampaign({ id: 2n, title: "Beta" })],
+      [buildCampaign({ id: 3n, title: "Needle Water" })],
+    ];
+    renderPage();
+
+    fireEvent.change(screen.getByPlaceholderText(/Search by title or creator/i), {
+      target: { value: "Needle" },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Needle Water")).toBeInTheDocument();
+    });
+    expect(screen.getAllByTestId("campaign-card")).toHaveLength(1);
+    expect(mockState.fetchNextPageCalls).toBe(2);
+  });
+
+  it("does not load further pages while nothing narrows the list", async () => {
+    mockState.campaigns = [buildCampaign({ id: 1n, title: "Alpha" })];
+    mockState.morePages = [[buildCampaign({ id: 2n, title: "Beta" })]];
+    renderPage();
+
+    await screen.findByText("Alpha");
+    expect(mockState.fetchNextPageCalls).toBe(0);
+    expect(screen.getByRole("button", { name: /Load more/i })).toBeInTheDocument();
+  });
+
+  it("shows bookmarked campaigns beyond the loaded pages under Saved", async () => {
+    window.localStorage.setItem("stellargive:bookmarks", JSON.stringify(["1", "3"]));
+    const { resetBookmarksCache } = await import("../../hooks/useBookmarks");
+    resetBookmarksCache();
+    currentParams = new URLSearchParams("saved=1");
+    mockState.campaigns = [buildCampaign({ id: 1n, title: "Alpha" })];
+    mockState.morePages = [[buildCampaign({ id: 3n, title: "Gamma" })]];
+    renderPage();
+
+    await waitFor(() => expect(screen.getAllByTestId("campaign-card")).toHaveLength(2));
+    expect(screen.getByText("Gamma")).toBeInTheDocument();
+    expect(mockState.fetchNextPageCalls).toBe(0);
   });
 });

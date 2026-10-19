@@ -1,35 +1,46 @@
 import { useMemo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { Campaign, EventHistory, SorobanEvent, SubmitTransactionResult } from "@/lib/soroban";
+import {
+  useQuery,
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+  type InfiniteData,
+} from "@tanstack/react-query";
+import type {
+  Campaign,
+  CampaignBeneficiary,
+  CampaignsPage,
+  EventHistory,
+  SubmitTransactionResult,
+} from "@/lib/soroban";
 import { parseDonationEvent } from "@/lib/eventData";
 import { CONTRACT_ID } from "@/lib/config";
 import { toStroops } from "@/lib/amounts";
 import { isValidAccountAddress } from "@/lib/strkey";
-import {
-  getCampaign,
-  getRecentCampaigns,
-  getCampaignsPage,
-  submitTransaction,
-  estimateFee,
-  toStroops,
-  getEvents,
-  getUpdates,
-  getTopDonors,
-  getTotalCampaigns,
-  getPlatformConfig,
-  getSACBalance,
-  getAccountMinimumReserve,
-  getDonorContribution,
-  resolveAddressName,
-  Campaign,
-  CampaignBeneficiary,
-  SorobanEvent,
-  SubmitTransactionResult,
-} from "@/lib/soroban";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useWallet } from "@/lib/WalletProvider";
 import { toRawAmount } from "@/utils/format";
 import { NO_IMAGE_METADATA_URI } from "@/lib/utils";
+import {
+  CONTRACT_ERROR_CODES,
+  EXCEEDS_DONOR_CAP_MESSAGE,
+  INVALID_SHARES_MESSAGE,
+  getContractErrorCode,
+} from "@/lib/contractErrors";
+import { TOTAL_SHARE_BPS, validateBeneficiaries } from "@/lib/beneficiaries";
+
+/**
+ * The Stellar SDK (and everything in `@/lib/soroban` built on it) is the bulk of
+ * the client bundle. Hooks load it when a query or mutation first runs instead
+ * of at import time, so a route that renders a shell before its data — or never
+ * touches the chain at all (FAQ) — doesn't ship it in its first-load JS.
+ */
+// Memoized so concurrent first calls share one import (vitest's module mocks can
+// otherwise hand a racing second `import()` the real module).
+let sorobanModule: Promise<typeof import("@/lib/soroban")> | undefined;
+let sdkModule: Promise<typeof import("@stellar/stellar-sdk")> | undefined;
+const loadSoroban = () => (sorobanModule ??= import("@/lib/soroban"));
+const loadSdk = () => (sdkModule ??= import("@stellar/stellar-sdk"));
 
 // ---------------------------------------------------------------------------
 // Selector Memoization & Referential Stability Utilities
@@ -246,15 +257,22 @@ export function getSelectFilteredAndSortedCampaigns(
 
 export function useCampaign<TData = Campaign>(
   id: bigint,
-  optionsOrSelect?: ((data: Campaign) => TData) | SorobanQueryOptions<TData, Campaign>,
+  optionsOrSelect?:
+    | ((data: Campaign) => TData)
+    | (SorobanQueryOptions<TData, Campaign> & { initialData?: Campaign }),
 ) {
-  const opts = parseQueryOptions(optionsOrSelect);
+  const opts = parseQueryOptions(optionsOrSelect) as SorobanQueryOptions<TData, Campaign> & {
+    initialData?: Campaign;
+  };
   return useQuery({
     queryKey: ["campaign", id.toString()],
     queryFn: async () => (await loadSoroban()).getCampaign(id),
     staleTime: opts.staleTime ?? 30_000,
     enabled: opts.enabled,
     select: opts.select,
+    // Server-rendered pages pass the campaign they already read, so the client
+    // doesn't repeat the RPC call on mount.
+    initialData: opts.initialData,
   });
 }
 
@@ -271,20 +289,33 @@ export function useRecentCampaigns<TData = Campaign[]>(
   });
 }
 
-export function useCampaignsPaged<TData = { campaigns: Campaign[]; hasMore: boolean }>(
-  limit: number,
-  optionsOrSelect?:
-    | ((data: { campaigns: Campaign[]; hasMore: boolean }) => TData)
-    | SorobanQueryOptions<TData, { campaigns: Campaign[]; hasMore: boolean }>,
-) {
-  const opts = parseQueryOptions(optionsOrSelect);
+/**
+ * Explore's campaign list as offset-based pages. `fetchNextPage` reads only the
+ * next `pageSize` campaigns; pages already loaded are never re-fetched.
+ */
+export function useCampaignsPaged(pageSize: number, options: { enabled?: boolean } = {}) {
+  return useInfiniteQuery({
+    queryKey: ["campaigns", "paged", pageSize],
+    queryFn: async ({ pageParam }) => (await loadSoroban()).getCampaignsPage(pageParam, pageSize),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage: CampaignsPage) =>
+      lastPage.hasMore ? lastPage.nextOffset : undefined,
+    staleTime: 30_000,
+    enabled: options.enabled,
+  });
+}
+
+/** Loads specific campaigns by id, e.g. the Saved (bookmarks) view. */
+export function useCampaignsByIds(ids: readonly string[], options: { enabled?: boolean } = {}) {
+  const sortedIds = useMemo(() => [...ids].sort(), [ids]);
   return useQuery({
-    queryKey: ["campaigns", "paged", limit],
-    queryFn: async () => (await loadSoroban()).getCampaignsPage(limit),
-    placeholderData: (prev) => prev,
-    staleTime: opts.staleTime ?? 30_000,
-    enabled: opts.enabled,
-    select: opts.select,
+    queryKey: ["campaigns", "by-id", sortedIds],
+    queryFn: async () =>
+      (await loadSoroban()).getCampaignsByIds(
+        sortedIds.filter((id) => /^\d+$/.test(id)).map((id) => BigInt(id)),
+      ),
+    staleTime: 30_000,
+    enabled: (options.enabled ?? true) && sortedIds.length > 0,
   });
 }
 
@@ -428,15 +459,6 @@ export function useCreateCampaign() {
         throw new Error("Beneficiary cannot be the campaign contract address.");
       }
 
-      // Pack the single beneficiary address into the format expected by the contract's
-      // beneficiaries argument, which is Vec<(Address, u32)>. We map this to a nested
-      // array packaging: [[Address, 10000]] (100% share to the beneficiary).
-      const beneficiariesVec = xdr.ScVal.scvVec([
-        xdr.ScVal.scvVec([
-          new Address(params.beneficiary).toScVal(),
-          nativeToScVal(10000, { type: "u32" }),
-        ]),
-      ]);
       const beneficiaries =
         params.beneficiaries && params.beneficiaries.length > 0
           ? params.beneficiaries
@@ -491,6 +513,10 @@ export function useCreateCampaign() {
   });
 }
 
+/** Shapes cached under the ["campaigns", ...] query keys. */
+type CampaignsCacheEntry =
+  Campaign[] | { campaigns: Campaign[]; hasMore: boolean } | InfiniteData<CampaignsPage, number>;
+
 export function useDonate() {
   const { address } = useWallet();
   const queryClient = useQueryClient();
@@ -532,10 +558,9 @@ export function useDonate() {
         "campaign",
         variables.campaignId.toString(),
       ]);
-      const previousCampaignsQueries = queryClient.getQueriesData<{
-        campaigns: Campaign[];
-        hasMore: boolean;
-      }>({ queryKey: ["campaigns"] });
+      const previousCampaignsQueries = queryClient.getQueriesData<CampaignsCacheEntry>({
+        queryKey: ["campaigns"],
+      });
 
       const amountRaw = toRawAmount(variables.amount, variables.decimals);
 
@@ -547,20 +572,20 @@ export function useDonate() {
         });
       }
 
-      // Update campaigns lists (recent, paged)
-      queryClient.setQueriesData<{ campaigns: Campaign[]; hasMore: boolean }>(
-        { queryKey: ["campaigns"] },
-        (old) => {
-          if (!old) return old;
-          const newCampaigns =
-            old.campaigns?.map((c) =>
-              c.id === variables.campaignId
-                ? { ...c, raised_amount: c.raised_amount + amountRaw }
-                : c,
-            ) || [];
-          return { ...old, campaigns: newCampaigns };
-        },
-      );
+      // Update campaigns lists (recent, paged, by-id)
+      const bump = (c: Campaign) =>
+        c.id === variables.campaignId ? { ...c, raised_amount: c.raised_amount + amountRaw } : c;
+      queryClient.setQueriesData<CampaignsCacheEntry>({ queryKey: ["campaigns"] }, (old) => {
+        if (!old) return old;
+        if (Array.isArray(old)) return old.map(bump);
+        if ("pages" in old) {
+          return {
+            ...old,
+            pages: old.pages.map((page) => ({ ...page, campaigns: page.campaigns.map(bump) })),
+          };
+        }
+        return { ...old, campaigns: (old.campaigns ?? []).map(bump) };
+      });
 
       const toastId = notify.loading();
       return { previousCampaign, previousCampaignsQueries, toastId };
@@ -844,15 +869,16 @@ export function useEvents(limit = 20) {
 export function useTopDonors(campaignId: bigint) {
   return useQuery({
     queryKey: ["top-donors", campaignId.toString()],
-    queryFn: () => getTopDonors(campaignId),
+    queryFn: async () => (await loadSoroban()).getTopDonors(campaignId),
     staleTime: 30_000,
   });
 }
 
-export function useGetUpdates(campaignId: bigint) {
+export function useGetUpdates(campaignId: bigint, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ["updates", campaignId.toString()],
     queryFn: async () => (await loadSoroban()).getUpdates(campaignId),
+    enabled: options.enabled,
   });
 }
 
@@ -1086,7 +1112,7 @@ export function useWalletBalance(
 export function useAccountReserve(address: string | null, enabled = true) {
   return useQuery({
     queryKey: ["account-reserve", address],
-    queryFn: () => (address ? getAccountMinimumReserve(address) : null),
+    queryFn: async () => (address ? (await loadSoroban()).getAccountMinimumReserve(address) : null),
     enabled: enabled && !!address,
     staleTime: 30_000,
     retry: false,
@@ -1097,7 +1123,8 @@ export function useAccountReserve(address: string | null, enabled = true) {
 export function useDonorContribution(campaignId: bigint, address: string | null, enabled = true) {
   return useQuery({
     queryKey: ["donor-contribution", campaignId.toString(), address],
-    queryFn: () => (address ? getDonorContribution(campaignId, address) : null),
+    queryFn: async () =>
+      address ? (await loadSoroban()).getDonorContribution(campaignId, address) : null,
     enabled: enabled && !!address,
     staleTime: 30_000,
     retry: false,

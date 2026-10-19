@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Campaign,
   getCampaign,
-  getCampaignsPage,
   getPlatformConfig,
   getRecentCampaigns,
   getTotalCampaigns,
@@ -19,7 +18,9 @@ export interface SorobanQueryOptions<TData, TQueryData> {
 export function parseQueryOptions<TData, TQueryData>(
   optionsOrSelect?: ((data: TQueryData) => TData) | SorobanQueryOptions<TData, TQueryData>,
 ): SorobanQueryOptions<TData, TQueryData> {
-  return typeof optionsOrSelect === "function" ? { select: optionsOrSelect } : optionsOrSelect || {};
+  return typeof optionsOrSelect === "function"
+    ? { select: optionsOrSelect }
+    : optionsOrSelect || {};
 }
 
 export function areArraysShallowEqual<T>(a: T[] | undefined, b: T[] | undefined): boolean {
@@ -35,7 +36,8 @@ export function createMemoizedSelector<TInput, TItem>(selectorFn: (input: TInput
   return (input: TInput): TItem[] => {
     if (input === lastInput && lastResult !== undefined) return lastResult;
     const nextResult = selectorFn(input);
-    if (lastResult !== undefined && areArraysShallowEqual(lastResult, nextResult)) return lastResult;
+    if (lastResult !== undefined && areArraysShallowEqual(lastResult, nextResult))
+      return lastResult;
     lastInput = input;
     lastResult = nextResult;
     return nextResult;
@@ -61,7 +63,9 @@ export function getSelectUserCampaigns(address: string | null) {
   let selector = userCampaignsCache.get(key);
   if (!selector) {
     selector = createMemoizedSelector((campaigns: Campaign[]) =>
-      address ? campaigns.filter((campaign) => campaign.creator.toLowerCase() === address.toLowerCase()) : [],
+      address
+        ? campaigns.filter((campaign) => campaign.creator.toLowerCase() === address.toLowerCase())
+        : [],
     );
     userCampaignsCache.set(key, selector);
   }
@@ -73,7 +77,9 @@ export function getSelectCampaignsByCategory(category: string) {
   let selector = categoryCampaignsCache.get(key);
   if (!selector) {
     selector = createMemoizedSelector((campaigns: Campaign[]) =>
-      !key || key === "all" ? campaigns : campaigns.filter((campaign) => campaign.category.toLowerCase() === key),
+      !key || key === "all"
+        ? campaigns
+        : campaigns.filter((campaign) => campaign.category.toLowerCase() === key),
     );
     categoryCampaignsCache.set(key, selector);
   }
@@ -82,18 +88,30 @@ export function getSelectCampaignsByCategory(category: string) {
 export function sortCampaignsList(campaigns: Campaign[], sortBy?: CampaignSortKey): Campaign[] {
   if (!sortBy) return campaigns;
   const sorted = [...campaigns];
-  const progress = (campaign: Campaign) => campaign.target_amount === 0n ? 0 : Number((campaign.raised_amount * 10_000n) / campaign.target_amount);
+  const progress = (campaign: Campaign) =>
+    campaign.target_amount === 0n
+      ? 0
+      : Number((campaign.raised_amount * 10_000n) / campaign.target_amount);
   switch (sortBy) {
-    case "newest": return sorted.sort((a, b) => Number(b.deadline) - Number(a.deadline));
+    case "newest":
+      return sorted.sort((a, b) => Number(b.deadline) - Number(a.deadline));
     case "ending-soon":
-    case "oldest": return sorted.sort((a, b) => Number(a.deadline) - Number(b.deadline));
-    case "near-goal": return sorted.sort((a, b) => progress(b) - progress(a));
-    case "most-raised": return sorted.sort((a, b) => Number(b.raised_amount) - Number(a.raised_amount));
+    case "oldest":
+      return sorted.sort((a, b) => Number(a.deadline) - Number(b.deadline));
+    case "near-goal":
+      return sorted.sort((a, b) => progress(b) - progress(a));
+    case "most-raised":
+      return sorted.sort((a, b) => Number(b.raised_amount) - Number(a.raised_amount));
   }
 }
 const filterSortCache = new Map<string, (campaigns: Campaign[]) => Campaign[]>();
 export function getSelectFilteredAndSortedCampaigns(options: CampaignFilterOptions) {
-  const normalized = Object.fromEntries(Object.entries(options).map(([key, value]) => [key, typeof value === "string" ? value.toLowerCase().trim() : value]));
+  const normalized = Object.fromEntries(
+    Object.entries(options).map(([key, value]) => [
+      key,
+      typeof value === "string" ? value.toLowerCase().trim() : value,
+    ]),
+  );
   const key = JSON.stringify(normalized);
   let selector = filterSortCache.get(key);
   if (!selector) {
@@ -102,11 +120,21 @@ export function getSelectFilteredAndSortedCampaigns(options: CampaignFilterOptio
         const category = normalized.category as string | undefined;
         const status = normalized.status as string | undefined;
         const term = normalized.searchTerm as string | undefined;
-        return (!category || category === "all" || campaign.category.toLowerCase() === category) &&
+        return (
+          (!category || category === "all" || campaign.category.toLowerCase() === category) &&
           (!status || status === "all" || campaign.status.toLowerCase() === status) &&
           (!normalized.creator || campaign.creator.toLowerCase() === normalized.creator) &&
-          (!normalized.beneficiary || campaign.beneficiary.toLowerCase() === normalized.beneficiary) &&
-          (!term || [campaign.title, campaign.description, campaign.category, campaign.creator, campaign.beneficiary].some((value) => value.toLowerCase().includes(term)));
+          (!normalized.beneficiary ||
+            campaign.beneficiary.toLowerCase() === normalized.beneficiary) &&
+          (!term ||
+            [
+              campaign.title,
+              campaign.description,
+              campaign.category,
+              campaign.creator,
+              campaign.beneficiary,
+            ].some((value) => value.toLowerCase().includes(term)))
+        );
       });
       return sortCampaignsList(result, options.sortBy);
     });
@@ -115,32 +143,71 @@ export function getSelectFilteredAndSortedCampaigns(options: CampaignFilterOptio
   return selector;
 }
 
-export function useCampaign<TData = Campaign>(id: bigint, optionsOrSelect?: ((data: Campaign) => TData) | SorobanQueryOptions<TData, Campaign>) {
+export function useCampaign<TData = Campaign>(
+  id: bigint,
+  optionsOrSelect?: ((data: Campaign) => TData) | SorobanQueryOptions<TData, Campaign>,
+) {
   const options = parseQueryOptions(optionsOrSelect);
-  return useQuery({ queryKey: ["campaign", id.toString()], queryFn: () => getCampaign(id), staleTime: options.staleTime ?? 30_000, enabled: options.enabled, select: options.select });
+  return useQuery({
+    queryKey: ["campaign", id.toString()],
+    queryFn: () => getCampaign(id),
+    staleTime: options.staleTime ?? 30_000,
+    enabled: options.enabled,
+    select: options.select,
+  });
 }
-export function useRecentCampaigns<TData = Campaign[]>(optionsOrSelect?: ((data: Campaign[]) => TData) | SorobanQueryOptions<TData, Campaign[]>) {
+export function useRecentCampaigns<TData = Campaign[]>(
+  optionsOrSelect?: ((data: Campaign[]) => TData) | SorobanQueryOptions<TData, Campaign[]>,
+) {
   const options = parseQueryOptions(optionsOrSelect);
-  return useQuery({ queryKey: ["campaigns", "recent"], queryFn: () => getRecentCampaigns(), staleTime: options.staleTime ?? 30_000, enabled: options.enabled, select: options.select });
+  return useQuery({
+    queryKey: ["campaigns", "recent"],
+    queryFn: () => getRecentCampaigns(),
+    staleTime: options.staleTime ?? 30_000,
+    enabled: options.enabled,
+    select: options.select,
+  });
 }
-export function useCampaignsPaged<TData = { campaigns: Campaign[]; hasMore: boolean }>(limit: number, optionsOrSelect?: ((data: { campaigns: Campaign[]; hasMore: boolean }) => TData) | SorobanQueryOptions<TData, { campaigns: Campaign[]; hasMore: boolean }>) {
-  const options = parseQueryOptions(optionsOrSelect);
-  return useQuery({ queryKey: ["campaigns", "paged", limit], queryFn: () => getCampaignsPage(limit), placeholderData: (previous) => previous, staleTime: options.staleTime ?? 30_000, enabled: options.enabled, select: options.select });
+export function useUserCampaigns(address: string | null) {
+  return useRecentCampaigns(useMemo(() => getSelectUserCampaigns(address), [address]));
 }
-export function useUserCampaigns(address: string | null) { return useRecentCampaigns(useMemo(() => getSelectUserCampaigns(address), [address])); }
-export function useActiveCampaigns() { return useRecentCampaigns(selectActiveCampaigns); }
-export function useCampaignsByCategory(category: string) { return useRecentCampaigns(useMemo(() => getSelectCampaignsByCategory(category), [category])); }
+export function useActiveCampaigns() {
+  return useRecentCampaigns(selectActiveCampaigns);
+}
+export function useCampaignsByCategory(category: string) {
+  return useRecentCampaigns(useMemo(() => getSelectCampaignsByCategory(category), [category]));
+}
 export function useFilteredCampaigns(options: CampaignFilterOptions) {
-  const selector = useMemo(() => getSelectFilteredAndSortedCampaigns(options), [options.category, options.status, options.creator, options.beneficiary, options.searchTerm, options.sortBy]);
+  const selector = useMemo(
+    () => getSelectFilteredAndSortedCampaigns(options),
+    [
+      options.category,
+      options.status,
+      options.creator,
+      options.beneficiary,
+      options.searchTerm,
+      options.sortBy,
+    ],
+  );
   return useRecentCampaigns(selector);
 }
 export function usePlatformStats() {
-  return useQuery({ queryKey: ["platform-stats"], queryFn: async () => {
-    const totalCampaigns = await getTotalCampaigns();
-    let totalRaised = 0n;
-    let activeCampaigns = 0;
-    if (totalCampaigns > 0n) for (const campaign of await getRecentCampaigns(Number(totalCampaigns))) { totalRaised += campaign.raised_amount; if (campaign.status === "Active") activeCampaigns++; }
-    return { totalCampaigns, totalRaised: totalRaised.toString(), activeCampaigns };
-  }, staleTime: 60_000 });
+  return useQuery({
+    queryKey: ["platform-stats"],
+    queryFn: async () => {
+      const totalCampaigns = await getTotalCampaigns();
+      let totalRaised = 0n;
+      let activeCampaigns = 0;
+      if (totalCampaigns > 0n)
+        for (const campaign of await getRecentCampaigns(Number(totalCampaigns))) {
+          totalRaised += campaign.raised_amount;
+          if (campaign.status === "Active") activeCampaigns++;
+        }
+      return { totalCampaigns, totalRaised: totalRaised.toString(), activeCampaigns };
+    },
+    staleTime: 60_000,
+  });
 }
-export function usePlatformConfig() { return useQuery({ queryKey: ["platform-config"], queryFn: getPlatformConfig, staleTime: 30_000 }); }
+export function usePlatformConfig() {
+  return useQuery({ queryKey: ["platform-config"], queryFn: getPlatformConfig, staleTime: 30_000 });
+}

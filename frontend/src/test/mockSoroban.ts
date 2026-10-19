@@ -31,7 +31,14 @@ export function createSorobanMock(overrides: Record<string, unknown> = {}) {
     // Query hooks
     useCampaign: vi.fn(() => ({ ...idleQuery })),
     useRecentCampaigns: vi.fn(() => ({ ...idleQuery, data: [] })),
-    useCampaignsPaged: vi.fn(() => ({ ...idleQuery, data: { campaigns: [], hasMore: false } })),
+    useCampaignsPaged: vi.fn(() => ({
+      ...idleQuery,
+      data: { pages: [{ campaigns: [], hasMore: false, nextOffset: 0 }], pageParams: [0] },
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      fetchNextPage: vi.fn(),
+    })),
+    useCampaignsByIds: vi.fn(() => ({ ...idleQuery, data: [] })),
     useUserCampaigns: vi.fn(() => ({ ...idleQuery, data: [] })),
     useActiveCampaigns: vi.fn(() => ({ ...idleQuery, data: [] })),
     useCampaignsByCategory: vi.fn(() => ({ ...idleQuery, data: [] })),
