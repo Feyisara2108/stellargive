@@ -3,7 +3,7 @@
 import { Navbar } from "@/components/Navbar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWallet } from "@/lib/WalletProvider";
-import { usePlatformConfig, useRecentCampaigns } from "@/hooks/useSoroban";
+import { useCampaignsByCreator, usePlatformConfig } from "@/hooks/useSoroban";
 import { Shield, AlertCircle, Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
 
@@ -47,12 +47,11 @@ function AdminPanelSkeleton() {
 
 export default function AdminPage() {
   const { address, isWrongNetwork } = useWallet();
-  const { data: campaigns, isLoading: isLoadingCampaigns } = useRecentCampaigns();
+  const { data: campaigns, isLoading: isLoadingCampaigns } = useCampaignsByCreator(address);
 
   const { data: platformConfig, isLoading: isLoadingConfig } = usePlatformConfig();
 
-  const ownedCampaigns =
-    campaigns?.filter((c) => c.creator.toLowerCase() === address?.toLowerCase()) ?? [];
+  const ownedCampaigns = campaigns ?? [];
   // The contract owner gets the panel (for ownership transfer) even without campaigns.
   const isContractOwner = !!address && platformConfig?.owner === address;
 

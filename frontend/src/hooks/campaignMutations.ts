@@ -6,6 +6,9 @@ import { toRawAmount } from "@/utils/format";
 import { notify } from "@/lib/toast";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useQuery } from "@tanstack/react-query";
+import { mapTransactionError } from "@/lib/contractErrors";
+
+export { mapTransactionError } from "@/lib/contractErrors";
 
 export const MILESTONE_PERCENTS = [25, 50, 75, 100] as const;
 export type MilestonePercent = (typeof MILESTONE_PERCENTS)[number];
@@ -14,13 +17,6 @@ export function getCrossedMilestones(beforeStroops: bigint, afterStroops: bigint
   const before = Number((beforeStroops * 10_000n) / targetStroops) / 100;
   const after = Number((afterStroops * 10_000n) / targetStroops) / 100;
   return MILESTONE_PERCENTS.filter((milestone) => before < milestone && after >= milestone);
-}
-export function mapTransactionError(error: unknown): string {
-  const message = error instanceof Error ? error.message : typeof error === "object" && error !== null && "message" in error ? String(error.message) : String(error);
-  if (["User declined", "cancelled", "Wallet error", "User rejected"].some((value) => message.includes(value))) return "Transaction was cancelled.";
-  if (["Network Error", "Failed to fetch", "Send failed"].some((value) => message.includes(value))) return "Network error. Please try again.";
-  if (message.includes("Simulation failed") || message.includes("Transaction failed")) return "Transaction failed on-chain.";
-  return "Something went wrong. Please try again.";
 }
 function useContractMutation<T>(method: string, buildArgs: (value: T, address: string) => xdr.ScVal[], success: string) {
   const { address } = useWallet();

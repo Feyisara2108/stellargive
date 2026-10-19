@@ -5,7 +5,7 @@ import type { Campaign } from "@/lib/soroban";
 
 const {
   mockUseWallet,
-  mockUseRecentCampaigns,
+  mockUseCampaignsByCreator,
   mockUseAddToWhitelist,
   mockUseCancelCampaign,
   mockUseAddUpdate,
@@ -14,7 +14,7 @@ const {
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- required inside hoisted mock factory before imports are evaluated
   const React = require("react");
   const mockUseWallet = vi.fn();
-  const mockUseRecentCampaigns = vi.fn();
+  const mockUseCampaignsByCreator = vi.fn();
   const mockUseAddToWhitelist = vi.fn();
   const mockUseCancelCampaign = vi.fn();
   const mockUseAddUpdate = vi.fn();
@@ -75,7 +75,7 @@ const {
 
   return {
     mockUseWallet,
-    mockUseRecentCampaigns,
+    mockUseCampaignsByCreator,
     mockUseAddToWhitelist,
     mockUseCancelCampaign,
     mockUseAddUpdate,
@@ -89,7 +89,7 @@ vi.mock("@/lib/WalletProvider", () => ({
 
 vi.mock("@/hooks/useSoroban", async () =>
   (await import("@/test/mockSoroban")).createSorobanMock({
-    useRecentCampaigns: () => mockUseRecentCampaigns(),
+    useCampaignsByCreator: () => mockUseCampaignsByCreator(),
     useAddToWhitelist: () => mockUseAddToWhitelist(),
     useCancelCampaign: () => mockUseCancelCampaign(),
     useAddUpdate: () => mockUseAddUpdate(),
@@ -132,7 +132,7 @@ describe("AdminPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseWallet.mockReturnValue({ address: creatorAddress, isWrongNetwork: false });
-    mockUseRecentCampaigns.mockReturnValue({
+    mockUseCampaignsByCreator.mockReturnValue({
       data: [activeCampaign, fundedCampaign],
       isLoading: false,
     });

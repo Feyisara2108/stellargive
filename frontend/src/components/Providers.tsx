@@ -34,6 +34,7 @@ const CommandPalette = dynamic(
 // ---------------------------------------------------------------------------
 
 const STORAGE_KEY = "stellargive:query-cache";
+const BIGINT_TAG = "__stellargive_bigint__";
 
 /** Query-key prefixes we do NOT want to persist. */
 const EXCLUDED_KEY_PREFIXES = ["wallet-balance", "refund-eligibility", "fee-estimate"];
@@ -42,6 +43,25 @@ function shouldPersist(queryKey: readonly unknown[]): boolean {
   const first = queryKey[0];
   if (typeof first !== "string") return true;
   return !EXCLUDED_KEY_PREFIXES.some((prefix) => first.startsWith(prefix));
+}
+
+function serializeBigInt(_key: string, value: unknown): unknown {
+  return typeof value === "bigint" ? { [BIGINT_TAG]: value.toString() } : value;
+}
+
+function deserializeBigInt(_key: string, value: unknown): unknown {
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    Object.keys(value).length === 1 &&
+    BIGINT_TAG in value
+  ) {
+    const serialized = (value as Record<string, unknown>)[BIGINT_TAG];
+    if (typeof serialized === "string" && /^-?\d+$/.test(serialized)) {
+      return BigInt(serialized);
+    }
+  }
+  return value;
 }
 
 function saveToStorage(client: QueryClient): void {
@@ -55,7 +75,7 @@ function saveToStorage(client: QueryClient): void {
         state: q.state,
       }));
 
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(queries));
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(queries, serializeBigInt));
   } catch {
     // sessionStorage may be unavailable (private browsing quota exceeded).
   }
@@ -65,13 +85,15 @@ function restoreFromStorage(client: QueryClient): void {
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY);
     if (!raw) return;
-    const queries: Array<{ queryKey: readonly unknown[]; state: { data?: unknown } }> =
-      JSON.parse(raw);
+    const queries: Array<{
+      queryKey: readonly unknown[];
+      state: { data?: unknown; dataUpdatedAt?: number };
+    }> = JSON.parse(raw, deserializeBigInt);
     for (const { queryKey, state } of queries) {
       // Only restore if the query isn't already fresh in the client.
       const existing = client.getQueryCache().find({ queryKey });
       if (!existing || existing.state.status === "pending") {
-        client.setQueryData(queryKey, state?.data);
+        client.setQueryData(queryKey, state?.data, { updatedAt: state?.dataUpdatedAt });
       }
     }
   } catch {

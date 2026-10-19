@@ -1,5 +1,5 @@
 import { http, HttpResponse } from "msw";
-import { xdr, nativeToScVal } from "@stellar/stellar-sdk";
+import { xdr, nativeToScVal, scValToNative } from "@stellar/stellar-sdk";
 import { buildCampaign, campaignToXdr, campaignArrayToXdr } from "../test/factories";
 import type { Campaign } from "@/lib/soroban";
 
@@ -63,6 +63,15 @@ export const handlers = [
               if (campaign) {
                 xdrResult = campaignToXdr(campaign).toXDR("base64");
               }
+            }
+          }
+          if (funcName === "get_campaigns_by_creator") {
+            const args = ic ? (typeof ic.args === "function" ? ic.args() : ic.args) : [];
+            if (args.length > 0) {
+              const creator = String(scValToNative(args[0]));
+              xdrResult = campaignArrayToXdr(
+                MOCK_CAMPAIGNS.filter((campaign) => campaign.creator === creator),
+              ).toXDR("base64");
             }
           }
           const rawStr = Buffer.from(txXdr, "base64").toString("utf-8");
