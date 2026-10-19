@@ -8,83 +8,26 @@ import { AddressLink } from "@/components/AddressLink";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useEvents, useResolvedName } from "@/hooks/useSoroban";
-import { fromStroops, type SorobanEvent } from "@/lib/soroban";
-import { getAmountStroops, getCampaignId, getEventField } from "@/lib/eventData";
-import { toCSV, downloadTextFile } from "@/utils/format";
-import { Trophy, ArrowDown, Download, User } from "lucide-react";
+import { useEvents, useResolvedName, useTokenMetadataBatch } from "@/hooks/useSoroban";
+import { toCSV, downloadTextFile, formatTokenAmount } from "@/utils/format";
+import { Trophy, ArrowDown, Download } from "lucide-react";
 import { useWallet } from "@/lib/WalletProvider";
+import { NATIVE_XLM_CONTRACT_ID } from "@/lib/tokens";
+import {
+  describeToken,
+  formatTokenTotals,
+  tokensNeedingMetadata,
+  type TokenDisplay,
+} from "@/lib/tokenTotals";
+import {
+  aggregateDonorsByToken,
+  pickLeaderboardToken,
+  type DonorTotal,
+  type TimeRange,
+} from "./aggregateDonors";
 
 /** How many on-chain events to aggregate the ranking from. */
 const EVENT_LIMIT = 200;
-
-/** Anonymous donations are recorded against the contract's zero placeholder. */
-const ZERO_ADDRESS = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
-
-type TimeRange = "all" | "monthly" | "weekly";
-
-interface DonorTotal {
-  donor: string;
-  total: bigint;
-  donations: number;
-  campaigns: number;
-}
-
-/**
- * Aggregates every `received` event into one row per donor, ranked by total
- * amount donated across all campaigns. Anonymous donations (the zero address)
- * are excluded so they can't occupy a rank.
- */
-function aggregateDonors(events: SorobanEvent[] | undefined, timeRange: TimeRange): DonorTotal[] {
-  const totals = new Map<string, { total: bigint; donations: number; campaigns: Set<string> }>();
-
-  // Calculate time cutoff based on selected range
-  const now = Date.now();
-  let cutoffMs = 0;
-  if (timeRange === "weekly") {
-    cutoffMs = 7 * 24 * 60 * 60 * 1000;
-  } else if (timeRange === "monthly") {
-    cutoffMs = 30 * 24 * 60 * 60 * 1000;
-  }
-  const cutoff = cutoffMs > 0 ? now - cutoffMs : 0;
-
-  for (const event of events ?? []) {
-    if (event?.topic !== "received" || !event.data) continue;
-
-    // Filter by time range if not "all"
-    // `getEvents` stamps events with `createdAt` (ledger close time); `timestamp` is the legacy name.
-    const eventStamp = event.createdAt ?? event.timestamp;
-    if (cutoff > 0 && eventStamp) {
-      const eventTime = new Date(eventStamp).getTime();
-      if (eventTime < cutoff) continue;
-    }
-
-    const donorRaw = getEventField(event, "donor");
-    const donor = donorRaw?.toString();
-    if (!donor || donor === ZERO_ADDRESS) continue;
-
-    const amount = getAmountStroops(event, "amount");
-    if (amount <= 0n) continue;
-
-    const entry = totals.get(donor) ?? { total: 0n, donations: 0, campaigns: new Set<string>() };
-    entry.total += amount;
-    entry.donations += 1;
-    const campaignId = getCampaignId(event);
-    if (campaignId) {
-      entry.campaigns.add(campaignId);
-    }
-    totals.set(donor, entry);
-  }
-
-  return Array.from(totals.entries())
-    .map(([donor, { total, donations, campaigns }]) => ({
-      donor,
-      total,
-      donations,
-      campaigns: campaigns.size,
-    }))
-    .sort((a, b) => (b.total === a.total ? 0 : b.total > a.total ? 1 : -1));
-}
 
 /** Medal colours for the podium; every other rank uses the muted badge. */
 const RANK_STYLES: Record<number, string> = {
@@ -109,10 +52,12 @@ function LeaderboardRow({
   entry,
   rank,
   isCurrentUser,
+  token,
 }: {
   entry: DonorTotal;
   rank: number;
   isCurrentUser: boolean;
+  token: TokenDisplay;
 }) {
   const { data: resolvedName } = useResolvedName(entry.donor);
 
@@ -137,7 +82,9 @@ function LeaderboardRow({
         </div>
       </div>
       <div className="shrink-0 text-right">
-        <p className="font-bold text-primary tabular-nums">{fromStroops(entry.total)} XLM</p>
+        <p className="font-bold text-primary tabular-nums">
+          {formatTokenAmount(entry.total, token.decimals)} {token.symbol}
+        </p>
         <p className="text-xs text-muted-foreground">
           {donationLabel} · {campaignLabel}
         </p>
@@ -154,15 +101,52 @@ function LeaderboardContent() {
 
   const timeRange = (searchParams.get("range") as TimeRange) || "all";
 
-  const donors = useMemo(() => aggregateDonors(events, timeRange), [events, timeRange]);
+  const donorsByToken = useMemo(
+    () => aggregateDonorsByToken(events, timeRange),
+    [events, timeRange],
+  );
+  const tokenIds = useMemo(() => Array.from(donorsByToken.keys()), [donorsByToken]);
+  const { data: tokenMetas } = useTokenMetadataBatch(tokensNeedingMetadata(tokenIds));
 
-  const totalDonated = useMemo(() => donors.reduce((sum, d) => sum + d.total, 0n), [donors]);
+  // Amounts in different tokens can't be compared, so donors are ranked within one token.
+  const selectedToken = pickLeaderboardToken(
+    donorsByToken,
+    searchParams.get("token"),
+    NATIVE_XLM_CONTRACT_ID,
+  );
+  const donors = useMemo(
+    () => (selectedToken === null ? [] : (donorsByToken.get(selectedToken) ?? [])),
+    [donorsByToken, selectedToken],
+  );
+  const tokenDisplay = describeToken(selectedToken ?? "", tokenMetas?.[selectedToken ?? ""]);
 
-  const handleRangeChange = useCallback(
-    (range: TimeRange) => {
-      router.push(`/leaderboard?range=${range}`);
+  // One figure per token; never a combined total.
+  const totalsByToken = useMemo(
+    () =>
+      formatTokenTotals(
+        new Map(
+          Array.from(donorsByToken, ([token, ranked]) => [
+            token,
+            ranked.reduce((sum, d) => sum + d.total, 0n),
+          ]),
+        ),
+        tokenMetas ?? {},
+      ),
+    [donorsByToken, tokenMetas],
+  );
+
+  const navigate = useCallback(
+    (range: TimeRange, token: string | null) => {
+      const params = new URLSearchParams({ range });
+      if (token) params.set("token", token);
+      router.push(`/leaderboard?${params.toString()}`);
     },
     [router],
+  );
+
+  const handleRangeChange = useCallback(
+    (range: TimeRange) => navigate(range, searchParams.get("token")),
+    [navigate, searchParams],
   );
 
   const scrollToMyRank = useCallback(() => {
@@ -177,18 +161,24 @@ function LeaderboardContent() {
   const myRank = address ? donors.findIndex((d) => d.donor === address) + 1 : null;
 
   const handleExportCSV = useCallback(() => {
-    const headers = ["Rank", "Donor Address", "Total Donated (XLM)", "Donations", "Campaigns"];
+    const headers = [
+      "Rank",
+      "Donor Address",
+      `Total Donated (${tokenDisplay.symbol})`,
+      "Donations",
+      "Campaigns",
+    ];
     const rows = donors.map((d, index) => [
       index + 1,
       d.donor,
-      fromStroops(d.total),
+      formatTokenAmount(d.total, tokenDisplay.decimals),
       d.donations,
       d.campaigns,
     ]);
     const csv = toCSV(headers, rows);
     const date = new Date().toISOString().slice(0, 10);
     downloadTextFile(`stellargive-leaderboard-${timeRange}-${date}.csv`, csv);
-  }, [donors, timeRange]);
+  }, [donors, timeRange, tokenDisplay.symbol, tokenDisplay.decimals]);
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -227,6 +217,24 @@ function LeaderboardContent() {
               </Button>
             ))}
           </div>
+          {tokenIds.length > 1 && (
+            <>
+              <span className="ml-2 text-sm text-muted-foreground">Token:</span>
+              <div className="flex gap-1" role="group" aria-label="Rank by token">
+                {tokenIds.map((token) => (
+                  <Button
+                    key={token}
+                    variant={token === selectedToken ? "default" : "outline"}
+                    size="sm"
+                    aria-pressed={token === selectedToken}
+                    onClick={() => navigate(timeRange, token)}
+                  >
+                    {describeToken(token, tokenMetas?.[token]).symbol}
+                  </Button>
+                ))}
+              </div>
+            </>
+          )}
           {myRank && (
             <Button variant="outline" size="sm" onClick={scrollToMyRank} className="ml-auto">
               <ArrowDown className="w-4 h-4 mr-1.5" />
@@ -266,7 +274,14 @@ function LeaderboardContent() {
                 </div>
                 <div>
                   <p className="text-muted-foreground">Total donated</p>
-                  <p className="text-2xl font-bold tabular-nums">{fromStroops(totalDonated)} XLM</p>
+                  <ul
+                    className="text-2xl font-bold tabular-nums"
+                    aria-label="Total donated per token"
+                  >
+                    {totalsByToken.map((label) => (
+                      <li key={label}>{label}</li>
+                    ))}
+                  </ul>
                 </div>
                 {myRank && (
                   <div>
@@ -289,6 +304,7 @@ function LeaderboardContent() {
                     entry={entry}
                     rank={index + 1}
                     isCurrentUser={address ? entry.donor === address : false}
+                    token={tokenDisplay}
                   />
                 ))}
               </ol>
@@ -296,6 +312,8 @@ function LeaderboardContent() {
 
             <p className="text-xs text-muted-foreground">
               Aggregated from the most recent {EVENT_LIMIT} on-chain contract events.
+              {tokenIds.length > 1 &&
+                ` Ranked by donations in ${tokenDisplay.symbol}; amounts in different tokens aren't added together.`}
             </p>
           </>
         )}

@@ -664,21 +664,30 @@ export function useRefundEligibility(campaignId: bigint, isCancelled: boolean) {
   });
 }
 
+/**
+ * Campaign counts plus the amount raised per accepted token. Campaigns can
+ * accept different tokens with different decimals, so raised amounts are kept
+ * per token contract id (as decimal strings, since the query cache is persisted
+ * as JSON) and never summed into one figure.
+ */
 export function usePlatformStats() {
   return useQuery({
     queryKey: ["platform-stats"],
     queryFn: async () => {
       const totalCampaigns = await getTotalCampaigns();
-      let totalRaised = BigInt(0);
+      const raised = new Map<string, bigint>();
       let activeCampaigns = 0;
       if (totalCampaigns > 0n) {
         const campaigns = await getRecentCampaigns(Number(totalCampaigns));
         for (const c of campaigns) {
-          totalRaised += c.raised_amount;
+          raised.set(c.accepted_token, (raised.get(c.accepted_token) ?? 0n) + c.raised_amount);
           if (c.status === "Active") activeCampaigns++;
         }
       }
-      return { totalCampaigns, totalRaised: totalRaised.toString(), activeCampaigns };
+      const raisedByToken: Record<string, string> = Object.fromEntries(
+        Array.from(raised, ([token, amount]) => [token, amount.toString()]),
+      );
+      return { totalCampaigns, raisedByToken, activeCampaigns };
     },
     staleTime: 60_000,
   });

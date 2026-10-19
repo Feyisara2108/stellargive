@@ -38,7 +38,7 @@ export function createSorobanMock(overrides: Record<string, unknown> = {}) {
     useFilteredCampaigns: vi.fn(() => ({ ...idleQuery, data: [] })),
     usePlatformStats: vi.fn(() => ({
       ...idleQuery,
-      data: { totalCampaigns: 0n, totalRaised: "0", activeCampaigns: 0 },
+      data: { totalCampaigns: 0n, raisedByToken: {}, activeCampaigns: 0 },
     })),
     useUniqueDonors: vi.fn(() => ({ ...idleQuery, data: 0 })),
     usePlatformConfig: vi.fn(() => ({ ...idleQuery })),

@@ -16,6 +16,12 @@ vi.mock("@stellar/freighter-api", () => ({
   getAddress: vi.fn(),
   setAllowed: vi.fn(),
   getNetwork: vi.fn(),
+  WatchWalletChanges: class {
+    watch() {
+      return {};
+    }
+    stop() {}
+  },
 }));
 
 // Mock sentry
