@@ -21,7 +21,8 @@ import { Loader2, ImageIcon, Zap, AlertTriangle, RotateCw } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { formatBasisPoints, ZERO_ADDRESS, formatTokenAmount } from "@/utils/format";
+import { formatBasisPoints, formatTokenAmount } from "@/utils/format";
+import { parseCreatedEvent, parseDonationEvent } from "@/lib/eventData";
 import { calculateProgress, getCampaignImageUrl, CAMPAIGN_IMAGE_BLUR_DATA_URL } from "@/lib/utils";
 import dynamic from "next/dynamic";
 const RecentDonations = dynamic(
@@ -52,38 +53,18 @@ function TopDonors({ campaignId }: { campaignId: bigint }) {
 
   if (isLoading) return <Skeleton className="h-32 w-full mt-6" />;
 
-  const donationsByDonor = allEvents
-    ?.filter((e) => {
-      try {
-        const dataObj = e.data as { campaign_id?: unknown } | undefined;
-        return (
-          e.topic === "received" &&
-          dataObj?.campaign_id !== undefined &&
-          BigInt(dataObj.campaign_id as string | number | bigint) === campaignId
-        );
-      } catch {
-        return false;
-      }
-    })
-    .reduce<Record<string, bigint>>(
-      (acc, event) => {
-        const dataObj = event.data as
-          | { donor?: { toString(): string }; amount?: string | number | bigint }
-          | undefined;
-        const donor = dataObj?.donor?.toString?.();
-        let amount = 0n;
-        try {
-          amount = BigInt(dataObj?.amount ?? 0);
-        } catch {
-          amount = 0n;
-        }
-        if (donor && donor !== ZERO_ADDRESS && amount > 0n) {
-          acc[donor] = (acc[donor] || 0n) + amount;
-        }
-        return acc;
-      },
-      {},
-    );
+  const donationsByDonor = allEvents?.reduce<Record<string, bigint>>((acc, event) => {
+    const donation = parseDonationEvent(event);
+    if (
+      donation?.campaignId === campaignId.toString() &&
+      donation.donor &&
+      donation.amount !== null &&
+      donation.amount > 0n
+    ) {
+      acc[donation.donor] = (acc[donation.donor] || 0n) + donation.amount;
+    }
+    return acc;
+  }, {});
 
   const topDonors = Object.entries((donationsByDonor as Record<string, bigint>) || {})
     .sort((a, b) => Number(b[1] - a[1]))
@@ -129,15 +110,9 @@ function CampaignTimeline({ campaign }: { campaign: Campaign }) {
 
   if (isLoading) return <Skeleton className="h-32 w-full mt-6" />;
 
-  const createdEvent = allEvents?.find((e) => {
-    if (e.topic !== "created" || !e.data) return false;
-    const cid = Array.isArray(e.data) ? e.data[0] : (e.data as { id?: unknown })?.id;
-    try {
-      return cid != null && BigInt(cid as string | number | bigint) === campaign.id;
-    } catch {
-      return false;
-    }
-  });
+  const createdEvent = allEvents?.find(
+    (e) => parseCreatedEvent(e)?.campaignId === campaign.id.toString(),
+  );
 
   return (
     <div className="space-y-4 pt-6 border-t mt-6">

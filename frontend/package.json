@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "analyze": "ANALYZE=true next build",
+    "analyze": "ANALYZE=true next build --webpack",
+    "analyze:routes": "node scripts/measure-route-js.mjs",
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest run",

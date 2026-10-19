@@ -22,7 +22,7 @@ import {
   AlertTriangle,
   RotateCw,
   LayoutGrid,
-  List,
+  List as ListIcon,
   Bookmark,
   Tag,
 } from "lucide-react";
@@ -606,7 +606,7 @@ function ExploreContent() {
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              <List className="h-4 w-4" />
+              <ListIcon className="h-4 w-4" />
             </button>
           </div>
         </div>
@@ -787,7 +787,7 @@ function ExploreContent() {
                   // and `columnCount` reactively.
                   const items = filtered.map((campaign) => ({
                     campaign,
-                    tokenMeta: tokenMetas?.[campaign.accepted_token],
+                    tokenMeta: tokenMetas?.[campaign.accepted_token] ?? undefined,
                     detailHrefSearch,
                   }));
                   const gridRows: (typeof items)[] = [];
@@ -815,7 +815,7 @@ function ExploreContent() {
                 (() => {
                   const items = filtered.map((campaign) => ({
                     campaign,
-                    tokenMeta: tokenMetas?.[campaign.accepted_token],
+                    tokenMeta: tokenMetas?.[campaign.accepted_token] ?? undefined,
                     detailHrefSearch,
                   }));
                   const rowH = LIST_CARD_HEIGHT + GRID_GAP;

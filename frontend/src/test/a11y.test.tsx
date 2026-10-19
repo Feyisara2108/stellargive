@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, act } from "@/test/render";
 import { axe, toHaveNoViolations } from "jest-axe";
-import { createSorobanMock } from "@/test/mockSoroban";
 import React from "react";
 
 // Extend Vitest's expect with the toHaveNoViolations matcher
@@ -42,8 +41,8 @@ vi.mock("@stellar/stellar-sdk", async (importActual) => {
 
 // Mock hooks. Each hook is a `vi.fn` so individual accessibility tests can
 // supply page-specific mocked data while sharing a single module mock.
-vi.mock("@/hooks/useSoroban", () =>
-  createSorobanMock({
+vi.mock("@/hooks/useSoroban", async () =>
+  (await import("@/test/mockSoroban")).createSorobanMock({
     useCampaignsPaged: vi.fn(() => ({
       data: { campaigns: [], hasMore: false },
       isLoading: false,
@@ -168,7 +167,12 @@ import LeaderboardPage from "@/app/leaderboard/page";
 import ActivityPage from "@/app/activity/page";
 import AdminPage from "@/app/admin/page";
 import FaqPage from "@/app/faq/page";
-import { useEvents, useRecentCampaigns, useResolvedName } from "@/hooks/useSoroban";
+import {
+  useEventHistory,
+  useEvents,
+  useRecentCampaigns,
+  useResolvedName,
+} from "@/hooks/useSoroban";
 
 // A valid 56-char G-address so address helpers treat it as a real donor.
 const DONOR_ADDRESS = `G${"A".repeat(55)}`;
@@ -180,7 +184,14 @@ const RECEIVED_EVENT = {
   ledger: 1000,
   createdAt: "2026-01-01T00:00:00Z",
   txHash: "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-  data: [1n, DONOR_ADDRESS, 50_000_000n],
+  data: {
+    campaign_id: 1n,
+    donor: DONOR_ADDRESS,
+    amount: 50_000_000n,
+    total_raised: 50_000_000n,
+    accepted_token: "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+    comment: null,
+  },
 };
 
 /** A campaign owned by the mocked wallet, used to reach the AdminPanel. */
@@ -266,11 +277,15 @@ describe("Core Pages Accessibility Suite", () => {
   });
 
   it("Leaderboard page accessibility", async () => {
-    vi.mocked(useEvents).mockReturnValue({
-      data: [RECEIVED_EVENT],
+    vi.mocked(useEventHistory).mockReturnValue({
+      data: {
+        events: [RECEIVED_EVENT],
+        windowStart: "2025-12-25T00:00:00Z",
+        windowEnd: "2026-01-01T00:00:00Z",
+        truncated: false,
+      },
       isLoading: false,
       isError: false,
-      refetch: vi.fn(),
     } as any);
 
     const { container } = render(<LeaderboardPage />);

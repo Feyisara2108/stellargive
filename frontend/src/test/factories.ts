@@ -22,9 +22,10 @@ export const makeCampaign = (overrides?: Partial<Campaign>): Campaign => ({
   ...overrides,
 });
 
-export type ContractEventTopic = "received" | "created" | "claimed";
+export type ContractEventTopic = "received" | "created" | "claimed" | "autoclaimed";
 
-export type ContractEventPayload = Record<string, unknown>;
+/** Struct events decode to objects; a few (e.g. `funds/claimed`) are tuples. */
+export type ContractEventPayload = Record<string, unknown> | unknown[];
 
 export type ContractEvent = {
   id: string;
@@ -36,8 +37,9 @@ export type ContractEvent = {
 };
 
 /**
- * Shared envelope for contract events. `data` must be a struct-shaped object
- * matching what `scValToNative` returns for each `#[contracttype]` event.
+ * Shared envelope for contract events. `data` must match what `scValToNative`
+ * returns for the event: an object for `#[contracttype]` structs, an array for
+ * tuple payloads.
  */
 export const makeEvent = (
   id: string,
@@ -135,6 +137,42 @@ export const makeClaimedEvent = (
   overrides?: Partial<ClaimedEventData>,
   ledger = 100,
 ): ContractEvent => makeEvent(id, "claimed", makeClaimedEventData(overrides), ledger);
+
+/**
+ * The `(funds, claimed)` event, published as a tuple
+ * `(campaign_id, beneficiary, amount, accepted_token)` rather than a struct.
+ */
+export const makeFundsClaimedEvent = (
+  id: string,
+  overrides?: Partial<ClaimedEventData> & { accepted_token?: string },
+  ledger = 100,
+): ContractEvent => {
+  const { campaign_id, beneficiary, amount } = makeClaimedEventData(overrides);
+  return makeEvent(
+    id,
+    "claimed",
+    [campaign_id, beneficiary, amount, overrides?.accepted_token ?? NATIVE_TOKEN_ADDRESS],
+    ledger,
+  );
+};
+
+/** `AutoClaimedEvent { campaign_id, total_raised, beneficiary }`. */
+export const makeAutoClaimedEvent = (
+  id: string,
+  overrides?: { campaign_id?: bigint; total_raised?: bigint; beneficiary?: string },
+  ledger = 100,
+): ContractEvent =>
+  makeEvent(
+    id,
+    "autoclaimed",
+    {
+      campaign_id: 1n,
+      total_raised: 100_000_000n,
+      beneficiary: WALLET_ADDRESS,
+      ...overrides,
+    },
+    ledger,
+  );
 
 // Aliases for Issue #390 compliance
 export const buildCampaign = makeCampaign;

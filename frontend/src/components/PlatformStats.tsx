@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { usePlatformStats, useUniqueDonors } from "@/hooks/useSoroban";
-import { fromStroops } from "@/lib/soroban";
+import { useEventHistory, usePlatformStats, useUniqueDonors } from "@/hooks/useSoroban";
+import { formatEventWindow } from "@/lib/eventData";
+import type { EventHistory } from "@/lib/soroban";
+import { fromStroops } from "@/lib/amounts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/ui/stat-card";
@@ -88,9 +90,14 @@ function useCountUpOnView(value: number, animate: boolean) {
   return { cardRef, display };
 }
 
+const selectDonorWindow = (history: EventHistory) =>
+  formatEventWindow(history.windowStart, history.windowEnd);
+
 export function PlatformStats() {
   const { data: stats, isLoading, isError, refetch, isFetching } = usePlatformStats();
   const { data: uniqueDonors, isLoading: donorsLoading, isError: donorsError } = useUniqueDonors();
+  // Same cached history scan as the count; only the period it covers.
+  const { data: donorWindow } = useEventHistory(selectDonorWindow);
   const prefersReducedMotion = usePrefersReducedMotion();
   // TanStack v5 resets a data-less query to "pending" on refetch, which would swap the
   // error card for the loading skeleton mid-retry; track the retry so the card stays.
@@ -193,7 +200,9 @@ export function PlatformStats() {
         title="Unique Donors"
         value={donorsError ? "—" : donorsCount.display.toString()}
         loading={donorsLoading}
-        tooltip="Distinct donor addresses across the donation events scanned from the start of the contract's history. Anonymous donations are excluded."
+        tooltip={`Distinct donor addresses across donation events from ${
+          donorWindow ?? "the RPC's event retention window"
+        } (the RPC keeps about a week of events). Anonymous donations are excluded.`}
       />
     </div>
   );

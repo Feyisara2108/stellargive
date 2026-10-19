@@ -7,7 +7,7 @@ import * as z from "zod";
 import { useCreateCampaign, useResolvedName } from "@/hooks/useSoroban";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useWallet } from "@/lib/WalletProvider";
-import { isValidStellarAddress } from "@/lib/soroban";
+import { isValidAccountAddress as isValidStellarAddress } from "@/lib/strkey";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,

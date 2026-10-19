@@ -12,7 +12,7 @@ import {
   useTokenMetadata,
   type MilestonePercent,
 } from "@/hooks/useSoroban";
-import { Campaign } from "@/lib/soroban";
+import type { Campaign } from "@/lib/soroban";
 import { useWallet } from "@/lib/WalletProvider";
 import { WRONG_NETWORK_MESSAGE } from "@/lib/network";
 import { formatTokenAmount, toRawAmount } from "@/utils/format";

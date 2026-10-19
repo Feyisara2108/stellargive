@@ -1,27 +1,26 @@
 import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  getCampaign,
-  getRecentCampaigns,
-  getCampaignsPage,
-  submitTransaction,
-  estimateFee,
-  CONTRACT_ID,
-  toStroops,
-  getEvents,
-  getUpdates,
-  getTotalCampaigns,
-  getPlatformConfig,
-  getSACBalance,
-  resolveAddressName,
-  Campaign,
-  SorobanEvent,
-  SubmitTransactionResult,
-} from "@/lib/soroban";
+import type { Campaign, EventHistory, SorobanEvent, SubmitTransactionResult } from "@/lib/soroban";
+import { parseDonationEvent } from "@/lib/eventData";
+import { CONTRACT_ID } from "@/lib/config";
+import { toStroops } from "@/lib/amounts";
+import { isValidAccountAddress } from "@/lib/strkey";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { Address, nativeToScVal, xdr } from "@stellar/stellar-sdk";
 import { useWallet } from "@/lib/WalletProvider";
 import { toRawAmount } from "@/utils/format";
+
+/**
+ * The Stellar SDK (and everything in `@/lib/soroban` built on it) is the bulk of
+ * the client bundle. Hooks load it when a query or mutation first runs instead
+ * of at import time, so a route that renders a shell before its data — or never
+ * touches the chain at all (FAQ) — doesn't ship it in its first-load JS.
+ */
+// Memoized so concurrent first calls share one import (vitest's module mocks can
+// otherwise hand a racing second `import()` the real module).
+let sorobanModule: Promise<typeof import("@/lib/soroban")> | undefined;
+let sdkModule: Promise<typeof import("@stellar/stellar-sdk")> | undefined;
+const loadSoroban = () => (sorobanModule ??= import("@/lib/soroban"));
+const loadSdk = () => (sdkModule ??= import("@stellar/stellar-sdk"));
 
 // ---------------------------------------------------------------------------
 // Selector Memoization & Referential Stability Utilities
@@ -243,7 +242,7 @@ export function useCampaign<TData = Campaign>(
   const opts = parseQueryOptions(optionsOrSelect);
   return useQuery({
     queryKey: ["campaign", id.toString()],
-    queryFn: () => getCampaign(id),
+    queryFn: async () => (await loadSoroban()).getCampaign(id),
     staleTime: opts.staleTime ?? 30_000,
     enabled: opts.enabled,
     select: opts.select,
@@ -256,7 +255,7 @@ export function useRecentCampaigns<TData = Campaign[]>(
   const opts = parseQueryOptions(optionsOrSelect);
   return useQuery({
     queryKey: ["campaigns", "recent"],
-    queryFn: () => getRecentCampaigns(),
+    queryFn: async () => (await loadSoroban()).getRecentCampaigns(),
     staleTime: opts.staleTime ?? 30_000,
     enabled: opts.enabled,
     select: opts.select,
@@ -272,7 +271,7 @@ export function useCampaignsPaged<TData = { campaigns: Campaign[]; hasMore: bool
   const opts = parseQueryOptions(optionsOrSelect);
   return useQuery({
     queryKey: ["campaigns", "paged", limit],
-    queryFn: () => getCampaignsPage(limit),
+    queryFn: async () => (await loadSoroban()).getCampaignsPage(limit),
     placeholderData: (prev) => prev,
     staleTime: opts.staleTime ?? 30_000,
     enabled: opts.enabled,
@@ -403,6 +402,8 @@ export function useCreateCampaign() {
       maxPerDonor?: string | null;
     }) => {
       if (!address) throw new Error("Wallet not connected");
+      const { Address, nativeToScVal, xdr } = await loadSdk();
+      const { submitTransaction } = await loadSoroban();
       if (params.beneficiary === CONTRACT_ID) {
         throw new Error("Beneficiary cannot be the campaign contract address.");
       }
@@ -467,6 +468,8 @@ export function useDonate() {
       message?: string;
     }) => {
       if (!address) throw new Error("Wallet not connected");
+      const { Address, nativeToScVal } = await loadSdk();
+      const { submitTransaction } = await loadSoroban();
 
       const args = [
         new Address(address).toScVal(),
@@ -567,6 +570,8 @@ export function useClaimFunds() {
   return useMutation({
     mutationFn: async (campaignId: bigint) => {
       if (!address) throw new Error("Wallet not connected");
+      const { Address, nativeToScVal } = await loadSdk();
+      const { submitTransaction } = await loadSoroban();
 
       const args = [new Address(address).toScVal(), nativeToScVal(campaignId, { type: "u64" })];
 
@@ -598,6 +603,8 @@ export function useClaimRefund() {
   return useMutation({
     mutationFn: async (campaignId: bigint) => {
       if (!address) throw new Error("Wallet not connected");
+      const { Address, nativeToScVal } = await loadSdk();
+      const { submitTransaction } = await loadSoroban();
 
       const args = [new Address(address).toScVal(), nativeToScVal(campaignId, { type: "u64" })];
 
@@ -627,6 +634,8 @@ export function useRefundEligibility(campaignId: bigint, isCancelled: boolean) {
     queryKey: ["refund-eligibility", campaignId.toString(), address],
     queryFn: async () => {
       if (!address || !isCancelled) return false;
+      const { Address, nativeToScVal } = await loadSdk();
+      const { estimateFee } = await loadSoroban();
       try {
         const args = [new Address(address).toScVal(), nativeToScVal(campaignId, { type: "u64" })];
         const fee = await estimateFee(address, "claim_refund", args);
@@ -644,6 +653,7 @@ export function usePlatformStats() {
   return useQuery({
     queryKey: ["platform-stats"],
     queryFn: async () => {
+      const { getTotalCampaigns, getRecentCampaigns } = await loadSoroban();
       const totalCampaigns = await getTotalCampaigns();
       let totalRaised = BigInt(0);
       let activeCampaigns = 0;
@@ -660,58 +670,58 @@ export function usePlatformStats() {
   });
 }
 
-/** How many contract events to scan when counting distinct donors. */
-export const DONOR_SCAN_EVENT_LIMIT = 200;
-
-/** Anonymous donations are recorded against the contract's zero placeholder. */
-const ZERO_ADDRESS = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
-
 /**
  * Counts the distinct donor addresses across the given donation events.
  *
- * Donation payloads are positional `[campaign_id, donor, amount, raised_amount,
- * accepted_token]`, so the donor is `data[1]`. Anonymous donations all share the
- * zero address on-chain and are dropped, so they count as no donor at all rather
- * than as one distinct placeholder.
+ * Anonymous donations all share the zero address on-chain and are dropped, so
+ * they count as no donor at all rather than as one distinct placeholder.
  *
  * Exported so the pure aggregation can be exercised without the RPC, and so the
  * counting query below only has to wire it up.
  */
-export function countUniqueDonors(events: SorobanEvent[] | undefined): number {
+export function countUniqueDonors(events: readonly unknown[] | undefined): number {
   const donors = new Set<string>();
 
   for (const event of events ?? []) {
-    if (event?.topic !== "received" || !event.data) continue;
-
-    const dataObj = event.data as { donor?: unknown } | undefined;
-    const donor = dataObj?.donor != null ? String(dataObj.donor) : undefined;
-    if (!donor || donor === ZERO_ADDRESS) continue;
-
-    donors.add(donor);
+    const donation = parseDonationEvent(event);
+    if (donation?.donor) donors.add(donation.donor);
   }
 
   return donors.size;
 }
 
+/** Query key shared by every consumer of the full event history scan. */
+export const EVENT_HISTORY_QUERY_KEY = ["events", "history"] as const;
+
 /**
- * Distinct donors across the scanned donation events.
+ * Every contract event the RPC still retains (cursor-paged, not capped at one
+ * page), plus the period it covers. Shared by the leaderboard and the donor
+ * count so the scan runs once.
+ */
+export function useEventHistory<TData = EventHistory>(select?: (data: EventHistory) => TData) {
+  return useQuery({
+    queryKey: EVENT_HISTORY_QUERY_KEY,
+    queryFn: async () => (await loadSoroban()).getEventHistory(),
+    select,
+    staleTime: 60_000,
+  });
+}
+
+const selectUniqueDonors = (history: EventHistory) => countUniqueDonors(history.events);
+
+/**
+ * Distinct donors across the retained event history.
  *
  * Kept apart from `usePlatformStats` on purpose: it reads a different RPC
  * resource (the event feed rather than the campaign list), and an unreachable
  * event feed shouldn't be able to take the campaign totals down with it.
  *
- * `getEvents` scans a lookback window from the ledger tip, so the count covers
- * recent `DONOR_SCAN_EVENT_LIMIT` events — the same window the leaderboard ranks
- * donors from — and is a complete total only while the contract has emitted
- * that few events. No polling, like the campaign stats: this is hero copy, not
- * a live feed.
+ * RPC event retention is a rolling window (about a week), so this is the
+ * number of donors since `EventHistory.windowStart`, not an all-time total.
+ * No polling, like the campaign stats: this is hero copy, not a live feed.
  */
 export function useUniqueDonors() {
-  return useQuery({
-    queryKey: ["platform-stats", "unique-donors"],
-    queryFn: async () => countUniqueDonors(await getEvents(DONOR_SCAN_EVENT_LIMIT)),
-    staleTime: 60_000,
-  });
+  return useEventHistory(selectUniqueDonors);
 }
 
 /**
@@ -723,7 +733,7 @@ export function useUniqueDonors() {
 export function usePlatformConfig() {
   return useQuery({
     queryKey: ["platform-config"],
-    queryFn: getPlatformConfig,
+    queryFn: async () => (await loadSoroban()).getPlatformConfig(),
     staleTime: 30_000,
   });
 }
@@ -761,7 +771,7 @@ export function eventsRefetchInterval(query: {
 export function useEvents(limit = 20) {
   return useQuery({
     queryKey: ["events", limit],
-    queryFn: () => getEvents(limit),
+    queryFn: async () => (await loadSoroban()).getEvents(limit),
     placeholderData: (previousData) => previousData,
     staleTime: 30_000,
     refetchInterval: (query) => {
@@ -782,7 +792,7 @@ export function useEvents(limit = 20) {
 export function useGetUpdates(campaignId: bigint) {
   return useQuery({
     queryKey: ["updates", campaignId.toString()],
-    queryFn: () => getUpdates(campaignId),
+    queryFn: async () => (await loadSoroban()).getUpdates(campaignId),
   });
 }
 
@@ -793,6 +803,8 @@ export function useAddUpdate() {
   return useMutation({
     mutationFn: async (params: { campaignId: bigint; content: string }) => {
       if (!address) throw new Error("Wallet not connected");
+      const { nativeToScVal } = await loadSdk();
+      const { submitTransaction } = await loadSoroban();
 
       const args = [
         nativeToScVal(params.campaignId, { type: "u64" }),
@@ -838,6 +850,8 @@ export function useDonateFeeEstimate(params: {
     ],
     queryFn: async () => {
       if (!params.address || !debouncedAmount || Number(debouncedAmount) <= 0) return null;
+      const { Address, nativeToScVal } = await loadSdk();
+      const { estimateFee } = await loadSoroban();
       try {
         const args = [
           new Address(params.address).toScVal(),
@@ -863,6 +877,8 @@ export function useCancelCampaign() {
   return useMutation({
     mutationFn: async (campaignId: bigint) => {
       if (!address) throw new Error("Wallet not connected");
+      const { Address, nativeToScVal } = await loadSdk();
+      const { submitTransaction } = await loadSoroban();
 
       const args = [new Address(address).toScVal(), nativeToScVal(campaignId, { type: "u64" })];
 
@@ -894,6 +910,8 @@ export function useAddToWhitelist() {
   return useMutation({
     mutationFn: async (params: { campaignId: bigint; addressToWhitelist: string }) => {
       if (!address) throw new Error("Wallet not connected");
+      const { Address, nativeToScVal, xdr } = await loadSdk();
+      const { submitTransaction } = await loadSoroban();
 
       const args = [
         nativeToScVal(params.campaignId, { type: "u64" }),
@@ -929,6 +947,7 @@ function usePauseToggle(method: "pause" | "unpause", pending: string, done: stri
   return useMutation({
     mutationFn: async (_: void) => {
       if (!address) throw new Error("Wallet not connected");
+      const { submitTransaction } = await loadSoroban();
       return submitTransaction(address, method, []);
     },
     onMutate: () => {
@@ -955,6 +974,38 @@ export function useUnpauseContract() {
   return usePauseToggle("unpause", "Unpausing contract...", "Contract unpaused");
 }
 
+/**
+ * Owner-only: transfers contract ownership via `set_owner`. The contract checks
+ * the current owner's auth; callers validate the new address before signing.
+ * Platform config is refetched on success so the panel shows the new owner
+ * (and the transfer form disappears for the old one).
+ */
+export function useSetOwner() {
+  const { address } = useWallet();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (newOwner: string) => {
+      if (!address) throw new Error("Wallet not connected");
+      if (!isValidAccountAddress(newOwner)) throw new Error("Invalid Stellar address");
+      const { Address } = await loadSdk();
+      const { submitTransaction } = await loadSoroban();
+      return submitTransaction(address, "set_owner", [new Address(newOwner).toScVal()]);
+    },
+    onMutate: () => {
+      const toastId = notify.loading("Transferring ownership...");
+      return { toastId };
+    },
+    onSuccess: (data: SubmitTransactionResult, _newOwner, context) => {
+      notify.success("Ownership transferred", { id: context?.toastId, hash: data?.hash });
+      queryClient.invalidateQueries({ queryKey: ["platform-config"] });
+    },
+    onError: (error: unknown, _newOwner, context) => {
+      notify.error(mapTransactionError(error), { id: context?.toastId });
+    },
+  });
+}
+
 export function useWalletBalance(
   tokenContractId: string | null | undefined,
   address: string | null,
@@ -963,7 +1014,7 @@ export function useWalletBalance(
     queryKey: ["wallet-balance", tokenContractId, address],
     queryFn: async () => {
       if (!tokenContractId || !address) return null;
-      return getSACBalance(tokenContractId, address);
+      return (await loadSoroban()).getSACBalance(tokenContractId, address);
     },
     enabled: !!tokenContractId && !!address,
     staleTime: 30_000,
@@ -979,7 +1030,7 @@ export function useWalletBalance(
 export function useResolvedName(address: string | null) {
   return useQuery({
     queryKey: ["resolved-name", address],
-    queryFn: () => (address ? resolveAddressName(address) : null),
+    queryFn: async () => (address ? (await loadSoroban()).resolveAddressName(address) : null),
     enabled: !!address && address.length === 56,
     staleTime: 1000 * 60 * 60, // Cache for 1 hour
     gcTime: 1000 * 60 * 60 * 24, // Keep in cache for 24 hours
@@ -992,7 +1043,7 @@ export function useTokenMetadata(contractId: string | null | undefined) {
     queryKey: ["token-metadata", contractId],
     queryFn: async () => {
       if (!contractId) return null;
-      const { getTokenMetadata } = await import("@/lib/soroban");
+      const { getTokenMetadata } = await loadSoroban();
       return getTokenMetadata(contractId);
     },
     enabled: !!contractId,
@@ -1009,7 +1060,7 @@ export function useTokenMetadataBatch(contractIds: string[]) {
     queryKey: ["token-metadata-batch", uniqueIds.join(",")],
     queryFn: async () => {
       if (uniqueIds.length === 0) return {};
-      const { getTokenMetadata } = await import("@/lib/soroban");
+      const { getTokenMetadata } = await loadSoroban();
 
       const results = await Promise.all(
         uniqueIds.map(async (id) => {

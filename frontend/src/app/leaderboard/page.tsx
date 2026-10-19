@@ -8,18 +8,19 @@ import { AddressLink } from "@/components/AddressLink";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useEvents, useResolvedName } from "@/hooks/useSoroban";
-import { fromStroops, type SorobanEvent } from "@/lib/soroban";
-import { getAmountStroops, getCampaignId, getEventField } from "@/lib/eventData";
+import { useEventHistory, useResolvedName } from "@/hooks/useSoroban";
+import type { SorobanEvent } from "@/lib/soroban";
+import { fromStroops } from "@/lib/amounts";
+import { formatEventWindow, parseDonationEvent } from "@/lib/eventData";
 import { toCSV, downloadTextFile } from "@/utils/format";
 import { Trophy, ArrowDown, Download, User } from "lucide-react";
 import { useWallet } from "@/lib/WalletProvider";
 
-/** How many on-chain events to aggregate the ranking from. */
-const EVENT_LIMIT = 200;
-
-/** Anonymous donations are recorded against the contract's zero placeholder. */
-const ZERO_ADDRESS = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
+// Rankings are aggregated client-side from every donation event the RPC still
+// retains, paged with the RPC cursor (see `getEventHistory`) instead of a single
+// capped request. The contract's per-campaign `get_top_donors` can't produce a
+// cross-campaign ranking, and RPC retention is a rolling window (about a week),
+// so the page always states the period its numbers cover.
 
 type TimeRange = "all" | "monthly" | "weekly";
 
@@ -49,7 +50,8 @@ function aggregateDonors(events: SorobanEvent[] | undefined, timeRange: TimeRang
   const cutoff = cutoffMs > 0 ? now - cutoffMs : 0;
 
   for (const event of events ?? []) {
-    if (event?.topic !== "received" || !event.data) continue;
+    const donation = parseDonationEvent(event);
+    if (!donation) continue;
 
     // Filter by time range if not "all"
     // `getEvents` stamps events with `createdAt` (ledger close time); `timestamp` is the legacy name.
@@ -59,17 +61,12 @@ function aggregateDonors(events: SorobanEvent[] | undefined, timeRange: TimeRang
       if (eventTime < cutoff) continue;
     }
 
-    const donorRaw = getEventField(event, "donor");
-    const donor = donorRaw?.toString();
-    if (!donor || donor === ZERO_ADDRESS) continue;
-
-    const amount = getAmountStroops(event, "amount");
-    if (amount <= 0n) continue;
+    const { donor, amount, campaignId } = donation;
+    if (!donor || amount === null || amount <= 0n) continue;
 
     const entry = totals.get(donor) ?? { total: 0n, donations: 0, campaigns: new Set<string>() };
     entry.total += amount;
     entry.donations += 1;
-    const campaignId = getCampaignId(event);
     if (campaignId) {
       entry.campaigns.add(campaignId);
     }
@@ -84,6 +81,26 @@ function aggregateDonors(events: SorobanEvent[] | undefined, timeRange: TimeRang
       campaigns: campaigns.size,
     }))
     .sort((a, b) => (b.total === a.total ? 0 : b.total > a.total ? 1 : -1));
+}
+
+/**
+ * The period the numbers on screen cover: the retained event window, narrowed
+ * to the selected range when that starts later (same cutoff as `aggregateDonors`).
+ */
+function describePeriod(
+  windowStart: string | null,
+  windowEnd: string | null,
+  timeRange: TimeRange,
+): string {
+  const rangeDays = timeRange === "weekly" ? 7 : timeRange === "monthly" ? 30 : 0;
+  let start = windowStart;
+  if (rangeDays > 0) {
+    const rangeStartMs = Date.now() - rangeDays * 24 * 60 * 60 * 1000;
+    if (!start || new Date(start).getTime() < rangeStartMs) {
+      start = new Date(rangeStartMs).toISOString();
+    }
+  }
+  return formatEventWindow(start, windowEnd);
 }
 
 /** Medal colours for the podium; every other rank uses the muted badge. */
@@ -150,11 +167,17 @@ function LeaderboardContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { address } = useWallet();
-  const { data: events, isLoading, isError } = useEvents(EVENT_LIMIT);
+  const { data: history, isLoading, isError } = useEventHistory();
+  const events = history?.events;
 
   const timeRange = (searchParams.get("range") as TimeRange) || "all";
 
   const donors = useMemo(() => aggregateDonors(events, timeRange), [events, timeRange]);
+
+  const periodLabel = useMemo(
+    () => (history ? describePeriod(history.windowStart, history.windowEnd, timeRange) : null),
+    [history, timeRange],
+  );
 
   const totalDonated = useMemo(() => donors.reduce((sum, d) => sum + d.total, 0n), [donors]);
 
@@ -235,6 +258,12 @@ function LeaderboardContent() {
           )}
         </div>
 
+        {periodLabel && (
+          <p className="text-sm text-muted-foreground" data-testid="leaderboard-period">
+            Showing donations from {periodLabel}.
+          </p>
+        )}
+
         {isLoading ? (
           <div className="space-y-3" role="status" aria-live="polite" aria-busy="true">
             <span className="sr-only">Loading leaderboard</span>
@@ -295,7 +324,9 @@ function LeaderboardContent() {
             </Card>
 
             <p className="text-xs text-muted-foreground">
-              Aggregated from the most recent {EVENT_LIMIT} on-chain contract events.
+              Aggregated from every on-chain donation event the Soroban RPC still retains (a rolling
+              window of about a week), so &ldquo;All Time&rdquo; means all retained history.
+              {history?.truncated && " Only the oldest part of the window could be scanned."}
             </p>
           </>
         )}

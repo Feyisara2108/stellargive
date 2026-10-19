@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@/test/render";
 import { axe, toHaveNoViolations } from "jest-axe";
 import { CreateCampaignForm } from "./CreateCampaignForm";
-import { createSorobanMock } from "@/test/mockSoroban";
 
 expect.extend(toHaveNoViolations);
 
@@ -18,8 +17,8 @@ const resolvedNameState = vi.hoisted(() => ({
   isFetching: false,
 }));
 
-vi.mock("@/hooks/useSoroban", () =>
-  createSorobanMock({
+vi.mock("@/hooks/useSoroban", async () =>
+  (await import("@/test/mockSoroban")).createSorobanMock({
     useCreateCampaign: () => createCampaignState,
     useResolvedName: () => resolvedNameState,
   }),

@@ -4,7 +4,6 @@ import userEvent from "@testing-library/user-event";
 import { axe, toHaveNoViolations } from "jest-axe";
 import { DonateModal } from "./DonateModal";
 import type { Campaign } from "@/lib/soroban";
-import { createSorobanMock } from "@/test/mockSoroban";
 
 expect.extend(toHaveNoViolations);
 
@@ -34,8 +33,8 @@ const crossedMilestonesState = vi.hoisted(() => ({
   value: [] as number[],
 }));
 
-vi.mock("@/hooks/useSoroban", () =>
-  createSorobanMock({
+vi.mock("@/hooks/useSoroban", async () =>
+  (await import("@/test/mockSoroban")).createSorobanMock({
     useDonate: () => donateState,
     useDonateFeeEstimate: () => ({ data: null }),
     useWalletBalance: () => walletBalanceState,

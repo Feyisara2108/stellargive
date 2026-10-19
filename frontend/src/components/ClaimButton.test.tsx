@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { ClaimButton } from "./ClaimButton";
 import type { Campaign } from "@/lib/soroban";
-import { createSorobanMock } from "@/test/mockSoroban";
 
 // Prevent module-level `new rpc.Server(...)` from throwing in tests
 vi.mock("@stellar/stellar-sdk", async (importActual) => {
@@ -22,8 +21,8 @@ vi.mock("@/lib/soroban", () => ({
   MAX_SIMULATION_FEE_STROOPS: 10_000_000,
 }));
 
-vi.mock("@/hooks/useSoroban", () =>
-  createSorobanMock({
+vi.mock("@/hooks/useSoroban", async () =>
+  (await import("@/test/mockSoroban")).createSorobanMock({
     useClaimFunds: vi.fn(),
   }),
 );
