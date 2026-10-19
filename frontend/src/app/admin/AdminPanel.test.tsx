@@ -97,7 +97,7 @@ beforeEach(() => {
     feeBps: 250,
     feeDenominator: 10000,
   };
-  hooks.wallet.address = null;
+  hooks.wallet.address = VALID_ADDRESS;
   hooks.platformConfig.isLoading = false;
   hooks.platformConfig.isError = false;
   hooks.platformConfig.isFetching = false;
@@ -146,6 +146,24 @@ describe("AdminPanel – platform configuration", () => {
 });
 
 describe("AdminPanel – pause", () => {
+  it("shows contract controls only to the configured owner", () => {
+    hooks.wallet.address = "G" + "B".repeat(55);
+    renderPanel();
+
+    expect(screen.queryByText("Contract Controls")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Pause Contract$/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Unpause Contract$/ })).not.toBeInTheDocument();
+    expect(screen.getByText("Campaign Management")).toBeInTheDocument();
+  });
+
+  it("shows pause and unpause controls to the configured owner", () => {
+    renderPanel();
+
+    expect(screen.getByText("Contract Controls")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Pause Contract$/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Unpause Contract$/ })).toBeInTheDocument();
+  });
+
   it("keeps the confirm button disabled until PAUSE is typed", async () => {
     const user = renderPanel();
     await user.click(screen.getByRole("button", { name: /^Pause Contract$/ }));

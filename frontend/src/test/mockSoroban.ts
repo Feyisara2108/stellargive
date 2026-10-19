@@ -69,6 +69,7 @@ export function createSorobanMock(overrides: Record<string, unknown> = {}) {
     useDonate: vi.fn(() => ({ ...idleMutation })),
     useClaimFunds: vi.fn(() => ({ ...idleMutation })),
     useClaimRefund: vi.fn(() => ({ ...idleMutation })),
+    useRefund: vi.fn(() => ({ ...idleMutation })),
     useAddUpdate: vi.fn(() => ({ ...idleMutation })),
     useCancelCampaign: vi.fn(() => ({ ...idleMutation })),
     useAddToWhitelist: vi.fn(() => ({ ...idleMutation })),
