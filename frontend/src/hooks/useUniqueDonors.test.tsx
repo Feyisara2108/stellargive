@@ -12,6 +12,7 @@ vi.mock("@/lib/soroban", () => ({
   submitTransaction: vi.fn(),
   estimateFee: vi.fn(),
   getEvents: vi.fn(),
+  getEventHistory: vi.fn(),
   getUpdates: vi.fn(),
   getTotalCampaigns: vi.fn(),
   getPlatformConfig: vi.fn(),
@@ -25,8 +26,8 @@ vi.mock("@/lib/WalletProvider", () => ({
   useWallet: vi.fn(() => ({ address: null, isConnected: false })),
 }));
 
-import { countUniqueDonors, useUniqueDonors, DONOR_SCAN_EVENT_LIMIT } from "./useSoroban";
-import { getEvents } from "@/lib/soroban";
+import { countUniqueDonors, useUniqueDonors } from "./useSoroban";
+import { getEventHistory } from "@/lib/soroban";
 import { makeClaimedEvent, makeCreatedEvent, makeDonationEvent, makeEvent } from "@/test/factories";
 
 /**
@@ -39,6 +40,22 @@ const ZERO_ADDRESS = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
 const DONOR_A = "GA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVSGZ";
 const DONOR_B = "GBRPYHIL2CI3WHZDTOOQFC6EB4CGQOFN4L5MHZ5RWBNRUBALXAS5F3B2";
 const DONOR_C = "GCEZWKCA5VLDNRLN3RPRJMRZOX3Z6G5CHCGSNFHEYVXM3XOJMDS674JZ";
+
+/** Encodes `n` in the strkey base32 alphabet, for generating distinct addresses. */
+function base32(n: number): string {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  let out = "";
+  do {
+    out = alphabet[n % 32] + out;
+    n = Math.floor(n / 32);
+  } while (n > 0);
+  return out;
+}
+
+/** Wraps events in the `getEventHistory` result shape. */
+function history(events: unknown[]) {
+  return { events, windowStart: null, windowEnd: null, truncated: false };
+}
 
 function makeWrapper() {
   const queryClient = new QueryClient({
@@ -184,26 +201,28 @@ describe("countUniqueDonors", () => {
     expect(countUniqueDonors(events)).toBe(1);
   });
 
-  it("distinguishes addresses that differ only in case", () => {
-    // Stellar addresses are uppercase base32; a lowercase variant is a
-    // different string, not the same donor, and is left as the feed gave it.
+  it("does not case-fold addresses into the same donor", () => {
+    // Stellar addresses are uppercase base32; a lowercase variant isn't a
+    // valid address at all, so it is dropped rather than folded into DONOR_A.
     const events = [
       makeDonationEvent("1", DONOR_A, 100n),
       makeDonationEvent("2", DONOR_A.toLowerCase(), 100n),
     ];
 
-    expect(countUniqueDonors(events)).toBe(2);
+    expect(countUniqueDonors(events)).toBe(1);
   });
 });
 
 describe("useUniqueDonors", () => {
   it("reports the count once the event feed resolves", async () => {
-    vi.mocked(getEvents).mockResolvedValue([
-      makeDonationEvent("1", DONOR_A, 100n),
-      makeDonationEvent("2", DONOR_A, 200n),
-      makeDonationEvent("3", DONOR_B, 300n),
-      makeDonationEvent("4", ZERO_ADDRESS, 400n),
-    ] as never);
+    vi.mocked(getEventHistory).mockResolvedValue(
+      history([
+        makeDonationEvent("1", DONOR_A, 100n),
+        makeDonationEvent("2", DONOR_A, 200n),
+        makeDonationEvent("3", DONOR_B, 300n),
+        makeDonationEvent("4", ZERO_ADDRESS, 400n),
+      ]) as never,
+    );
 
     const { Wrapper } = makeWrapper();
     const { result } = renderHook(() => useUniqueDonors(), { wrapper: Wrapper });
@@ -212,21 +231,25 @@ describe("useUniqueDonors", () => {
     expect(result.current.data).toBe(2);
   });
 
-  it("scans the documented event window", async () => {
-    vi.mocked(getEvents).mockResolvedValue([] as never);
+  it("counts across the full paged history, not a single capped page", async () => {
+    // 300 distinct donors: more than the old 200-event scan could ever see.
+    const events = Array.from({ length: 300 }, (_, i) =>
+      makeDonationEvent(String(i), `G${base32(i).padStart(55, "A")}`, 1n),
+    );
+    vi.mocked(getEventHistory).mockResolvedValue(history(events) as never);
 
     const { Wrapper } = makeWrapper();
     const { result } = renderHook(() => useUniqueDonors(), { wrapper: Wrapper });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(getEvents).toHaveBeenCalledWith(DONOR_SCAN_EVENT_LIMIT);
+    expect(result.current.data).toBe(300);
   });
 
   it("is loading with no data before the feed resolves", async () => {
-    let release: (events: unknown[]) => void = () => {};
-    vi.mocked(getEvents).mockReturnValue(
+    let release: (value: unknown) => void = () => {};
+    vi.mocked(getEventHistory).mockReturnValue(
       new Promise((resolve) => {
-        release = resolve as (events: unknown[]) => void;
+        release = resolve as (value: unknown) => void;
       }) as never,
     );
 
@@ -237,7 +260,7 @@ describe("useUniqueDonors", () => {
     expect(result.current.data).toBeUndefined();
     expect(result.current.isError).toBe(false);
 
-    release([makeDonationEvent("1", DONOR_A, 100n)]);
+    release(history([makeDonationEvent("1", DONOR_A, 100n)]) as never);
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toBe(1);
   });
@@ -245,7 +268,7 @@ describe("useUniqueDonors", () => {
   it("surfaces an unreachable event feed as a query error", async () => {
     // Unlike the campaign totals, a failed donor scan is not masked to 0 —
     // the caller needs to tell "nobody has donated" from "we cannot tell".
-    vi.mocked(getEvents).mockRejectedValue(new Error("rpc down"));
+    vi.mocked(getEventHistory).mockRejectedValue(new Error("rpc down"));
 
     const { Wrapper } = makeWrapper();
     const { result } = renderHook(() => useUniqueDonors(), { wrapper: Wrapper });
@@ -256,7 +279,7 @@ describe("useUniqueDonors", () => {
   });
 
   it("returns 0 rather than erroring on an empty feed", async () => {
-    vi.mocked(getEvents).mockResolvedValue([] as never);
+    vi.mocked(getEventHistory).mockResolvedValue(history([]) as never);
 
     const { Wrapper } = makeWrapper();
     const { result } = renderHook(() => useUniqueDonors(), { wrapper: Wrapper });
@@ -267,7 +290,9 @@ describe("useUniqueDonors", () => {
   });
 
   it("serves a remount from cache instead of rescanning the feed", async () => {
-    vi.mocked(getEvents).mockResolvedValue([makeDonationEvent("1", DONOR_A, 100n)] as never);
+    vi.mocked(getEventHistory).mockResolvedValue(
+      history([makeDonationEvent("1", DONOR_A, 100n)]) as never,
+    );
 
     const { Wrapper } = makeWrapper();
     const first = renderHook(() => useUniqueDonors(), { wrapper: Wrapper });
@@ -278,6 +303,6 @@ describe("useUniqueDonors", () => {
 
     // 60s staleTime: the second mount must not trigger another RPC scan.
     expect(second.result.current.data).toBe(1);
-    expect(getEvents).toHaveBeenCalledTimes(1);
+    expect(getEventHistory).toHaveBeenCalledTimes(1);
   });
 });

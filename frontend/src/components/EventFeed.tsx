@@ -3,7 +3,12 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useEvents } from "@/hooks/useSoroban";
 import type { SorobanEvent } from "@/lib/soroban";
-import { formatEventAmount, getCampaignId } from "@/lib/eventData";
+import {
+  formatStroops,
+  parseClaimEvent,
+  parseCreatedEvent,
+  parseDonationEvent,
+} from "@/lib/eventData";
 import { getStellarExpertTxUrl } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -194,22 +199,26 @@ export function EventFeed() {
                   <td className="px-4 py-3">
                     {event.topic === "received" && (
                       <>
-                        <span className="font-bold">{formatEventAmount(event, "amount")}</span> donated
-                        to Campaign #{getCampaignId(event) ?? "—"}
+                        <span className="font-bold">
+                          {formatStroops(parseDonationEvent(event)?.amount ?? null)}
+                        </span>{" "}
+                        donated to Campaign #{parseDonationEvent(event)?.campaignId ?? "—"}
                       </>
                     )}
                     {event.topic === "created" && (
                       <>
                         New campaign created with a target of{" "}
                         <span className="font-bold">
-                          {formatEventAmount(event, "target_amount")}
+                          {formatStroops(parseCreatedEvent(event)?.targetAmount ?? null)}
                         </span>
                       </>
                     )}
                     {event.topic === "claimed" && (
                       <>
-                        <span className="font-bold">{formatEventAmount(event, "amount")}</span> claimed
-                        by beneficiary
+                        <span className="font-bold">
+                          {formatStroops(parseClaimEvent(event)?.amount ?? null)}
+                        </span>{" "}
+                        claimed by beneficiary
                       </>
                     )}
                   </td>
@@ -248,20 +257,26 @@ export function EventFeed() {
               <p className="text-sm">
                 {event.topic === "received" && (
                   <>
-                    <span className="font-bold">{formatEventAmount(event, "amount")}</span> donated to
-                    Campaign #{getCampaignId(event) ?? "—"}
+                    <span className="font-bold">
+                      {formatStroops(parseDonationEvent(event)?.amount ?? null)}
+                    </span>{" "}
+                    donated to Campaign #{parseDonationEvent(event)?.campaignId ?? "—"}
                   </>
                 )}
                 {event.topic === "created" && (
                   <>
                     New campaign created with a target of{" "}
-                    <span className="font-bold">{formatEventAmount(event, "target_amount")}</span>
+                    <span className="font-bold">
+                      {formatStroops(parseCreatedEvent(event)?.targetAmount ?? null)}
+                    </span>
                   </>
                 )}
                 {event.topic === "claimed" && (
                   <>
-                    <span className="font-bold">{formatEventAmount(event, "amount")}</span> claimed by
-                    beneficiary
+                    <span className="font-bold">
+                      {formatStroops(parseClaimEvent(event)?.amount ?? null)}
+                    </span>{" "}
+                    claimed by beneficiary
                   </>
                 )}
               </p>

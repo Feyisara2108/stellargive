@@ -4,7 +4,6 @@ import userEvent from "@testing-library/user-event";
 import { axe, toHaveNoViolations } from "jest-axe";
 import { DonateModal } from "./DonateModal";
 import type { Campaign } from "@/lib/soroban";
-import { createSorobanMock } from "@/test/mockSoroban";
 
 expect.extend(toHaveNoViolations);
 
@@ -34,15 +33,18 @@ const crossedMilestonesState = vi.hoisted(() => ({
   value: [] as number[],
 }));
 
-vi.mock("@/hooks/useSoroban", () =>
-  createSorobanMock({
+vi.mock("@/hooks/useSoroban", async () =>
+  (await import("@/test/mockSoroban")).createSorobanMock({
+vi.mock("@/hooks/useSoroban", async () => {
+  const { createSorobanMock } = await import("@/test/mockSoroban");
+  return createSorobanMock({
     useDonate: () => donateState,
     useDonateFeeEstimate: () => ({ data: null }),
     useWalletBalance: () => walletBalanceState,
     getCrossedMilestones: () => crossedMilestonesState.value,
     useTokenMetadata: vi.fn().mockReturnValue({ data: { decimals: 7, symbol: "XLM" } }),
-  }),
-);
+  });
+});
 
 const toastSuccess = vi.hoisted(() => vi.fn());
 vi.mock("sonner", () => ({
@@ -276,6 +278,57 @@ describe("DonateModal", () => {
         expect(screen.getByText(/Maximum 7 decimal places/i)).toBeInTheDocument();
       });
       expect(screen.getByRole("button", { name: /Confirm Donation/i })).toBeDisabled();
+    });
+  });
+
+  describe("per-donor cap", () => {
+    // 20 XLM cap, in stroops.
+    const cappedCampaign = makeCampaign({ max_per_donor: 200_000_000n });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("shows the campaign's maximum per donor", async () => {
+      render(<DonateModal campaign={cappedCampaign} open onOpenChange={() => {}} />);
+      expect(await screen.findByText(/Maximum per donor: 20 XLM/i)).toBeInTheDocument();
+    });
+
+    it("blocks a single donation above the cap with the ExceedsDonorCap message", async () => {
+      render(<DonateModal campaign={cappedCampaign} open onOpenChange={() => {}} />);
+      const input = await screen.findByLabelText(/Amount/i);
+      fireEvent.change(input, { target: { value: "25" } });
+
+      expect(
+        await screen.findByText(/exceeds the campaign's maximum per donor/i),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Confirm Donation/i })).toBeDisabled();
+    });
+
+    it("maps an on-chain ExceedsDonorCap rejection to the cap message", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      donateState.mutateAsync = vi
+        .fn()
+        .mockRejectedValue(new Error("Simulation failed: HostError: Error(Contract, #18)"));
+
+      render(<DonateModal campaign={cappedCampaign} open onOpenChange={() => {}} />);
+      const input = await screen.findByLabelText(/Amount/i);
+      fireEvent.change(input, { target: { value: "10" } });
+      const confirmBtn = screen.getByRole("button", { name: /Confirm Donation/i });
+      await waitFor(() => expect(confirmBtn).toBeEnabled());
+      fireEvent.click(confirmBtn);
+
+      await waitFor(() => {
+        expect(
+          screen.getAllByText(/exceeds the campaign's maximum per donor/i).length,
+        ).toBeGreaterThan(0);
+      });
+    });
+
+    it("shows no cap hint for uncapped campaigns", async () => {
+      render(<DonateModal campaign={baseCampaign} open onOpenChange={() => {}} />);
+      await screen.findByLabelText(/Amount/i);
+      expect(screen.queryByText(/Maximum per donor/i)).not.toBeInTheDocument();
     });
   });
 

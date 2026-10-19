@@ -1,7 +1,7 @@
 "use client";
 
 import { NATIVE_XLM_CONTRACT_ID } from "@/lib/tokens";
-import { useWallet } from "@/lib/WalletProvider";
+import { FREIGHTER_INSTALL_URL, useWallet } from "@/lib/WalletProvider";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Loader2, Wallet, LogOut, RefreshCw, ChevronDown } from "lucide-react";
@@ -24,6 +24,9 @@ export function WalletConnect() {
     setIsLoadingBalance(true);
     setBalanceError(null);
     try {
+      // Loaded on demand: the navbar renders on every route, and the SDK behind
+      // this is only needed once a wallet is connected.
+      const { getSACBalance } = await import("@/lib/soroban");
       const balBigInt = await getSACBalance(NATIVE_XLM_CONTRACT_ID, address);
       setBalance(fromStroops(balBigInt));
     } catch (e: unknown) {

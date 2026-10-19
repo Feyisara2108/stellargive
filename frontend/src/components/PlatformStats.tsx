@@ -1,8 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { usePlatformStats, useUniqueDonors } from "@/hooks/useSoroban";
-import { fromStroops } from "@/lib/soroban";
+import { useEventHistory, usePlatformStats, useUniqueDonors } from "@/hooks/useSoroban";
+import { formatEventWindow } from "@/lib/eventData";
+import type { EventHistory } from "@/lib/soroban";
+import { fromStroops } from "@/lib/amounts";
+import { usePlatformStats, useTokenMetadataBatch, useUniqueDonors } from "@/hooks/useSoroban";
+import { NATIVE_XLM_CONTRACT_ID } from "@/lib/tokens";
+import {
+  describeToken,
+  formatTokenTotals,
+  parseTokenTotals,
+  tokensNeedingMetadata,
+} from "@/lib/tokenTotals";
+import { formatTokenAmount } from "@/utils/format";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/ui/stat-card";
@@ -88,9 +99,14 @@ function useCountUpOnView(value: number, animate: boolean) {
   return { cardRef, display };
 }
 
+const selectDonorWindow = (history: EventHistory) =>
+  formatEventWindow(history.windowStart, history.windowEnd);
+
 export function PlatformStats() {
   const { data: stats, isLoading, isError, refetch, isFetching } = usePlatformStats();
   const { data: uniqueDonors, isLoading: donorsLoading, isError: donorsError } = useUniqueDonors();
+  // Same cached history scan as the count; only the period it covers.
+  const { data: donorWindow } = useEventHistory(selectDonorWindow);
   const prefersReducedMotion = usePrefersReducedMotion();
   // TanStack v5 resets a data-less query to "pending" on refetch, which would swap the
   // error card for the loading skeleton mid-retry; track the retry so the card stays.
@@ -103,11 +119,31 @@ export function PlatformStats() {
   // Derived before the early returns below: the count-up hooks have to run on
   // every render, including the loading, error and empty ones.
   const totalCampaigns = Number(stats?.totalCampaigns ?? 0);
-  const totalRaised = Number(fromStroops(BigInt(stats?.totalRaised ?? 0)));
   const activeCampaigns = Number(stats?.activeCampaigns ?? 0);
 
+  // Raised amounts stay per token: different tokens have different decimals and
+  // values, so they're listed side by side rather than added into one figure.
+  const raisedByToken = parseTokenTotals(stats?.raisedByToken);
+  for (const [token, amount] of raisedByToken) {
+    if (amount === 0n) raisedByToken.delete(token);
+  }
+  const { data: tokenMetas } = useTokenMetadataBatch(tokensNeedingMetadata(raisedByToken.keys()));
+  // Only a single-token total gets the count-up; with none raised yet it reads "0 XLM".
+  const [singleToken, singleAmount] =
+    raisedByToken.size <= 1
+      ? (Array.from(raisedByToken)[0] ?? [NATIVE_XLM_CONTRACT_ID, 0n])
+      : [null, 0n];
+  const singleDisplay =
+    singleToken === null ? null : describeToken(singleToken, tokenMetas?.[singleToken]);
+  const singleRaised = singleDisplay
+    ? Number(formatTokenAmount(singleAmount, singleDisplay.decimals))
+    : 0;
+
   const campaignsCount = useCountUpOnView(totalCampaigns, !prefersReducedMotion);
-  const raisedCount = useCountUpOnView(totalRaised, !prefersReducedMotion);
+  const raisedCount = useCountUpOnView(
+    singleRaised,
+    !prefersReducedMotion && singleDisplay !== null,
+  );
   const activeCount = useCountUpOnView(activeCampaigns, !prefersReducedMotion);
   // Held back until the count is real, so the card can't spend its one count-up
   // climbing to a total it doesn't have yet and then snap to the real number.
@@ -176,7 +212,16 @@ export function PlatformStats() {
         ref={raisedCount.cardRef}
         icon={<TrendingUp className="h-4 w-4 text-primary" />}
         title="Total Raised"
-        value={`${raisedCount.display.toLocaleString()} XLM`}
+        value={
+          singleDisplay
+            ? `${raisedCount.display.toLocaleString()} ${singleDisplay.symbol}`
+            : formatTokenTotals(raisedByToken, tokenMetas ?? {}).join(" · ")
+        }
+        tooltip={
+          singleDisplay
+            ? undefined
+            : "Shown per token. Campaigns accept different tokens, so amounts aren't added together."
+        }
       />
       <StatCard
         ref={activeCount.cardRef}
@@ -193,7 +238,9 @@ export function PlatformStats() {
         title="Unique Donors"
         value={donorsError ? "—" : donorsCount.display.toString()}
         loading={donorsLoading}
-        tooltip="Distinct donor addresses across the donation events scanned from the start of the contract's history. Anonymous donations are excluded."
+        tooltip={`Distinct donor addresses across donation events from ${
+          donorWindow ?? "the RPC's event retention window"
+        } (the RPC keeps about a week of events). Anonymous donations are excluded.`}
       />
     </div>
   );

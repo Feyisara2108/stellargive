@@ -14,13 +14,19 @@ const withBundleAnalyzer = bundleAnalyzer({
   openAnalyzer: false,
 });
 
-// Per-route JS budget: each page's client entrypoint (its own code plus the shared
-// chunks it pulls in) should stay under this size (raw, pre-gzip bytes) so
-// first-load JS doesn't regress. This app ships the Stellar/Soroban SDK to most
-// routes, so the ceiling starts generous — see lighthouserc.js's own 4 MB
-// script-size allowance for the same reason. Tighten it once a real baseline has
-// been measured with `npm run analyze`.
-const ROUTE_JS_BUDGET_BYTES = 3 * 1024 * 1024;
+// Client JS budgets (raw, pre-gzip bytes), enforced by webpack's performance
+// hints in `npm run analyze` so first-load JS doesn't regress. The Stellar SDK is
+// loaded on demand (see `loadSoroban` in hooks/useSoroban.ts), so no route
+// entrypoint carries it; it lives in one async chunk.
+//
+// Measured baseline (Oct 2026, `npm run analyze`):
+//   - largest entrypoint: `main-app` (shared runtime) 613 KiB; largest page
+//     entrypoint: app/explore/page 303 KiB
+//   - largest asset: the lazily loaded SDK chunk, 710 KiB
+// Each budget is that baseline plus ~25%. Per-route first-load totals are
+// printed by `node scripts/measure-route-js.mjs` after an analyze build.
+const ENTRYPOINT_JS_BUDGET_BYTES = 768 * 1024;
+const ASSET_JS_BUDGET_BYTES = 896 * 1024;
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -38,8 +44,8 @@ const nextConfig = {
     if (!dev && !isServer) {
       config.performance = {
         ...config.performance,
-        maxEntrypointSize: ROUTE_JS_BUDGET_BYTES,
-        maxAssetSize: ROUTE_JS_BUDGET_BYTES,
+        maxEntrypointSize: ENTRYPOINT_JS_BUDGET_BYTES,
+        maxAssetSize: ASSET_JS_BUDGET_BYTES,
         // `npm run analyze` fails outright on a budget breach; a plain `next build`
         // only warns, so a route creeping over budget doesn't block an unrelated
         // production deploy before the analyzer report has been reviewed.
