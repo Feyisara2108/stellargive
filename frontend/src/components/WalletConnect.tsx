@@ -8,8 +8,7 @@ import { Loader2, Wallet, LogOut, RefreshCw, ChevronDown } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { formatAddress } from "@/utils/format";
-import { fromStroops } from "@/lib/amounts";
-import * as freighter from "@stellar/freighter-api";
+import { getSACBalance, fromStroops } from "@/lib/soroban";
 
 export function WalletConnect() {
   const { address, isConnected, connect, disconnect, walletNetwork, isWrongNetwork } = useWallet();
@@ -60,36 +59,20 @@ export function WalletConnect() {
   const handleConnect = async () => {
     setIsConnecting(true);
     try {
-      const result = await connect();
-      if (result.success) {
+      // False when the user closed the wallet picker or the wallet refused access.
+      if (await connect()) {
         toast.success("Wallet connected!");
-      } else if (result.reason === "not-installed") {
-        toast.error("Freighter wallet not found", {
-          description: "Install the Freighter browser extension, then try connecting again.",
-          action: {
-            label: "Install Freighter",
-            onClick: () => window.open(FREIGHTER_INSTALL_URL, "_blank", "noopener,noreferrer"),
-          },
-        });
-      } else if (result.reason === "rejected") {
-        toast.error("Connection request was rejected");
-      } else {
-        toast.error("Failed to connect wallet");
       }
+    } catch (e) {
+      toast.error("Failed to connect wallet");
     } finally {
       setIsConnecting(false);
     }
   };
 
   const handleDisconnect = () => {
-    try {
-      const freighterObj = freighter as unknown as { disconnect?: () => void };
-      if (typeof freighterObj.disconnect === "function") {
-        freighterObj.disconnect();
-      }
-    } catch (err) {
-      console.warn("Freighter disconnect method not available", err);
-    }
+    // WalletProvider's disconnect also tells the selected wallet to forget this
+    // session, whichever wallet it is.
     disconnect();
     setIsDropdownOpen(false);
     toast.info("Wallet disconnected");

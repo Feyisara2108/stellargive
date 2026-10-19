@@ -117,7 +117,7 @@ function makeQueryClient(): QueryClient {
 
 /**
  * When `NEXT_PUBLIC_USE_MOCK_WALLET` is set to "true" (e.g. in CI or E2E
- * environments), the real Freighter-backed WalletProvider is replaced with a
+ * environments), the real WalletProvider (Freighter, Albedo, Hana, Rabet) is replaced with a
  * deterministic MockWalletProvider that auto-connects and returns predictable
  * test values. This allows Playwright tests to run without a browser extension.
  */

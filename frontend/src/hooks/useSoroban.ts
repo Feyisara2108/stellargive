@@ -1160,38 +1160,24 @@ export function useTokenMetadataBatch(contractIds: string[]) {
   });
 }
 
+/** Same-origin price proxy; see src/app/api/price/route.ts. */
+export const XLM_PRICE_ENDPOINT = "/api/price";
+
 /**
- * Fetches the live XLM/USD exchange rate from CoinGecko, falling back to Stellar Expert.
+ * Fetches the live XLM/USD exchange rate from the app's own cached price route,
+ * which queries CoinGecko (falling back to Stellar Expert) server-side. Browsers
+ * never call those third parties directly. Resolves to null when no price is
+ * available, so callers can simply hide USD values.
  */
 export async function fetchXlmPriceInUsd(): Promise<number | null> {
   try {
-    const res = await fetch(
-      "https://api.coingecko.com/api/v3/simple/price?ids=stellar&vs_currencies=usd",
-      { headers: { Accept: "application/json" } },
-    );
-    if (res.ok) {
-      const data = await res.json();
-      if (data?.stellar?.usd && typeof data.stellar.usd === "number") {
-        return data.stellar.usd;
-      }
-    }
+    const res = await fetch(XLM_PRICE_ENDPOINT, { headers: { Accept: "application/json" } });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return typeof data?.usd === "number" ? data.usd : null;
   } catch {
-    // Fall through to secondary API
+    return null;
   }
-
-  try {
-    const res = await fetch("https://api.stellar.expert/explorer/directory/price?asset=XLM");
-    if (res.ok) {
-      const data = await res.json();
-      if (data?.price && typeof data.price === "number") {
-        return data.price;
-      }
-    }
-  } catch {
-    // Return null if all endpoints fail
-  }
-
-  return null;
 }
 
 /**

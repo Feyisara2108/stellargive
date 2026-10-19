@@ -11,20 +11,11 @@ import {
   Keypair,
   Operation,
 } from "@stellar/stellar-sdk";
-import {
-  isNativeCampaign,
-  isNativeCampaignUpdate,
-  type NativeCampaign,
-} from "./bindings/stellarGive";
-// NOTE: @stellar/freighter-api is browser-only, so it is imported lazily inside
-// submitTransaction. This keeps the read-only helpers (getCampaign, getEvents…)
-// safe to import on the server — e.g. from a route's generateMetadata.
 import { NETWORK_PASSPHRASE } from "./network";
-
-import { NETWORK_PASSPHRASE } from "./network";
-import { CONTRACT_ID, RPC_URL } from "./config";
-import { isValidAccountAddress } from "./strkey";
-import { MAX_SIMULATION_FEE_STROOPS, STROOP_PRECISION, fromStroops, toStroops } from "./amounts";
+// NOTE: the wallet layer (./wallet — Freighter, Albedo, …) is browser-only, so it
+// is imported lazily inside submitTransaction. This keeps the read-only
+// helpers (getCampaign, getEvents…) safe to import on the server — e.g. from a
+// route's generateMetadata.
 
 export {
   CONTRACT_ID,
@@ -111,6 +102,30 @@ function parseCampaign(native: NativeCampaign): Campaign {
   };
 }
 
+/** `ContractError::CampaignNotFound` in contracts/stellar-give/src/lib.rs. */
+export const CAMPAIGN_NOT_FOUND_ERROR_CODE = 4;
+
+/**
+ * Thrown by getCampaign only when the contract itself reports the campaign
+ * doesn't exist, so callers can tell "deleted / never existed" apart from an
+ * RPC or network failure.
+ */
+export class CampaignNotFoundError extends Error {
+  constructor(id: bigint) {
+    super(`Campaign ${id} not found`);
+    this.name = "CampaignNotFoundError";
+  }
+}
+
+export function isCampaignNotFoundError(e: unknown): e is CampaignNotFoundError {
+  return e instanceof CampaignNotFoundError;
+}
+
+// Simulation errors carry the contract error as e.g. "HostError: Error(Contract, #4)".
+const CAMPAIGN_NOT_FOUND_PATTERN = new RegExp(
+  `Error\\(Contract, #${CAMPAIGN_NOT_FOUND_ERROR_CODE}\\)`,
+);
+
 export async function getCampaign(id: bigint): Promise<Campaign> {
   const tx = new TransactionBuilder(
     new Account("GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF", "0"),
@@ -131,6 +146,9 @@ export async function getCampaign(id: bigint): Promise<Campaign> {
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
+    if (CAMPAIGN_NOT_FOUND_PATTERN.test(sim.error)) {
+      throw new CampaignNotFoundError(id);
+    }
     throw new Error(`Simulation failed: ${sim.error}`);
   }
   if (!sim.result) throw new Error("Failed to get campaign: no result");
@@ -422,21 +440,18 @@ export async function submitTransaction(
   await simulateAndWarn(tx, options);
 
   const preparedTx = await server.prepareTransaction(tx);
-  const { signTransaction } = await import("@stellar/freighter-api");
-  const result = await signTransaction(preparedTx.toXDR(), {
+  const { signTransaction } = await import("./wallet");
+  const signedTxXdr = await signTransaction(preparedTx.toXDR(), {
     networkPassphrase: NETWORK_PASSPHRASE,
+    address: sender,
   });
 
-  if ("error" in result) {
-    throw new Error(`Wallet error: ${result.error}`);
-  }
-
-  return sendAndConfirm(result.signedTxXdr);
+  return sendAndConfirm(signedTxXdr);
 }
 
 /**
  * Same invoke path as `submitTransaction`, but signs with a Keypair.
- * Used by local-network integration tests (no Freighter / browser wallet).
+ * Used by local-network integration tests (no browser wallet).
  */
 export async function submitTransactionWithKeypair(
   keypair: Keypair,

@@ -1,14 +1,15 @@
 "use client";
 
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import freighterApi, {
-  isConnected,
-  getAddress,
-  setAllowed,
-  getNetwork,
-  WatchWalletChanges,
-} from "@stellar/freighter-api";
-import { useQueryClient, type Query } from "@tanstack/react-query";
+import {
+  restoreWallet,
+  connectWallet,
+  disconnectWallet,
+  getWalletNetwork,
+  getNetworkSwitcher,
+  type WalletId,
+} from "@/lib/wallet";
+import { WalletPicker } from "@/components/WalletPicker";
 import * as Sentry from "@sentry/nextjs";
 import { notify } from "@/lib/toast";
 
@@ -60,7 +61,8 @@ interface WalletContextType {
   isConnected: boolean;
   walletNetwork: string | null;
   isWrongNetwork: boolean;
-  connect: () => Promise<ConnectResult>;
+  /** Opens the wallet picker; resolves true once a wallet is connected, false if the user closes it. */
+  connect: () => Promise<boolean>;
   disconnect: () => void;
   switchNetwork: (targetNetworkPassphrase: string) => Promise<NetworkSwitchResult>;
 }
@@ -92,10 +94,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const fetchWalletNetwork = useCallback(async () => {
     try {
-      const network = await getNetwork();
-      if (network && "network" in network) {
-        setWalletNetwork(network.network);
-      }
+      setWalletNetwork(await getWalletNetwork());
     } catch {
       setWalletNetwork(null);
     }
@@ -142,19 +141,17 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       // The user explicitly disconnected; stay disconnected until they connect again.
       if (readFlag(WALLET_DISCONNECTED_KEY)) return;
       try {
-        const connected = await isConnected();
-        if (connected && connected.isConnected) {
-          const result = await getAddress();
-          if (result && "address" in result && result.address) {
-            setAddress(result.address);
-            setIsWalletConnected(true);
-            fetchWalletNetwork();
+        const restored = await restoreWallet();
+        if (restored) {
+          setAddress(restored);
+          setIsWalletConnected(true);
+          fetchWalletNetwork();
 
-            if (readFlag(WALLET_CONNECTED_KEY)) {
-              notify.info("Wallet reconnected");
-            } else {
-              writeFlag(WALLET_CONNECTED_KEY, true);
-            }
+          const wasConnected = localStorage.getItem(WALLET_CONNECTED_KEY) === "true";
+          if (wasConnected) {
+            notify.info("Wallet reconnected");
+          } else {
+            localStorage.setItem(WALLET_CONNECTED_KEY, "true");
           }
         }
       } catch {
@@ -193,37 +190,45 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     };
   }, [isWalletConnected, fetchWalletNetwork, refreshAddress]);
 
-  const connect = async (): Promise<ConnectResult> => {
-    try {
-      // Freighter's isConnected() reports whether the extension is installed.
-      const installed = await isConnected();
-      if (!installed?.isConnected) {
-        return { success: false, reason: "not-installed" };
-      }
+  // connect() opens the wallet picker and resolves once the user has connected a
+  // wallet (true) or closed the picker (false).
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const pickerResolver = useRef<((connected: boolean) => void) | null>(null);
 
-      const allowed = await setAllowed();
-      if (!allowed?.isAllowed || allowed.error) {
-        return { success: false, reason: "rejected", error: allowed?.error };
-      }
+  const settlePicker = useCallback((connected: boolean) => {
+    setIsPickerOpen(false);
+    pickerResolver.current?.(connected);
+    pickerResolver.current = null;
+  }, []);
 
-      const result = await getAddress();
-      if (!result || !("address" in result) || !result.address || result.error) {
-        return { success: false, reason: "error", error: result?.error };
-      }
+  const connect = useCallback(() => {
+    pickerResolver.current?.(false);
+    setIsPickerOpen(true);
+    return new Promise<boolean>((resolve) => {
+      pickerResolver.current = resolve;
+    });
+  }, []);
 
-      setAddress(result.address);
-      setIsWalletConnected(true);
-      fetchWalletNetwork();
-      writeFlag(WALLET_DISCONNECTED_KEY, false);
-      writeFlag(WALLET_CONNECTED_KEY, true);
-      return { success: true, address: result.address };
-    } catch (e) {
-      console.error("Failed to connect wallet", e);
-      return { success: false, reason: "error", error: e };
-    }
-  };
+  const connectWith = useCallback(
+    async (walletId: WalletId) => {
+      try {
+        const connected = await connectWallet(walletId);
+        setAddress(connected);
+        setIsWalletConnected(true);
+        fetchWalletNetwork();
+        localStorage.setItem(WALLET_CONNECTED_KEY, "true");
+        settlePicker(true);
+      } catch (e) {
+        console.error("Failed to connect wallet", e);
+        // The picker shows the error and stays open so another wallet can be tried.
+        throw e;
+      }
+    },
+    [fetchWalletNetwork, settlePicker],
+  );
 
   const disconnect = () => {
+    void disconnectWallet();
     setAddress(null);
     setIsWalletConnected(false);
     setWalletNetwork(null);
@@ -231,26 +236,18 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     writeFlag(WALLET_CONNECTED_KEY, false);
   };
 
-  // Freighter's current API has no way to change the extension's active network on
-  // the user's behalf, but some wallets do (or may in the future). We feature-detect
-  // that capability on the connected wallet's API rather than assuming it exists, so
-  // callers can fall back to manual instructions when it's unsupported.
+  // Freighter (and most wallets) can't change the active network on the user's
+  // behalf, but some may. The wallet layer feature-detects that capability on the
+  // selected wallet, so callers can fall back to manual instructions when it's
+  // unsupported.
   const switchNetwork = useCallback(
     async (targetNetworkPassphrase: string): Promise<NetworkSwitchResult> => {
-      const api = freighterApi as unknown as Record<string, unknown>;
-      const requestNetworkChange = api.setNetwork;
-      if (typeof requestNetworkChange !== "function") {
+      const requestNetworkChange = await getNetworkSwitcher();
+      if (!requestNetworkChange) {
         return { supported: false, success: false };
       }
       try {
-        const result = (await (
-          requestNetworkChange as (opts: { networkPassphrase: string }) => Promise<{
-            error?: unknown;
-          }>
-        )({ networkPassphrase: targetNetworkPassphrase })) as { error?: unknown } | undefined;
-        if (result?.error) {
-          throw result.error;
-        }
+        await requestNetworkChange(targetNetworkPassphrase);
         await fetchWalletNetwork();
         return { supported: true, success: true };
       } catch (e) {
@@ -274,6 +271,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       }}
     >
       {children}
+      <WalletPicker
+        open={isPickerOpen}
+        onSelect={connectWith}
+        onClose={() => settlePicker(false)}
+      />
     </WalletContext.Provider>
   );
 }

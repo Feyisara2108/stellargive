@@ -4,7 +4,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WalletConnect } from "./WalletConnect";
 import { MockWalletProvider, useMockWallet } from "./MockWalletProvider";
-import { WalletContext, FREIGHTER_INSTALL_URL, type ConnectResult } from "@/lib/WalletProvider";
+import { WalletContext } from "@/lib/WalletProvider";
 import { toast } from "sonner";
 
 // Mock external dependencies
@@ -21,8 +21,17 @@ vi.mock("@/lib/soroban", () => ({
   fromStroops: vi.fn((value: bigint) => (Number(value) / 10000000).toFixed(7)),
 }));
 
-vi.mock("@stellar/freighter-api", () => ({
-  disconnect: vi.fn(),
+vi.mock("@/lib/wallet", () => ({
+  WALLETS: [
+    { id: "freighter", name: "Freighter", url: "https://www.freighter.app", kind: "extension" },
+    { id: "albedo", name: "Albedo", url: "https://albedo.link", kind: "web" },
+  ],
+  isWalletAvailable: vi.fn().mockResolvedValue(true),
+  restoreWallet: vi.fn().mockResolvedValue(null),
+  connectWallet: vi.fn(),
+  disconnectWallet: vi.fn().mockResolvedValue(undefined),
+  getWalletNetwork: vi.fn().mockResolvedValue(null),
+  getNetworkSwitcher: vi.fn().mockResolvedValue(null),
 }));
 
 /**
@@ -871,9 +880,11 @@ describe("WalletConnect Component", () => {
     });
   });
 
-  describe("Connect failures", () => {
-    function renderWithConnect(result: ConnectResult) {
-      const connect = vi.fn().mockResolvedValue(result);
+  describe("Cancelled connection", () => {
+    it("does not report success when the user closes the wallet picker", async () => {
+      const user = userEvent.setup();
+      const connect = vi.fn().mockResolvedValue(false);
+
       render(
         <WalletContext.Provider
           value={{
@@ -889,52 +900,12 @@ describe("WalletConnect Component", () => {
           <WalletConnect />
         </WalletContext.Provider>,
       );
-      return connect;
-    }
-
-    it("shows a rejection error, not the success toast, when the user rejects the request", async () => {
-      const user = userEvent.setup();
-      const connect = renderWithConnect({ success: false, reason: "rejected" });
 
       await user.click(screen.getByRole("button", { name: /connect wallet/i }));
 
-      await waitFor(() =>
-        expect(toast.error).toHaveBeenCalledWith("Connection request was rejected"),
-      );
-      expect(connect).toHaveBeenCalledTimes(1);
+      await waitFor(() => expect(connect).toHaveBeenCalled());
       expect(toast.success).not.toHaveBeenCalled();
-    });
-
-    it("shows a generic error, not the success toast, when connecting fails", async () => {
-      const user = userEvent.setup();
-      renderWithConnect({ success: false, reason: "error", error: new Error("boom") });
-
-      await user.click(screen.getByRole("button", { name: /connect wallet/i }));
-
-      await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Failed to connect wallet"));
-      expect(toast.success).not.toHaveBeenCalled();
-    });
-
-    it("shows install guidance with a link when Freighter is missing", async () => {
-      const user = userEvent.setup();
-      const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
-      renderWithConnect({ success: false, reason: "not-installed" });
-
-      await user.click(screen.getByRole("button", { name: /connect wallet/i }));
-
-      await waitFor(() => expect(toast.error).toHaveBeenCalled());
-      expect(toast.success).not.toHaveBeenCalled();
-      const [message, options] = vi.mocked(toast.error).mock.calls[0] as [
-        string,
-        { description: string; action: { label: string; onClick: () => void } },
-      ];
-      expect(message).toBe("Freighter wallet not found");
-      expect(options.description).toMatch(/install the freighter/i);
-      expect(options.action.label).toBe("Install Freighter");
-
-      options.action.onClick();
-      expect(openSpy).toHaveBeenCalledWith(FREIGHTER_INSTALL_URL, "_blank", "noopener,noreferrer");
-      openSpy.mockRestore();
+      expect(screen.getByRole("button", { name: /connect wallet/i })).toBeEnabled();
     });
   });
 });
