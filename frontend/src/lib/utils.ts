@@ -19,8 +19,26 @@ export function calculateProgress(raised: bigint, target: bigint): number {
   return Math.min(progress, 100);
 }
 
+/**
+ * Stored as `metadata_uri` when a campaign is created without an image (#1075).
+ * The contract only accepts `https://` or `ipfs://` URIs, so this uses the
+ * reserved `.invalid` TLD (RFC 2606): it passes validation, is unmistakable on
+ * chain, and can never resolve to a real host.
+ */
+export const NO_IMAGE_METADATA_URI = "https://stellargive.invalid/no-image";
+
+/** Placeholders written by older frontends before NO_IMAGE_METADATA_URI existed. */
+const LEGACY_PLACEHOLDER_URIS = new Set(["https://example.com", "https://example.com/"]);
+
+/** True when `uri` is a "no image" placeholder rather than a real image location. */
+export function isPlaceholderMetadataUri(uri?: string): boolean {
+  if (!uri) return true;
+  const value = uri.trim();
+  return value === NO_IMAGE_METADATA_URI || LEGACY_PLACEHOLDER_URIS.has(value);
+}
+
 export function getCampaignImageUrl(uri?: string) {
-  if (!uri) return undefined;
+  if (!uri || isPlaceholderMetadataUri(uri)) return undefined;
   if (uri.startsWith("http")) return uri;
   if (uri.startsWith("ipfs://")) return `https://ipfs.io/ipfs/${uri.replace("ipfs://", "")}`;
   return undefined;

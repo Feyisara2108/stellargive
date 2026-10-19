@@ -1,5 +1,12 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { cn, calculateProgress, getCampaignImageUrl, getStellarExpertTxUrl } from "./utils";
+import {
+  cn,
+  calculateProgress,
+  getCampaignImageUrl,
+  getStellarExpertTxUrl,
+  isPlaceholderMetadataUri,
+  NO_IMAGE_METADATA_URI,
+} from "./utils";
 
 describe("utils", () => {
   describe("cn", () => {
@@ -64,9 +71,40 @@ describe("utils", () => {
       );
     });
 
+    it("should never treat the no-image placeholder as an image URL (#1075)", () => {
+      expect(getCampaignImageUrl(NO_IMAGE_METADATA_URI)).toBeUndefined();
+    });
+
+    it("should treat the legacy https://example.com placeholder as no image", () => {
+      expect(getCampaignImageUrl("https://example.com")).toBeUndefined();
+      expect(getCampaignImageUrl("https://example.com/")).toBeUndefined();
+    });
+
     it("should return undefined for other unsupported uri schemes", () => {
       expect(getCampaignImageUrl("ftp://example.com")).toBeUndefined();
       expect(getCampaignImageUrl("data:image/png;base64,...")).toBeUndefined();
+    });
+  });
+
+  describe("isPlaceholderMetadataUri", () => {
+    it("recognises empty, sentinel and legacy placeholder values", () => {
+      expect(isPlaceholderMetadataUri(undefined)).toBe(true);
+      expect(isPlaceholderMetadataUri("")).toBe(true);
+      expect(isPlaceholderMetadataUri(NO_IMAGE_METADATA_URI)).toBe(true);
+      expect(isPlaceholderMetadataUri("https://example.com")).toBe(true);
+    });
+
+    it("does not flag real image locations", () => {
+      expect(
+        isPlaceholderMetadataUri("ipfs://QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG"),
+      ).toBe(false);
+      expect(isPlaceholderMetadataUri("https://example.com/image.png")).toBe(false);
+    });
+
+    it("is accepted by the contract's metadata URI validation", () => {
+      // create_campaign accepts `https://` or `ipfs://` prefixes, max 256 bytes.
+      expect(NO_IMAGE_METADATA_URI.startsWith("https://")).toBe(true);
+      expect(NO_IMAGE_METADATA_URI.length).toBeLessThanOrEqual(256);
     });
   });
 

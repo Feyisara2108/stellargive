@@ -14,10 +14,19 @@ export function hasAnalyticsConsent(): boolean {
 
 /**
  * Initializes Sentry client-side analytics if user consent has been granted.
+ *
+ * This is the only client-side Sentry.init call: it runs from
+ * `src/instrumentation-client.ts` for returning visitors and from
+ * ConsentBanner on Accept. Calling it again once a client exists is a no-op.
  */
 export function initAnalytics(options?: Sentry.BrowserOptions): void {
   if (typeof window === "undefined") return;
   if (!hasAnalyticsConsent()) return;
+  if (Sentry.getClient()) return;
+
+  // Consent can be revoked after init (another tab, setAnalyticsConsent), so
+  // automatically captured events are re-checked before they leave the browser.
+  const dropWithoutConsent = <T>(event: T): T | null => (hasAnalyticsConsent() ? event : null);
 
   Sentry.init({
     dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
@@ -25,6 +34,8 @@ export function initAnalytics(options?: Sentry.BrowserOptions): void {
     debug: false,
     environment: process.env.NODE_ENV,
     release: process.env.SENTRY_RELEASE,
+    beforeSend: dropWithoutConsent,
+    beforeSendTransaction: dropWithoutConsent,
     ...options,
   });
 }

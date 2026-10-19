@@ -22,7 +22,7 @@ import {
   AlertTriangle,
   RotateCw,
   LayoutGrid,
-  List,
+  List as ListIcon,
   Bookmark,
   Tag,
 } from "lucide-react";
@@ -155,12 +155,7 @@ interface ListRowProps {
   isRefreshing: boolean;
 }
 
-function ListRow({
-  index,
-  style,
-  campaigns,
-  isRefreshing,
-}: RowComponentProps<ListRowProps>) {
+function ListRow({ index, style, campaigns, isRefreshing }: RowComponentProps<ListRowProps>) {
   const item = campaigns[index];
   if (!item) return null;
   return (
@@ -192,13 +187,17 @@ function isCategoryKey(value: string | null): value is CategoryKey {
 
 /**
  * Mirrors CampaignCard's badge logic: a campaign with an empty or "other"
- * category is labelled "Uncategorized", so that tab must match those too.
+ * category is labelled "Uncategorized". Both the filter and the per-tab counts
+ * go through this so they can never disagree (#1090).
  */
+function campaignCategoryKey(campaign: Campaign): string {
+  const value = (campaign.category ?? "").trim().toLowerCase();
+  return value === "" || value === "other" ? "uncategorized" : value;
+}
+
 function matchesCategory(campaign: Campaign, category: CategoryKey): boolean {
   if (category === "all") return true;
-  const value = (campaign.category ?? "").trim().toLowerCase();
-  if (category === "uncategorized") return value === "" || value === "other";
-  return value === category;
+  return campaignCategoryKey(campaign) === category;
 }
 
 function sortCampaigns(campaigns: Campaign[], sortBy: SortKey): Campaign[] {
@@ -309,7 +308,7 @@ function ExploreContent() {
   const categoryCounts = useMemo(() => {
     const counts: Partial<Record<CategoryKey, number>> = { all: campaigns.length };
     for (const c of campaigns) {
-      const cat = (c.category || "uncategorized") as CategoryKey;
+      const cat = campaignCategoryKey(c) as CategoryKey;
       counts[cat] = (counts[cat] ?? 0) + 1;
     }
     return counts;
@@ -606,7 +605,7 @@ function ExploreContent() {
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              <List className="h-4 w-4" />
+              <ListIcon className="h-4 w-4" />
             </button>
           </div>
         </div>

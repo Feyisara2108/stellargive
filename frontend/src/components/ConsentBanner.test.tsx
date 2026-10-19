@@ -8,6 +8,7 @@ import * as sentryModule from "@/lib/sentry";
 vi.mock("@sentry/nextjs", () => ({
   init: vi.fn(),
   captureException: vi.fn(),
+  getClient: vi.fn(),
 }));
 
 const CONSENT_KEY = "stellargive_consent";

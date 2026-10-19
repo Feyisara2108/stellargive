@@ -22,6 +22,7 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { Address, nativeToScVal, xdr } from "@stellar/stellar-sdk";
 import { useWallet } from "@/lib/WalletProvider";
 import { toRawAmount } from "@/utils/format";
+import { NO_IMAGE_METADATA_URI } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
 // Selector Memoization & Referential Stability Utilities
@@ -422,7 +423,7 @@ export function useCreateCampaign() {
         beneficiariesVec, // 2. beneficiaries: Vec<(Address, u32)>
         nativeToScVal(params.title, { type: "string" }), // 3. title: String
         nativeToScVal(params.description, { type: "string" }), // 4. description: String
-        nativeToScVal(params.metadataUri || "https://example.com", { type: "string" }), // 5. metadata_uri: String
+        nativeToScVal(params.metadataUri || NO_IMAGE_METADATA_URI, { type: "string" }), // 5. metadata_uri: String
         nativeToScVal(params.category || "relief", { type: "symbol" }), // 6. category: Symbol
         nativeToScVal(toStroops(params.targetAmount), { type: "i128" }), // 7. target_amount: i128
         nativeToScVal(BigInt(params.deadline), { type: "u64" }), // 8. deadline: u64

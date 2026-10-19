@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getCampaign, fromStroops } from "@/lib/soroban";
 import { formatBasisPoints } from "@/utils/format";
+import { getCampaignImageUrl } from "@/lib/utils";
 import { CampaignDetailsClient } from "./CampaignDetailsClient";
 import type { BreadcrumbItem } from "@/components/Breadcrumbs";
 
@@ -28,14 +29,6 @@ function buildExploreHref(searchParams?: Record<string, string | string[] | unde
 
   const serialized = query.toString();
   return serialized ? `/explore?${serialized}` : "/explore";
-}
-
-function getImageUrl(metadataUri?: string) {
-  if (!metadataUri) return undefined;
-  if (metadataUri.startsWith("ipfs://")) {
-    return metadataUri.replace("ipfs://", "https://ipfs.io/ipfs/");
-  }
-  return metadataUri;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -77,7 +70,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       campaign.raised_amount,
     )} of ${fromStroops(campaign.target_amount)} XLM raised. ${benDesc}Support this campaign on StellarGive.`;
 
-    const imageUrl = getImageUrl(campaign.metadata_uri);
+    const imageUrl = getCampaignImageUrl(campaign.metadata_uri);
 
     return {
       title,
