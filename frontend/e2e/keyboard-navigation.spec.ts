@@ -1,7 +1,9 @@
 import { test, expect } from "@playwright/test";
+import { mockSorobanRPC, DEFAULT_CAMPAIGNS } from "./support/rpc-mock";
 
 test.describe("Keyboard Navigation & Accessibility", () => {
   test.beforeEach(async ({ page }) => {
+    await mockSorobanRPC(page, DEFAULT_CAMPAIGNS);
     await page.goto("/");
   });
 
