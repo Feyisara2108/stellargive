@@ -38,7 +38,7 @@ export const formatAddress = (address: string): string => {
  */
 export const formatTokenAmount = (raw: bigint | string | number, decimals: number = 7): string => {
   const n = BigInt(raw);
-  const divisor = BigInt(10 ** decimals);
+  const divisor = 10n ** BigInt(decimals);
   const intPart = (n / divisor).toString();
 
   if (decimals === 0) return intPart;
@@ -99,7 +99,7 @@ export const toRawAmount = (amount: string | number, decimals: number = 7): bigi
     throw new Error(`Invalid amount: exceeds ${decimals} decimal places`);
   }
 
-  let raw = BigInt(intPart || "0") * BigInt(10 ** decimals);
+  let raw = BigInt(intPart || "0") * 10n ** BigInt(decimals);
   if (parts.length > 1 && parts[1].length > 0) {
     const fraction = parts[1].padEnd(decimals, "0");
     raw += BigInt(fraction);
@@ -107,6 +107,28 @@ export const toRawAmount = (amount: string | number, decimals: number = 7): bigi
 
   return isNegative ? -raw : raw;
 };
+
+/**
+ * Non-throwing variant of `toRawAmount` for form input: returns the amount in
+ * base units, or `null` when the value is empty, not a non-negative decimal
+ * number, or has more fractional digits than the token supports.
+ */
+export const parseTokenAmount = (amount: string, decimals: number = 7): bigint | null => {
+  const str = amount.trim();
+  if (!/^(?:\d+\.?\d*|\.\d+)$/.test(str)) return null;
+  try {
+    return toRawAmount(str, decimals);
+  } catch {
+    return null;
+  }
+};
+
+/** Smallest of the given bigints, ignoring `null` entries. */
+export const minBigInt = (...values: (bigint | null | undefined)[]): bigint | null =>
+  values.reduce<bigint | null>(
+    (min, v) => (v == null ? min : min == null || v < min ? v : min),
+    null,
+  );
 
 /**
  * Escapes a single CSV field per RFC 4180: wraps the value in double quotes

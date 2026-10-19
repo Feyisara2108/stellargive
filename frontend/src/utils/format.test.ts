@@ -6,6 +6,8 @@ import {
   formatTokenAmount,
   formatBasisPoints,
   toRawAmount,
+  parseTokenAmount,
+  minBigInt,
   normalizeAddress,
   formatUSD,
   escapeCSVField,
@@ -332,6 +334,48 @@ describe("format utils", () => {
       expect(formatUSD(NaN)).toBe("$0.00");
       expect(formatUSD(Infinity)).toBe("$0.00");
       expect(formatUSD(-Infinity)).toBe("$0.00");
+    });
+  });
+
+  describe("18-decimal tokens and large values", () => {
+    it("round-trips amounts beyond Number.MAX_SAFE_INTEGER exactly", () => {
+      const raw = 10n ** 30n + 1n;
+      expect(formatTokenAmount(raw, 18)).toBe("1000000000000.000000000000000001");
+      expect(toRawAmount("1000000000000.000000000000000001", 18)).toBe(raw);
+    });
+
+    it("distinguishes values that collapse to the same float", () => {
+      const a = toRawAmount("123456789.123456789123456789", 18);
+      const b = toRawAmount("123456789.123456789123456788", 18);
+      expect(a - b).toBe(1n);
+    });
+
+    it("uses exact powers of ten beyond float precision", () => {
+      expect(toRawAmount("1", 24)).toBe(10n ** 24n);
+      expect(formatTokenAmount(10n ** 24n + 1n, 24)).toBe("1.000000000000000000000001");
+    });
+  });
+
+  describe("parseTokenAmount", () => {
+    it("parses valid amounts into base units", () => {
+      expect(parseTokenAmount("0.1", 7)).toBe(1_000_000n);
+      expect(parseTokenAmount(".5", 7)).toBe(5_000_000n);
+      expect(parseTokenAmount("2.", 18)).toBe(2n * 10n ** 18n);
+    });
+
+    it("returns null for empty, negative, malformed or over-precise input", () => {
+      expect(parseTokenAmount("", 7)).toBeNull();
+      expect(parseTokenAmount("-1", 7)).toBeNull();
+      expect(parseTokenAmount("1e3", 7)).toBeNull();
+      expect(parseTokenAmount("abc", 7)).toBeNull();
+      expect(parseTokenAmount("0.00000001", 7)).toBeNull();
+    });
+  });
+
+  describe("minBigInt", () => {
+    it("returns the smallest value, ignoring null and undefined", () => {
+      expect(minBigInt(5n, null, 3n, undefined, 9n)).toBe(3n);
+      expect(minBigInt(null, undefined)).toBeNull();
     });
   });
 });
