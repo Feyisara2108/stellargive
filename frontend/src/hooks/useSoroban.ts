@@ -18,6 +18,8 @@ import {
   getTotalCampaigns,
   getPlatformConfig,
   getSACBalance,
+  getAccountMinimumReserve,
+  getDonorContribution,
   resolveAddressName,
   Campaign,
   CampaignBeneficiary,
@@ -1094,6 +1096,28 @@ export function useWalletBalance(
       return (await loadSoroban()).getSACBalance(tokenContractId, address);
     },
     enabled: !!tokenContractId && !!address,
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
+/** XLM (stroops) the account must keep as its minimum reserve. */
+export function useAccountReserve(address: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ["account-reserve", address],
+    queryFn: () => (address ? getAccountMinimumReserve(address) : null),
+    enabled: enabled && !!address,
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
+/** Amount (base units) the donor has already given to a campaign. */
+export function useDonorContribution(campaignId: bigint, address: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ["donor-contribution", campaignId.toString(), address],
+    queryFn: () => (address ? getDonorContribution(campaignId, address) : null),
+    enabled: enabled && !!address,
     staleTime: 30_000,
     retry: false,
   });

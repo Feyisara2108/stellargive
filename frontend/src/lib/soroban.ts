@@ -34,6 +34,69 @@ export {
 
 export const server = new rpc.Server(RPC_URL, { allowHttp: true });
 
+export const STROOP_PRECISION = 7;
+
+/**
+ * Maximum resource fee (in stroops) we expect any single contract call to
+ * consume.  Transactions simulating above this threshold are flagged so the UI
+ * can warn the user before they sign.  The hard cap set here is deliberately
+ * generous (10 M CPU units worth of fee headroom); tighten per-call if needed.
+ */
+export const MAX_SIMULATION_FEE_STROOPS = 10_000_000;
+
+/**
+ * Smallest donation the contract accepts, in the token's base units. Mirrors
+ * `MIN_DONATION` in contracts/stellar-give/src/lib.rs (0.1 XLM for 7-decimal
+ * tokens); anything below fails on-chain with `InvalidAmount`.
+ */
+export const MIN_DONATION = 1_000_000n;
+
+/** Network base reserve (0.5 XLM) — each account entry locks this much XLM. */
+export const BASE_RESERVE_STROOPS = 5_000_000n;
+
+/**
+ * Fee held back from a native XLM balance when the simulated resource fee is
+ * not yet known. Covers a typical `donate` resource fee plus inclusion fee.
+ */
+export const DEFAULT_DONATE_FEE_STROOPS = 1_000_000n;
+
+/** Inclusion fee headroom added on top of a simulated resource fee. */
+export const INCLUSION_FEE_BUFFER_STROOPS = 100_000n;
+
+export function toStroops(amount: string | number): bigint {
+  const str = amount.toString().trim();
+
+  // Reject non-numeric inputs
+  if (!/^\d+(\.\d+)?$/.test(str)) {
+    if (str.startsWith("-")) {
+      throw new Error("Invalid amount: negative values not allowed");
+    }
+    throw new Error("Invalid amount: not a number");
+  }
+
+  const parts = str.split(".");
+
+  // Reject excessive decimal places (more than 7)
+  if (parts.length > 1 && parts[1].length > STROOP_PRECISION) {
+    throw new Error(`Invalid amount: exceeds ${STROOP_PRECISION} decimal places`);
+  }
+
+  let stroops = BigInt(parts[0]) * BigInt(10 ** STROOP_PRECISION);
+  if (parts.length > 1) {
+    const decimals = parts[1].padEnd(STROOP_PRECISION, "0");
+    stroops += BigInt(decimals);
+  }
+  return stroops;
+}
+
+export function fromStroops(stroops: bigint | string | number): string {
+  const n = BigInt(stroops);
+  const intPart = (n / 10_000_000n).toString();
+  const decRaw = (n % 10_000_000n).toString().padStart(7, "0");
+  const decPart = decRaw.replace(/0+$/, "");
+  return decPart.length > 0 ? `${intPart}.${decPart}` : intPart;
+}
+
 export type CampaignStatus = "Active" | "Funded" | "Claimed" | "Expired" | "Cancelled";
 
 export interface CampaignBeneficiary {
@@ -57,8 +120,8 @@ export interface Campaign {
   metadata_uri?: string;
   website?: string;
   twitter?: string;
-  /** Per-donor contribution cap in the token's smallest unit, or undefined when uncapped. */
-  max_per_donor?: bigint;
+  /** Cumulative per-donor cap in base units; `null`/absent means uncapped. */
+  max_per_donor?: bigint | null;
   /** Client-side free-form tags for search/filtering — not stored on-chain. */
   tags?: string[];
 }
@@ -97,8 +160,8 @@ function parseCampaign(native: NativeCampaign): Campaign {
     twitter: native.twitter?.toString(),
     max_per_donor:
       native.max_per_donor != null
-        ? BigInt(native.max_per_donor as string | number | bigint)
-        : undefined,
+        ? BigInt(native.max_per_donor as string | number | bigint | boolean)
+        : null,
   };
 }
 
@@ -714,6 +777,83 @@ export async function getSACBalance(contractId: string, userAddress: string): Pr
   if (!sim.result) throw new Error("Failed to get balance: no result");
   const result = scValToNative(sim.result.retval);
   return BigInt(result);
+}
+
+/**
+ * Minimum XLM an account must keep: (2 + subentries + sponsoring - sponsored)
+ * base reserves, plus XLM locked as selling liabilities by open offers.
+ */
+export function computeMinimumReserve(entry: {
+  numSubEntries: number;
+  numSponsoring?: number;
+  numSponsored?: number;
+  sellingLiabilities?: bigint;
+}): bigint {
+  const entries =
+    2n +
+    BigInt(entry.numSubEntries) +
+    BigInt(entry.numSponsoring ?? 0) -
+    BigInt(entry.numSponsored ?? 0);
+  return entries * BASE_RESERVE_STROOPS + (entry.sellingLiabilities ?? 0n);
+}
+
+/**
+ * Reads the account's ledger entry and returns the XLM (in stroops) it cannot
+ * spend. Falls back to the two-entry base minimum if the entry can't be read.
+ */
+export async function getAccountMinimumReserve(address: string): Promise<bigint> {
+  try {
+    const key = xdr.LedgerKey.account(
+      new xdr.LedgerKeyAccount({ accountId: Keypair.fromPublicKey(address).xdrPublicKey() }),
+    );
+    const res = await server.getLedgerEntries(key);
+    const data = res.entries[0]?.val;
+    if (data?.type !== "account") return computeMinimumReserve({ numSubEntries: 0 });
+    const account = data.account;
+
+    let numSponsoring = 0;
+    let numSponsored = 0;
+    let sellingLiabilities = 0n;
+    if (account.ext.type === "v1") {
+      const v1 = account.ext.v1;
+      sellingLiabilities = v1.liabilities.selling;
+      if (v1.ext.type === "v2") {
+        numSponsoring = v1.ext.v2.numSponsoring;
+        numSponsored = v1.ext.v2.numSponsored;
+      }
+    }
+    return computeMinimumReserve({
+      numSubEntries: account.numSubEntries,
+      numSponsoring,
+      numSponsored,
+      sellingLiabilities,
+    });
+  } catch {
+    return computeMinimumReserve({ numSubEntries: 0 });
+  }
+}
+
+/**
+ * Total the donor has already given to a campaign, read straight from the
+ * contract's persistent `("DCON", campaign_id, donor)` entry. Returns 0 when
+ * the donor has never given.
+ */
+export async function getDonorContribution(campaignId: bigint, donor: string): Promise<bigint> {
+  const key = xdr.LedgerKey.contractData(
+    new xdr.LedgerKeyContractData({
+      contract: new Address(CONTRACT_ID).toScAddress(),
+      key: xdr.ScVal.scvVec([
+        nativeToScVal("DCON", { type: "symbol" }),
+        nativeToScVal(campaignId, { type: "u64" }),
+        new Address(donor).toScVal(),
+      ]),
+      durability: xdr.ContractDataDurability.persistent,
+    }),
+  );
+  const res = await server.getLedgerEntries(key);
+  const data = res.entries[0]?.val;
+  if (data?.type !== "contractData") return 0n;
+  return BigInt(scValToNative(data.contractData.val));
 }
 
 export interface TokenMetadata {

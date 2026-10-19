@@ -6,22 +6,24 @@ import { useForm } from "react-hook-form";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import {
   getCrossedMilestones,
+  useAccountReserve,
   useDonate,
   useDonateFeeEstimate,
+  useDonorContribution,
   useWalletBalance,
   useTokenMetadata,
   type MilestonePercent,
 } from "@/hooks/useSoroban";
-import type { Campaign } from "@/lib/soroban";
-import { Campaign } from "@/lib/soroban";
 import {
-  CONTRACT_ERROR_CODES,
-  EXCEEDS_DONOR_CAP_MESSAGE,
-  getContractErrorCode,
-} from "@/lib/contractErrors";
+  Campaign,
+  DEFAULT_DONATE_FEE_STROOPS,
+  INCLUSION_FEE_BUFFER_STROOPS,
+  MIN_DONATION,
+} from "@/lib/soroban";
 import { useWallet } from "@/lib/WalletProvider";
 import { WRONG_NETWORK_MESSAGE } from "@/lib/network";
-import { formatTokenAmount, toRawAmount } from "@/utils/format";
+import { NATIVE_XLM_CONTRACT_ID } from "@/lib/tokens";
+import { formatTokenAmount, minBigInt, parseTokenAmount } from "@/utils/format";
 import { GasWarning } from "@/components/GasWarning";
 import { Button } from "@/components/ui/button";
 import {
@@ -120,20 +122,19 @@ export function DonateModal({
   const { data: tokenMeta } = useTokenMetadata(campaign.accepted_token);
   const decimals = tokenMeta?.decimals ?? 7;
   const symbol = tokenMeta?.symbol ?? "XLM";
-  const divisor = 10 ** decimals;
-  const minDonation = 1 / divisor;
-  // The cap is cumulative per donor on-chain; a single amount above it can be
-  // rejected locally, anything closer is caught by the contract (ExceedsDonorCap).
-  const maxPerDonor =
-    campaign.max_per_donor != null ? Number(campaign.max_per_donor) / divisor : null;
+  const isNative = campaign.accepted_token === NATIVE_XLM_CONTRACT_ID;
+  const fmt = (raw: bigint) => `${formatTokenAmount(raw, decimals)} ${symbol}`;
 
-  const target = Number(displayCampaign.target_amount) / divisor;
-  const raised = Number(displayCampaign.raised_amount) / divisor;
-  const remaining = Math.max(target - raised, 0);
-  const liveRemaining = Math.max(remaining - (Number(amount) || 0), 0);
-  const canFundRest = remaining >= minDonation && (Number(amount) || 0) < remaining;
-
-  const formatNum = (num: number) => num.toFixed(decimals).replace(/\.?0+$/, "") || "0";
+  // All amount math stays in bigint base units — no float comparisons.
+  const amountRaw = parseTokenAmount(amount ?? "", decimals);
+  const raised = displayCampaign.raised_amount;
+  const remaining =
+    displayCampaign.target_amount > raised ? displayCampaign.target_amount - raised : 0n;
+  const liveRemaining = remaining > (amountRaw ?? 0n) ? remaining - (amountRaw ?? 0n) : 0n;
+  // The contract rejects anything below MIN_DONATION, so when less than the
+  // minimum is left, "fund the rest" means donating the minimum (overshoot is allowed).
+  const fundRestAmount = remaining > MIN_DONATION ? remaining : MIN_DONATION;
+  const canFundRest = remaining > 0n && (amountRaw ?? 0n) < fundRestAmount;
 
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [message, setMessage] = useState("");
@@ -157,15 +158,38 @@ export function DonateModal({
     decimals,
   });
   const walletBalance = useWalletBalance(campaign.accepted_token, address);
-  const balanceTokens = walletBalance.data != null ? Number(walletBalance.data) / divisor : null;
+  const balanceRaw = walletBalance.data != null ? BigInt(walletBalance.data) : null;
 
-  // Re-run validation when balance loads so the balance error appears immediately.
+  // Native XLM: the account must keep its minimum reserve and pay the network
+  // fee, so donating the full balance always fails on-chain.
+  const accountReserve = useAccountReserve(address, isNative);
+  const feeHoldback =
+    feeEstimate.data != null
+      ? BigInt(feeEstimate.data) + INCLUSION_FEE_BUFFER_STROOPS
+      : DEFAULT_DONATE_FEE_STROOPS;
+  const nativeHoldback = isNative ? (accountReserve.data ?? 0n) + feeHoldback : 0n;
+  const spendableRaw =
+    balanceRaw === null ? null : balanceRaw > nativeHoldback ? balanceRaw - nativeHoldback : 0n;
+
+  // Per-donor cap: what this donor can still give, after prior donations.
+  const maxPerDonor = campaign.max_per_donor ?? null;
+  const donorContribution = useDonorContribution(campaign.id, address, maxPerDonor !== null);
+  const alreadyGiven = donorContribution.data ?? 0n;
+  const capRemaining =
+    maxPerDonor === null ? null : maxPerDonor > alreadyGiven ? maxPerDonor - alreadyGiven : 0n;
+
+  const maxDonatable = minBigInt(fundRestAmount, capRemaining, spendableRaw);
+  const canDonateMax =
+    spendableRaw !== null && maxDonatable !== null && maxDonatable >= MIN_DONATION;
+
+  // Re-run validation when balance, reserve or prior contribution loads so the
+  // matching error appears immediately.
   useEffect(() => {
-    if (balanceTokens !== null && amount && Number(amount) > 0) {
+    if (amountRaw !== null && amountRaw > 0n) {
       trigger("amount");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [balanceTokens, trigger]);
+  }, [spendableRaw, capRemaining, trigger]);
 
   // Clear inline submit error whenever the user edits the amount.
   useEffect(() => {
@@ -213,7 +237,7 @@ export function DonateModal({
       });
       try {
         const beforeStroops = campaign.raised_amount;
-        const afterStroops = beforeStroops + toRawAmount(data.amount, decimals);
+        const afterStroops = beforeStroops + (parseTokenAmount(data.amount, decimals) ?? 0n);
         for (const milestone of getCrossedMilestones(
           beforeStroops,
           afterStroops,
@@ -327,7 +351,9 @@ export function DonateModal({
                       size="sm"
                       className="h-6 px-2 text-xs"
                       onClick={() =>
-                        setValue("amount", formatNum(remaining), { shouldValidate: true })
+                        setValue("amount", formatTokenAmount(fundRestAmount, decimals), {
+                          shouldValidate: true,
+                        })
                       }
                       disabled={donate.isPending}
                     >
@@ -350,18 +376,24 @@ export function DonateModal({
                       message: "Enter a valid number",
                     },
                     validate: (value) => {
-                      const num = Number(value);
-                      if (isNaN(num)) return "Enter a valid number";
                       const parts = value.split(".");
                       if (parts.length > 1 && parts[1].length > decimals)
                         return `Maximum ${decimals} decimal places`;
-                      if (num < minDonation)
-                        return `Minimum donation is ${formatNum(minDonation)} ${symbol}`;
-                      if (num > remaining) return "This exceeds the remaining goal";
-                      if (maxPerDonor !== null && num > maxPerDonor)
-                        return EXCEEDS_DONOR_CAP_MESSAGE;
-                      if (balanceTokens !== null && num > balanceTokens)
-                        return `Insufficient balance — you have ${formatNum(balanceTokens)} ${symbol}`;
+                      const raw = parseTokenAmount(value, decimals);
+                      if (raw === null) return "Enter a valid number";
+                      if (raw < MIN_DONATION) return `Minimum donation is ${fmt(MIN_DONATION)}`;
+                      if (raw > fundRestAmount) return "This exceeds the remaining goal";
+                      if (maxPerDonor !== null && capRemaining !== null && raw > capRemaining) {
+                        if (capRemaining < MIN_DONATION)
+                          return `You've reached this campaign's limit of ${fmt(maxPerDonor)} per donor`;
+                        return alreadyGiven > 0n
+                          ? `This campaign allows ${fmt(maxPerDonor)} per donor — you've given ${fmt(alreadyGiven)}, so you can give up to ${fmt(capRemaining)} more`
+                          : `This campaign allows at most ${fmt(maxPerDonor)} per donor`;
+                      }
+                      if (balanceRaw !== null && raw > balanceRaw)
+                        return `Insufficient balance — you have ${fmt(balanceRaw)}`;
+                      if (spendableRaw !== null && raw > spendableRaw)
+                        return `Insufficient balance — ${fmt(spendableRaw)} is available after keeping ${fmt(nativeHoldback)} for the account reserve and network fees`;
                       return true;
                     },
                   })}
@@ -374,7 +406,8 @@ export function DonateModal({
                 >
                   {[10, 50, 100].map((presetVal) => {
                     const isActive =
-                      !!amount && !isNaN(Number(amount)) && Number(amount) === presetVal;
+                      amountRaw !== null &&
+                      amountRaw === BigInt(presetVal) * 10n ** BigInt(decimals);
                     return (
                       <Button
                         key={presetVal}
@@ -394,32 +427,42 @@ export function DonateModal({
                       </Button>
                     );
                   })}
-                  {remaining > 0 && (
+                  {remaining > 0n && (
                     <Button
                       type="button"
-                      variant={
-                        !!amount &&
-                        !isNaN(Number(amount)) &&
-                        Number(amount) > 0 &&
-                        Math.abs(Number(amount) - remaining) < 0.0000001
-                          ? "default"
-                          : "outline"
-                      }
+                      variant={amountRaw === fundRestAmount ? "default" : "outline"}
                       size="sm"
                       className={cn(
                         "h-7 px-3 text-xs rounded-full transition-colors",
-                        !!amount &&
-                          !isNaN(Number(amount)) &&
-                          Number(amount) > 0 &&
-                          Math.abs(Number(amount) - remaining) < 0.0000001 &&
-                          "font-semibold shadow-sm",
+                        amountRaw === fundRestAmount && "font-semibold shadow-sm",
                       )}
                       onClick={() =>
-                        setValue("amount", formatNum(remaining), { shouldValidate: true })
+                        setValue("amount", formatTokenAmount(fundRestAmount, decimals), {
+                          shouldValidate: true,
+                        })
                       }
                       disabled={donate.isPending}
                     >
                       Fund Remaining
+                    </Button>
+                  )}
+                  {canDonateMax && (
+                    <Button
+                      type="button"
+                      variant={amountRaw === maxDonatable ? "default" : "outline"}
+                      size="sm"
+                      className={cn(
+                        "h-7 px-3 text-xs rounded-full transition-colors",
+                        amountRaw === maxDonatable && "font-semibold shadow-sm",
+                      )}
+                      onClick={() =>
+                        setValue("amount", formatTokenAmount(maxDonatable, decimals), {
+                          shouldValidate: true,
+                        })
+                      }
+                      disabled={donate.isPending}
+                    >
+                      Max
                     </Button>
                   )}
                 </div>
@@ -430,11 +473,11 @@ export function DonateModal({
                     role="status"
                     aria-live="polite"
                   >
-                    {liveRemaining > 0
-                      ? `${formatNum(liveRemaining)} ${symbol} left to reach the goal`
-                      : amount && Number(amount) > 0
+                    {liveRemaining > 0n
+                      ? `${fmt(liveRemaining)} left to reach the goal`
+                      : amountRaw !== null && amountRaw > 0n
                         ? "This will fully fund the campaign!"
-                        : `${formatNum(remaining)} ${symbol} left to reach the goal`}
+                        : `${fmt(remaining)} left to reach the goal`}
                   </span>
                   {/* Always render the balance slot so the row height is stable.
                     Skeleton while loading → value once resolved → nothing if
@@ -442,15 +485,22 @@ export function DonateModal({
                   <span className="text-xs text-muted-foreground min-w-[6rem] text-right">
                     {walletBalance.isLoading ? (
                       <Skeleton className="h-3 w-24 inline-block" aria-label="Loading balance" />
-                    ) : balanceTokens !== null ? (
-                      `Balance: ${formatNum(balanceTokens)} ${symbol}`
+                    ) : balanceRaw !== null ? (
+                      `Balance: ${fmt(balanceRaw)}`
                     ) : null}
                   </span>
                 </div>
+                {isNative && balanceRaw !== null && spendableRaw !== null && (
+                  <p id="balance-hint" className="text-xs text-muted-foreground">
+                    You can donate up to {fmt(spendableRaw)} — {fmt(nativeHoldback)} stays in your
+                    wallet for the minimum account reserve and network fees.
+                  </p>
+                )}
                 {maxPerDonor !== null && (
-                  <span className="text-xs text-muted-foreground">
-                    Maximum per donor: {formatNum(maxPerDonor)} {symbol}
-                  </span>
+                  <p id="donor-cap-hint" className="text-xs text-muted-foreground">
+                    Limit: {fmt(maxPerDonor)} per donor
+                    {alreadyGiven > 0n && ` · you've given ${fmt(alreadyGiven)}`}
+                  </p>
                 )}
                 {errors.amount && (
                   <span
