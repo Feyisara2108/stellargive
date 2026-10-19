@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useClaimRefund, useRefundEligibility } from "@/hooks/useSoroban";
+import { useClaimRefund, useRefund, useRefundEligibility } from "@/hooks/useSoroban";
 import { useWallet } from "@/lib/WalletProvider";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,11 +25,13 @@ const WRONG_NETWORK_REASON = WRONG_NETWORK_MESSAGE;
 export function RefundButton({
   campaignId,
   isCancelled,
+  isExpiredUnfunded = false,
   campaignTitle,
   refundAmount,
 }: {
   campaignId: bigint;
   isCancelled: boolean;
+  isExpiredUnfunded?: boolean;
   /** Shown in the confirmation dialog. Falls back to the campaign id. */
   campaignTitle?: string;
   /** Refundable amount (display string, e.g. "12.5 XLM"), shown in the confirmation dialog when known. */
@@ -40,8 +42,11 @@ export function RefundButton({
   const { data: isEligible, isLoading: isCheckingEligibility } = useRefundEligibility(
     campaignId,
     isCancelled,
+    isExpiredUnfunded,
   );
   const claimRefund = useClaimRefund();
+  const expiredRefund = useRefund();
+  const refundMutation = isExpiredUnfunded ? expiredRefund : claimRefund;
 
   // Nothing to show until the eligibility check has actually resolved.
   if (isCheckingEligibility || isEligible === undefined) {
@@ -50,7 +55,7 @@ export function RefundButton({
 
   // Once claimed successfully, the invalidation of useRefundEligibility will quickly hide the button,
   // but we also rely on isSuccess locally for an immediate UI response.
-  if (claimRefund.isSuccess) {
+  if (refundMutation.isSuccess) {
     return null;
   }
 
@@ -72,12 +77,12 @@ export function RefundButton({
   }
 
   const handleConfirm = () => {
-    if (claimRefund.isPending) return;
+    if (refundMutation.isPending) return;
     // Close first so the pending state is visible on the button and a second click can't re-submit.
     setConfirmOpen(false);
     // mutate (not mutateAsync): failures are surfaced by the hook's onError toast, and
     // awaiting mutateAsync here would leave an unhandled rejection.
-    claimRefund.mutate(campaignId);
+    refundMutation.mutate(campaignId);
   };
 
   return (
@@ -88,11 +93,11 @@ export function RefundButton({
             <Button
               variant="outline"
               className="border-primary text-primary hover:bg-primary/10 gap-2"
-              disabled={claimRefund.isPending || isWrongNetwork}
+              disabled={refundMutation.isPending || isWrongNetwork}
               aria-describedby={isWrongNetwork ? "refund-disabled-reason" : undefined}
               onClick={() => setConfirmOpen(true)}
             >
-              {claimRefund.isPending ? (
+              {refundMutation.isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Claiming refund...

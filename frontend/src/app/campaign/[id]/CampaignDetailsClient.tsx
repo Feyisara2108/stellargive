@@ -397,6 +397,20 @@ export function CampaignDetailsClient({
         </div>
       </div>
 
+      {(campaign.status === "Cancelled" ||
+        (campaign.status === "Expired" && campaign.raised_amount < campaign.target_amount)) && (
+        <div className="border-t pt-6 flex justify-end">
+          <RefundButton
+            campaignId={campaign.id}
+            isCancelled={campaign.status === "Cancelled"}
+            isExpiredUnfunded={
+              campaign.status === "Expired" && campaign.raised_amount < campaign.target_amount
+            }
+            campaignTitle={campaign.title}
+          />
+        </div>
+      )}
+
       {isCreator && campaign?.status === "Active" && (
         <div className="border-t pt-6 flex justify-end">
           <Button

@@ -691,23 +691,67 @@ export function useClaimRefund() {
   });
 }
 
-export function useRefundEligibility(campaignId: bigint, isCancelled: boolean) {
+export function useRefund() {
+  const { address } = useWallet();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (campaignId: bigint) => {
+      if (!address) throw new Error("Wallet not connected");
+      const { Address, nativeToScVal } = await loadSdk();
+      const { submitTransaction } = await loadSoroban();
+
+      const args = [nativeToScVal(campaignId, { type: "u64" }), new Address(address).toScVal()];
+
+      return submitTransaction(address, "refund", args);
+    },
+    onMutate: () => {
+      const toastId = notify.loading("Claiming refund...");
+      return { toastId };
+    },
+    onSuccess: (data: SubmitTransactionResult, campaignId, context) => {
+      notify.success("Refund claimed successfully", {
+        id: context?.toastId,
+        hash: data?.hash,
+      });
+      queryClient.invalidateQueries({ queryKey: ["campaign", campaignId.toString()] });
+      queryClient.invalidateQueries({ queryKey: ["refund-eligibility", campaignId.toString()] });
+    },
+    onError: (_error: unknown, _variables, context) => {
+      notify.error("Unable to claim refund. Please try again.", { id: context?.toastId });
+    },
+  });
+}
+
+export function useRefundEligibility(
+  campaignId: bigint,
+  isCancelled: boolean,
+  isExpiredUnfunded = false,
+) {
   const { address } = useWallet();
   return useQuery({
-    queryKey: ["refund-eligibility", campaignId.toString(), address],
+    queryKey: [
+      "refund-eligibility",
+      campaignId.toString(),
+      address,
+      isCancelled ? "claim_refund" : isExpiredUnfunded ? "refund" : "ineligible",
+    ],
     queryFn: async () => {
-      if (!address || !isCancelled) return false;
+      if (!address || (!isCancelled && !isExpiredUnfunded)) return false;
       const { Address, nativeToScVal } = await loadSdk();
       const { estimateFee } = await loadSoroban();
       try {
-        const args = [new Address(address).toScVal(), nativeToScVal(campaignId, { type: "u64" })];
-        const fee = await estimateFee(address, "claim_refund", args);
+        const args = isCancelled
+          ? [new Address(address).toScVal(), nativeToScVal(campaignId, { type: "u64" })]
+          : [nativeToScVal(campaignId, { type: "u64" }), new Address(address).toScVal()];
+        const method = isCancelled ? "claim_refund" : "refund";
+        const fee = await estimateFee(address, method, args);
         return fee !== null;
       } catch {
         return false;
       }
     },
-    enabled: !!address && isCancelled,
+    enabled: !!address && (isCancelled || isExpiredUnfunded),
     staleTime: 60_000,
   });
 }

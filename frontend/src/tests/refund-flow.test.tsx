@@ -136,7 +136,15 @@ function RefundFlowHarness({
       )}
 
       <div data-testid="refund-section">
-        {campaign && <RefundButton campaignId={campaign.id} isCancelled={isCancelled} />}
+        {campaign && (
+          <RefundButton
+            campaignId={campaign.id}
+            isCancelled={isCancelled}
+            isExpiredUnfunded={
+              campaign.status === "Expired" && campaign.raised_amount < campaign.target_amount
+            }
+          />
+        )}
       </div>
     </div>
   );
@@ -414,6 +422,46 @@ describe("Integration: refund flow (donate -> cancel -> refund)", () => {
     // is unreliable here: active queries refetch immediately and clear the flag.)
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["campaign", "77"] });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["refund-eligibility", "77"] });
+  });
+
+  it("refunds an expired under-target campaign with refund(id, donor)", async () => {
+    const expiredCampaign = makeCampaign({
+      id: 79n,
+      target_amount: 100_0000000n,
+      raised_amount: 20_0000000n,
+      status: "Expired",
+    });
+    getCampaignMock.mockResolvedValue(expiredCampaign);
+    estimateFeeMock.mockImplementation(async (_sender, method) =>
+      method === "refund" ? 4500 : null,
+    );
+    submitTransactionMock.mockResolvedValue({
+      hash: "expired-refund-tx",
+      status: "SUCCESS",
+    });
+
+    renderRefundFlow(expiredCampaign, { showCancelButton: false });
+
+    await waitFor(() => {
+      expect(estimateFeeMock).toHaveBeenCalledWith(
+        WALLET_ADDRESS,
+        "refund",
+        expect.any(Array),
+      );
+    });
+    fireEvent.click(await screen.findByRole("button", { name: /Claim refund/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /Confirm refund/i }));
+
+    await waitFor(() => {
+      expect(submitTransactionMock).toHaveBeenCalledWith(
+        WALLET_ADDRESS,
+        "refund",
+        expect.any(Array),
+      );
+    });
+    const refundArgs = submitTransactionMock.mock.calls.find((call) => call[1] === "refund")![2];
+    expect(scValToNative(refundArgs[0])).toBe(79n);
+    expect(scValToNative(refundArgs[1])).toBe(WALLET_ADDRESS);
   });
 
   describe("Refund eligibility gating across ineligible states", () => {
