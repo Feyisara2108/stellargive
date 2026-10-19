@@ -20,6 +20,7 @@ import {
 // NOTE: @stellar/freighter-api is browser-only, so it is imported lazily inside
 // submitTransaction. This keeps the read-only helpers (getCampaign, getEvents…)
 // safe to import on the server — e.g. from a route's generateMetadata.
+import { NETWORK_PASSPHRASE } from "./network";
 
 export const CONTRACT_ID =
   process.env.NEXT_PUBLIC_CONTRACT_ID || "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
@@ -100,6 +101,8 @@ export interface Campaign {
   metadata_uri?: string;
   website?: string;
   twitter?: string;
+  /** Per-donor contribution cap in the token's smallest unit, or undefined when uncapped. */
+  max_per_donor?: bigint;
   /** Client-side free-form tags for search/filtering — not stored on-chain. */
   tags?: string[];
 }
@@ -136,6 +139,10 @@ function parseCampaign(native: NativeCampaign): Campaign {
     status: native.status,
     website: native.website?.toString(),
     twitter: native.twitter?.toString(),
+    max_per_donor:
+      native.max_per_donor != null
+        ? BigInt(native.max_per_donor as string | number | bigint)
+        : undefined,
   };
 }
 
@@ -422,9 +429,7 @@ async function sendAndConfirm(signedXdr: string): Promise<SubmitTransactionResul
   if (sendResponse.status === "ERROR") {
     const errorXdr = "errorResultXdr" in sendResponse ? sendResponse.errorResultXdr : undefined;
     const errorResult = "errorResult" in sendResponse ? sendResponse.errorResult : undefined;
-    throw new Error(
-      `Send failed: ${JSON.stringify(errorXdr || errorResult)}`,
-    );
+    throw new Error(`Send failed: ${JSON.stringify(errorXdr || errorResult)}`);
   }
 
   let txResult = await server.getTransaction(sendResponse.hash);
@@ -515,11 +520,52 @@ export async function getEvents(limit = 20) {
     const topic = typeof topicValue === "string" ? topicValue : String(topicValue);
     return {
       id: event.id,
-      txHash: ("txHash" in event && typeof event.txHash === "string" ? event.txHash : event.id),
+      txHash: "txHash" in event && typeof event.txHash === "string" ? event.txHash : event.id,
       ledger: event.ledger,
       createdAt: event.ledgerClosedAt,
       topic,
       data: value,
+    };
+  });
+}
+
+export interface TopDonor {
+  /** Donor address; anonymous donations are aggregated under the zero address. */
+  address: string;
+  amount: bigint;
+}
+
+/** Returns the contract's top-5 donor leaderboard for a campaign, highest first. */
+export async function getTopDonors(campaignId: bigint): Promise<TopDonor[]> {
+  const tx = new TransactionBuilder(
+    new Account("GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF", "0"),
+    {
+      fee: "100",
+      networkPassphrase: NETWORK_PASSPHRASE,
+    },
+  )
+    .addOperation(
+      Operation.invokeContractFunction({
+        contract: CONTRACT_ID,
+        function: "get_top_donors",
+        args: [nativeToScVal(campaignId, { type: "u64" })],
+      }),
+    )
+    .setTimeout(30)
+    .build();
+
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim)) {
+    throw new Error(`Simulation failed: ${sim.error}`);
+  }
+  if (!sim.result) return [];
+  const result = scValToNative(sim.result.retval);
+  const rawList = Array.isArray(result) ? result : [];
+  return rawList.map((entry: unknown) => {
+    const pair = Array.isArray(entry) ? entry : [];
+    return {
+      address: String(pair[0] ?? ""),
+      amount: BigInt((pair[1] ?? 0) as string | number | bigint),
     };
   });
 }
