@@ -16,7 +16,38 @@ vi.mock("@stellar/stellar-sdk", async (importActual) => {
   };
 });
 
-import { fromStroops, toStroops, resolveAddressName, isValidStellarAddress } from "@/lib/soroban";
+import {
+  fromStroops,
+  toStroops,
+  resolveAddressName,
+  isValidStellarAddress,
+  MIN_DONATION,
+  computeMinimumReserve,
+} from "@/lib/soroban";
+
+describe("MIN_DONATION", () => {
+  it("matches the contract's 1,000,000-stroop (0.1 XLM) minimum", () => {
+    expect(MIN_DONATION).toBe(1_000_000n);
+    expect(fromStroops(MIN_DONATION)).toBe("0.1");
+  });
+});
+
+describe("computeMinimumReserve", () => {
+  it("is two base reserves (1 XLM) for a bare account", () => {
+    expect(computeMinimumReserve({ numSubEntries: 0 })).toBe(10_000_000n);
+  });
+
+  it("adds a base reserve per subentry and sponsorship, plus selling liabilities", () => {
+    expect(
+      computeMinimumReserve({
+        numSubEntries: 3,
+        numSponsoring: 2,
+        numSponsored: 1,
+        sellingLiabilities: 1_234n,
+      }),
+    ).toBe((2n + 3n + 2n - 1n) * 5_000_000n + 1_234n);
+  });
+});
 
 describe("fromStroops", () => {
   it("returns '0' for 0 stroops", () => {

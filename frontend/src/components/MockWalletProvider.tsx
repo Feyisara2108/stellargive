@@ -1,11 +1,12 @@
 "use client";
 
 import React, { createContext, useContext, useState, useCallback } from "react";
-import { WalletContext } from "@/lib/WalletProvider";
+import { WalletContext, type ConnectResult } from "@/lib/WalletProvider";
 
 /**
- * Mock wallet context for E2E / CI testing without the Freighter browser
- * extension. Activated via `NEXT_PUBLIC_USE_MOCK_WALLET=true`.
+ * Mock wallet context for E2E / CI testing without a browser wallet extension.
+ * Activated via `NEXT_PUBLIC_USE_MOCK_WALLET=true`; in that mode `@/lib/wallet`
+ * also skips the real wallets and signs by returning the transaction as-is.
  *
  * Provides the same `WalletContextType` interface as the real WalletProvider
  * so all downstream components (`WalletConnect`, `useDonate`, etc.) work
@@ -24,7 +25,7 @@ export const MOCK_TX_HASH = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b
 interface MockWalletContextType {
   address: string | null;
   isConnected: boolean;
-  connect: () => Promise<void>;
+  connect: () => Promise<boolean>;
   disconnect: () => void;
   // Extra mock controls for test scripts
   setMockAddress: (addr: string) => void;
@@ -47,8 +48,8 @@ interface MockWalletWindow extends Window {
 }
 
 /**
- * Installs global mock overrides for `@stellar/freighter-api` functions so
- * that any code importing them at runtime gets deterministic responses.
+ * Exposes the mock wallet state on `window.__mockWallet` so Playwright tests
+ * can read it.
  */
 function installFreighterMocks(address: string, signedTxXdr: string) {
   if (typeof window !== "undefined") {
@@ -86,10 +87,12 @@ export function MockWalletProvider({ children }: { children: React.ReactNode }) 
     installFreighterMocks(address || DEFAULT_MOCK_ADDRESS, mockSignedTxXdr);
   }, [address, mockSignedTxXdr]);
 
-  const connect = useCallback(async () => {
+  const connect = useCallback(async (): Promise<ConnectResult> => {
     const override = (window as unknown as MockWalletWindow).__mockWalletAddress;
-    setAddress(typeof override === "string" ? override : DEFAULT_MOCK_ADDRESS);
+    const next = typeof override === "string" ? override : DEFAULT_MOCK_ADDRESS;
+    setAddress(next);
     setIsConnected(true);
+    return true;
   }, []);
 
   const disconnect = useCallback(() => {

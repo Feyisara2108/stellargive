@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, act, waitFor } from "@testing-library/react";
 import { WalletProvider, useWallet } from "./WalletProvider";
-import * as freighterApi from "@stellar/freighter-api";
+import * as wallet from "@/lib/wallet";
 import React from "react";
 import userEvent from "@testing-library/user-event";
 
@@ -16,25 +16,39 @@ vi.mock("@/lib/toast", () => ({
   notify: notifyMock,
 }));
 
-vi.mock("@stellar/freighter-api", () => {
-  const api = {
-    isConnected: vi.fn(),
-    getAddress: vi.fn(),
-    setAllowed: vi.fn(),
-    getNetwork: vi.fn(),
-  };
-  // The real package's default export is the same object as its named exports;
-  // WalletProvider feature-detects extra capabilities (e.g. setNetwork) on it.
-  return { ...api, default: api };
-});
+vi.mock("@/lib/wallet", () => ({
+  WALLETS: [
+    { id: "freighter", name: "Freighter", url: "https://www.freighter.app", kind: "extension" },
+    { id: "albedo", name: "Albedo", url: "https://albedo.link", kind: "web" },
+  ],
+  isWalletAvailable: vi.fn().mockResolvedValue(true),
+  restoreWallet: vi.fn(),
+  connectWallet: vi.fn(),
+  disconnectWallet: vi.fn(),
+  getWalletNetwork: vi.fn(),
+  getNetworkSwitcher: vi.fn(),
+}));
 
 vi.mock("@sentry/nextjs", () => ({
   setUser: vi.fn(),
 }));
 
+/** WalletProvider reads the query client to invalidate account-scoped data. */
+function render(ui: React.ReactElement, queryClient = new QueryClient()) {
+  return rtlRender(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+}
+
+/** Fires every active WatchWalletChanges callback, as Freighter's poller would. */
+async function simulateFreighterAccountSwitch(address: string) {
+  await act(async () => {
+    watcherMock.callbacks.forEach((cb) => cb({ address }));
+  });
+}
+
 function TestComponent({ switchTarget }: { switchTarget?: string }) {
   const wallet = useWallet();
   const [switchResult, setSwitchResult] = React.useState<string>("none");
+  const [connectResult, setConnectResult] = React.useState<ConnectResult | null>(null);
   return (
     <div>
       <div data-testid="address">{wallet.address || "none"}</div>
@@ -42,7 +56,13 @@ function TestComponent({ switchTarget }: { switchTarget?: string }) {
       <div data-testid="network">{wallet.walletNetwork || "none"}</div>
       <div data-testid="is-wrong-network">{String(wallet.isWrongNetwork)}</div>
       <div data-testid="switch-result">{switchResult}</div>
-      <button onClick={wallet.connect} data-testid="btn-connect">
+      <div data-testid="connect-result">
+        {connectResult ? (connectResult.success ? "success" : connectResult.reason) : "none"}
+      </div>
+      <button
+        onClick={async () => setConnectResult(await wallet.connect())}
+        data-testid="btn-connect"
+      >
         Connect
       </button>
       <button onClick={wallet.disconnect} data-testid="btn-disconnect">
@@ -59,6 +79,12 @@ function TestComponent({ switchTarget }: { switchTarget?: string }) {
       </button>
     </div>
   );
+}
+
+/** Opens the wallet picker via connect() and chooses a wallet in it. */
+async function connectVia(user: ReturnType<typeof userEvent.setup>, walletName: string) {
+  await user.click(screen.getByTestId("btn-connect"));
+  await user.click(await screen.findByRole("button", { name: new RegExp(walletName, "i") }));
 }
 
 /** Simulates the tab regaining focus, the trigger WalletProvider uses to re-poll the wallet's network. */
@@ -78,14 +104,13 @@ async function simulateTabRefocus(via: "visibility" | "focus" = "visibility") {
 describe("WalletProvider", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: false });
-    vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "" });
-    vi.mocked(freighterApi.setAllowed).mockResolvedValue({ isAllowed: false });
-    vi.mocked(freighterApi.getNetwork).mockResolvedValue({
-      network: process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE,
-    } as any);
+    vi.mocked(wallet.restoreWallet).mockResolvedValue(null);
+    vi.mocked(wallet.connectWallet).mockRejectedValue(new Error("User declined access"));
+    vi.mocked(wallet.isWalletAvailable).mockResolvedValue(true);
+    vi.mocked(wallet.disconnectWallet).mockResolvedValue(undefined);
+    vi.mocked(wallet.getWalletNetwork).mockResolvedValue(process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE!);
     // No wallet in these tests supports a programmatic switch unless a test opts in.
-    delete (freighterApi.default as Record<string, unknown>).setNetwork;
+    vi.mocked(wallet.getNetworkSwitcher).mockResolvedValue(null);
   });
 
   it("initializes with default disconnected state", async () => {
@@ -100,12 +125,9 @@ describe("WalletProvider", () => {
     expect(screen.getByTestId("is-wrong-network")).toHaveTextContent("false");
   });
 
-  it("auto-connects on mount if freighter returns isConnected: true", async () => {
-    vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: true });
-    vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "G12345" });
-    vi.mocked(freighterApi.getNetwork).mockResolvedValue({
-      network: process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE,
-    } as any);
+  it("auto-connects on mount if a previously connected wallet is restored", async () => {
+    vi.mocked(wallet.restoreWallet).mockResolvedValue("G12345");
+    vi.mocked(wallet.getWalletNetwork).mockResolvedValue(process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE!);
 
     render(
       <WalletProvider>
@@ -127,18 +149,60 @@ describe("WalletProvider", () => {
       </WalletProvider>,
     );
 
-    vi.mocked(freighterApi.setAllowed).mockResolvedValue({ isAllowed: true });
-    vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "G54321" });
+    vi.mocked(wallet.connectWallet).mockResolvedValue("G54321");
 
-    await user.click(screen.getByTestId("btn-connect"));
+    await connectVia(user, "Albedo");
 
     await waitFor(() => {
       expect(screen.getByTestId("address")).toHaveTextContent("G54321");
       expect(screen.getByTestId("is-connected")).toHaveTextContent("true");
+      expect(screen.getByTestId("connect-result")).toHaveTextContent("success");
     });
+    expect(wallet.connectWallet).toHaveBeenCalledWith("albedo");
+    // The picker closes once a wallet is connected.
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
-  it("does not connect if setAllowed returns false (user cancels)", async () => {
+  it("keeps the picker open with an error when the chosen wallet refuses access", async () => {
+    const user = userEvent.setup();
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    render(
+      <WalletProvider>
+        <TestComponent />
+      </WalletProvider>,
+    );
+
+    vi.mocked(wallet.connectWallet).mockRejectedValue(new Error("User declined access"));
+    await connectVia(user, "Freighter");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/user declined access/i);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByTestId("is-connected")).toHaveTextContent("false");
+    consoleSpy.mockRestore();
+  });
+
+  it("offers an install link for wallets whose extension isn't installed", async () => {
+    const user = userEvent.setup();
+    vi.mocked(wallet.isWalletAvailable).mockImplementation(async (id) => id !== "freighter");
+    render(
+      <WalletProvider>
+        <TestComponent />
+      </WalletProvider>,
+    );
+
+    await user.click(screen.getByTestId("btn-connect"));
+
+    expect(await screen.findByRole("link", { name: /install freighter/i })).toHaveAttribute(
+      "href",
+      "https://www.freighter.app",
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /freighter/i })).toBeDisabled(),
+    );
+    expect(screen.getByRole("button", { name: /albedo/i })).toBeEnabled();
+  });
+
+  it("does not connect if the user closes the wallet picker", async () => {
     const user = userEvent.setup();
     render(
       <WalletProvider>
@@ -146,19 +210,20 @@ describe("WalletProvider", () => {
       </WalletProvider>,
     );
 
-    vi.mocked(freighterApi.setAllowed).mockResolvedValue({ isAllowed: false });
-
     await user.click(screen.getByTestId("btn-connect"));
+    await screen.findByRole("dialog");
+    await user.click(screen.getByRole("button", { name: /close/i }));
 
     // Should remain disconnected
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(wallet.connectWallet).not.toHaveBeenCalled();
     expect(screen.getByTestId("address")).toHaveTextContent("none");
     expect(screen.getByTestId("is-connected")).toHaveTextContent("false");
   });
 
   it("disconnects and clears state when disconnect is called", async () => {
     const user = userEvent.setup();
-    vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: true });
-    vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "G12345" });
+    vi.mocked(wallet.restoreWallet).mockResolvedValue("G12345");
 
     render(
       <WalletProvider>
@@ -175,15 +240,15 @@ describe("WalletProvider", () => {
     await waitFor(() => {
       expect(screen.getByTestId("address")).toHaveTextContent("none");
       expect(screen.getByTestId("is-connected")).toHaveTextContent("false");
-    });
+    });    // The selected wallet is told to forget the session too.
+    expect(wallet.disconnectWallet).toHaveBeenCalled();
   });
 
   it("detects wrong network", async () => {
     const user = userEvent.setup();
-    vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: true });
-    vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "G12345" });
+    vi.mocked(wallet.restoreWallet).mockResolvedValue("G12345");
     // Provide a different network passphrase than the app expects
-    vi.mocked(freighterApi.getNetwork).mockResolvedValue({ network: "Wrong Network" } as any);
+    vi.mocked(wallet.getWalletNetwork).mockResolvedValue("Wrong Network");
 
     render(
       <WalletProvider>
@@ -207,9 +272,8 @@ describe("WalletProvider", () => {
   });
 
   describe("initial connection state detection", () => {
-    it("stays disconnected when freighter reports connected but returns no address", async () => {
-      vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: true });
-      vi.mocked(freighterApi.getAddress).mockResolvedValue({ error: "no address" } as any);
+    it("stays disconnected when the wallet layer fails to restore a session", async () => {
+      vi.mocked(wallet.restoreWallet).mockRejectedValue(new Error("kit failed to load"));
 
       render(
         <WalletProvider>
@@ -217,14 +281,14 @@ describe("WalletProvider", () => {
         </WalletProvider>,
       );
 
-      await waitFor(() => expect(freighterApi.getAddress).toHaveBeenCalled());
+      await waitFor(() => expect(wallet.restoreWallet).toHaveBeenCalled());
       expect(screen.getByTestId("address")).toHaveTextContent("none");
       expect(screen.getByTestId("is-connected")).toHaveTextContent("false");
-      expect(freighterApi.getNetwork).not.toHaveBeenCalled();
+      expect(wallet.getWalletNetwork).not.toHaveBeenCalled();
     });
 
-    it("does not query the wallet address at all when freighter reports disconnected", async () => {
-      vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: false });
+    it("does not query the wallet network when no previous session is restored", async () => {
+      vi.mocked(wallet.restoreWallet).mockResolvedValue(null);
 
       render(
         <WalletProvider>
@@ -232,17 +296,14 @@ describe("WalletProvider", () => {
         </WalletProvider>,
       );
 
-      await waitFor(() => expect(freighterApi.isConnected).toHaveBeenCalled());
-      expect(freighterApi.getAddress).not.toHaveBeenCalled();
+      await waitFor(() => expect(wallet.restoreWallet).toHaveBeenCalled());
+      expect(wallet.getWalletNetwork).not.toHaveBeenCalled();
       expect(screen.getByTestId("is-connected")).toHaveTextContent("false");
     });
 
     it("fetches the wallet network once the initial connection is detected", async () => {
-      vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: true });
-      vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "G12345" });
-      vi.mocked(freighterApi.getNetwork).mockResolvedValue({
-        network: process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE,
-      } as any);
+      vi.mocked(wallet.restoreWallet).mockResolvedValue("G12345");
+      vi.mocked(wallet.getWalletNetwork).mockResolvedValue(process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE!);
 
       render(
         <WalletProvider>
@@ -260,7 +321,7 @@ describe("WalletProvider", () => {
 
   describe("account and network change callbacks", () => {
     it("does not poll the network on tab refocus while disconnected", async () => {
-      vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: false });
+      vi.mocked(wallet.restoreWallet).mockResolvedValue(null);
 
       render(
         <WalletProvider>
@@ -268,21 +329,18 @@ describe("WalletProvider", () => {
         </WalletProvider>,
       );
 
-      await waitFor(() => expect(freighterApi.isConnected).toHaveBeenCalled());
-      vi.mocked(freighterApi.getNetwork).mockClear();
+      await waitFor(() => expect(wallet.restoreWallet).toHaveBeenCalled());
+      vi.mocked(wallet.getWalletNetwork).mockClear();
 
       await simulateTabRefocus("visibility");
       await simulateTabRefocus("focus");
 
-      expect(freighterApi.getNetwork).not.toHaveBeenCalled();
+      expect(wallet.getWalletNetwork).not.toHaveBeenCalled();
     });
 
     it("re-fetches and reflects a network switch when the tab regains visibility", async () => {
-      vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: true });
-      vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "G12345" });
-      vi.mocked(freighterApi.getNetwork).mockResolvedValue({
-        network: process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE,
-      } as any);
+      vi.mocked(wallet.restoreWallet).mockResolvedValue("G12345");
+      vi.mocked(wallet.getWalletNetwork).mockResolvedValue(process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE!);
 
       render(
         <WalletProvider>
@@ -297,8 +355,8 @@ describe("WalletProvider", () => {
       });
       expect(screen.getByTestId("is-wrong-network")).toHaveTextContent("false");
 
-      // User switches the active network inside the Freighter extension.
-      vi.mocked(freighterApi.getNetwork).mockResolvedValue({ network: "Wrong Network" } as any);
+      // User switches the active network inside their wallet.
+      vi.mocked(wallet.getWalletNetwork).mockResolvedValue("Wrong Network");
       await simulateTabRefocus("visibility");
 
       await waitFor(() => {
@@ -308,11 +366,8 @@ describe("WalletProvider", () => {
     });
 
     it("re-fetches the network when the window regains focus", async () => {
-      vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: true });
-      vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "G12345" });
-      vi.mocked(freighterApi.getNetwork).mockResolvedValue({
-        network: process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE,
-      } as any);
+      vi.mocked(wallet.restoreWallet).mockResolvedValue("G12345");
+      vi.mocked(wallet.getWalletNetwork).mockResolvedValue(process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE!);
 
       render(
         <WalletProvider>
@@ -321,20 +376,19 @@ describe("WalletProvider", () => {
       );
       await waitFor(() => expect(screen.getByTestId("is-connected")).toHaveTextContent("true"));
 
-      vi.mocked(freighterApi.getNetwork).mockClear();
-      vi.mocked(freighterApi.getNetwork).mockResolvedValue({ network: "Wrong Network" } as any);
+      vi.mocked(wallet.getWalletNetwork).mockClear();
+      vi.mocked(wallet.getWalletNetwork).mockResolvedValue("Wrong Network");
       await simulateTabRefocus("focus");
 
       await waitFor(() => {
-        expect(freighterApi.getNetwork).toHaveBeenCalled();
+        expect(wallet.getWalletNetwork).toHaveBeenCalled();
         expect(screen.getByTestId("is-wrong-network")).toHaveTextContent("true");
       });
     });
 
     it("reflects the newly selected account when reconnecting after an account switch", async () => {
       const user = userEvent.setup();
-      vi.mocked(freighterApi.setAllowed).mockResolvedValue({ isAllowed: true });
-      vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "GFIRSTACCOUNT" });
+      vi.mocked(wallet.connectWallet).mockResolvedValue("GFIRSTACCOUNT");
 
       render(
         <WalletProvider>
@@ -342,12 +396,12 @@ describe("WalletProvider", () => {
         </WalletProvider>,
       );
 
-      await user.click(screen.getByTestId("btn-connect"));
+      await connectVia(user, "Freighter");
       await waitFor(() => expect(screen.getByTestId("address")).toHaveTextContent("GFIRSTACCOUNT"));
 
-      // User switches accounts inside Freighter, then reconnects from the app.
-      vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "GSECONDACCOUNT" });
-      await user.click(screen.getByTestId("btn-connect"));
+      // User switches accounts inside their wallet, then reconnects from the app.
+      vi.mocked(wallet.connectWallet).mockResolvedValue("GSECONDACCOUNT");
+      await connectVia(user, "Freighter");
 
       await waitFor(() =>
         expect(screen.getByTestId("address")).toHaveTextContent("GSECONDACCOUNT"),
@@ -356,11 +410,8 @@ describe("WalletProvider", () => {
 
     it("stops polling the network after the wallet disconnects", async () => {
       const user = userEvent.setup();
-      vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: true });
-      vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "G12345" });
-      vi.mocked(freighterApi.getNetwork).mockResolvedValue({
-        network: process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE,
-      } as any);
+      vi.mocked(wallet.restoreWallet).mockResolvedValue("G12345");
+      vi.mocked(wallet.getWalletNetwork).mockResolvedValue(process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE!);
 
       render(
         <WalletProvider>
@@ -372,20 +423,19 @@ describe("WalletProvider", () => {
       await user.click(screen.getByTestId("btn-disconnect"));
       await waitFor(() => expect(screen.getByTestId("is-connected")).toHaveTextContent("false"));
 
-      vi.mocked(freighterApi.getNetwork).mockClear();
+      vi.mocked(wallet.getWalletNetwork).mockClear();
       await simulateTabRefocus("visibility");
       await simulateTabRefocus("focus");
 
-      expect(freighterApi.getNetwork).not.toHaveBeenCalled();
+      expect(wallet.getWalletNetwork).not.toHaveBeenCalled();
     });
   });
 
   describe("disconnect clears local session state", () => {
     it("resets address, connection flag, and network together", async () => {
       const user = userEvent.setup();
-      vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: true });
-      vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "G12345" });
-      vi.mocked(freighterApi.getNetwork).mockResolvedValue({ network: "Wrong Network" } as any);
+      vi.mocked(wallet.restoreWallet).mockResolvedValue("G12345");
+      vi.mocked(wallet.getWalletNetwork).mockResolvedValue("Wrong Network");
 
       render(
         <WalletProvider>
@@ -411,8 +461,7 @@ describe("WalletProvider", () => {
 
     it("does not re-establish a session on its own after disconnect", async () => {
       const user = userEvent.setup();
-      vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: true });
-      vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "G12345" });
+      vi.mocked(wallet.restoreWallet).mockResolvedValue("G12345");
 
       render(
         <WalletProvider>
@@ -435,8 +484,7 @@ describe("WalletProvider", () => {
   describe("auto-reconnect toast", () => {
     it("shows a reconnect toast when auto-connecting a previously connected wallet", async () => {
       localStorage.setItem("stellargive:wallet-previously-connected", "true");
-      vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: true });
-      vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "G12345" });
+      vi.mocked(wallet.restoreWallet).mockResolvedValue("G12345");
 
       render(
         <WalletProvider>
@@ -452,8 +500,7 @@ describe("WalletProvider", () => {
 
     it("suppresses the reconnect toast on the first ever connection", async () => {
       localStorage.removeItem("stellargive:wallet-previously-connected");
-      vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: true });
-      vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "G12345" });
+      vi.mocked(wallet.restoreWallet).mockResolvedValue("G12345");
 
       render(
         <WalletProvider>
@@ -470,8 +517,7 @@ describe("WalletProvider", () => {
     it("does not trigger auto-reconnect toast on manual disconnect", async () => {
       const user = userEvent.setup();
       localStorage.setItem("stellargive:wallet-previously-connected", "true");
-      vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: true });
-      vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "G12345" });
+      vi.mocked(wallet.restoreWallet).mockResolvedValue("G12345");
 
       render(
         <WalletProvider>
@@ -486,6 +532,237 @@ describe("WalletProvider", () => {
       await waitFor(() => expect(screen.getByTestId("is-connected")).toHaveTextContent("false"));
 
       expect(notifyMock.info).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("connect result", () => {
+    it("reports not-installed without prompting when Freighter is missing", async () => {
+      const user = userEvent.setup();
+      vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: false });
+
+      render(
+        <WalletProvider>
+          <TestComponent />
+        </WalletProvider>,
+      );
+
+      await user.click(screen.getByTestId("btn-connect"));
+
+      await waitFor(() =>
+        expect(screen.getByTestId("connect-result")).toHaveTextContent("not-installed"),
+      );
+      expect(freighterApi.setAllowed).not.toHaveBeenCalled();
+      expect(screen.getByTestId("is-connected")).toHaveTextContent("false");
+    });
+
+    it("reports rejected when Freighter returns an error for the access request", async () => {
+      const user = userEvent.setup();
+      render(
+        <WalletProvider>
+          <TestComponent />
+        </WalletProvider>,
+      );
+
+      vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: true });
+      vi.mocked(freighterApi.setAllowed).mockResolvedValue({
+        isAllowed: false,
+        error: { code: -4, message: "The user rejected this request." },
+      } as any);
+      await user.click(screen.getByTestId("btn-connect"));
+
+      await waitFor(() =>
+        expect(screen.getByTestId("connect-result")).toHaveTextContent("rejected"),
+      );
+      expect(screen.getByTestId("is-connected")).toHaveTextContent("false");
+    });
+
+    it("reports error when reading the address throws", async () => {
+      const user = userEvent.setup();
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      render(
+        <WalletProvider>
+          <TestComponent />
+        </WalletProvider>,
+      );
+
+      vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: true });
+      vi.mocked(freighterApi.setAllowed).mockResolvedValue({ isAllowed: true });
+      vi.mocked(freighterApi.getAddress).mockRejectedValue(new Error("extension crashed"));
+      await user.click(screen.getByTestId("btn-connect"));
+
+      await waitFor(() => expect(screen.getByTestId("connect-result")).toHaveTextContent("error"));
+      expect(screen.getByTestId("is-connected")).toHaveTextContent("false");
+      consoleSpy.mockRestore();
+    });
+  });
+
+  describe("Freighter account switches", () => {
+    it("updates the address when Freighter's watcher reports a different account", async () => {
+      vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: true });
+      vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "GFIRSTACCOUNT" });
+
+      render(
+        <WalletProvider>
+          <TestComponent />
+        </WalletProvider>,
+      );
+      await waitFor(() => expect(screen.getByTestId("address")).toHaveTextContent("GFIRSTACCOUNT"));
+      await waitFor(() => expect(watcherMock.callbacks.length).toBeGreaterThan(0));
+
+      await simulateFreighterAccountSwitch("GSECONDACCOUNT");
+
+      expect(screen.getByTestId("address")).toHaveTextContent("GSECONDACCOUNT");
+      expect(screen.getByTestId("is-connected")).toHaveTextContent("true");
+    });
+
+    it("invalidates queries scoped to the previous account on a switch", async () => {
+      vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: true });
+      vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "GFIRSTACCOUNT" });
+      const queryClient = new QueryClient();
+      queryClient.setQueryData(["wallet-balance", "CTOKEN", "GFIRSTACCOUNT"], "100");
+      queryClient.setQueryData(["user-campaigns", "GFIRSTACCOUNT"], []);
+      queryClient.setQueryData(["campaigns", "recent"], []);
+
+      render(
+        <WalletProvider>
+          <TestComponent />
+        </WalletProvider>,
+        queryClient,
+      );
+      await waitFor(() => expect(watcherMock.callbacks.length).toBeGreaterThan(0));
+
+      await simulateFreighterAccountSwitch("GSECONDACCOUNT");
+
+      const state = (key: unknown[]) => queryClient.getQueryState(key)?.isInvalidated;
+      expect(state(["wallet-balance", "CTOKEN", "GFIRSTACCOUNT"])).toBe(true);
+      expect(state(["user-campaigns", "GFIRSTACCOUNT"])).toBe(true);
+      // Account-independent data is left alone.
+      expect(state(["campaigns", "recent"])).toBe(false);
+    });
+
+    it("ignores watcher reports of the current account and watcher errors", async () => {
+      vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: true });
+      vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "GFIRSTACCOUNT" });
+      const queryClient = new QueryClient();
+      queryClient.setQueryData(["wallet-balance", "CTOKEN", "GFIRSTACCOUNT"], "100");
+
+      render(
+        <WalletProvider>
+          <TestComponent />
+        </WalletProvider>,
+        queryClient,
+      );
+      await waitFor(() => expect(watcherMock.callbacks.length).toBeGreaterThan(0));
+
+      await simulateFreighterAccountSwitch("GFIRSTACCOUNT");
+      await act(async () => {
+        watcherMock.callbacks.forEach((cb) => cb({ address: "", error: "locked" }));
+      });
+
+      expect(screen.getByTestId("address")).toHaveTextContent("GFIRSTACCOUNT");
+      expect(
+        queryClient.getQueryState(["wallet-balance", "CTOKEN", "GFIRSTACCOUNT"])?.isInvalidated,
+      ).toBe(false);
+    });
+
+    it("re-reads the address when the tab regains focus", async () => {
+      vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: true });
+      vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "GFIRSTACCOUNT" });
+
+      render(
+        <WalletProvider>
+          <TestComponent />
+        </WalletProvider>,
+      );
+      await waitFor(() => expect(screen.getByTestId("address")).toHaveTextContent("GFIRSTACCOUNT"));
+
+      vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "GSECONDACCOUNT" });
+      await simulateTabRefocus("focus");
+
+      await waitFor(() =>
+        expect(screen.getByTestId("address")).toHaveTextContent("GSECONDACCOUNT"),
+      );
+    });
+
+    it("stops watching for account changes after disconnect", async () => {
+      const user = userEvent.setup();
+      vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: true });
+      vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "GFIRSTACCOUNT" });
+
+      render(
+        <WalletProvider>
+          <TestComponent />
+        </WalletProvider>,
+      );
+      await waitFor(() => expect(watcherMock.callbacks.length).toBeGreaterThan(0));
+
+      await user.click(screen.getByTestId("btn-disconnect"));
+
+      expect(watcherMock.stop).toHaveBeenCalled();
+    });
+  });
+
+  describe("disconnect persists across reloads", () => {
+    it("stays disconnected after disconnecting and reloading", async () => {
+      const user = userEvent.setup();
+      vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: true });
+      vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "G12345" });
+
+      const first = render(
+        <WalletProvider>
+          <TestComponent />
+        </WalletProvider>,
+      );
+      await waitFor(() => expect(screen.getByTestId("is-connected")).toHaveTextContent("true"));
+      expect(localStorage.getItem(WALLET_CONNECTED_KEY)).toBe("true");
+
+      await user.click(screen.getByTestId("btn-disconnect"));
+      expect(localStorage.getItem(WALLET_DISCONNECTED_KEY)).toBe("true");
+      expect(localStorage.getItem(WALLET_CONNECTED_KEY)).toBeNull();
+
+      // Reload: a fresh provider mounts while Freighter still reports the site as connected.
+      first.unmount();
+      vi.mocked(freighterApi.isConnected).mockClear();
+      vi.mocked(freighterApi.getAddress).mockClear();
+      render(
+        <WalletProvider>
+          <TestComponent />
+        </WalletProvider>,
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(screen.getByTestId("is-connected")).toHaveTextContent("false");
+      expect(screen.getByTestId("address")).toHaveTextContent("none");
+      expect(freighterApi.getAddress).not.toHaveBeenCalled();
+      expect(notifyMock.info).not.toHaveBeenCalledWith("Wallet reconnected");
+    });
+
+    it("auto-reconnects on later reloads once the user connects again", async () => {
+      const user = userEvent.setup();
+      localStorage.setItem(WALLET_DISCONNECTED_KEY, "true");
+      vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: true });
+      vi.mocked(freighterApi.setAllowed).mockResolvedValue({ isAllowed: true });
+      vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: "G12345" });
+
+      const first = render(
+        <WalletProvider>
+          <TestComponent />
+        </WalletProvider>,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(screen.getByTestId("is-connected")).toHaveTextContent("false");
+
+      await user.click(screen.getByTestId("btn-connect"));
+      await waitFor(() => expect(screen.getByTestId("is-connected")).toHaveTextContent("true"));
+      expect(localStorage.getItem(WALLET_DISCONNECTED_KEY)).toBeNull();
+
+      first.unmount();
+      render(
+        <WalletProvider>
+          <TestComponent />
+        </WalletProvider>,
+      );
+      await waitFor(() => expect(screen.getByTestId("is-connected")).toHaveTextContent("true"));
     });
   });
 
@@ -509,9 +786,9 @@ describe("WalletProvider", () => {
 
     it("calls the wallet's switch capability and refreshes the network on success", async () => {
       const user = userEvent.setup();
-      const setNetwork = vi.fn().mockResolvedValue({});
-      (freighterApi.default as Record<string, unknown>).setNetwork = setNetwork;
-      vi.mocked(freighterApi.getNetwork).mockResolvedValue({ network: "Old Network" } as any);
+      const setNetwork = vi.fn().mockResolvedValue(undefined);
+      vi.mocked(wallet.getNetworkSwitcher).mockResolvedValue(setNetwork);
+      vi.mocked(wallet.getWalletNetwork).mockResolvedValue("Old Network");
 
       render(
         <WalletProvider>
@@ -519,10 +796,10 @@ describe("WalletProvider", () => {
         </WalletProvider>,
       );
 
-      vi.mocked(freighterApi.getNetwork).mockResolvedValue({ network: "New Network" } as any);
+      vi.mocked(wallet.getWalletNetwork).mockResolvedValue("New Network");
       await user.click(screen.getByTestId("btn-switch-network"));
 
-      expect(setNetwork).toHaveBeenCalledWith({ networkPassphrase: "New Network" });
+      expect(setNetwork).toHaveBeenCalledWith("New Network");
       await waitFor(() => {
         expect(screen.getByTestId("switch-result")).toHaveTextContent(
           JSON.stringify({ supported: true, success: true }),
@@ -533,9 +810,9 @@ describe("WalletProvider", () => {
 
     it("reports failure when the wallet's switch capability rejects", async () => {
       const user = userEvent.setup();
-      (freighterApi.default as Record<string, unknown>).setNetwork = vi
-        .fn()
-        .mockRejectedValue(new Error("user rejected"));
+      vi.mocked(wallet.getNetworkSwitcher).mockResolvedValue(
+        vi.fn().mockRejectedValue(new Error("user rejected")),
+      );
       const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
       render(
@@ -554,27 +831,5 @@ describe("WalletProvider", () => {
       consoleSpy.mockRestore();
     });
 
-    it("reports failure when the wallet's switch capability resolves with an error", async () => {
-      const user = userEvent.setup();
-      (freighterApi.default as Record<string, unknown>).setNetwork = vi
-        .fn()
-        .mockResolvedValue({ error: "denied" });
-      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-
-      render(
-        <WalletProvider>
-          <TestComponent />
-        </WalletProvider>,
-      );
-
-      await user.click(screen.getByTestId("btn-switch-network"));
-
-      await waitFor(() => {
-        expect(screen.getByTestId("switch-result")).toHaveTextContent(
-          JSON.stringify({ supported: true, success: false }),
-        );
-      });
-      consoleSpy.mockRestore();
-    });
   });
 });

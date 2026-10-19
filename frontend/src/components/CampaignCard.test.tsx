@@ -4,12 +4,11 @@ import userEvent from "@testing-library/user-event";
 import { axe, toHaveNoViolations } from "jest-axe";
 import { CampaignCard, getDeadlineUrgency } from "./CampaignCard";
 import type { Campaign } from "@/lib/soroban";
-import { createSorobanMock } from "@/test/mockSoroban";
 
 expect.extend(toHaveNoViolations);
 
-vi.mock("@/hooks/useSoroban", () =>
-  createSorobanMock({
+vi.mock("@/hooks/useSoroban", async () =>
+  (await import("@/test/mockSoroban")).createSorobanMock({
     useTokenMetadata: vi.fn().mockReturnValue({ data: undefined, isLoading: false }),
     useXlmPrice: vi.fn().mockReturnValue({ data: undefined, isLoading: false }),
   }),

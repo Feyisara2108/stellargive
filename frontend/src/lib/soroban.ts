@@ -10,15 +10,21 @@ import {
   Networks,
   Keypair,
   Operation,
-  StrKey,
 } from "@stellar/stellar-sdk";
-// NOTE: @stellar/freighter-api is browser-only, so it is imported lazily inside
-// submitTransaction. This keeps the read-only helpers (getCampaign, getEvents…)
-// safe to import on the server — e.g. from a route's generateMetadata.
+import { NETWORK_PASSPHRASE } from "./network";
+// NOTE: the wallet layer (./wallet — Freighter, Albedo, …) is browser-only, so it
+// is imported lazily inside submitTransaction. This keeps the read-only
+// helpers (getCampaign, getEvents…) safe to import on the server — e.g. from a
+// route's generateMetadata.
 
-export const CONTRACT_ID =
-  process.env.NEXT_PUBLIC_CONTRACT_ID || "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
-export const RPC_URL = process.env.NEXT_PUBLIC_SOROBAN_RPC_URL || "http://localhost:8000/rpc";
+export {
+  CONTRACT_ID,
+  RPC_URL,
+  MAX_SIMULATION_FEE_STROOPS,
+  STROOP_PRECISION,
+  fromStroops,
+  toStroops,
+};
 export {
   NETWORK_PASSPHRASE,
   getNetworkDisplayName,
@@ -37,6 +43,25 @@ export const STROOP_PRECISION = 7;
  * generous (10 M CPU units worth of fee headroom); tighten per-call if needed.
  */
 export const MAX_SIMULATION_FEE_STROOPS = 10_000_000;
+
+/**
+ * Smallest donation the contract accepts, in the token's base units. Mirrors
+ * `MIN_DONATION` in contracts/stellar-give/src/lib.rs (0.1 XLM for 7-decimal
+ * tokens); anything below fails on-chain with `InvalidAmount`.
+ */
+export const MIN_DONATION = 1_000_000n;
+
+/** Network base reserve (0.5 XLM) — each account entry locks this much XLM. */
+export const BASE_RESERVE_STROOPS = 5_000_000n;
+
+/**
+ * Fee held back from a native XLM balance when the simulated resource fee is
+ * not yet known. Covers a typical `donate` resource fee plus inclusion fee.
+ */
+export const DEFAULT_DONATE_FEE_STROOPS = 1_000_000n;
+
+/** Inclusion fee headroom added on top of a simulated resource fee. */
+export const INCLUSION_FEE_BUFFER_STROOPS = 100_000n;
 
 export function toStroops(amount: string | number): bigint {
   const str = amount.toString().trim();
@@ -95,6 +120,8 @@ export interface Campaign {
   metadata_uri?: string;
   website?: string;
   twitter?: string;
+  /** Cumulative per-donor cap in base units; `null`/absent means uncapped. */
+  max_per_donor?: bigint | null;
   /** Client-side free-form tags for search/filtering — not stored on-chain. */
   tags?: string[];
 }
@@ -111,39 +138,56 @@ export interface SorobanEvent {
   timestamp?: string | number;
 }
 
-function parseCampaign(native: Record<string, unknown>): Campaign {
-  const rawBens = Array.isArray(native.beneficiaries) ? native.beneficiaries : [];
-  const bens = rawBens.map((b: unknown) => {
-    const pair = Array.isArray(b) ? b : [];
-    return {
-      address: String(pair[0] ?? ""),
-      share: Number(pair[1] ?? 0),
-    };
-  });
+function parseCampaign(native: NativeCampaign): Campaign {
+  const bens = native.beneficiaries.map(([address, share]) => ({ address, share }));
   return {
-    id: BigInt(native.id as string | number | bigint | boolean),
-    creator: String(native.creator ?? ""),
-    beneficiary: bens[0]?.address || (native.beneficiary ? String(native.beneficiary) : ""),
+    id: native.id,
+    creator: native.creator,
+    beneficiary: bens[0]?.address || "",
     beneficiaries: bens,
-    title: String(native.title ?? ""),
-    description: String(native.description ?? ""),
+    title: native.title,
+    description: native.description,
     category:
       typeof native.category === "symbol"
         ? (native.category.description ?? "relief")
         : String(native.category ?? "relief").replace(/^Symbol\((.*)\)$/, "$1"),
-    target_amount: BigInt(native.target_amount as string | number | bigint | boolean),
-    raised_amount: BigInt(native.raised_amount as string | number | bigint | boolean),
-    deadline: BigInt(native.deadline as string | number | bigint | boolean),
-    accepted_token: String(native.accepted_token ?? ""),
-    status: (Object.keys((native.status as object) || {})[0] ??
-      (typeof native.status === "object" && native.status
-        ? Object.getOwnPropertySymbols(native.status)[0]?.description
-        : undefined) ??
-      "Active") as CampaignStatus,
+    target_amount: native.target_amount,
+    raised_amount: native.raised_amount,
+    deadline: native.deadline,
+    accepted_token: native.accepted_token,
+    status: native.status,
     website: native.website?.toString(),
     twitter: native.twitter?.toString(),
+    max_per_donor:
+      native.max_per_donor != null
+        ? BigInt(native.max_per_donor as string | number | bigint | boolean)
+        : null,
   };
 }
+
+/** `ContractError::CampaignNotFound` in contracts/stellar-give/src/lib.rs. */
+export const CAMPAIGN_NOT_FOUND_ERROR_CODE = 4;
+
+/**
+ * Thrown by getCampaign only when the contract itself reports the campaign
+ * doesn't exist, so callers can tell "deleted / never existed" apart from an
+ * RPC or network failure.
+ */
+export class CampaignNotFoundError extends Error {
+  constructor(id: bigint) {
+    super(`Campaign ${id} not found`);
+    this.name = "CampaignNotFoundError";
+  }
+}
+
+export function isCampaignNotFoundError(e: unknown): e is CampaignNotFoundError {
+  return e instanceof CampaignNotFoundError;
+}
+
+// Simulation errors carry the contract error as e.g. "HostError: Error(Contract, #4)".
+const CAMPAIGN_NOT_FOUND_PATTERN = new RegExp(
+  `Error\\(Contract, #${CAMPAIGN_NOT_FOUND_ERROR_CODE}\\)`,
+);
 
 export async function getCampaign(id: bigint): Promise<Campaign> {
   const tx = new TransactionBuilder(
@@ -165,10 +209,14 @@ export async function getCampaign(id: bigint): Promise<Campaign> {
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
+    if (CAMPAIGN_NOT_FOUND_PATTERN.test(sim.error)) {
+      throw new CampaignNotFoundError(id);
+    }
     throw new Error(`Simulation failed: ${sim.error}`);
   }
   if (!sim.result) throw new Error("Failed to get campaign: no result");
   const result = scValToNative(sim.result.retval);
+  if (!isNativeCampaign(result)) throw new Error("Invalid campaign result");
   return parseCampaign(result);
 }
 
@@ -216,7 +264,10 @@ export async function getRecentCampaigns(limit = 20): Promise<Campaign[]> {
       }
 
       const result = scValToNative(sim.result.retval);
-      const batch = (result as Record<string, unknown>[]).map(parseCampaign);
+      if (!Array.isArray(result) || !result.every(isNativeCampaign)) {
+        throw new Error("Invalid campaign batch result");
+      }
+      const batch = result.map(parseCampaign);
 
       if (batch.length === 0) {
         break;
@@ -369,7 +420,7 @@ export async function estimateFee(
 
     const sim = await server.simulateTransaction(tx);
     if (rpc.Api.isSimulationError(sim)) return null;
-    return Number((sim as rpc.Api.SimulateTransactionSuccessResponse).minResourceFee ?? 0);
+    return Number(sim.minResourceFee ?? 0);
   } catch {
     return null;
   }
@@ -407,7 +458,7 @@ async function simulateAndWarn(
     throw new Error(`Simulation failed: ${sim.error}`);
   }
 
-  const minFee = Number((sim as rpc.Api.SimulateTransactionSuccessResponse).minResourceFee ?? 0);
+  const minFee = Number(sim.minResourceFee ?? 0);
   if (minFee > MAX_SIMULATION_FEE_STROOPS) {
     const msg = `High gas: simulated fee ${minFee} stroops exceeds threshold ${MAX_SIMULATION_FEE_STROOPS}`;
     console.warn(`[soroban] ⚠️ ${msg}`);
@@ -419,16 +470,12 @@ async function simulateAndWarn(
 
 async function sendAndConfirm(signedXdr: string): Promise<SubmitTransactionResult> {
   const parsedTx = TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE);
-  const sendResponse = await server.sendTransaction(
-    parsedTx as Parameters<typeof server.sendTransaction>[0],
-  );
+  const sendResponse = await server.sendTransaction(parsedTx);
 
   if (sendResponse.status === "ERROR") {
     const errorXdr = "errorResultXdr" in sendResponse ? sendResponse.errorResultXdr : undefined;
     const errorResult = "errorResult" in sendResponse ? sendResponse.errorResult : undefined;
-    throw new Error(
-      `Send failed: ${JSON.stringify(errorXdr || errorResult)}`,
-    );
+    throw new Error(`Send failed: ${JSON.stringify(errorXdr || errorResult)}`);
   }
 
   let txResult = await server.getTransaction(sendResponse.hash);
@@ -456,21 +503,18 @@ export async function submitTransaction(
   await simulateAndWarn(tx, options);
 
   const preparedTx = await server.prepareTransaction(tx);
-  const { signTransaction } = await import("@stellar/freighter-api");
-  const result = await signTransaction(preparedTx.toXDR(), {
+  const { signTransaction } = await import("./wallet");
+  const signedTxXdr = await signTransaction(preparedTx.toXDR(), {
     networkPassphrase: NETWORK_PASSPHRASE,
+    address: sender,
   });
 
-  if ("error" in result) {
-    throw new Error(`Wallet error: ${result.error}`);
-  }
-
-  return sendAndConfirm(result.signedTxXdr);
+  return sendAndConfirm(signedTxXdr);
 }
 
 /**
  * Same invoke path as `submitTransaction`, but signs with a Keypair.
- * Used by local-network integration tests (no Freighter / browser wallet).
+ * Used by local-network integration tests (no browser wallet).
  */
 export async function submitTransactionWithKeypair(
   keypair: Keypair,
@@ -501,28 +545,170 @@ export async function getEvents(limit = 20) {
 
   const response = await server.getEvents({
     startLedger,
-    filters: [
-      {
-        type: "contract",
-        contractIds: [CONTRACT_ID],
-      },
-    ],
+    filters: contractEventFilters(),
     limit,
   });
 
+  return dedupeClaimEvents(response.events.map(decodeEvent));
+}
+
+/** Events per `getEvents` page in a full-history scan (the RPC caps `limit` at 10,000). */
+export const EVENT_HISTORY_PAGE_SIZE = 1_000;
+/**
+ * Upper bound on pages per history scan, so an unexpectedly busy contract can't
+ * stall the page. 20 × 1,000 events comfortably covers a week of RPC retention
+ * for this contract; when it doesn't, `truncated` is set and the UI says so.
+ */
+export const EVENT_HISTORY_MAX_PAGES = 20;
+
+export interface EventHistory {
+  events: SorobanEvent[];
+  /** Ledger close time (ISO) of the oldest ledger scanned, i.e. where the numbers start. */
+  windowStart: string | null;
+  /** Close time (ISO) of the last ledger the numbers cover. */
+  windowEnd: string | null;
+  /** True when the page cap was hit before the scan reached the ledger tip. */
+  truncated: boolean;
+}
+
+/**
+ * Every contract event the RPC still retains, paged with the RPC cursor rather
+ * than capped at a single `limit`. Soroban RPC only keeps a rolling window of
+ * events (about a week by default), so the result also reports the period it
+ * covers; aggregates built from it are "since `windowStart`", never all-time.
+ */
+export async function getEventHistory(
+  maxPages = EVENT_HISTORY_MAX_PAGES,
+  pageSize = EVENT_HISTORY_PAGE_SIZE,
+): Promise<EventHistory> {
+  const filters = contractEventFilters();
+
+  // Start at the oldest retained ledger; fall back to a tip-anchored window
+  // if the RPC can't report its retention range.
+  let startLedger: number;
+  try {
+    startLedger = (await server.getHealth()).oldestLedger;
+  } catch {
+    const latest = await server.getLatestLedger();
+    startLedger = Math.max(1, latest.sequence - EVENT_LOOKBACK_LEDGERS);
+  }
+
+  let response = await server.getEvents({ startLedger, filters, limit: pageSize });
+  const windowStart = response.oldestLedgerCloseTime || null;
+  const raw = [...response.events];
+  let pages = 1;
+  while (response.events.length === pageSize && pages < maxPages) {
+    response = await server.getEvents({ cursor: response.cursor, filters, limit: pageSize });
+    raw.push(...response.events);
+    pages++;
+  }
+
+  const truncated = response.events.length === pageSize;
+  const events = dedupeClaimEvents(raw.map(decodeEvent));
+  return {
+    events,
+    windowStart,
+    windowEnd: truncated
+      ? (events[events.length - 1]?.createdAt ?? null)
+      : response.latestLedgerCloseTime || null,
+    truncated,
+  };
+}
+
+function contractEventFilters(): rpc.Api.EventFilter[] {
+  return [{ type: "contract", contractIds: [CONTRACT_ID] }];
+}
+
+function decodeEvent(event: rpc.Api.EventResponse): SorobanEvent {
+  const topics = event.topic.map((t) => scValToNative(t));
+  return {
+    id: event.id,
+    txHash: "txHash" in event && typeof event.txHash === "string" ? event.txHash : event.id,
+    ledger: event.ledger,
+    createdAt: event.ledgerClosedAt,
+    topic: eventTopicLabel(topics),
+    data: scValToNative(event.value),
+  };
+}
+
+/**
+ * UI label for an event's topics. Dual-symbol events (e.g. donation/received,
+ * funds/claimed) put the label in topics[1]; events whose second topic is a
+ * campaign id (e.g. `(claimed, id)`, `(refund, id)`) and single-topic events
+ * (e.g. created) use topics[0].
+ */
+export function eventTopicLabel(topics: unknown[]): string {
+  if (typeof topics[1] === "string") return topics[1];
+  return typeof topics[0] === "string" ? topics[0] : String(topics[0] ?? "");
+}
+
+/**
+ * `claim` publishes both a `(funds, claimed)` tuple and a `(claimed, id)`
+ * struct in the same transaction; both label as `claimed`. Keep the first per
+ * transaction so each claim is shown (and counted) once.
+ */
+export function dedupeClaimEvents<T extends { topic: string; txHash: string }>(events: T[]): T[] {
+  const seen = new Set<string>();
+  return events.filter((event) => {
+    if (event.topic !== "claimed") return true;
+    if (seen.has(event.txHash)) return false;
+    seen.add(event.txHash);
+    return true;
   return response.events.map((event) => {
     const topics = event.topic.map((t) => scValToNative(t));
     const value = scValToNative(event.value);
     // Dual-topic events (e.g. donation/received) put the UI label in topics[1];
     // single-topic events (e.g. created) only have topics[0].
-    const topic = (topics[1] ?? topics[0]) as string;
+    const topicValue = topics[1] ?? topics[0];
+    const topic = typeof topicValue === "string" ? topicValue : String(topicValue);
     return {
       id: event.id,
-      txHash: ("txHash" in event && typeof event.txHash === "string" ? event.txHash : event.id),
+      txHash: "txHash" in event && typeof event.txHash === "string" ? event.txHash : event.id,
       ledger: event.ledger,
       createdAt: event.ledgerClosedAt,
       topic,
       data: value,
+    };
+  });
+}
+
+export interface TopDonor {
+  /** Donor address; anonymous donations are aggregated under the zero address. */
+  address: string;
+  amount: bigint;
+}
+
+/** Returns the contract's top-5 donor leaderboard for a campaign, highest first. */
+export async function getTopDonors(campaignId: bigint): Promise<TopDonor[]> {
+  const tx = new TransactionBuilder(
+    new Account("GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF", "0"),
+    {
+      fee: "100",
+      networkPassphrase: NETWORK_PASSPHRASE,
+    },
+  )
+    .addOperation(
+      Operation.invokeContractFunction({
+        contract: CONTRACT_ID,
+        function: "get_top_donors",
+        args: [nativeToScVal(campaignId, { type: "u64" })],
+      }),
+    )
+    .setTimeout(30)
+    .build();
+
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim)) {
+    throw new Error(`Simulation failed: ${sim.error}`);
+  }
+  if (!sim.result) return [];
+  const result = scValToNative(sim.result.retval);
+  const rawList = Array.isArray(result) ? result : [];
+  return rawList.map((entry: unknown) => {
+    const pair = Array.isArray(entry) ? entry : [];
+    return {
+      address: String(pair[0] ?? ""),
+      amount: BigInt((pair[1] ?? 0) as string | number | bigint),
     };
   });
 }
@@ -557,10 +743,12 @@ export async function getUpdates(campaignId: bigint): Promise<CampaignUpdate[]> 
   }
   if (!sim.result) return [];
   const result = scValToNative(sim.result.retval);
-  const rawList = Array.isArray(result) ? result : [];
-  return rawList.map((u: Record<string, unknown>) => ({
-    content: String(u.content ?? ""),
-    timestamp: BigInt(u.timestamp as string | number | bigint),
+  if (!Array.isArray(result) || !result.every(isNativeCampaignUpdate)) {
+    throw new Error("Invalid updates result");
+  }
+  return result.map((u) => ({
+    content: u.content,
+    timestamp: u.timestamp,
   }));
 }
 
@@ -589,6 +777,83 @@ export async function getSACBalance(contractId: string, userAddress: string): Pr
   if (!sim.result) throw new Error("Failed to get balance: no result");
   const result = scValToNative(sim.result.retval);
   return BigInt(result);
+}
+
+/**
+ * Minimum XLM an account must keep: (2 + subentries + sponsoring - sponsored)
+ * base reserves, plus XLM locked as selling liabilities by open offers.
+ */
+export function computeMinimumReserve(entry: {
+  numSubEntries: number;
+  numSponsoring?: number;
+  numSponsored?: number;
+  sellingLiabilities?: bigint;
+}): bigint {
+  const entries =
+    2n +
+    BigInt(entry.numSubEntries) +
+    BigInt(entry.numSponsoring ?? 0) -
+    BigInt(entry.numSponsored ?? 0);
+  return entries * BASE_RESERVE_STROOPS + (entry.sellingLiabilities ?? 0n);
+}
+
+/**
+ * Reads the account's ledger entry and returns the XLM (in stroops) it cannot
+ * spend. Falls back to the two-entry base minimum if the entry can't be read.
+ */
+export async function getAccountMinimumReserve(address: string): Promise<bigint> {
+  try {
+    const key = xdr.LedgerKey.account(
+      new xdr.LedgerKeyAccount({ accountId: Keypair.fromPublicKey(address).xdrPublicKey() }),
+    );
+    const res = await server.getLedgerEntries(key);
+    const data = res.entries[0]?.val;
+    if (data?.type !== "account") return computeMinimumReserve({ numSubEntries: 0 });
+    const account = data.account;
+
+    let numSponsoring = 0;
+    let numSponsored = 0;
+    let sellingLiabilities = 0n;
+    if (account.ext.type === "v1") {
+      const v1 = account.ext.v1;
+      sellingLiabilities = v1.liabilities.selling;
+      if (v1.ext.type === "v2") {
+        numSponsoring = v1.ext.v2.numSponsoring;
+        numSponsored = v1.ext.v2.numSponsored;
+      }
+    }
+    return computeMinimumReserve({
+      numSubEntries: account.numSubEntries,
+      numSponsoring,
+      numSponsored,
+      sellingLiabilities,
+    });
+  } catch {
+    return computeMinimumReserve({ numSubEntries: 0 });
+  }
+}
+
+/**
+ * Total the donor has already given to a campaign, read straight from the
+ * contract's persistent `("DCON", campaign_id, donor)` entry. Returns 0 when
+ * the donor has never given.
+ */
+export async function getDonorContribution(campaignId: bigint, donor: string): Promise<bigint> {
+  const key = xdr.LedgerKey.contractData(
+    new xdr.LedgerKeyContractData({
+      contract: new Address(CONTRACT_ID).toScAddress(),
+      key: xdr.ScVal.scvVec([
+        nativeToScVal("DCON", { type: "symbol" }),
+        nativeToScVal(campaignId, { type: "u64" }),
+        new Address(donor).toScVal(),
+      ]),
+      durability: xdr.ContractDataDurability.persistent,
+    }),
+  );
+  const res = await server.getLedgerEntries(key);
+  const data = res.entries[0]?.val;
+  if (data?.type !== "contractData") return 0n;
+  return BigInt(scValToNative(data.contractData.val));
 }
 
 export interface TokenMetadata {
@@ -653,7 +918,7 @@ export async function getTokenMetadata(contractId: string): Promise<TokenMetadat
  * length and prefix look right.
  */
 export function isValidStellarAddress(address: string): boolean {
-  return StrKey.isValidEd25519PublicKey(address);
+  return isValidAccountAddress(address);
 }
 
 /**

@@ -1,33 +1,48 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Theme Toggle Persistence & Anti-flash", () => {
-  test("toggles theme to dark, reloads, and persists", async ({ page }) => {
+  test("selects dark theme via the radio group, reloads, and persists", async ({ page }) => {
     await page.goto("/");
 
-    // By default, since we don't emulate colorScheme in this test block and
-    // defaultTheme="system", next-themes usually defaults to light or system.
-    // Let's explicitly force light mode first or just toggle it to dark.
-    // Wait for the hydration and the button to be ready.
-    const themeButton = page.locator('button:has-text("Toggle theme")');
-    await expect(themeButton).toBeVisible();
+    const darkRadio = page.getByRole("radio", { name: /Dark theme/ });
+    await expect(darkRadio).toBeVisible();
 
-    // Check current theme by looking at html class
+    await darkRadio.click();
+
     const html = page.locator("html");
-    const isDark = await html.evaluate((node) => node.classList.contains("dark"));
-
-    // If it's not dark, click to make it dark. If it's already dark, we make it light then dark.
-    if (!isDark) {
-      await themeButton.click();
-    }
-
-    // Ensure it's now dark
     await expect(html).toHaveClass(/dark/);
+    await expect(darkRadio).toHaveAttribute("aria-checked", "true");
 
     // Reload page
     await page.reload();
 
-    // Assert dark mode persists across reload
+    // Assert dark mode and the checked radio persist across reload
     await expect(html).toHaveClass(/dark/);
+    await expect(page.getByRole("radio", { name: /Dark theme/ })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+  });
+
+  test("selects light theme via the radio group, reloads, and persists", async ({ page }) => {
+    await page.goto("/");
+
+    const lightRadio = page.getByRole("radio", { name: /Light theme/ });
+    await expect(lightRadio).toBeVisible();
+
+    await lightRadio.click();
+
+    const html = page.locator("html");
+    await expect(html).not.toHaveClass(/dark/);
+    await expect(lightRadio).toHaveAttribute("aria-checked", "true");
+
+    await page.reload();
+
+    await expect(html).not.toHaveClass(/dark/);
+    await expect(page.getByRole("radio", { name: /Light theme/ })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
   });
 
   test.use({ colorScheme: "dark" });
@@ -44,8 +59,9 @@ test.describe("Theme Toggle Persistence & Anti-flash", () => {
     await expect(html).toHaveClass(/dark/);
 
     // Optionally check that the resolved theme state matches once hydrated
-    const themeButton = page.locator('button:has-text("Toggle theme")');
-    await expect(themeButton).toBeVisible();
+    const systemRadio = page.getByRole("radio", { name: /System theme/ });
+    await expect(systemRadio).toBeVisible();
+    await expect(systemRadio).toHaveAttribute("aria-checked", "true");
     await expect(html).toHaveClass(/dark/);
   });
 
@@ -55,5 +71,8 @@ test.describe("Theme Toggle Persistence & Anti-flash", () => {
     const html = page.locator("html");
     // Assert the theme is applied immediately
     await expect(html).not.toHaveClass(/dark/);
+
+    const systemRadio = page.getByRole("radio", { name: /System theme/ });
+    await expect(systemRadio).toHaveAttribute("aria-checked", "true");
   });
 });

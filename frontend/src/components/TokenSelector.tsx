@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Plus, Check, ChevronDown, Coins, AlertTriangle, ShieldCheck } from "lucide-react";
-import { getTokenMetadata, TokenMetadata } from "@/lib/soroban";
+import type { TokenMetadata } from "@/lib/soroban";
 import { useTokenMetadata } from "@/hooks/useSoroban";
 import { toast } from "sonner";
 import { NATIVE_XLM_CONTRACT_ID, USDC_CONTRACT_ID } from "@/lib/tokens";
@@ -171,6 +171,7 @@ export function TokenSelector({ value, onChange, label, allowCustom = true }: To
       setIsValidating(true);
       setValidationError(null);
       try {
+        const { getTokenMetadata } = await import("@/lib/soroban");
         const metadata = await getTokenMetadata(customAddress);
 
         // Caching validated metadata

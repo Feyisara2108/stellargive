@@ -84,6 +84,33 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
   const selectedTokenMeta = PREDEFINED_TOKENS.find((t) => t.address === formValues.acceptedToken);
   const tokenSymbol = selectedTokenMeta ? selectedTokenMeta.symbol : "Tokens";
 
+  const watchedExtraBeneficiaries = form.watch("extraBeneficiaries") ?? [];
+  const hasMultipleBeneficiaries = watchedExtraBeneficiaries.length > 0;
+  const payoutSplit = buildBeneficiaries(formValues);
+  const sharesTotalBps = payoutSplit.reduce((sum, b) => sum + b.share, 0);
+  const sharesTotalError = hasMultipleBeneficiaries && sharesTotalBps !== TOTAL_SHARE_BPS;
+  const formatPercent = (bps: number) => `${(bps / 100).toFixed(2).replace(/\.?0+$/, "")}%`;
+  const watchedMaxPerDonor = form.watch("maxPerDonor") ?? "";
+
+  function addBeneficiary() {
+    if (watchedExtraBeneficiaries.length + 1 >= MAX_BENEFICIARIES) return;
+    // Pre-fill whatever share is still unallocated so the split stays at 100%
+    // when the creator is just carving out a slice.
+    const remainingBps = Math.max(0, TOTAL_SHARE_BPS - sharesTotalBps);
+    extraBeneficiaryFields.append({
+      address: "",
+      share: remainingBps > 0 ? (remainingBps / 100).toString() : "",
+    });
+  }
+
+  function removeBeneficiary(index: number) {
+    extraBeneficiaryFields.remove(index);
+    // Back to a single beneficiary: they receive everything again.
+    if (watchedExtraBeneficiaries.length === 1) {
+      form.setValue("beneficiaryShare", "100", { shouldValidate: true });
+    }
+  }
+
   // Build preview campaign from current form values (updated live)
   const previewCampaign = buildPreviewCampaign(formValues, tags.tags, walletAddress ?? "");
 
@@ -96,6 +123,7 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
         title: values.title,
         description: values.description,
         beneficiary: values.beneficiary,
+        beneficiaries: buildBeneficiaries(values),
         category: values.category || "other",
         metadataUri: values.metadataUri || undefined,
         targetAmount: values.targetAmount,
@@ -103,6 +131,7 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
         acceptedToken: values.acceptedToken,
         website: values.website || undefined,
         twitter: values.twitter || undefined,
+        maxPerDonor: values.maxPerDonor?.trim() || null,
       });
       clearCampaignDraft();
       setIsOpen(false);

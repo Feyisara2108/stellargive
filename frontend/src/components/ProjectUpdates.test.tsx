@@ -1,10 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { ProjectUpdates } from "./ProjectUpdates";
-import { createSorobanMock } from "@/test/mockSoroban";
 
-vi.mock("@/hooks/useSoroban", () =>
-  createSorobanMock({
+vi.mock("@/hooks/useSoroban", async () =>
+  (await import("@/test/mockSoroban")).createSorobanMock({
     useGetUpdates: vi.fn(),
     useCampaign: vi.fn(),
     useAddUpdate: vi.fn(),

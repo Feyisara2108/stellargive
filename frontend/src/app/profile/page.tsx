@@ -12,17 +12,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatCard } from "@/components/ui/stat-card";
 import { useRecentCampaigns, useEvents } from "@/hooks/useSoroban";
 import { type Campaign, type SorobanEvent } from "@/lib/soroban";
-import {
-  MISSING_FIELD,
-  formatEventAmount,
-  getAmountStroops,
-  getCampaignId,
-  getEventField,
-} from "@/lib/eventData";
+import { MISSING_FIELD, formatStroops, parseDonationEvent } from "@/lib/eventData";
 import { AddressLink } from "@/components/AddressLink";
 import { useWallet } from "@/lib/WalletProvider";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { normalizeAddress, formatTokenAmount } from "@/utils/format";
+import { formatTokenAmount } from "@/utils/format";
 import {
   AlertCircle,
   RotateCw,
@@ -57,20 +51,16 @@ export default function ProfilePage() {
       // array must be skipped, never indexed blindly.
       const allEvents: SorobanEvent[] = Array.isArray(events) ? events : [];
       const myDonations = allEvents.filter(
-        (e) =>
-          e &&
-          typeof e === "object" &&
-          e.topic === "received" &&
-          normalizeAddress(getEventField(e, "donor")) === address,
+        (e) => !!address && parseDonationEvent(e)?.donor === address,
       );
       const supportedIds = new Set(
-        myDonations.map((e) => getCampaignId(e) ?? "").filter(Boolean),
+        myDonations.map((e) => parseDonationEvent(e)?.campaignId ?? "").filter(Boolean),
       );
       const supported = all.filter((c) => supportedIds.has(c.id.toString()));
 
       const totalRaised = created.reduce((acc, c) => acc + c.raised_amount, 0n);
       const totalDonated = myDonations.reduce(
-        (acc: bigint, e) => acc + getAmountStroops(e, "amount"),
+        (acc: bigint, e) => acc + (parseDonationEvent(e)?.amount ?? 0n),
         0n,
       );
       const activeCount = created.filter((c) => c.status === "Active").length;
@@ -340,8 +330,9 @@ function DonationsSection({
       >
         <div className="flex flex-col gap-4">
           {donations.map((event, idx) => {
-            const campaignId = getCampaignId(event);
-            const amount = formatEventAmount(event, "amount");
+            const donation = parseDonationEvent(event);
+            const campaignId = donation?.campaignId ?? null;
+            const amount = formatStroops(donation?.amount ?? null);
             const campaign = campaignId
               ? campaigns.find((c) => c.id.toString() === campaignId)
               : undefined;

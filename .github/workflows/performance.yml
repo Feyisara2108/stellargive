@@ -31,12 +31,13 @@ jobs:
       - name: Setup Node.js and install dependencies
         uses: ./.github/actions/setup-node
 
-      # Build with ANALYZE=true to produce bundle-stats JSON files
+      # `npm run analyze` is a webpack build with ANALYZE=true: it writes the
+      # analyzer reports and fails if a JS budget in next.config.mjs is exceeded
+      # (Turbopack builds skip both).
       - name: Build with bundle analyzer
         working-directory: frontend
-        run: npm run build
+        run: npm run analyze
         env:
-          ANALYZE: "true"
           NEXT_PUBLIC_USE_MOCK_WALLET: "true"
           NEXT_PUBLIC_CONTRACT_ID: "CB6HVHRQYILGNKW7RBB66BC6TDBIEWADOA2YUUV4I22RXRLA6DY6OAKT"
           NEXT_PUBLIC_SOROBAN_RPC_URL: "https://soroban-testnet.stellar.org"
@@ -44,19 +45,26 @@ jobs:
           # Disable Sentry upload in performance CI to keep it fast
           SENTRY_AUTH_TOKEN: ""
 
-      # Compute total JS size from .next/static/chunks and enforce 4 MB budget
-      - name: Enforce JS bundle size budget (4 MB)
+      # Sum of every emitted JS chunk (first-load and lazy). Measured baseline is
+      # ~2.7 MB; the budget adds ~25%.
+      - name: Enforce JS bundle size budget (3.25 MB)
         working-directory: frontend
         run: |
           TOTAL=$(find .next/static/chunks -name '*.js' ! -name '*.map' \
             -exec wc -c {} + 2>/dev/null | awk '/total/{print $1}' || echo 0)
           echo "Total JS bundle size: $TOTAL bytes"
-          BUDGET=4194304  # 4 MB in bytes
+          BUDGET=3407872  # 3.25 MB in bytes
           if [ "$TOTAL" -gt "$BUDGET" ]; then
-            echo "::error::JS bundle size ${TOTAL}B exceeds budget of ${BUDGET}B (4 MB)."
+            echo "::error::JS bundle size ${TOTAL}B exceeds budget of ${BUDGET}B (3.25 MB)."
             exit 1
           fi
           echo "✅ JS bundle size ${TOTAL}B is within the ${BUDGET}B budget."
+
+      # Report-only: first-load JS per route (what each page loads before hydration).
+      - name: Report first-load JS per route
+        working-directory: frontend
+        continue-on-error: true
+        run: npm run analyze:routes
 
       # Persist bundle stats for trend tracking across runs
       - name: Upload bundle stats artifact
@@ -97,7 +105,7 @@ jobs:
           script: |
             const totalKb = '${{ steps.bundle-report.outputs.total_kb }}';
             const topChunks = `${{ steps.bundle-report.outputs.top_chunks }}`;
-            const budget = 200;
+            const budget = 3328; // KB; matches the enforced 3.25 MB total above
             const status = parseFloat(totalKb) <= budget ? '✅' : '❌';
             const body = [
               `## ${status} Bundle Size Report`,

@@ -2,10 +2,14 @@
   "name": "stellargive-frontend",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "analyze": "ANALYZE=true next build",
+    "analyze": "ANALYZE=true next build --webpack",
+    "analyze:routes": "node scripts/measure-route-js.mjs",
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest run",
@@ -20,6 +24,7 @@
     "license:check": "node scripts/check-licenses.mjs"
   },
   "dependencies": {
+    "@albedo-link/intent": "~0.12.0",
     "@emnapi/core": "^1.11.2",
     "@emnapi/runtime": "^1.11.2",
     "@hookform/resolvers": "^5.9.1",

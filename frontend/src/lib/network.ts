@@ -1,7 +1,14 @@
-import { Networks } from "@stellar/stellar-sdk";
+// Network passphrases, mirroring the SDK's `Networks` enum. Inlined so this
+// module (read by layout-level UI) doesn't pull the Stellar SDK into every route.
+export const Networks = {
+  PUBLIC: "Public Global Stellar Network ; September 2015",
+  TESTNET: "Test SDF Network ; September 2015",
+  FUTURENET: "Test SDF Future Network ; October 2022",
+  SANDBOX: "Local Sandbox Stellar Network ; September 2022",
+  STANDALONE: "Standalone Network ; February 2017",
+} as const;
 
-export const NETWORK_PASSPHRASE =
-  process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE || Networks.STANDALONE;
+export const NETWORK_PASSPHRASE = process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE || Networks.STANDALONE;
 
 /**
  * Maps a network passphrase to a human-readable display name.

@@ -4,6 +4,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WalletConnect } from "./WalletConnect";
 import { MockWalletProvider, useMockWallet } from "./MockWalletProvider";
+import { WalletContext } from "@/lib/WalletProvider";
 import { toast } from "sonner";
 
 // Mock external dependencies
@@ -20,8 +21,17 @@ vi.mock("@/lib/soroban", () => ({
   fromStroops: vi.fn((value: bigint) => (Number(value) / 10000000).toFixed(7)),
 }));
 
-vi.mock("@stellar/freighter-api", () => ({
-  disconnect: vi.fn(),
+vi.mock("@/lib/wallet", () => ({
+  WALLETS: [
+    { id: "freighter", name: "Freighter", url: "https://www.freighter.app", kind: "extension" },
+    { id: "albedo", name: "Albedo", url: "https://albedo.link", kind: "web" },
+  ],
+  isWalletAvailable: vi.fn().mockResolvedValue(true),
+  restoreWallet: vi.fn().mockResolvedValue(null),
+  connectWallet: vi.fn(),
+  disconnectWallet: vi.fn().mockResolvedValue(undefined),
+  getWalletNetwork: vi.fn().mockResolvedValue(null),
+  getNetworkSwitcher: vi.fn().mockResolvedValue(null),
 }));
 
 /**
@@ -867,6 +877,35 @@ describe("WalletConnect Component", () => {
         const disconnectButton = screen.getByRole("button", { name: /disconnect/i });
         expect(disconnectButton).toBeInTheDocument();
       });
+    });
+  });
+
+  describe("Cancelled connection", () => {
+    it("does not report success when the user closes the wallet picker", async () => {
+      const user = userEvent.setup();
+      const connect = vi.fn().mockResolvedValue(false);
+
+      render(
+        <WalletContext.Provider
+          value={{
+            address: null,
+            isConnected: false,
+            walletNetwork: null,
+            isWrongNetwork: false,
+            connect,
+            disconnect: vi.fn(),
+            switchNetwork: vi.fn(),
+          }}
+        >
+          <WalletConnect />
+        </WalletContext.Provider>,
+      );
+
+      await user.click(screen.getByRole("button", { name: /connect wallet/i }));
+
+      await waitFor(() => expect(connect).toHaveBeenCalled());
+      expect(toast.success).not.toHaveBeenCalled();
+      expect(screen.getByRole("button", { name: /connect wallet/i })).toBeEnabled();
     });
   });
 });

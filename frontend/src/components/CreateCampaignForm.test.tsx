@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@/test/render";
 import { axe, toHaveNoViolations } from "jest-axe";
 import { CreateCampaignForm } from "./CreateCampaignForm";
-import { createSorobanMock } from "@/test/mockSoroban";
 
 expect.extend(toHaveNoViolations);
 
@@ -18,12 +17,15 @@ const resolvedNameState = vi.hoisted(() => ({
   isFetching: false,
 }));
 
-vi.mock("@/hooks/useSoroban", () =>
-  createSorobanMock({
+vi.mock("@/hooks/useSoroban", async () =>
+  (await import("@/test/mockSoroban")).createSorobanMock({
+vi.mock("@/hooks/useSoroban", async () => {
+  const { createSorobanMock } = await import("@/test/mockSoroban");
+  return createSorobanMock({
     useCreateCampaign: () => createCampaignState,
     useResolvedName: () => resolvedNameState,
-  }),
-);
+  });
+});
 
 vi.mock("next/navigation", () => ({
   useRouter: vi.fn().mockReturnValue({ push: vi.fn() }),
@@ -303,6 +305,153 @@ describe("CreateCampaignForm", () => {
 
       expect(
         await screen.findByText(/Deadline must be between 1 and 365 days/i),
+      ).toBeInTheDocument();
+    });
+  });
+
+  describe("multiple beneficiaries", () => {
+    const SECOND_BENEFICIARY = "GA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVSGZ";
+
+    async function addSecondBeneficiary(primaryShare: string, secondShare: string) {
+      fireEvent.click(screen.getByRole("button", { name: /Add beneficiary/i }));
+      fireEvent.change(await screen.findByLabelText(/Beneficiary 1 Share/i), {
+        target: { value: primaryShare },
+      });
+      fireEvent.change(screen.getByPlaceholderText("G... (beneficiary 2)"), {
+        target: { value: SECOND_BENEFICIARY },
+      });
+      fireEvent.change(screen.getByLabelText(/^Share \(%\)$/i), {
+        target: { value: secondShare },
+      });
+    }
+
+    it("blocks the funding step with a clear message when shares don't total 100%", async () => {
+      renderForm();
+      await openForm();
+      fillValidForm();
+      fireEvent.click(screen.getByRole("button", { name: /Continue/i }));
+      await screen.findByText(/Step 2 of 3/i);
+
+      await addSecondBeneficiary("60", "30");
+
+      expect(
+        await screen.findByText(/Beneficiary shares must add up to exactly 100%\. Currently 90%/i),
+      ).toBeInTheDocument();
+      await expectStuckOnStep(2);
+    });
+
+    it("rejects listing the same address twice", async () => {
+      renderForm();
+      await openForm();
+      fillValidForm();
+      fireEvent.click(screen.getByRole("button", { name: /Add beneficiary/i }));
+      const second = screen.getByPlaceholderText("G... (beneficiary 2)");
+      fireEvent.change(second, { target: { value: VALID_BENEFICIARY } });
+      fireEvent.blur(second);
+
+      expect(await screen.findByText(/This beneficiary is already listed/i)).toBeInTheDocument();
+    });
+
+    it("submits the split as basis-point shares", async () => {
+      createCampaignState.mutateAsync = vi.fn().mockResolvedValue({ campaignId: "1" });
+      renderForm();
+      await openForm();
+      fillValidForm();
+      fireEvent.click(screen.getByRole("button", { name: /Continue/i }));
+      await screen.findByText(/Step 2 of 3/i);
+      await addSecondBeneficiary("62.5", "37.5");
+      fireEvent.click(screen.getByRole("button", { name: /Continue/i }));
+      await screen.findByText(/Step 3 of 3/i);
+
+      expect(screen.getByText("62.5%")).toBeInTheDocument();
+      expect(screen.getByText("37.5%")).toBeInTheDocument();
+
+      const submitBtn = screen.getByRole("button", { name: /Launch Campaign/i });
+      await waitFor(() => expect(submitBtn).toBeEnabled());
+      fireEvent.click(submitBtn);
+
+      await waitFor(() => {
+        expect(createCampaignState.mutateAsync).toHaveBeenCalledWith(
+          expect.objectContaining({
+            beneficiary: VALID_BENEFICIARY,
+            beneficiaries: [
+              { address: VALID_BENEFICIARY, share: 6250 },
+              { address: SECOND_BENEFICIARY, share: 3750 },
+            ],
+          }),
+        );
+      });
+    });
+
+    it("gives a lone beneficiary the full 100% share", async () => {
+      createCampaignState.mutateAsync = vi.fn().mockResolvedValue({ campaignId: "1" });
+      renderForm();
+      await openForm();
+      fillValidForm();
+      await goToReviewStep();
+      const submitBtn = screen.getByRole("button", { name: /Launch Campaign/i });
+      await waitFor(() => expect(submitBtn).toBeEnabled());
+      fireEvent.click(submitBtn);
+
+      await waitFor(() => {
+        expect(createCampaignState.mutateAsync).toHaveBeenCalledWith(
+          expect.objectContaining({
+            beneficiaries: [{ address: VALID_BENEFICIARY, share: 10000 }],
+          }),
+        );
+      });
+    });
+  });
+
+  describe("maximum per donor", () => {
+    it("passes the cap through and shows it on the review step", async () => {
+      createCampaignState.mutateAsync = vi.fn().mockResolvedValue({ campaignId: "1" });
+      renderForm();
+      await openForm();
+      fillValidForm();
+      fireEvent.change(screen.getByLabelText(/Maximum per donor/i), { target: { value: "25" } });
+      await goToReviewStep();
+
+      expect(screen.getByText(/^25 /)).toBeInTheDocument();
+      const submitBtn = screen.getByRole("button", { name: /Launch Campaign/i });
+      await waitFor(() => expect(submitBtn).toBeEnabled());
+      fireEvent.click(submitBtn);
+
+      await waitFor(() => {
+        expect(createCampaignState.mutateAsync).toHaveBeenCalledWith(
+          expect.objectContaining({ maxPerDonor: "25" }),
+        );
+      });
+    });
+
+    it("sends no cap when the field is left empty", async () => {
+      createCampaignState.mutateAsync = vi.fn().mockResolvedValue({ campaignId: "1" });
+      renderForm();
+      await openForm();
+      fillValidForm();
+      await goToReviewStep();
+
+      expect(screen.getByText("No cap")).toBeInTheDocument();
+      const submitBtn = screen.getByRole("button", { name: /Launch Campaign/i });
+      await waitFor(() => expect(submitBtn).toBeEnabled());
+      fireEvent.click(submitBtn);
+
+      await waitFor(() => {
+        expect(createCampaignState.mutateAsync).toHaveBeenCalledWith(
+          expect.objectContaining({ maxPerDonor: null }),
+        );
+      });
+    });
+
+    it("rejects a non-positive cap", async () => {
+      renderForm();
+      await openForm();
+      const cap = screen.getByLabelText(/Maximum per donor/i);
+      fireEvent.change(cap, { target: { value: "0" } });
+      fireEvent.blur(cap);
+
+      expect(
+        await screen.findByText(/Maximum per donor must be a positive amount/i),
       ).toBeInTheDocument();
     });
   });

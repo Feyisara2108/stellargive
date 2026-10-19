@@ -3,7 +3,7 @@
 import { Navbar } from "@/components/Navbar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWallet } from "@/lib/WalletProvider";
-import { useRecentCampaigns } from "@/hooks/useSoroban";
+import { usePlatformConfig, useRecentCampaigns } from "@/hooks/useSoroban";
 import { Shield, AlertCircle, Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
 
@@ -49,8 +49,12 @@ export default function AdminPage() {
   const { address, isWrongNetwork } = useWallet();
   const { data: campaigns, isLoading: isLoadingCampaigns } = useRecentCampaigns();
 
+  const { data: platformConfig, isLoading: isLoadingConfig } = usePlatformConfig();
+
   const ownedCampaigns =
     campaigns?.filter((c) => c.creator.toLowerCase() === address?.toLowerCase()) ?? [];
+  // The contract owner gets the panel (for ownership transfer) even without campaigns.
+  const isContractOwner = !!address && platformConfig?.owner === address;
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
@@ -87,12 +91,12 @@ export default function AdminPage() {
               </p>
             </div>
           </div>
-        ) : isLoadingCampaigns ? (
+        ) : isLoadingCampaigns || (ownedCampaigns.length === 0 && isLoadingConfig) ? (
           <div className="flex flex-col items-center justify-center p-12 space-y-4">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
             <p className="text-sm text-muted-foreground">Verifying campaign ownership...</p>
           </div>
-        ) : ownedCampaigns.length === 0 ? (
+        ) : ownedCampaigns.length === 0 && !isContractOwner ? (
           <div className="flex flex-col items-center justify-center p-8 border rounded-lg bg-card/50 backdrop-blur-sm space-y-4 text-center">
             <Shield className="w-12 h-12 text-muted-foreground opacity-50" />
             <div className="space-y-1">

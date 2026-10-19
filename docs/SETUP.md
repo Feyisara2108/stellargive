@@ -7,7 +7,8 @@ Welcome to the StellarGive project! This comprehensive guide provides step-by-st
 This guide will walk you through installing the necessary tools to contribute to StellarGive. You will set up:
 - **Rust and Cargo**: For compiling Soroban smart contracts.
 - **Soroban CLI**: For interacting with the Stellar network and deploying contracts.
-- **Node.js and npm**: For running the Next.js frontend application.
+- **Node.js 22 LTS and npm**: For running the Next.js frontend application. The required
+  version is pinned in `frontend/.nvmrc` (and `engines.node` in `frontend/package.json`).
 - **Git**: For version control.
 
 **Estimated setup time:** 15-30 minutes.
@@ -45,7 +46,7 @@ On macOS, we recommend using [Homebrew](https://brew.sh/) to manage packages.
    *(Note: The `stellar-cli` package provides the `soroban` commands.)*
 5. **Install Node.js**:
    ```bash
-   brew install node
+   brew install node@22
    ```
 
 After installation, reload your shell to ensure your `PATH` is updated:
@@ -74,7 +75,7 @@ These instructions are primarily for Ubuntu/Debian-based distributions. Other di
    ```
 4. **Install Node.js** (via NodeSource for a recent version):
    ```bash
-   curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+   curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
    sudo apt install -y nodejs
    ```
 
@@ -104,7 +105,7 @@ If you must use native Windows, you can use [Chocolatey](https://chocolatey.org/
 ```powershell
 choco install git
 choco install rust
-choco install nodejs
+choco install nodejs-lts
 cargo install --locked stellar-cli --features opt
 ```
 *Note: You may need to install the Visual Studio C++ Build Tools for Rust compilation to work on native Windows.*
@@ -117,7 +118,7 @@ Verify that all tools are successfully installed on your system by running the f
 rustc --version     # Expected: Output showing the Rust compiler version
 cargo --version     # Expected: Output showing the Cargo package manager version
 soroban --version   # Expected: Output showing the Soroban CLI version
-node --version      # Expected: Output showing Node.js version (e.g., v20.x)
+node --version      # Expected: Output showing Node.js version (v22.x — see `frontend/.nvmrc`)
 npm --version       # Expected: Output showing npm version
 git --version       # Expected: Output showing Git version
 ```
@@ -238,7 +239,7 @@ npm run build
 | PATH issues | Shell doesn't know where tools are located | Add `export PATH="$HOME/.cargo/bin:$PATH"` to your `~/.bashrc` or `~/.zshrc` and reload. |
 | `node-gyp` issues | Missing build tools for Node.js modules | On Linux, install `build-essential`. On Windows, stick to WSL2 or install Windows Build Tools. |
 | WSL networking issues | Port forwarding failing between Windows and WSL | Run `wsl --shutdown` and restart your terminal. Ensure the dev server binds to `0.0.0.0` if necessary. |
-| `npm install` failures | Incompatible Node.js version or network issue | Ensure you are on Node v20.x or higher. Clear cache with `npm cache clean --force` and retry. Use `npm ci` instead of `npm install`. |
+| `npm install` failures | Incompatible Node.js version or network issue | Ensure you are on Node v22.x (`nvm use` in `frontend/`). Clear cache with `npm cache clean --force` and retry. Use `npm ci` instead of `npm install`. |
 | Rust target missing / wasm32v1-none target issues | Missing WASM toolchain | Run `rustup target add wasm32v1-none` to install the target. |
 
 ## 13. Common Contributor Workflow

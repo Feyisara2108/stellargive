@@ -74,16 +74,9 @@ export default function FaqPage() {
 
             <AccordionItem question="Which wallet do I need?">
               <p>
-                You need the{" "}
-                <a
-                  href="https://www.freighter.app"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  Freighter
-                </a>{" "}
-                browser extension. Connect it from the navbar, approve the testnet network, and
+                Any of the supported Stellar wallets: Freighter, Albedo, Hana or Rabet. Albedo
+                works straight from the browser with no extension. Pick one from
+                &quot;Connect Wallet&quot; in the navbar, make sure it&apos;s on testnet, and
                 you&apos;re ready to create campaigns and donate.
               </p>
             </AccordionItem>

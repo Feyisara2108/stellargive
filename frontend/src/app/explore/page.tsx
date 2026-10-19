@@ -1,14 +1,8 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef, useCallback, Suspense } from "react";
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { List, type RowComponentProps } from "react-window";
+import { useState, useMemo, useEffect, useRef, Suspense } from "react";
 import { Navbar } from "@/components/Navbar";
-import { CampaignCard } from "@/components/CampaignCard";
-import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useCampaignsPaged, useTokenMetadataBatch } from "@/hooks/useSoroban";
 import { useCampaignSearch } from "@/hooks/useCampaignSearch";
 import { useBookmarks } from "@/hooks/useBookmarks";
@@ -26,6 +20,8 @@ import {
   Bookmark,
   Tag,
 } from "lucide-react";
+import type { CategoryKey } from "@/components/CategorySelector";
+import { Compass, Loader2 } from "lucide-react";
 import { CampaignSkeletonGrid } from "@/components/CampaignSkeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { Campaign, TokenMetadata } from "@/lib/soroban";
@@ -232,72 +228,24 @@ function sortCampaigns(campaigns: Campaign[], sortBy: SortKey): Campaign[] {
 
 const EMPTY_CAMPAIGNS: Campaign[] = [];
 
-/** Stable IDs used to wire tabs → tabpanel with aria-controls/aria-labelledby */
-const STATUS_TABS = [
-  { value: "all", label: "All", id: "status-tab-all", badgeStatus: "All" as const },
-  { value: "active", label: "Active", id: "status-tab-active", badgeStatus: "Active" as const },
-  { value: "funded", label: "Funded", id: "status-tab-funded", badgeStatus: "Funded" as const },
-] as const;
-
-const RESULTS_PANEL_ID = "campaign-results-panel";
-
 function ExploreContent() {
-  const router = useRouter();
-  const columnCount = useColumnCount();
-  const gridContainerRef = useRef<HTMLDivElement>(null);
-  const listContainerRef = useRef<HTMLDivElement>(null);
-  const searchParams = useSearchParams();
-  const detailHrefSearch = searchParams.toString();
+  const filters = useExploreUrlState();
+  const {
+    detailHrefSearch,
+    searchTerm,
+    setSearchTerm,
+    statusFilter,
+    categoryFilter,
+    setCategoryFilter,
+    sortBy,
+    tokenFilter,
+    savedOnly,
+    setSavedOnly,
+    activeTagFilter,
+  } = filters;
   const [limit, setLimit] = useState(PAGE_SIZE);
-  const [searchTerm, setSearchTerm] = useState(() => searchParams.get("q") ?? "");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "funded">(() => {
-    const status = searchParams.get("status");
-    return status === "all" || status === "active" || status === "funded" ? status : "active";
-  });
-  const [categoryFilter, setCategoryFilter] = useState<CategoryKey>(() => {
-    const category = searchParams.get("category");
-    return isCategoryKey(category) ? category : "all";
-  });
-  const [sortBy, setSortBy] = useState<SortKey>(() => {
-    const sort = searchParams.get("sort");
-    return SORT_OPTIONS.some((o) => o.key === sort) ? (sort as SortKey) : "newest";
-  });
-  const [tokenFilter, setTokenFilter] = useState(() => searchParams.get("token") ?? "");
-  const [savedOnly, setSavedOnly] = useState(() => searchParams.get("saved") === "1");
   const { bookmarks } = useBookmarks();
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [activeTagFilter, setActiveTagFilter] = useState<string>(
-    () => searchParams.get("tag") ?? "",
-  );
-
-  /** Ref to track the last search term synced to URL to prevent hydration from clobbering active typing */
-  const lastSyncedSearchRef = useRef<string>(searchParams.get("q") ?? "");
-
-  /** Roving tabIndex refs — one entry per STATUS_TABS item */
-  const tabRefs = useRef<Array<HTMLButtonElement | null>>([null, null, null]);
-
-  /** Arrow-key roving focus within the tablist */
-  const handleTabKeyDown = (e: React.KeyboardEvent, currentIndex: number) => {
-    const count = STATUS_TABS.length;
-    let next = -1;
-    if (e.key === "ArrowRight") {
-      e.preventDefault();
-      next = (currentIndex + 1) % count;
-    } else if (e.key === "ArrowLeft") {
-      e.preventDefault();
-      next = (currentIndex - 1 + count) % count;
-    } else if (e.key === "Home") {
-      e.preventDefault();
-      next = 0;
-    } else if (e.key === "End") {
-      e.preventDefault();
-      next = count - 1;
-    }
-    if (next !== -1) {
-      tabRefs.current[next]?.focus();
-      setStatusFilter(STATUS_TABS[next].value);
-    }
-  };
+  const [viewMode, setViewMode] = useState<ViewMode>("grid");
 
   const sentinelRef = useRef<HTMLDivElement>(null);
   const { data, isLoading, isFetching, isError, refetch } = useCampaignsPaged(limit);
@@ -334,47 +282,6 @@ function ExploreContent() {
 
   const loadMore = () => setLimit((prev) => prev + PAGE_SIZE);
 
-  useEffect(() => {
-    const q = searchParams.get("q") ?? "";
-    if (q !== lastSyncedSearchRef.current) {
-      lastSyncedSearchRef.current = q;
-      setSearchTerm(q);
-    }
-
-    const status = searchParams.get("status");
-    if (status === "all" || status === "active" || status === "funded") {
-      setStatusFilter(status);
-    } else if (status === null) {
-      setStatusFilter("active");
-    }
-
-    const sort = searchParams.get("sort");
-    if (SORT_OPTIONS.some((o) => o.key === sort)) {
-      setSortBy(sort as SortKey);
-    } else if (sort === null) {
-      setSortBy("newest");
-    }
-
-    const category = searchParams.get("category");
-    if (isCategoryKey(category)) {
-      setCategoryFilter(category);
-    } else if (category === null) {
-      setCategoryFilter("all");
-    }
-
-    setSavedOnly(searchParams.get("saved") === "1");
-
-    const tag = searchParams.get("tag");
-    setActiveTagFilter(tag ?? "");
-
-    const token = searchParams.get("token");
-    if (token !== null) {
-      setTokenFilter(token);
-    } else if (token === null) {
-      setTokenFilter("");
-    }
-  }, [searchParams]);
-
   // Progressive enhancement only — the "Load more" button below is the
   // guaranteed path (keyboard, reduced motion, and during an active search).
   useEffect(() => {
@@ -391,68 +298,6 @@ function ExploreContent() {
     observer.observe(el);
     return () => observer.disconnect();
   }, [hasMore, isFetching, isSearching]);
-
-  useEffect(() => {
-    const next = new URLSearchParams(searchParams.toString());
-    if (statusFilter !== "active") {
-      next.set("status", statusFilter);
-    } else {
-      next.delete("status");
-    }
-
-    if (sortBy !== "newest") {
-      next.set("sort", sortBy);
-    } else {
-      next.delete("sort");
-    }
-
-    if (searchTerm.trim()) {
-      next.set("q", searchTerm);
-    } else {
-      next.delete("q");
-    }
-
-    if (categoryFilter !== "all") {
-      next.set("category", categoryFilter);
-    } else {
-      next.delete("category");
-    }
-
-    if (tokenFilter) {
-      next.set("token", tokenFilter);
-    } else {
-      next.delete("token");
-    }
-
-    if (savedOnly) {
-      next.set("saved", "1");
-    } else {
-      next.delete("saved");
-    }
-
-    if (activeTagFilter) {
-      next.set("tag", activeTagFilter);
-    } else {
-      next.delete("tag");
-    }
-
-    const query = next.toString();
-    const currentQuery = searchParams.toString();
-    if (query !== currentQuery) {
-      lastSyncedSearchRef.current = searchTerm;
-      router.replace(query ? `/explore?${query}` : "/explore", { scroll: false });
-    }
-  }, [
-    router,
-    searchParams,
-    statusFilter,
-    sortBy,
-    categoryFilter,
-    tokenFilter,
-    searchTerm,
-    savedOnly,
-    activeTagFilter,
-  ]);
 
   const filtered = useMemo(() => {
     const byStatus = searched.filter((campaign) => {
@@ -492,6 +337,12 @@ function ExploreContent() {
     return Array.from(new Set(filtered.map((c) => c.accepted_token)));
   }, [filtered]);
   const { data: tokenMetas } = useTokenMetadataBatch(uniqueTokens);
+
+  const items = filtered.map((campaign) => ({
+    campaign,
+    tokenMeta: tokenMetas?.[campaign.accepted_token] ?? undefined,
+    detailHrefSearch,
+  }));
 
   // Collect all unique tags from the loaded campaigns for the tag chips row.
   const allUniqueTags = useMemo(() => {
@@ -699,6 +550,14 @@ function ExploreContent() {
             );
           })}
         </div>
+        <ExploreFilters
+          filters={filters}
+          categoryCounts={categoryCounts}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          bookmarkCount={bookmarks.length}
+          allUniqueTags={allUniqueTags}
+        />
 
         {/* Results panel — wired to the tablist above via id/role/aria-labelledby */}
         <div
@@ -718,40 +577,9 @@ function ExploreContent() {
           {isLoading ? (
             <CampaignSkeletonGrid count={PAGE_SIZE} />
           ) : isError ? (
-            <div
-              role="alert"
-              className="flex flex-col items-center justify-center gap-4 rounded-lg border border-destructive/30 bg-destructive/5 px-6 py-16 text-center"
-            >
-              <div className="rounded-full bg-destructive/10 p-3">
-                <AlertTriangle className="h-5 w-5 text-destructive" aria-hidden="true" />
-              </div>
-              <div className="space-y-1">
-                <h2 className="font-semibold text-foreground">Unable to load campaigns</h2>
-                <p className="text-sm text-muted-foreground max-w-sm">
-                  We couldn&apos;t reach the Stellar network. Check your connection and try again.
-                </p>
-              </div>
-              <Button onClick={() => refetch()}>
-                <RotateCw className="mr-2 h-4 w-4" aria-hidden="true" />
-                Retry
-              </Button>
-            </div>
+            <ExploreErrorState onRetry={() => refetch()} />
           ) : filtered.length === 0 && savedOnly && bookmarks.length === 0 ? (
-            <div
-              data-testid="saved-empty-state"
-              className="flex flex-col items-center gap-4 py-20 text-center"
-            >
-              <div className="rounded-full bg-muted p-6">
-                <Bookmark className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
-              </div>
-              <div>
-                <p className="font-medium text-foreground text-lg">No saved campaigns yet</p>
-                <p className="text-muted-foreground text-sm max-w-sm mt-1">
-                  Tap the bookmark icon on any campaign to save it here for later.
-                </p>
-              </div>
-              <Button onClick={() => setSavedOnly(false)}>Discover campaigns</Button>
-            </div>
+            <SavedEmptyState onDiscover={() => setSavedOnly(false)} />
           ) : filtered.length === 0 ? (
             <EmptyState
               message={emptyMessage}
@@ -786,7 +614,7 @@ function ExploreContent() {
                   // and `columnCount` reactively.
                   const items = filtered.map((campaign) => ({
                     campaign,
-                    tokenMeta: tokenMetas?.[campaign.accepted_token],
+                    tokenMeta: tokenMetas?.[campaign.accepted_token] ?? undefined,
                     detailHrefSearch,
                   }));
                   const gridRows: (typeof items)[] = [];
@@ -814,7 +642,7 @@ function ExploreContent() {
                 (() => {
                   const items = filtered.map((campaign) => ({
                     campaign,
-                    tokenMeta: tokenMetas?.[campaign.accepted_token],
+                    tokenMeta: tokenMetas?.[campaign.accepted_token] ?? undefined,
                     detailHrefSearch,
                   }));
                   const rowH = LIST_CARD_HEIGHT + GRID_GAP;
@@ -829,6 +657,11 @@ function ExploreContent() {
                     />
                   );
                 })()}
+              {viewMode === "grid" ? (
+                <CampaignGridView items={items} isRefreshing={isRefreshing} />
+              ) : (
+                <CampaignListView items={items} isRefreshing={isRefreshing} />
+              )}
             </div>
           )}
 
@@ -860,123 +693,6 @@ function ExploreContent() {
           <div ref={sentinelRef} className="h-4" aria-hidden="true" />
         </div>
       </main>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Container wrappers — measure their own width then hand it to FixedSizeList.
-// ---------------------------------------------------------------------------
-interface GridVirtualContainerProps {
-  containerRef: React.RefObject<HTMLDivElement>;
-  totalHeight: number;
-  rows: { campaign: Campaign; tokenMeta?: TokenMetadata; detailHrefSearch: string }[][];
-  columnCount: number;
-  rowHeight: number;
-  isRefreshing: boolean;
-}
-
-function GridVirtualContainer({
-  containerRef,
-  totalHeight,
-  rows,
-  columnCount,
-  rowHeight,
-  isRefreshing,
-}: GridVirtualContainerProps) {
-  const listWidth = useContainerWidth(containerRef);
-
-  return (
-    <div
-      ref={containerRef}
-      role="grid"
-      aria-label="Campaign grid"
-      aria-rowcount={rows.length}
-      aria-colcount={columnCount}
-      style={listWidth > 0 ? { height: totalHeight } : undefined}
-    >
-      {/* JSDOM / SSR fallback — flat grid until the ResizeObserver fires. */}
-      {listWidth === 0 ? (
-        <div
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-          style={{ opacity: isRefreshing ? 0.5 : 1, transition: "opacity 200ms" }}
-        >
-          {rows.flat().map(({ campaign, tokenMeta, detailHrefSearch }) => (
-            <div key={campaign.id.toString()} role="gridcell">
-              <CampaignCard
-                campaign={campaign}
-                preloadedTokenMeta={tokenMeta}
-                detailHrefSearch={detailHrefSearch}
-              />
-            </div>
-          ))}
-        </div>
-      ) : (
-        <List
-          rowCount={rows.length}
-          rowHeight={rowHeight}
-          rowComponent={GridRow}
-          rowProps={{ rows, columnCount, listWidth, isRefreshing }}
-          overscanCount={2}
-          style={{ height: totalHeight, width: listWidth, outline: "none", overflow: "visible" }}
-        />
-      )}
-    </div>
-  );
-}
-
-interface ListVirtualContainerProps {
-  containerRef: React.RefObject<HTMLDivElement>;
-  totalHeight: number;
-  items: { campaign: Campaign; tokenMeta?: TokenMetadata; detailHrefSearch: string }[];
-  rowHeight: number;
-  isRefreshing: boolean;
-}
-
-function ListVirtualContainer({
-  containerRef,
-  totalHeight,
-  items,
-  rowHeight,
-  isRefreshing,
-}: ListVirtualContainerProps) {
-  const listWidth = useContainerWidth(containerRef);
-
-  return (
-    <div
-      ref={containerRef}
-      role="grid"
-      aria-label="Campaign list"
-      aria-rowcount={items.length}
-      aria-colcount={1}
-      style={listWidth > 0 ? { height: totalHeight } : undefined}
-    >
-      {/* JSDOM / SSR fallback — flat list until the ResizeObserver fires. */}
-      {listWidth === 0 ? (
-        <div
-          className="flex flex-col gap-4"
-          style={{ opacity: isRefreshing ? 0.5 : 1, transition: "opacity 200ms" }}
-        >
-          {items.map(({ campaign, tokenMeta, detailHrefSearch }) => (
-            <div key={campaign.id.toString()} role="gridcell">
-              <CampaignCard
-                campaign={campaign}
-                preloadedTokenMeta={tokenMeta}
-                detailHrefSearch={detailHrefSearch}
-              />
-            </div>
-          ))}
-        </div>
-      ) : (
-        <List
-          rowCount={items.length}
-          rowHeight={rowHeight}
-          rowComponent={ListRow}
-          rowProps={{ campaigns: items, isRefreshing }}
-          overscanCount={3}
-          style={{ height: totalHeight, width: listWidth, outline: "none", overflow: "visible" }}
-        />
-      )}
     </div>
   );
 }

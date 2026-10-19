@@ -4,7 +4,6 @@ import userEvent from "@testing-library/user-event";
 import { axe, toHaveNoViolations } from "jest-axe";
 import { DonateModal } from "./DonateModal";
 import type { Campaign } from "@/lib/soroban";
-import { createSorobanMock } from "@/test/mockSoroban";
 
 expect.extend(toHaveNoViolations);
 
@@ -26,7 +25,7 @@ const donateState = vi.hoisted(() => ({
 }));
 
 const walletBalanceState = vi.hoisted(() => ({
-  data: null as number | null,
+  data: null as number | bigint | null,
   isLoading: false,
 }));
 
@@ -34,15 +33,39 @@ const crossedMilestonesState = vi.hoisted(() => ({
   value: [] as number[],
 }));
 
-vi.mock("@/hooks/useSoroban", () =>
-  createSorobanMock({
+const tokenMetaState = vi.hoisted(() => ({
+  data: { decimals: 7, symbol: "XLM" },
+}));
+
+// Minimum account reserve (stroops) for native XLM; null = not loaded.
+const accountReserveState = vi.hoisted(() => ({ data: null as bigint | null }));
+
+// What the connected donor has already given to the campaign (base units).
+const donorContributionState = vi.hoisted(() => ({ data: null as bigint | null }));
+
+const feeEstimateState = vi.hoisted(() => ({ data: null as number | null }));
+
+// Async factory: vi.mock is hoisted above static imports, so the helper must
+// be imported inside the factory rather than referenced from the top level.
+vi.mock("@/hooks/useSoroban", async () => {
+  const { createSorobanMock } = await import("@/test/mockSoroban");
+  return createSorobanMock({
     useDonate: () => donateState,
-    useDonateFeeEstimate: () => ({ data: null }),
+    useDonateFeeEstimate: () => feeEstimateState,
     useWalletBalance: () => walletBalanceState,
+    useAccountReserve: () => accountReserveState,
+    useDonorContribution: () => donorContributionState,
     getCrossedMilestones: () => crossedMilestonesState.value,
-    useTokenMetadata: vi.fn().mockReturnValue({ data: { decimals: 7, symbol: "XLM" } }),
-  }),
-);
+    useTokenMetadata: () => tokenMetaState,
+  });
+});
+
+// tokens.ts derives USDC contract IDs at import time, which throws under jsdom.
+// The modal only needs the native SAC id, which the campaign factory uses.
+vi.mock("@/lib/tokens", async () => {
+  const { NATIVE_TOKEN_ADDRESS } = await import("@/test/factories");
+  return { NATIVE_XLM_CONTRACT_ID: NATIVE_TOKEN_ADDRESS };
+});
 
 const toastSuccess = vi.hoisted(() => vi.fn());
 vi.mock("sonner", () => ({
@@ -63,7 +86,13 @@ describe("DonateModal", () => {
     walletBalanceState.data = null;
     walletBalanceState.isLoading = false;
     crossedMilestonesState.value = [];
+    tokenMetaState.data = { decimals: 7, symbol: "XLM" };
+    accountReserveState.data = null;
+    donorContributionState.data = null;
+    feeEstimateState.data = null;
     toastSuccess.mockClear();
+    // Successful donations persist the last amount, which pre-fills later renders.
+    localStorage.removeItem("stellargive_last_donated_amount");
   });
 
   it("should have no accessibility violations in trigger state", async () => {
@@ -276,6 +305,57 @@ describe("DonateModal", () => {
         expect(screen.getByText(/Maximum 7 decimal places/i)).toBeInTheDocument();
       });
       expect(screen.getByRole("button", { name: /Confirm Donation/i })).toBeDisabled();
+    });
+  });
+
+  describe("per-donor cap", () => {
+    // 20 XLM cap, in stroops.
+    const cappedCampaign = makeCampaign({ max_per_donor: 200_000_000n });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("shows the campaign's maximum per donor", async () => {
+      render(<DonateModal campaign={cappedCampaign} open onOpenChange={() => {}} />);
+      expect(await screen.findByText(/Maximum per donor: 20 XLM/i)).toBeInTheDocument();
+    });
+
+    it("blocks a single donation above the cap with the ExceedsDonorCap message", async () => {
+      render(<DonateModal campaign={cappedCampaign} open onOpenChange={() => {}} />);
+      const input = await screen.findByLabelText(/Amount/i);
+      fireEvent.change(input, { target: { value: "25" } });
+
+      expect(
+        await screen.findByText(/exceeds the campaign's maximum per donor/i),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Confirm Donation/i })).toBeDisabled();
+    });
+
+    it("maps an on-chain ExceedsDonorCap rejection to the cap message", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      donateState.mutateAsync = vi
+        .fn()
+        .mockRejectedValue(new Error("Simulation failed: HostError: Error(Contract, #18)"));
+
+      render(<DonateModal campaign={cappedCampaign} open onOpenChange={() => {}} />);
+      const input = await screen.findByLabelText(/Amount/i);
+      fireEvent.change(input, { target: { value: "10" } });
+      const confirmBtn = screen.getByRole("button", { name: /Confirm Donation/i });
+      await waitFor(() => expect(confirmBtn).toBeEnabled());
+      fireEvent.click(confirmBtn);
+
+      await waitFor(() => {
+        expect(
+          screen.getAllByText(/exceeds the campaign's maximum per donor/i).length,
+        ).toBeGreaterThan(0);
+      });
+    });
+
+    it("shows no cap hint for uncapped campaigns", async () => {
+      render(<DonateModal campaign={baseCampaign} open onOpenChange={() => {}} />);
+      await screen.findByLabelText(/Amount/i);
+      expect(screen.queryByText(/Maximum per donor/i)).not.toBeInTheDocument();
     });
   });
 
@@ -537,6 +617,206 @@ describe("DonateModal", () => {
         await user.tab({ shift: true });
         expect(dialog).toContainElement(document.activeElement as HTMLElement | null);
       }
+    });
+  });
+
+  describe("contract minimum (MIN_DONATION)", () => {
+    const enterAmount = async (value: string) => {
+      const input = await screen.findByLabelText(/Amount/i);
+      fireEvent.change(input, { target: { value } });
+      fireEvent.blur(input);
+      return input;
+    };
+
+    it("rejects one stroop below the 0.1 XLM contract minimum", async () => {
+      render(<DonateModal campaign={baseCampaign} open onOpenChange={() => {}} />);
+      await enterAmount("0.0999999");
+
+      expect(await screen.findByText("Minimum donation is 0.1 XLM")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Confirm Donation/i })).toBeDisabled();
+    });
+
+    it("accepts exactly the 0.1 XLM contract minimum", async () => {
+      render(<DonateModal campaign={baseCampaign} open onOpenChange={() => {}} />);
+      await enterAmount("0.1");
+
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: /Confirm Donation/i })).toBeEnabled();
+      });
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+    it("never suggests funding the rest with less than the minimum", async () => {
+      // 0.05 XLM left: the contract would reject 0.05, so suggest 0.1 instead.
+      const almostFunded = makeCampaign({
+        target_amount: 1_000_000_000n,
+        raised_amount: 999_500_000n,
+      });
+      render(<DonateModal campaign={almostFunded} open onOpenChange={() => {}} />);
+
+      fireEvent.click(await screen.findByRole("button", { name: /Fund the rest/i }));
+
+      const input = screen.getByLabelText(/Amount/i);
+      await waitFor(() => expect(input).toHaveValue("0.1"));
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: /Confirm Donation/i })).toBeEnabled();
+      });
+    });
+  });
+
+  describe("per-donor cap (max_per_donor)", () => {
+    // 20 XLM per donor
+    const cappedCampaign = makeCampaign({ max_per_donor: 200_000_000n });
+
+    it("shows the cap in the modal", async () => {
+      render(<DonateModal campaign={cappedCampaign} open onOpenChange={() => {}} />);
+      expect(await screen.findByText(/Limit: 20 XLM per donor/i)).toBeInTheDocument();
+    });
+
+    it("rejects an amount above the cap", async () => {
+      render(<DonateModal campaign={cappedCampaign} open onOpenChange={() => {}} />);
+      const input = await screen.findByLabelText(/Amount/i);
+      fireEvent.change(input, { target: { value: "25" } });
+
+      expect(
+        await screen.findByText("This campaign allows at most 20 XLM per donor"),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Confirm Donation/i })).toBeDisabled();
+    });
+
+    it("subtracts what the donor has already given", async () => {
+      donorContributionState.data = 150_000_000n; // 15 XLM already given
+      render(<DonateModal campaign={cappedCampaign} open onOpenChange={() => {}} />);
+
+      expect(await screen.findByText(/you've given 15 XLM/i)).toBeInTheDocument();
+
+      const input = screen.getByLabelText(/Amount/i);
+      fireEvent.change(input, { target: { value: "10" } });
+      expect(await screen.findByText(/you can give up to 5 XLM more/i)).toBeInTheDocument();
+
+      fireEvent.change(input, { target: { value: "5" } });
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: /Confirm Donation/i })).toBeEnabled();
+      });
+    });
+
+    it("tells the donor when they have reached the cap", async () => {
+      donorContributionState.data = 200_000_000n;
+      render(<DonateModal campaign={cappedCampaign} open onOpenChange={() => {}} />);
+
+      const input = await screen.findByLabelText(/Amount/i);
+      fireEvent.change(input, { target: { value: "1" } });
+
+      expect(
+        await screen.findByText(/You've reached this campaign's limit of 20 XLM per donor/i),
+      ).toBeInTheDocument();
+    });
+  });
+
+  describe("native XLM reserve and fees", () => {
+    beforeEach(() => {
+      walletBalanceState.data = 100_000_000n; // 10 XLM
+      accountReserveState.data = 10_000_000n; // 1 XLM minimum reserve
+      feeEstimateState.data = null; // falls back to the 0.1 XLM default fee holdback
+    });
+
+    it("explains the reserve in the balance hint", async () => {
+      render(<DonateModal campaign={baseCampaign} open onOpenChange={() => {}} />);
+      expect(
+        await screen.findByText(
+          /You can donate up to 8.9 XLM — 1.1 XLM stays in your wallet for the minimum account reserve and network fees/i,
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("rejects donating the full balance", async () => {
+      render(<DonateModal campaign={baseCampaign} open onOpenChange={() => {}} />);
+      const input = await screen.findByLabelText(/Amount/i);
+      fireEvent.change(input, { target: { value: "10" } });
+
+      expect(
+        await screen.findByText(
+          "Insufficient balance — 8.9 XLM is available after keeping 1.1 XLM for the account reserve and network fees",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Confirm Donation/i })).toBeDisabled();
+    });
+
+    it("Max fills the spendable balance, which passes validation", async () => {
+      feeEstimateState.data = 400_000; // 0.04 XLM resource fee + 0.01 inclusion buffer
+      render(<DonateModal campaign={baseCampaign} open onOpenChange={() => {}} />);
+
+      fireEvent.click(await screen.findByRole("button", { name: "Max" }));
+
+      const input = screen.getByLabelText(/Amount/i);
+      await waitFor(() => expect(input).toHaveValue("8.95"));
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: /Confirm Donation/i })).toBeEnabled();
+      });
+    });
+
+    it("does not hold back a reserve for non-native tokens", async () => {
+      const usdcCampaign = makeCampaign({
+        accepted_token: "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+      });
+      render(<DonateModal campaign={usdcCampaign} open onOpenChange={() => {}} />);
+
+      const input = await screen.findByLabelText(/Amount/i);
+      fireEvent.change(input, { target: { value: "10" } });
+
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: /Confirm Donation/i })).toBeEnabled();
+      });
+      expect(screen.queryByText(/stays in your wallet/i)).not.toBeInTheDocument();
+    });
+  });
+
+  describe("exact integer amounts (18-decimal token)", () => {
+    // 1e12 tokens + 1 base unit — not representable as a float.
+    const target = 10n ** 30n + 1n;
+    const exactRemaining = "1000000000000.000000000000000001";
+    const bigCampaign = makeCampaign({
+      accepted_token: "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+      target_amount: target,
+      raised_amount: 0n,
+    });
+
+    beforeEach(() => {
+      tokenMetaState.data = { decimals: 18, symbol: "TKN" };
+    });
+
+    it("shows and fills the exact remaining goal", async () => {
+      render(<DonateModal campaign={bigCampaign} open onOpenChange={() => {}} />);
+
+      expect(
+        await screen.findByText(`${exactRemaining} TKN left to reach the goal`),
+      ).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: /Fund Remaining/i }));
+      const input = screen.getByLabelText(/Amount/i);
+      await waitFor(() => expect(input).toHaveValue(exactRemaining));
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: /Confirm Donation/i })).toBeEnabled();
+      });
+    });
+
+    it("rejects one base unit over the remaining goal", async () => {
+      render(<DonateModal campaign={bigCampaign} open onOpenChange={() => {}} />);
+      const input = await screen.findByLabelText(/Amount/i);
+      fireEvent.change(input, { target: { value: "1000000000000.000000000000000002" } });
+
+      expect(await screen.findByText(/exceeds the remaining goal/i)).toBeInTheDocument();
+    });
+
+    it("rejects one base unit over the wallet balance", async () => {
+      walletBalanceState.data = target - 1n;
+      render(<DonateModal campaign={bigCampaign} open onOpenChange={() => {}} />);
+      const input = await screen.findByLabelText(/Amount/i);
+      fireEvent.change(input, { target: { value: exactRemaining } });
+
+      expect(
+        await screen.findByText("Insufficient balance — you have 1000000000000 TKN"),
+      ).toBeInTheDocument();
     });
   });
 });

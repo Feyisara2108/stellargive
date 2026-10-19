@@ -1,7 +1,7 @@
 "use client";
 
 import { NATIVE_XLM_CONTRACT_ID } from "@/lib/tokens";
-import { useWallet } from "@/lib/WalletProvider";
+import { FREIGHTER_INSTALL_URL, useWallet } from "@/lib/WalletProvider";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Loader2, Wallet, LogOut, RefreshCw, ChevronDown } from "lucide-react";
@@ -9,7 +9,6 @@ import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { formatAddress } from "@/utils/format";
 import { getSACBalance, fromStroops } from "@/lib/soroban";
-import * as freighter from "@stellar/freighter-api";
 
 export function WalletConnect() {
   const { address, isConnected, connect, disconnect, walletNetwork, isWrongNetwork } = useWallet();
@@ -25,6 +24,9 @@ export function WalletConnect() {
     setIsLoadingBalance(true);
     setBalanceError(null);
     try {
+      // Loaded on demand: the navbar renders on every route, and the SDK behind
+      // this is only needed once a wallet is connected.
+      const { getSACBalance } = await import("@/lib/soroban");
       const balBigInt = await getSACBalance(NATIVE_XLM_CONTRACT_ID, address);
       setBalance(fromStroops(balBigInt));
     } catch (e: unknown) {
@@ -57,8 +59,10 @@ export function WalletConnect() {
   const handleConnect = async () => {
     setIsConnecting(true);
     try {
-      await connect();
-      toast.success("Wallet connected!");
+      // False when the user closed the wallet picker or the wallet refused access.
+      if (await connect()) {
+        toast.success("Wallet connected!");
+      }
     } catch (e) {
       toast.error("Failed to connect wallet");
     } finally {
@@ -67,14 +71,8 @@ export function WalletConnect() {
   };
 
   const handleDisconnect = () => {
-    try {
-      const freighterObj = freighter as unknown as { disconnect?: () => void };
-      if (typeof freighterObj.disconnect === "function") {
-        freighterObj.disconnect();
-      }
-    } catch (err) {
-      console.warn("Freighter disconnect method not available", err);
-    }
+    // WalletProvider's disconnect also tells the selected wallet to forget this
+    // session, whichever wallet it is.
     disconnect();
     setIsDropdownOpen(false);
     toast.info("Wallet disconnected");

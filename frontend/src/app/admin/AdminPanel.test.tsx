@@ -3,7 +3,6 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AdminPanel } from "./AdminPanel";
 import type { Campaign } from "@/lib/soroban";
-import { createSorobanMock } from "@/test/mockSoroban";
 
 const hooks = vi.hoisted(() => {
   const makeMutation = () => ({ mutateAsync: vi.fn(), isPending: false });
@@ -13,6 +12,8 @@ const hooks = vi.hoisted(() => {
     addUpdate: makeMutation(),
     pauseContract: makeMutation(),
     unpauseContract: makeMutation(),
+    setOwner: makeMutation(),
+    wallet: { address: null as string | null },
     platformConfig: {
       data: undefined as any,
       isLoading: false,
@@ -24,17 +25,22 @@ const hooks = vi.hoisted(() => {
   };
 });
 
-vi.mock("@/hooks/useSoroban", () =>
-  createSorobanMock({
+vi.mock("@/hooks/useSoroban", async () =>
+  (await import("@/test/mockSoroban")).createSorobanMock({
     useAddToWhitelist: () => hooks.addToWhitelist,
     useCancelCampaign: () => hooks.cancelCampaign,
     useAddUpdate: () => hooks.addUpdate,
     usePauseContract: () => hooks.pauseContract,
     useUnpauseContract: () => hooks.unpauseContract,
+    useSetOwner: () => hooks.setOwner,
     usePlatformConfig: () => hooks.platformConfig,
     useResolvedName: () => ({ data: undefined }),
   }),
 );
+
+vi.mock("@/lib/WalletProvider", () => ({
+  useWallet: () => hooks.wallet,
+}));
 
 vi.mock("sonner", () => ({
   toast: { error: hooks.toastError, success: vi.fn() },
@@ -79,6 +85,7 @@ beforeEach(() => {
     hooks.addUpdate,
     hooks.pauseContract,
     hooks.unpauseContract,
+    hooks.setOwner,
   ]) {
     m.isPending = false;
     m.mutateAsync.mockReset();
@@ -90,6 +97,7 @@ beforeEach(() => {
     feeBps: 250,
     feeDenominator: 10000,
   };
+  hooks.wallet.address = null;
   hooks.platformConfig.isLoading = false;
   hooks.platformConfig.isError = false;
   hooks.platformConfig.isFetching = false;
@@ -435,5 +443,92 @@ describe("AdminPanel – whitelist", () => {
     renderPanel();
     expect(screen.getByRole("button", { name: /Whitelisting Address/ })).toBeDisabled();
     expect(screen.getByLabelText("Stellar Address to Whitelist")).toBeDisabled();
+  });
+});
+
+describe("AdminPanel – ownership transfer", () => {
+  // A real, checksum-valid account address (VALID_ADDRESS is the current owner).
+  const NEW_OWNER = "GA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVSGZ";
+
+  it("is hidden from wallets that are not the contract owner", () => {
+    hooks.wallet.address = NEW_OWNER;
+    renderPanel();
+    expect(screen.queryByRole("heading", { name: /Transfer Ownership/i })).not.toBeInTheDocument();
+  });
+
+  it("is hidden while the owner is unknown", () => {
+    hooks.wallet.address = VALID_ADDRESS;
+    hooks.platformConfig.data = undefined;
+    renderPanel();
+    expect(screen.queryByRole("heading", { name: /Transfer Ownership/i })).not.toBeInTheDocument();
+  });
+
+  it("is shown to the contract owner, even without campaigns", () => {
+    hooks.wallet.address = VALID_ADDRESS;
+    renderPanel([]);
+    expect(screen.getByRole("heading", { name: /Transfer Ownership/i })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /Campaign Management/i })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["a malformed address", "not-an-address", /Invalid Stellar address/],
+    ["a bad checksum", NEW_OWNER.slice(0, 55) + "A", /Invalid Stellar address/],
+    [
+      "a contract address",
+      "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+      /Invalid Stellar address/,
+    ],
+    ["the current owner", "", /already the owner/],
+  ])("rejects %s before signing", async (_label, input, message) => {
+    // Use a checksum-valid owner so "already the owner" is reachable.
+    hooks.platformConfig.data.owner = NEW_OWNER;
+    hooks.wallet.address = NEW_OWNER;
+    const user = renderPanel();
+
+    await user.type(screen.getByLabelText(/New owner address/i), input || NEW_OWNER);
+    await user.click(screen.getByRole("button", { name: /Review Transfer/i }));
+
+    expect(screen.getByText(message)).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(hooks.setOwner.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("requires typing TRANSFER, then signs set_owner with the new address", async () => {
+    hooks.wallet.address = VALID_ADDRESS;
+    const user = renderPanel();
+
+    await user.type(screen.getByLabelText(/New owner address/i), `  ${NEW_OWNER} `);
+    await user.click(screen.getByRole("button", { name: /Review Transfer/i }));
+
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByTestId("transfer-new-owner")).toHaveTextContent(NEW_OWNER);
+    const confirm = within(dialog).getByRole("button", { name: /^Transfer Ownership$/i });
+    expect(confirm).toBeDisabled();
+
+    await user.type(within(dialog).getByLabelText(/to confirm/i), "transfer");
+    expect(confirm).toBeDisabled();
+    await user.clear(within(dialog).getByLabelText(/to confirm/i));
+    await user.type(within(dialog).getByLabelText(/to confirm/i), "TRANSFER");
+    await user.click(confirm);
+
+    expect(hooks.setOwner.mutateAsync).toHaveBeenCalledWith(NEW_OWNER);
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.getByLabelText(/New owner address/i)).toHaveValue("");
+  });
+
+  it("keeps the dialog open when the transfer fails", async () => {
+    hooks.wallet.address = VALID_ADDRESS;
+    hooks.setOwner.mutateAsync.mockRejectedValue(new Error("rejected"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const user = renderPanel();
+
+    await user.type(screen.getByLabelText(/New owner address/i), NEW_OWNER);
+    await user.click(screen.getByRole("button", { name: /Review Transfer/i }));
+    const dialog = screen.getByRole("dialog");
+    await user.type(within(dialog).getByLabelText(/to confirm/i), "TRANSFER");
+    await user.click(within(dialog).getByRole("button", { name: /^Transfer Ownership$/i }));
+
+    await waitFor(() => expect(hooks.setOwner.mutateAsync).toHaveBeenCalled());
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });

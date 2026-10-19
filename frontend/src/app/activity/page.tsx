@@ -9,8 +9,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useEvents } from "@/hooks/useSoroban";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { Activity, Loader2, AlertTriangle, RotateCw, Search, X } from "lucide-react";
-import { getCampaignId, getEventField } from "@/lib/eventData";
-import { normalizeAddress } from "@/utils/format";
+import {
+  getCampaignId,
+  parseClaimEvent,
+  parseCreatedEvent,
+  parseDonationEvent,
+} from "@/lib/eventData";
 import type { SorobanEvent } from "@/lib/soroban";
 import dynamic from "next/dynamic";
 
@@ -32,9 +36,9 @@ function eventMatchesSearch(event: SorobanEvent, query: string): boolean {
   const campaignId = getCampaignId(event);
   if (campaignId && campaignId.includes(query)) return true;
   const participant =
-    normalizeAddress(getEventField(event, "donor")) ??
-    normalizeAddress(getEventField(event, "beneficiary")) ??
-    normalizeAddress(getEventField(event, "creator"));
+    parseDonationEvent(event)?.donor ??
+    parseClaimEvent(event)?.beneficiary ??
+    parseCreatedEvent(event)?.creator;
   if (participant && participant.toLowerCase().includes(query)) return true;
   return false;
 }

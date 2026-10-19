@@ -5,7 +5,7 @@ import React, { useState, useCallback, useRef } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { Campaign, getCampaign, type TokenMetadata } from "@/lib/soroban";
+import type { Campaign, TokenMetadata } from "@/lib/soroban";
 import { formatTokenAmount, formatUSD } from "@/utils/format";
 import { useTokenMetadata, useXlmPrice } from "@/hooks/useSoroban";
 import { calculateProgress, getCampaignImageUrl, CAMPAIGN_IMAGE_BLUR_DATA_URL } from "@/lib/utils";
@@ -117,7 +117,7 @@ function CampaignCardComponent({
       router.prefetch(detailHref);
       queryClient.prefetchQuery({
         queryKey: ["campaign", campaignId],
-        queryFn: () => getCampaign(campaign.id),
+        queryFn: async () => (await import("@/lib/soroban")).getCampaign(campaign.id),
         staleTime: 30_000,
       });
     }, PREFETCH_DEBOUNCE_MS);

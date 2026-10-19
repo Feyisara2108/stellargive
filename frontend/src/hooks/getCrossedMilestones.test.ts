@@ -13,8 +13,8 @@ vi.mock("sonner", () => ({
   },
 }));
 
-vi.mock("@stellar/freighter-api", () => ({
-  signTransaction: vi.fn().mockResolvedValue({ signedTxXdr: "mock_xdr" }),
+vi.mock("@/lib/wallet", () => ({
+  signTransaction: vi.fn().mockResolvedValue("mock_xdr"),
 }));
 
 // ─── Imports ────────────────────────────────────────────────────────────────
