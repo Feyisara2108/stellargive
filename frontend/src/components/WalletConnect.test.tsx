@@ -4,6 +4,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WalletConnect } from "./WalletConnect";
 import { MockWalletProvider, useMockWallet } from "./MockWalletProvider";
+import { WalletContext, FREIGHTER_INSTALL_URL, type ConnectResult } from "@/lib/WalletProvider";
 import { toast } from "sonner";
 
 // Mock external dependencies
@@ -867,6 +868,73 @@ describe("WalletConnect Component", () => {
         const disconnectButton = screen.getByRole("button", { name: /disconnect/i });
         expect(disconnectButton).toBeInTheDocument();
       });
+    });
+  });
+
+  describe("Connect failures", () => {
+    function renderWithConnect(result: ConnectResult) {
+      const connect = vi.fn().mockResolvedValue(result);
+      render(
+        <WalletContext.Provider
+          value={{
+            address: null,
+            isConnected: false,
+            walletNetwork: null,
+            isWrongNetwork: false,
+            connect,
+            disconnect: vi.fn(),
+            switchNetwork: vi.fn(),
+          }}
+        >
+          <WalletConnect />
+        </WalletContext.Provider>,
+      );
+      return connect;
+    }
+
+    it("shows a rejection error, not the success toast, when the user rejects the request", async () => {
+      const user = userEvent.setup();
+      const connect = renderWithConnect({ success: false, reason: "rejected" });
+
+      await user.click(screen.getByRole("button", { name: /connect wallet/i }));
+
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith("Connection request was rejected"),
+      );
+      expect(connect).toHaveBeenCalledTimes(1);
+      expect(toast.success).not.toHaveBeenCalled();
+    });
+
+    it("shows a generic error, not the success toast, when connecting fails", async () => {
+      const user = userEvent.setup();
+      renderWithConnect({ success: false, reason: "error", error: new Error("boom") });
+
+      await user.click(screen.getByRole("button", { name: /connect wallet/i }));
+
+      await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Failed to connect wallet"));
+      expect(toast.success).not.toHaveBeenCalled();
+    });
+
+    it("shows install guidance with a link when Freighter is missing", async () => {
+      const user = userEvent.setup();
+      const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+      renderWithConnect({ success: false, reason: "not-installed" });
+
+      await user.click(screen.getByRole("button", { name: /connect wallet/i }));
+
+      await waitFor(() => expect(toast.error).toHaveBeenCalled());
+      expect(toast.success).not.toHaveBeenCalled();
+      const [message, options] = vi.mocked(toast.error).mock.calls[0] as [
+        string,
+        { description: string; action: { label: string; onClick: () => void } },
+      ];
+      expect(message).toBe("Freighter wallet not found");
+      expect(options.description).toMatch(/install the freighter/i);
+      expect(options.action.label).toBe("Install Freighter");
+
+      options.action.onClick();
+      expect(openSpy).toHaveBeenCalledWith(FREIGHTER_INSTALL_URL, "_blank", "noopener,noreferrer");
+      openSpy.mockRestore();
     });
   });
 });

@@ -29,6 +29,8 @@ import { usePlatformStats } from "./useSoroban";
 import { getTotalCampaigns, getRecentCampaigns } from "@/lib/soroban";
 
 const WALLET = "GA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVSGZ";
+const XLM = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
+const USDC = "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA";
 
 function makeCampaign(overrides: Partial<Campaign> = {}): Campaign {
   return {
@@ -42,7 +44,7 @@ function makeCampaign(overrides: Partial<Campaign> = {}): Campaign {
     target_amount: 1_000_000_000n,
     raised_amount: 0n,
     deadline: 1_900_000_000n,
-    accepted_token: "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+    accepted_token: XLM,
     status: "Active",
     ...overrides,
   };
@@ -70,7 +72,7 @@ beforeEach(() => {
 });
 
 describe("usePlatformStats — aggregation", () => {
-  it("sums raised_amount across every campaign", async () => {
+  it("sums raised_amount across every campaign in the same token", async () => {
     vi.mocked(getTotalCampaigns).mockResolvedValue(3n);
     vi.mocked(getRecentCampaigns).mockResolvedValue([
       makeCampaign({ id: 1n, raised_amount: 100n }),
@@ -82,9 +84,26 @@ describe("usePlatformStats — aggregation", () => {
 
     expect(result.current.data).toEqual({
       totalCampaigns: 3n,
-      totalRaised: "425",
+      raisedByToken: { [XLM]: "425" },
       activeCampaigns: 3,
     });
+  });
+
+  it("keeps XLM and USDC raised amounts separate instead of adding them", async () => {
+    vi.mocked(getTotalCampaigns).mockResolvedValue(3n);
+    vi.mocked(getRecentCampaigns).mockResolvedValue([
+      makeCampaign({ id: 1n, raised_amount: 100_000_000n, accepted_token: XLM }), // 10 XLM
+      makeCampaign({ id: 2n, raised_amount: 5_000_000n, accepted_token: USDC }), // 0.5 USDC
+      makeCampaign({ id: 3n, raised_amount: 20_000_000n, accepted_token: XLM }), // 2 XLM
+    ]);
+
+    const result = await renderStats();
+
+    expect(result.current.data?.raisedByToken).toEqual({
+      [XLM]: "120000000",
+      [USDC]: "5000000",
+    });
+    expect(result.current.data).not.toHaveProperty("totalRaised");
   });
 
   it("counts only Active campaigns, ignoring other statuses", async () => {
@@ -112,18 +131,18 @@ describe("usePlatformStats — aggregation", () => {
 
     const result = await renderStats();
 
-    expect(result.current.data?.totalRaised).toBe("1000");
+    expect(result.current.data?.raisedByToken).toEqual({ [XLM]: "1000" });
     expect(result.current.data?.activeCampaigns).toBe(1);
   });
 
-  it("returns totalRaised as a string", async () => {
+  it("returns raised amounts as strings", async () => {
     vi.mocked(getTotalCampaigns).mockResolvedValue(1n);
     vi.mocked(getRecentCampaigns).mockResolvedValue([makeCampaign({ raised_amount: 42n })]);
 
     const result = await renderStats();
 
-    expect(typeof result.current.data?.totalRaised).toBe("string");
-    expect(result.current.data?.totalRaised).toBe("42");
+    expect(typeof result.current.data?.raisedByToken[XLM]).toBe("string");
+    expect(result.current.data?.raisedByToken[XLM]).toBe("42");
   });
 
   it("requests every campaign, not just the default page", async () => {
@@ -144,7 +163,7 @@ describe("usePlatformStats — aggregation", () => {
 
     expect(result.current.data).toEqual({
       totalCampaigns: 5n,
-      totalRaised: "0",
+      raisedByToken: {},
       activeCampaigns: 0,
     });
   });
@@ -158,7 +177,7 @@ describe("usePlatformStats — empty short-circuit", () => {
 
     expect(result.current.data).toEqual({
       totalCampaigns: 0n,
-      totalRaised: "0",
+      raisedByToken: {},
       activeCampaigns: 0,
     });
     expect(getRecentCampaigns).not.toHaveBeenCalled();
@@ -178,7 +197,7 @@ describe("usePlatformStats — bigint precision", () => {
 
     const result = await renderStats();
 
-    expect(result.current.data?.totalRaised).toBe((big * 3n).toString());
+    expect(result.current.data?.raisedByToken[XLM]).toBe((big * 3n).toString());
   });
 
   it("preserves the exact odd unit on an i128-scale total", async () => {
@@ -189,8 +208,8 @@ describe("usePlatformStats — bigint precision", () => {
 
     const result = await renderStats();
 
-    expect(result.current.data?.totalRaised).toBe(huge.toString());
-    expect(result.current.data?.totalRaised.endsWith("727")).toBe(true);
+    expect(result.current.data?.raisedByToken[XLM]).toBe(huge.toString());
+    expect(result.current.data?.raisedByToken[XLM].endsWith("727")).toBe(true);
   });
 
   it("keeps stroop-level precision when large and tiny amounts are mixed", async () => {
@@ -202,6 +221,6 @@ describe("usePlatformStats — bigint precision", () => {
 
     const result = await renderStats();
 
-    expect(result.current.data?.totalRaised).toBe("10000000000000000001");
+    expect(result.current.data?.raisedByToken[XLM]).toBe("10000000000000000001");
   });
 });

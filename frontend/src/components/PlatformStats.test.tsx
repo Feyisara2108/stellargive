@@ -14,11 +14,18 @@ vi.mock("@/lib/soroban", async (importOriginal) => {
     ...actual,
     getTotalCampaigns: vi.fn(),
     getRecentCampaigns: vi.fn(),
+    getTokenMetadata: vi.fn(),
   };
 });
 
+const XLM = vi.hoisted(() => "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC");
+const USDC = "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA";
+
+// Pin the native token so these campaigns' accepted_token reads as XLM.
+vi.mock("@/lib/tokens", () => ({ NATIVE_XLM_CONTRACT_ID: XLM }));
+
 import { PlatformStats } from "./PlatformStats";
-import { getTotalCampaigns, getRecentCampaigns } from "@/lib/soroban";
+import { getTotalCampaigns, getRecentCampaigns, getTokenMetadata } from "@/lib/soroban";
 
 const mockGetTotalCampaigns = vi.mocked(getTotalCampaigns);
 const mockGetRecentCampaigns = vi.mocked(getRecentCampaigns);
@@ -37,7 +44,7 @@ function makeCampaign(overrides: Partial<Campaign> = {}): Campaign {
     target_amount: 1_000_000_000n,
     raised_amount: 0n,
     deadline: 1_900_000_000n,
-    accepted_token: "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+    accepted_token: XLM,
     status: "Active",
     ...overrides,
   };
@@ -122,6 +129,45 @@ describe("PlatformStats — populated", () => {
     expect(within(statCard("Total Campaigns")).getByText("2")).toBeInTheDocument();
     expect(within(statCard("Total Raised")).getByText("0 XLM")).toBeInTheDocument();
     expect(within(statCard("Active Campaigns")).getByText("0")).toBeInTheDocument();
+  });
+});
+
+describe("PlatformStats — mixed tokens", () => {
+  it("lists XLM and USDC raised separately instead of one XLM total", async () => {
+    vi.mocked(getTokenMetadata).mockResolvedValue({ symbol: "USDC", decimals: 7 });
+    mockGetTotalCampaigns.mockResolvedValue(3n);
+    mockGetRecentCampaigns.mockResolvedValue([
+      makeCampaign({ id: 1n, raised_amount: 100_000_000n, accepted_token: XLM }), // 10 XLM
+      makeCampaign({ id: 2n, raised_amount: 25_000_000n, accepted_token: USDC }), // 2.5 USDC
+      makeCampaign({ id: 3n, raised_amount: 20_000_000n, accepted_token: XLM }), // 2 XLM
+    ]);
+
+    renderStats();
+
+    const card = await waitFor(() => {
+      const el = statCard("Total Raised");
+      expect(within(el).getByText("12 XLM · 2.5 USDC")).toBeInTheDocument();
+      return el;
+    });
+    // The USDC amount is never folded into the XLM figure.
+    expect(within(card).queryByText(/14\.5/)).toBeNull();
+    expect(getTokenMetadata).toHaveBeenCalledWith(USDC);
+    expect(getTokenMetadata).not.toHaveBeenCalledWith(XLM);
+  });
+
+  it("labels a single non-XLM token with its own symbol", async () => {
+    vi.mocked(getTokenMetadata).mockResolvedValue({ symbol: "USDC", decimals: 7 });
+    mockGetTotalCampaigns.mockResolvedValue(1n);
+    mockGetRecentCampaigns.mockResolvedValue([
+      makeCampaign({ raised_amount: 25_000_000n, accepted_token: USDC }),
+    ]);
+
+    renderStats();
+
+    await waitFor(() =>
+      expect(within(statCard("Total Raised")).getByText("2.5 USDC")).toBeInTheDocument(),
+    );
+    expect(within(statCard("Total Raised")).queryByText(/XLM/)).toBeNull();
   });
 });
 
