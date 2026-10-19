@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import * as freighterApi from "@stellar/freighter-api";
+import * as wallet from "@/lib/wallet";
 import { WalletProvider } from "@/lib/WalletProvider";
 import { DonateModal } from "@/components/DonateModal";
 import { ClaimButton } from "@/components/ClaimButton";
@@ -10,12 +10,18 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { makeCampaign, WALLET_ADDRESS } from "@/test/factories";
 import type { Campaign } from "@/lib/soroban";
 
-// Mock freighter extension API
-vi.mock("@stellar/freighter-api", () => ({
-  isConnected: vi.fn(),
-  getAddress: vi.fn(),
-  setAllowed: vi.fn(),
-  getNetwork: vi.fn(),
+// Mock the wallet abstraction (src/lib/wallet.ts)
+vi.mock("@/lib/wallet", () => ({
+  WALLETS: [
+    { id: "freighter", name: "Freighter", url: "https://www.freighter.app", kind: "extension" },
+    { id: "albedo", name: "Albedo", url: "https://albedo.link", kind: "web" },
+  ],
+  isWalletAvailable: vi.fn().mockResolvedValue(true),
+  restoreWallet: vi.fn(),
+  connectWallet: vi.fn(),
+  disconnectWallet: vi.fn(),
+  getWalletNetwork: vi.fn(),
+  getNetworkSwitcher: vi.fn().mockResolvedValue(null),
 }));
 
 // Mock sentry
@@ -148,13 +154,11 @@ function renderGatedActions(options?: {
 }
 
 /**
- * Simulates switching the active network in the Freighter wallet extension.
+ * Simulates switching the active network in the user's wallet.
  * Triggers the visibilitychange/focus handlers installed by WalletProvider to re-poll network.
  */
 async function simulateNetworkSwitch(newNetwork: string) {
-  vi.mocked(freighterApi.getNetwork).mockResolvedValue({
-    network: newNetwork,
-  } as any);
+  vi.mocked(wallet.getWalletNetwork).mockResolvedValue(newNetwork);
 
   Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
   await act(async () => {
@@ -172,12 +176,9 @@ describe("Integration: wrong-network action gating across actions", () => {
     toastLoading.mockClear();
 
     // Default: connected wallet on an unsupported network
-    vi.mocked(freighterApi.isConnected).mockResolvedValue({ isConnected: true });
-    vi.mocked(freighterApi.getAddress).mockResolvedValue({ address: WALLET_ADDRESS });
-    vi.mocked(freighterApi.setAllowed).mockResolvedValue({ isAllowed: true });
-    vi.mocked(freighterApi.getNetwork).mockResolvedValue({
-      network: UNSUPPORTED_NETWORK,
-    } as any);
+    vi.mocked(wallet.restoreWallet).mockResolvedValue(WALLET_ADDRESS);
+    vi.mocked(wallet.connectWallet).mockResolvedValue(WALLET_ADDRESS);
+    vi.mocked(wallet.getWalletNetwork).mockResolvedValue(UNSUPPORTED_NETWORK);
   });
 
   it("disables donate, claim, and refund actions with surfaced reasons on wrong network, then enables all after network switch", async () => {

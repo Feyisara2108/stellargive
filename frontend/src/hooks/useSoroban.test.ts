@@ -21,8 +21,8 @@ vi.mock("sonner", () => ({
   },
 }));
 
-vi.mock("@stellar/freighter-api", () => ({
-  signTransaction: vi.fn((xdr: any) => Promise.resolve({ signedTxXdr: xdr })),
+vi.mock("@/lib/wallet", () => ({
+  signTransaction: vi.fn((xdr: string) => Promise.resolve(xdr)),
 }));
 
 // ─── Imports (after mocks) ───────────────────────────────────────────────────
@@ -752,20 +752,11 @@ describe("useSoroban", () => {
 // ─── XLM price fetch ─────────────────────────────────────────────────────────
 
 describe("fetchXlmPriceInUsd / useXlmPrice", () => {
-  const COINGECKO = "api.coingecko.com";
-  const STELLAR_EXPERT = "api.stellar.expert";
-
   const jsonResponse = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
-  /** Routes the stubbed fetch by host so each upstream can fail independently. */
-  function stubFetch(handlers: Record<string, () => Response | Promise<Response>>) {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input);
-      const key = Object.keys(handlers).find((host) => url.includes(host));
-      if (!key) throw new Error(`Unexpected fetch: ${url}`);
-      return handlers[key]();
-    });
+  function stubFetch(handler: () => Response | Promise<Response>) {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL) => handler());
     vi.stubGlobal("fetch", fetchMock);
     return fetchMock;
   }
@@ -775,76 +766,37 @@ describe("fetchXlmPriceInUsd / useXlmPrice", () => {
   });
 
   describe("fetchXlmPriceInUsd", () => {
-    it("returns the CoinGecko price on success without calling the fallback", async () => {
-      const fetchMock = stubFetch({
-        [COINGECKO]: () => jsonResponse({ stellar: { usd: 0.123 } }),
-      });
+    it("reads the price from the same-origin price route, never a third party", async () => {
+      const fetchMock = stubFetch(() => jsonResponse({ usd: 0.123, source: "coingecko" }));
 
       await expect(fetchXlmPriceInUsd()).resolves.toBe(0.123);
       expect(fetchMock).toHaveBeenCalledTimes(1);
-      expect(String(fetchMock.mock.calls[0][0])).toContain(COINGECKO);
+      const url = String(fetchMock.mock.calls[0][0]);
+      expect(url).toBe("/api/price");
+      expect(url).not.toContain("coingecko");
+      expect(url).not.toContain("stellar.expert");
     });
 
-    it("falls back to Stellar Expert when CoinGecko returns a non-200", async () => {
-      const fetchMock = stubFetch({
-        [COINGECKO]: () => jsonResponse({ error: "rate limited" }, 429),
-        [STELLAR_EXPERT]: () => jsonResponse({ price: 0.2 }),
-      });
-
-      await expect(fetchXlmPriceInUsd()).resolves.toBe(0.2);
-      expect(fetchMock).toHaveBeenCalledTimes(2);
-    });
-
-    it("returns null without throwing when every endpoint returns a non-200", async () => {
-      stubFetch({
-        [COINGECKO]: () => jsonResponse({}, 500),
-        [STELLAR_EXPERT]: () => jsonResponse({}, 503),
-      });
+    it("returns null without throwing when the route reports the price unavailable", async () => {
+      stubFetch(() => jsonResponse({ usd: null, error: "Price unavailable" }, 503));
 
       await expect(fetchXlmPriceInUsd()).resolves.toBeNull();
     });
 
-    it("falls back when CoinGecko returns malformed JSON", async () => {
-      stubFetch({
-        [COINGECKO]: () => new Response("<html>not json</html>", { status: 200 }),
-        [STELLAR_EXPERT]: () => jsonResponse({ price: 0.3 }),
-      });
-
-      await expect(fetchXlmPriceInUsd()).resolves.toBe(0.3);
-    });
-
-    it("returns null without throwing when every endpoint returns malformed JSON", async () => {
-      stubFetch({
-        [COINGECKO]: () => new Response("{oops", { status: 200 }),
-        [STELLAR_EXPERT]: () => new Response("{oops", { status: 200 }),
-      });
+    it("returns null without throwing on malformed JSON", async () => {
+      stubFetch(() => new Response("<html>not json</html>", { status: 200 }));
 
       await expect(fetchXlmPriceInUsd()).resolves.toBeNull();
     });
 
     it("rejects well-formed JSON whose price is missing or not a number", async () => {
-      stubFetch({
-        [COINGECKO]: () => jsonResponse({ stellar: { usd: "0.12" } }),
-        [STELLAR_EXPERT]: () => jsonResponse({ price: null }),
-      });
+      stubFetch(() => jsonResponse({ usd: "0.12" }));
 
       await expect(fetchXlmPriceInUsd()).resolves.toBeNull();
     });
 
-    it("falls back when CoinGecko has a network failure", async () => {
-      stubFetch({
-        [COINGECKO]: () => Promise.reject(new TypeError("Failed to fetch")),
-        [STELLAR_EXPERT]: () => jsonResponse({ price: 0.4 }),
-      });
-
-      await expect(fetchXlmPriceInUsd()).resolves.toBe(0.4);
-    });
-
-    it("returns null without throwing when the network is down entirely", async () => {
-      stubFetch({
-        [COINGECKO]: () => Promise.reject(new TypeError("Failed to fetch")),
-        [STELLAR_EXPERT]: () => Promise.reject(new TypeError("Failed to fetch")),
-      });
+    it("returns null without throwing when the network is down", async () => {
+      stubFetch(() => Promise.reject(new TypeError("Failed to fetch")));
 
       await expect(fetchXlmPriceInUsd()).resolves.toBeNull();
     });
@@ -852,7 +804,7 @@ describe("fetchXlmPriceInUsd / useXlmPrice", () => {
 
   describe("useXlmPrice", () => {
     it("exposes the fetched price", async () => {
-      stubFetch({ [COINGECKO]: () => jsonResponse({ stellar: { usd: 0.5 } }) });
+      stubFetch(() => jsonResponse({ usd: 0.5 }));
       const { Wrapper } = makeWrapper();
       const { result } = renderHook(() => useXlmPrice(), { wrapper: Wrapper });
 
@@ -860,24 +812,8 @@ describe("fetchXlmPriceInUsd / useXlmPrice", () => {
       expect(result.current.data).toBe(0.5);
     });
 
-    it("resolves to null (not an error state) when all sources fail", async () => {
-      stubFetch({
-        [COINGECKO]: () => Promise.reject(new TypeError("Failed to fetch")),
-        [STELLAR_EXPERT]: () => jsonResponse({}, 500),
-      });
-      const { Wrapper } = makeWrapper();
-      const { result } = renderHook(() => useXlmPrice(), { wrapper: Wrapper });
-
-      await waitFor(() => expect(result.current.isSuccess).toBe(true));
-      expect(result.current.data).toBeNull();
-      expect(result.current.isError).toBe(false);
-    });
-
-    it("resolves to null on malformed JSON from every source", async () => {
-      stubFetch({
-        [COINGECKO]: () => new Response("nope", { status: 200 }),
-        [STELLAR_EXPERT]: () => new Response("nope", { status: 200 }),
-      });
+    it("resolves to null (not an error state) when the price is unavailable", async () => {
+      stubFetch(() => jsonResponse({ usd: null }, 503));
       const { Wrapper } = makeWrapper();
       const { result } = renderHook(() => useXlmPrice(), { wrapper: Wrapper });
 

@@ -20,6 +20,7 @@
     "license:check": "node scripts/check-licenses.mjs"
   },
   "dependencies": {
+    "@albedo-link/intent": "~0.12.0",
     "@emnapi/core": "^1.11.2",
     "@emnapi/runtime": "^1.11.2",
     "@hookform/resolvers": "^5.9.1",

@@ -9,7 +9,6 @@ import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { formatAddress } from "@/utils/format";
 import { getSACBalance, fromStroops } from "@/lib/soroban";
-import * as freighter from "@stellar/freighter-api";
 
 export function WalletConnect() {
   const { address, isConnected, connect, disconnect, walletNetwork, isWrongNetwork } = useWallet();
@@ -57,8 +56,10 @@ export function WalletConnect() {
   const handleConnect = async () => {
     setIsConnecting(true);
     try {
-      await connect();
-      toast.success("Wallet connected!");
+      // False when the user closed the wallet picker or the wallet refused access.
+      if (await connect()) {
+        toast.success("Wallet connected!");
+      }
     } catch (e) {
       toast.error("Failed to connect wallet");
     } finally {
@@ -67,14 +68,8 @@ export function WalletConnect() {
   };
 
   const handleDisconnect = () => {
-    try {
-      const freighterObj = freighter as unknown as { disconnect?: () => void };
-      if (typeof freighterObj.disconnect === "function") {
-        freighterObj.disconnect();
-      }
-    } catch (err) {
-      console.warn("Freighter disconnect method not available", err);
-    }
+    // WalletProvider's disconnect also tells the selected wallet to forget this
+    // session, whichever wallet it is.
     disconnect();
     setIsDropdownOpen(false);
     toast.info("Wallet disconnected");

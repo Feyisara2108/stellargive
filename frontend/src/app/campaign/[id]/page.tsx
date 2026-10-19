@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getCampaign, fromStroops } from "@/lib/soroban";
+import { getCampaign, fromStroops, isCampaignNotFoundError } from "@/lib/soroban";
 import { formatBasisPoints } from "@/utils/format";
 import { CampaignDetailsClient } from "./CampaignDetailsClient";
 import type { BreadcrumbItem } from "@/components/Breadcrumbs";
@@ -28,6 +28,11 @@ function buildExploreHref(searchParams?: Record<string, string | string[] | unde
 
   const serialized = query.toString();
   return serialized ? `/explore?${serialized}` : "/explore";
+}
+
+/** Campaign ids are u64s; anything else can't exist on-chain. */
+function parseCampaignId(id: string): bigint | null {
+  return /^\d+$/.test(id) ? BigInt(id) : null;
 }
 
 function getImageUrl(metadataUri?: string) {
@@ -64,7 +69,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   try {
-    const campaign = await getCampaign(BigInt(resolvedParams.id));
+    const campaignId = parseCampaignId(resolvedParams.id);
+    if (campaignId === null) return fallback;
+    const campaign = await getCampaign(campaignId);
     const numBens = campaign.beneficiaries?.length ?? 1;
     const benDesc =
       numBens > 1
@@ -110,14 +117,27 @@ export default async function CampaignPage({
 }) {
   const resolvedParams = await params;
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const isMockMode = process.env.NEXT_PUBLIC_USE_MOCK_WALLET === "true";
   let campaignTitle: string | undefined;
 
+  const campaignId = parseCampaignId(resolvedParams.id);
+  if (campaignId === null) {
+    notFound();
+  }
+
   try {
-    const campaign = await getCampaign(BigInt(resolvedParams.id));
+    const campaign = await getCampaign(campaignId);
     campaignTitle = campaign.title;
-  } catch {
-    if (process.env.NEXT_PUBLIC_USE_MOCK_WALLET !== "true") {
-      notFound();
+  } catch (error) {
+    // E2E runs mock the RPC in the browser, so the server-side read is expected to fail.
+    if (!isMockMode) {
+      // Only the contract saying the campaign doesn't exist is a 404. RPC / network
+      // failures go to the error boundary (./error.tsx), which offers a retry,
+      // instead of making a valid campaign look deleted.
+      if (isCampaignNotFoundError(error)) {
+        notFound();
+      }
+      throw error;
     }
   }
 
