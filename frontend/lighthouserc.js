@@ -35,8 +35,10 @@ module.exports = {
         "cumulative-layout-shift": ["error", { maxNumericValue: 0.25 }],
         interactive: ["error", { maxNumericValue: 6000 }],
 
-        // JS/Total bundle budget – 4 MB for JS resources (soroban-sdk is large)
-        "resource-summary:script:size": ["error", { maxNumericValue: 4_000_000 }],
+        // JS transfer budget (compressed bytes). The audited pages load ~350 KB of
+        // first-load JS, then ~190 KB of lazily loaded Stellar SDK chunks once their
+        // queries run (~540 KB measured from `npm run analyze`); budget adds ~30%.
+        "resource-summary:script:size": ["error", { maxNumericValue: 700_000 }],
         // Total page weight budget
         "resource-summary:total:size": ["error", { maxNumericValue: 8_000_000 }],
       },

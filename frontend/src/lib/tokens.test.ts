@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { Networks, StrKey } from "@stellar/stellar-sdk";
+import { Asset, Networks, StrKey } from "@stellar/stellar-sdk";
 import {
+  NATIVE_XLM_CONTRACT_IDS,
   PREDEFINED_USDC_CONTRACT_IDS,
+  resolveNativeXlmContractId,
   resolveUsdcContractId,
   NATIVE_XLM_CONTRACT_ID,
 } from "./tokens";
@@ -51,5 +53,22 @@ describe("tokens", () => {
     const invalidContract = "invalid-contract-id";
     const resolved = resolveUsdcContractId(Networks.TESTNET, invalidContract);
     expect(resolved).toBe(PREDEFINED_USDC_CONTRACT_IDS[Networks.TESTNET]);
+  });
+
+  it("precomputed native XLM contract IDs match the SDK derivation for every network", () => {
+    for (const passphrase of Object.values(Networks)) {
+      expect(NATIVE_XLM_CONTRACT_IDS[passphrase], passphrase).toBe(
+        Asset.native().contractId(passphrase),
+      );
+    }
+  });
+
+  it("uses the native XLM env override for custom networks", () => {
+    const custom = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
+    expect(resolveNativeXlmContractId("My Custom Network", custom)).toBe(custom);
+    expect(resolveNativeXlmContractId("My Custom Network", "junk")).toBe("");
+    expect(resolveNativeXlmContractId(Networks.TESTNET, undefined)).toBe(
+      NATIVE_XLM_CONTRACT_IDS[Networks.TESTNET],
+    );
   });
 });

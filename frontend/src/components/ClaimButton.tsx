@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useClaimFunds } from "@/hooks/useSoroban";
 import { useWallet } from "@/lib/WalletProvider";
-import { Campaign } from "@/lib/soroban";
+import type { Campaign } from "@/lib/soroban";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { toast } from "sonner";

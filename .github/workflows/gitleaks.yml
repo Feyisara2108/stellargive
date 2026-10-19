@@ -4,6 +4,10 @@ on:
   pull_request:
   push:
     branches: [main]
+  # gitleaks and validate-config are required status checks (#1100). On merge
+  # queue runs their `if:` skips them, which reports a passing (skipped) check
+  # instead of leaving the queue waiting; the PR run already scanned the diff.
+  merge_group:
   # Full-history re-scan: catches secrets hidden in old commits after rule
   # changes, not just the commits in the current push/PR.
   schedule:

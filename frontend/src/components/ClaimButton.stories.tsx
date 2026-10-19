@@ -20,7 +20,7 @@ const withWallet = (address: string | null) =>
           isConnected: !!address,
           walletNetwork: null,
           isWrongNetwork: false,
-          connect: async () => {},
+          connect: async () => ({ success: false, reason: "not-installed" }),
           disconnect: () => {},
           switchNetwork: async () => ({ supported: false, success: false }),
         }}

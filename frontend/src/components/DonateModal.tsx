@@ -65,6 +65,9 @@ function mapOnChainError(error: unknown): string | null {
   if (msg.includes("User declined") || msg.includes("cancelled") || msg.includes("User rejected")) {
     return null; // user-initiated, no inline error needed
   }
+  if (getContractErrorCode(msg) === CONTRACT_ERROR_CODES.ExceedsDonorCap) {
+    return EXCEEDS_DONOR_CAP_MESSAGE;
+  }
   if (msg.includes("Simulation failed") || msg.includes("Transaction failed")) {
     return "The transaction was rejected on-chain. Check the donation amount and try again.";
   }

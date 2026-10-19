@@ -78,30 +78,41 @@ To enable Sentry, you must provide the following variables in your `.env.local` 
 
 ## Bundle Analysis
 
-Each route's client-side JavaScript (its own page code plus the shared chunks it
-loads) is budgeted at **3 MiB** (raw, pre-gzip). This is enforced via webpack's
-`performance` options in `next.config.mjs`. The ceiling starts generous because
-most routes ship the Stellar/Soroban SDK (see `lighthouserc.js`'s own 4 MB
-script-size allowance for the same reason) — tighten `ROUTE_JS_BUDGET_BYTES`
-once you've measured a real baseline with the analyzer below.
+The Stellar SDK is never part of a route's first-load JS: hooks in
+`src/hooks/useSoroban.ts` load `@/lib/soroban` (and the SDK) with a dynamic
+`import()` when a query or mutation first runs, and layout-level UI reads
+SDK-free modules (`lib/config.ts`, `lib/network.ts`, `lib/amounts.ts`,
+`lib/strkey.ts`, `lib/tokens.ts`). Keep it that way: don't add a static import
+of `@stellar/stellar-sdk` or a value import from `@/lib/soroban` to a component
+(type-only imports are fine).
+
+Webpack's `performance` options in `next.config.mjs` enforce two budgets (raw,
+pre-gzip), each a measured baseline plus ~25%:
+
+- `ENTRYPOINT_JS_BUDGET_BYTES` (768 KiB) for any webpack entrypoint (the shared
+  runtime is the largest at ~613 KiB);
+- `ASSET_JS_BUDGET_BYTES` (896 KiB) for any single chunk (the lazily loaded SDK
+  chunk is the largest at ~710 KiB).
+
+`lighthouserc.js` caps compressed script transfer at 700 KB per audited page, and
+the Performance workflow caps the total of all emitted JS at 3.25 MB.
 
 - **Run the analyzer locally**:
 
   ```bash
-  npm run analyze
+  npm run analyze          # webpack build + treemaps under .next/analyze/
+  npm run analyze:routes   # first-load JS per route (raw and gzip)
   ```
 
-  This runs a production build with `@next/bundle-analyzer` enabled and opens an
-  interactive treemap report for the client, server, and edge bundles in your
-  browser (one HTML file per bundle, written under `.next/analyze/`).
+  The analyzer only works with webpack, so `npm run analyze` passes `--webpack`
+  (a plain `next build` uses Turbopack).
 
-- **Budget enforcement**: `npm run analyze` fails the build (and therefore the
-  report) if any route's entrypoint or asset exceeds the 3 MiB budget. A plain
-  `npm run build` only prints a warning for the same condition, so a route
-  creeping over budget doesn't block an unrelated production deploy before
+- **Budget enforcement**: `npm run analyze` fails the build if an entrypoint or
+  asset exceeds its budget. A plain `npm run build` doesn't check them, so a
+  route creeping over budget doesn't block an unrelated production deploy before
   someone has reviewed the analyzer report.
-- If a route legitimately needs to grow past the budget, adjust
-  `ROUTE_JS_BUDGET_BYTES` in `next.config.mjs`.
+- If a route legitimately needs to grow past a budget, adjust it in
+  `next.config.mjs` and note the new measurement there.
 
 ## Contributing
 

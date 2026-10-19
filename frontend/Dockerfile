@@ -2,35 +2,54 @@
 # -----------------------
 # Dependency Stage
 # -----------------------
-FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS deps
+FROM node:22.23.3-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 AS deps
 
 WORKDIR /app
 
-COPY package*.json ./
+# .npmrc carries legacy-peer-deps=true; without it `npm ci` rejects the lockfile
+# on peer-dependency conflicts.
+COPY package*.json .npmrc ./
 RUN --mount=type=cache,target=/root/.npm \
     npm ci
 
 # -----------------------
 # Build Stage
 # -----------------------
-FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS builder
+FROM node:22.23.3-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 AS builder
 
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# Next.js inlines NEXT_PUBLIC_* into the client bundle at build time, so they
+# must be present here — setting them on `docker run` cannot change built code
+# (#1099). These are public values only: never pass a secret as a build arg.
+# ARGs are visible to RUN steps in this stage only and never reach the runtime
+# image. Empty ones are unset before building so the app's `??` fallbacks apply.
+ARG NEXT_PUBLIC_SOROBAN_RPC_URL
+ARG NEXT_PUBLIC_NETWORK_PASSPHRASE
+ARG NEXT_PUBLIC_CONTRACT_ID
+ARG NEXT_PUBLIC_USDC_CONTRACT_ID
+ARG NEXT_PUBLIC_SENTRY_DSN
+ARG NEXT_PUBLIC_APP_URL
+
 # Sentry source-map upload: the token is passed as a BuildKit secret so it
 # is never baked into the image layers (#1116).
 RUN --mount=type=secret,id=sentry_auth_token \
     --mount=type=cache,target=/app/.next/cache \
-    SENTRY_AUTH_TOKEN=$(cat /run/secrets/sentry_auth_token 2>/dev/null || echo "") \
+    for var in NEXT_PUBLIC_SOROBAN_RPC_URL NEXT_PUBLIC_NETWORK_PASSPHRASE \
+               NEXT_PUBLIC_CONTRACT_ID NEXT_PUBLIC_USDC_CONTRACT_ID \
+               NEXT_PUBLIC_SENTRY_DSN NEXT_PUBLIC_APP_URL; do \
+      eval "[ -n \"\${$var:-}\" ]" || unset "$var"; \
+    done \
+    && SENTRY_AUTH_TOKEN=$(cat /run/secrets/sentry_auth_token 2>/dev/null || echo "") \
     NEXT_BUILD_TARGET=docker npm run build
 
 # -----------------------
 # Runtime Stage
 # -----------------------
-FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS runner
+FROM node:22.23.3-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 AS runner
 
 WORKDIR /app
 

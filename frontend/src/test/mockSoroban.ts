@@ -38,12 +38,14 @@ export function createSorobanMock(overrides: Record<string, unknown> = {}) {
     useFilteredCampaigns: vi.fn(() => ({ ...idleQuery, data: [] })),
     usePlatformStats: vi.fn(() => ({
       ...idleQuery,
-      data: { totalCampaigns: 0n, totalRaised: "0", activeCampaigns: 0 },
+      data: { totalCampaigns: 0n, raisedByToken: {}, activeCampaigns: 0 },
     })),
     useUniqueDonors: vi.fn(() => ({ ...idleQuery, data: 0 })),
+    useEventHistory: vi.fn(() => ({ ...idleQuery })),
     usePlatformConfig: vi.fn(() => ({ ...idleQuery })),
     useEvents: vi.fn(() => ({ ...idleQuery, data: [], refetch: vi.fn() })),
     useGetUpdates: vi.fn(() => ({ ...idleQuery, data: [] })),
+    useTopDonors: vi.fn(() => ({ ...idleQuery, data: [] })),
     useRefundEligibility: vi.fn(() => ({ ...idleQuery, data: false })),
     useDonateFeeEstimate: vi.fn(() => ({ ...idleQuery, data: null })),
     useWalletBalance: vi.fn(() => ({ ...idleQuery, data: null })),
@@ -64,6 +66,7 @@ export function createSorobanMock(overrides: Record<string, unknown> = {}) {
     useAddToWhitelist: vi.fn(() => ({ ...idleMutation })),
     usePauseContract: vi.fn(() => ({ ...idleMutation })),
     useUnpauseContract: vi.fn(() => ({ ...idleMutation })),
+    useSetOwner: vi.fn(() => ({ ...idleMutation })),
 
     ...overrides,
   };

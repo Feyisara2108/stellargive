@@ -6,13 +6,14 @@ import { AddressLink } from "@/components/AddressLink";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import {
   MISSING_FIELD,
-  formatEventAmount,
+  formatStroops,
   formatTxHash,
   getCampaignId,
-  getEventField,
+  parseClaimEvent,
+  parseCreatedEvent,
+  parseDonationEvent,
 } from "@/lib/eventData";
 import { RelativeTime } from "@/components/RelativeTime";
-import { normalizeAddress } from "@/utils/format";
 import { ArrowUpRight, Megaphone, Trophy } from "lucide-react";
 import type { SorobanEvent } from "@/lib/soroban";
 
@@ -40,14 +41,18 @@ function useActivityData(event: SorobanEvent) {
   let label = event?.topic ?? MISSING_FIELD;
   let body: React.ReactNode = null;
 
-  if (event?.topic === "received") {
-    const donor = normalizeAddress(getEventField(event, "donor"));
+  const donation = parseDonationEvent(event);
+  const created = parseCreatedEvent(event);
+  const claim = parseClaimEvent(event);
+
+  if (donation) {
+    const { donor } = donation;
     icon = <ArrowUpRight className="w-4 h-4 text-green-500" />;
     iconBg = "bg-green-500/10";
     label = "Donated";
     body = (
       <>
-        <span className="font-bold">{formatEventAmount(event, "amount")}</span> donated
+        <span className="font-bold">{formatStroops(donation.amount)}</span> donated
         {donor ? (
           <>
             {" "}
@@ -62,22 +67,22 @@ function useActivityData(event: SorobanEvent) {
         {id && <> to Campaign #{id}</>}
       </>
     );
-  } else if (event?.topic === "created") {
+  } else if (created) {
     label = "Created";
     body = (
       <>
         New campaign{id && <> #{id}</>} created with a target of{" "}
-        <span className="font-bold">{formatEventAmount(event, "target_amount")}</span>
+        <span className="font-bold">{formatStroops(created.targetAmount)}</span>
       </>
     );
-  } else if (event?.topic === "claimed") {
-    const beneficiary = normalizeAddress(getEventField(event, "beneficiary"));
+  } else if (claim) {
+    const { beneficiary } = claim;
     icon = <Trophy className="w-4 h-4 text-purple-500" />;
     iconBg = "bg-purple-500/10";
     label = "Claimed";
     body = (
       <>
-        <span className="font-bold">{formatEventAmount(event, "amount")}</span> claimed
+        <span className="font-bold">{formatStroops(claim.amount)}</span> claimed
         {beneficiary ? (
           <>
             {" "}

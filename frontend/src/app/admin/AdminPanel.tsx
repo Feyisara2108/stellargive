@@ -26,9 +26,12 @@ import {
   usePauseContract,
   useUnpauseContract,
   usePlatformConfig,
+  useSetOwner,
 } from "@/hooks/useSoroban";
+import { useWallet } from "@/lib/WalletProvider";
+import { isValidAccountAddress } from "@/lib/strkey";
 import { toast } from "sonner";
-import { Campaign } from "@/lib/soroban";
+import type { Campaign } from "@/lib/soroban";
 import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
 import { PostUpdateForm } from "@/components/PostUpdateForm";
 import { AsyncBoundary } from "@/components/AsyncBoundary";
@@ -50,7 +53,24 @@ import {
   ListOrdered,
   Percent,
   RotateCw,
+  KeyRound,
 } from "lucide-react";
+
+/** Phrase the owner must type to confirm an ownership transfer. */
+const TRANSFER_CONFIRM_PHRASE = "TRANSFER";
+
+/** Why `candidate` can't become the new owner, or null when it can. */
+export function validateNewOwner(
+  candidate: string,
+  currentOwner: string | undefined,
+): string | null {
+  if (!candidate) return "Enter the new owner's Stellar address.";
+  if (!isValidAccountAddress(candidate)) {
+    return "Invalid Stellar address (must be a 56-character G... account with a valid checksum).";
+  }
+  if (currentOwner && candidate === currentOwner) return "This address is already the owner.";
+  return null;
+}
 
 interface AdminPanelProps {
   ownedCampaigns: Campaign[];
@@ -62,6 +82,8 @@ export function AdminPanel({ ownedCampaigns }: AdminPanelProps) {
   const addUpdate = useAddUpdate();
   const pauseContract = usePauseContract();
   const unpauseContract = useUnpauseContract();
+  const setOwner = useSetOwner();
+  const { address } = useWallet();
   const {
     data: platformConfig,
     isLoading: isConfigLoading,
@@ -82,6 +104,28 @@ export function AdminPanel({ ownedCampaigns }: AdminPanelProps) {
   const [showPauseConfirm, setShowPauseConfirm] = useState<boolean>(false);
   const [showUnpauseConfirm, setShowUnpauseConfirm] = useState<boolean>(false);
   const [pauseConfirmText, setPauseConfirmText] = useState<string>("");
+
+  const [newOwner, setNewOwner] = useState<string>("");
+  const [newOwnerError, setNewOwnerError] = useState<string>("");
+  const [showTransferConfirm, setShowTransferConfirm] = useState<boolean>(false);
+  const [transferConfirmText, setTransferConfirmText] = useState<string>("");
+
+  // The transfer flow is only offered to the wallet that currently owns the
+  // contract; the contract enforces this too, via the owner's auth.
+  const isContractOwner = !!address && platformConfig?.owner === address;
+
+  const closeTransferConfirm = () => {
+    setShowTransferConfirm(false);
+    setTransferConfirmText("");
+  };
+
+  const handleTransferSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const candidate = newOwner.trim();
+    const error = validateNewOwner(candidate, platformConfig?.owner);
+    setNewOwnerError(error ?? "");
+    if (!error) setShowTransferConfirm(true);
+  };
 
   const handleSelectCampaign = (id: string) => {
     setSelectedCampaignId(id);
@@ -230,153 +274,206 @@ export function AdminPanel({ ownedCampaigns }: AdminPanelProps) {
         </div>
       </div>
 
-      {/* Campaign Management */}
-      <div className="border rounded-xl bg-card p-6 shadow-sm space-y-6">
-        <div className="space-y-2">
-          <h2 className="text-xl font-semibold">Campaign Management</h2>
-          <p className="text-sm text-muted-foreground">
-            View your campaigns, post updates to backers, or cancel active campaigns.
-          </p>
-        </div>
-
-        <div className="divide-y rounded-lg border bg-background overflow-hidden">
-          {ownedCampaigns.map((c) => (
-            <div
-              key={c.id.toString()}
-              className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4"
-            >
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-semibold text-base">{c.title}</h3>
-                  <CampaignStatusBadge status={c.status} deadline={c.deadline} />
-                </div>
-                <p className="text-xs text-muted-foreground">ID: {c.id.toString()}</p>
-              </div>
-
-              <div className="flex items-center gap-2 flex-wrap">
-                <Button variant="outline" size="sm" asChild>
-                  <Link href={`/campaign/${c.id.toString()}`}>
-                    <Eye className="w-3.5 h-3.5 mr-1.5" /> View
-                  </Link>
-                </Button>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setUpdateCampaign(c)}
-                  disabled={addUpdate.isPending}
-                >
-                  <FileText className="w-3.5 h-3.5 mr-1.5" /> Post Update
-                </Button>
-
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => setCampaignToCancel(c)}
-                  disabled={c.status !== "Active" || cancelCampaign.isPending}
-                >
-                  <XCircle className="w-3.5 h-3.5 mr-1.5" /> Cancel
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Whitelist Management */}
-      <div className="border rounded-xl bg-card p-6 shadow-sm space-y-6">
-        <div className="space-y-2">
-          <h2 className="text-xl font-semibold">Whitelist Management</h2>
-          <p className="text-sm text-muted-foreground">
-            Authorize specific addresses to contribute to your campaigns.
-          </p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Ownership Transfer — owner only */}
+      {isContractOwner && (
+        <div className="border rounded-xl bg-card p-6 shadow-sm space-y-4">
           <div className="space-y-2">
-            <label htmlFor="campaign-select" className="text-sm font-medium">
-              Select Campaign
-            </label>
-            <Select value={selectedCampaignId} onValueChange={handleSelectCampaign}>
-              <SelectTrigger id="campaign-select">
-                <SelectValue placeholder="-- Choose a Campaign --" />
-              </SelectTrigger>
-              <SelectContent>
-                {ownedCampaigns.map((c) => (
-                  <SelectItem key={c.id.toString()} value={c.id.toString()}>
-                    {c.title} (ID: {c.id.toString()})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <h2 className="text-xl font-semibold flex items-center gap-2">
+              <KeyRound className="w-5 h-5 text-primary" />
+              Transfer Ownership
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Hand contract ownership (pause controls and upgrades) to another account. Once the
+              transfer is confirmed on-chain, this wallet loses owner access.
+            </p>
           </div>
 
-          <div className="space-y-2">
-            <label htmlFor="address-input" className="text-sm font-medium">
-              Stellar Address to Whitelist
-            </label>
-            <Input
-              id="address-input"
-              placeholder="G..."
-              value={addressToWhitelist}
-              onChange={(e) => handleAddressChange(e.target.value)}
-              disabled={addToWhitelist.isPending}
-              required
-            />
-            {validationError && (
-              <p className="text-xs text-destructive flex items-center gap-1">
-                <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {validationError}
+          <form onSubmit={handleTransferSubmit} className="space-y-3" noValidate>
+            <div className="space-y-2">
+              <label htmlFor="new-owner-input" className="text-sm font-medium">
+                New owner address
+              </label>
+              <Input
+                id="new-owner-input"
+                placeholder="G..."
+                value={newOwner}
+                onChange={(e) => {
+                  setNewOwner(e.target.value);
+                  setNewOwnerError("");
+                }}
+                disabled={setOwner.isPending}
+                aria-invalid={!!newOwnerError}
+                aria-describedby={newOwnerError ? "new-owner-error" : undefined}
+                autoComplete="off"
+                spellCheck={false}
+              />
+              {newOwnerError && (
+                <p
+                  id="new-owner-error"
+                  className="text-xs text-destructive flex items-center gap-1"
+                >
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {newOwnerError}
+                </p>
+              )}
+            </div>
+            <Button type="submit" variant="destructive" disabled={setOwner.isPending || !newOwner}>
+              Review Transfer
+            </Button>
+          </form>
+        </div>
+      )}
+
+      {ownedCampaigns.length > 0 && (
+        <>
+          {/* Campaign Management */}
+          <div className="border rounded-xl bg-card p-6 shadow-sm space-y-6">
+            <div className="space-y-2">
+              <h2 className="text-xl font-semibold">Campaign Management</h2>
+              <p className="text-sm text-muted-foreground">
+                View your campaigns, post updates to backers, or cancel active campaigns.
               </p>
-            )}
+            </div>
+
+            <div className="divide-y rounded-lg border bg-background overflow-hidden">
+              {ownedCampaigns.map((c) => (
+                <div
+                  key={c.id.toString()}
+                  className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-semibold text-base">{c.title}</h3>
+                      <CampaignStatusBadge status={c.status} deadline={c.deadline} />
+                    </div>
+                    <p className="text-xs text-muted-foreground">ID: {c.id.toString()}</p>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href={`/campaign/${c.id.toString()}`}>
+                        <Eye className="w-3.5 h-3.5 mr-1.5" /> View
+                      </Link>
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setUpdateCampaign(c)}
+                      disabled={addUpdate.isPending}
+                    >
+                      <FileText className="w-3.5 h-3.5 mr-1.5" /> Post Update
+                    </Button>
+
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setCampaignToCancel(c)}
+                      disabled={c.status !== "Active" || cancelCampaign.isPending}
+                    >
+                      <XCircle className="w-3.5 h-3.5 mr-1.5" /> Cancel
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
-          {successMessage && (
-            <div className="p-3 bg-green-500/15 text-green-500 text-sm rounded-md flex items-start gap-2">
-              <CheckCircle className="w-4 h-4 mt-0.5 shrink-0" />
-              <span>{successMessage}</span>
+          {/* Whitelist Management */}
+          <div className="border rounded-xl bg-card p-6 shadow-sm space-y-6">
+            <div className="space-y-2">
+              <h2 className="text-xl font-semibold">Whitelist Management</h2>
+              <p className="text-sm text-muted-foreground">
+                Authorize specific addresses to contribute to your campaigns.
+              </p>
             </div>
-          )}
 
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={
-              addToWhitelist.isPending ||
-              !!validationError ||
-              !selectedCampaignId ||
-              !addressToWhitelist
-            }
-          >
-            {addToWhitelist.isPending ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Whitelisting Address...
-              </>
-            ) : (
-              "Whitelist Address"
-            )}
-          </Button>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="campaign-select" className="text-sm font-medium">
+                  Select Campaign
+                </label>
+                <Select value={selectedCampaignId} onValueChange={handleSelectCampaign}>
+                  <SelectTrigger id="campaign-select">
+                    <SelectValue placeholder="-- Choose a Campaign --" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ownedCampaigns.map((c) => (
+                      <SelectItem key={c.id.toString()} value={c.id.toString()}>
+                        {c.title} (ID: {c.id.toString()})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-          {selectedCampaignId && whitelistedAddresses[selectedCampaignId]?.length > 0 && (
-            <div className="pt-4 border-t space-y-3">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-                Recently Whitelisted
-              </h3>
-              <ul className="space-y-1.5">
-                {whitelistedAddresses[selectedCampaignId].map((addr) => (
-                  <li
-                    key={addr}
-                    className="flex items-center gap-2 text-sm font-mono text-foreground bg-muted/30 px-3 py-1.5 rounded-md"
-                  >
-                    <CheckCircle className="w-3.5 h-3.5 text-green-500 shrink-0" />
-                    {addr}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </form>
-      </div>
+              <div className="space-y-2">
+                <label htmlFor="address-input" className="text-sm font-medium">
+                  Stellar Address to Whitelist
+                </label>
+                <Input
+                  id="address-input"
+                  placeholder="G..."
+                  value={addressToWhitelist}
+                  onChange={(e) => handleAddressChange(e.target.value)}
+                  disabled={addToWhitelist.isPending}
+                  required
+                />
+                {validationError && (
+                  <p className="text-xs text-destructive flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {validationError}
+                  </p>
+                )}
+              </div>
+
+              {successMessage && (
+                <div className="p-3 bg-green-500/15 text-green-500 text-sm rounded-md flex items-start gap-2">
+                  <CheckCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                  <span>{successMessage}</span>
+                </div>
+              )}
+
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={
+                  addToWhitelist.isPending ||
+                  !!validationError ||
+                  !selectedCampaignId ||
+                  !addressToWhitelist
+                }
+              >
+                {addToWhitelist.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Whitelisting Address...
+                  </>
+                ) : (
+                  "Whitelist Address"
+                )}
+              </Button>
+
+              {selectedCampaignId && whitelistedAddresses[selectedCampaignId]?.length > 0 && (
+                <div className="pt-4 border-t space-y-3">
+                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                    Recently Whitelisted
+                  </h3>
+                  <ul className="space-y-1.5">
+                    {whitelistedAddresses[selectedCampaignId].map((addr) => (
+                      <li
+                        key={addr}
+                        className="flex items-center gap-2 text-sm font-mono text-foreground bg-muted/30 px-3 py-1.5 rounded-md"
+                      >
+                        <CheckCircle className="w-3.5 h-3.5 text-green-500 shrink-0" />
+                        {addr}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </form>
+          </div>
+        </>
+      )}
 
       {/* Cancel Confirmation Dialog */}
       <Dialog
@@ -518,6 +615,82 @@ export function AdminPanel({ ownedCampaigns }: AdminPanelProps) {
                 </>
               ) : (
                 "Pause Contract"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Ownership Transfer Confirmation Dialog */}
+      <Dialog
+        open={showTransferConfirm}
+        onOpenChange={(open) => {
+          if (!setOwner.isPending && !open) closeTransferConfirm();
+        }}
+      >
+        <DialogContent aria-labelledby="transfer-dialog-title">
+          <DialogHeader>
+            <DialogTitle id="transfer-dialog-title" className="text-destructive">
+              Transfer contract ownership?
+            </DialogTitle>
+            <DialogDescription>
+              The new owner will be able to pause the contract, upgrade it, and transfer ownership
+              again. You will lose these permissions. Double-check the address — this can only be
+              undone by the new owner.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="rounded-md border bg-muted/30 p-3">
+              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">
+                New owner
+              </p>
+              <p className="font-mono text-sm break-all" data-testid="transfer-new-owner">
+                {newOwner.trim()}
+              </p>
+            </div>
+            <label htmlFor="transfer-confirm-input" className="text-sm font-medium block">
+              Type <span className="font-bold">{TRANSFER_CONFIRM_PHRASE}</span> to confirm:
+            </label>
+            <Input
+              id="transfer-confirm-input"
+              value={transferConfirmText}
+              onChange={(e) => setTransferConfirmText(e.target.value)}
+              placeholder={TRANSFER_CONFIRM_PHRASE}
+              autoComplete="off"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeTransferConfirm} disabled={setOwner.isPending}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={setOwner.isPending || transferConfirmText !== TRANSFER_CONFIRM_PHRASE}
+              onClick={async () => {
+                const candidate = newOwner.trim();
+                // Re-check right before signing in case the config changed.
+                const error = validateNewOwner(candidate, platformConfig?.owner);
+                if (error) {
+                  setNewOwnerError(error);
+                  closeTransferConfirm();
+                  return;
+                }
+                try {
+                  await setOwner.mutateAsync(candidate);
+                  closeTransferConfirm();
+                  setNewOwner("");
+                } catch (err) {
+                  console.error("Failed to transfer ownership:", err);
+                }
+              }}
+            >
+              {setOwner.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Transferring...
+                </>
+              ) : (
+                "Transfer Ownership"
               )}
             </Button>
           </DialogFooter>

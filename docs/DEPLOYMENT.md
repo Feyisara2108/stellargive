@@ -21,7 +21,7 @@ Install and verify:
 ```bash
 stellar --version
 rustc --version
-node --version
+node --version    # v22.x LTS — pinned in frontend/.nvmrc
 ```
 
 Configure Stellar network profile (if missing):
@@ -225,7 +225,50 @@ stellar contract invoke \
 
 ---
 
-## 10. Container Image Verification (Cosign)
+## 10. Docker Image Configuration (Build-Time `NEXT_PUBLIC_*`)
+
+Next.js inlines every `NEXT_PUBLIC_*` variable into the client JavaScript **at build
+time**. A published image therefore talks to whichever RPC, network and contract it
+was *built* with — passing `-e NEXT_PUBLIC_...` to `docker run`, or listing them under
+`environment:` in `docker-compose.prod.yml`, has no effect on the browser bundle
+(#1099). If none are set the image falls back to `http://localhost:8000/rpc` and the
+standalone network passphrase.
+
+`frontend/Dockerfile` declares them as build args in the build stage, and
+`.github/workflows/docker-publish.yml` fills them from **repository variables**
+(Settings → Secrets and variables → Actions → *Variables*). Set these before
+publishing:
+
+| Repository variable | Required for publishing | Example (testnet) |
+|---|---|---|
+| `NEXT_PUBLIC_SOROBAN_RPC_URL` | **Yes** | `https://soroban-testnet.stellar.org` |
+| `NEXT_PUBLIC_NETWORK_PASSPHRASE` | **Yes** | `Test SDF Network ; September 2015` |
+| `NEXT_PUBLIC_CONTRACT_ID` | **Yes** | `CB6HVHRQYILGNKW7RBB66BC6TDBIEWADOA2YUUV4I22RXRLA6DY6OAKT` |
+| `NEXT_PUBLIC_SENTRY_DSN` | No — Sentry stays disabled when empty | `https://<key>@o0.ingest.sentry.io/<project>` |
+| `NEXT_PUBLIC_USDC_CONTRACT_ID` | No — derived from the network when empty | — |
+| `NEXT_PUBLIC_APP_URL` | No — used for absolute share links | `https://stellargive.example` |
+
+> [!IMPORTANT]
+> These are **variables, not secrets**: every value ends up readable in the shipped
+> JavaScript. Never put a secret in a `NEXT_PUBLIC_*` variable or build arg. The only
+> secret the image build uses is `SENTRY_AUTH_TOKEN`, which is mounted as a BuildKit
+> secret for source-map upload and is not written to any image layer.
+
+To change network or contract for the Docker deployment, update the variables and
+publish a new image (push to `main` or a `v*` tag). To build one locally:
+
+```bash
+docker build frontend \
+  --build-arg NEXT_PUBLIC_SOROBAN_RPC_URL=https://soroban-testnet.stellar.org \
+  --build-arg "NEXT_PUBLIC_NETWORK_PASSPHRASE=Test SDF Network ; September 2015" \
+  --build-arg NEXT_PUBLIC_CONTRACT_ID=CB6HVHRQYILGNKW7RBB66BC6TDBIEWADOA2YUUV4I22RXRLA6DY6OAKT \
+  -t stellargive-frontend:local
+```
+
+Pull requests that touch `frontend/` build and Trivy-scan the image with the same
+build args, but never log in to the registry, push, or sign.
+
+## 11. Container Image Verification (Cosign)
 
 All frontend container images published to GitHub Container Registry (`ghcr.io`) are signed using [Cosign](https://github.com/sigstore/cosign) with keyless signing backed by Sigstore and GitHub Actions OIDC tokens.
 
@@ -285,9 +328,15 @@ warning output in each workflow's job summary).
 |---|---|---|---|---|
 | `GITHUB_TOKEN` | secret | Automatic | All | Provided by GitHub Actions automatically |
 | `CODECOV_TOKEN` | secret | No | `ci.yml` | Codecov upload token for coverage reports |
-| `SENTRY_AUTH_TOKEN` | secret | No | `ci.yml` | Sentry source map upload |
+| `SENTRY_AUTH_TOKEN` | secret | No | `ci.yml`, `docker-publish.yml` | Sentry source map upload |
 | `SENTRY_ORG` | secret | No | `ci.yml` | Sentry organization slug |
 | `SENTRY_PROJECT` | secret | No | `ci.yml` | Sentry project slug |
+| `NEXT_PUBLIC_SOROBAN_RPC_URL` | variable | Yes (Docker publish) | `docker-publish.yml` | RPC URL baked into the image (see §10) |
+| `NEXT_PUBLIC_NETWORK_PASSPHRASE` | variable | Yes (Docker publish) | `docker-publish.yml` | Network passphrase baked into the image |
+| `NEXT_PUBLIC_CONTRACT_ID` | variable | Yes (Docker publish) | `docker-publish.yml` | Contract ID baked into the image |
+| `NEXT_PUBLIC_SENTRY_DSN` | variable | No | `docker-publish.yml` | Public Sentry DSN baked into the image |
+| `NEXT_PUBLIC_USDC_CONTRACT_ID` | variable | No | `docker-publish.yml` | USDC contract override baked into the image |
+| `NEXT_PUBLIC_APP_URL` | variable | No | `docker-publish.yml` | Public app URL baked into the image |
 | `PRODUCTION_URL` | variable | No | `uptime.yml` | Production frontend URL to monitor |
 | `EXPECTED_CONTENT` | variable | No | `uptime.yml` | Expected page content for uptime check |
 | `SITE_TIMEOUT_MS` | variable | No | `uptime.yml` | Timeout for uptime check (default 10000) |

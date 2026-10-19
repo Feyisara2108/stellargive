@@ -1,13 +1,16 @@
 "use client";
 
 import { NATIVE_XLM_CONTRACT_ID } from "@/lib/tokens";
-import { useForm, type Path } from "react-hook-form";
+import { useForm, useFieldArray, type Path } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useCreateCampaign, useResolvedName } from "@/hooks/useSoroban";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useWallet } from "@/lib/WalletProvider";
-import { isValidStellarAddress } from "@/lib/soroban";
+import { isValidAccountAddress as isValidStellarAddress } from "@/lib/strkey";
+import { CONTRACT_ID, isValidStellarAddress } from "@/lib/soroban";
+import { TOTAL_SHARE_BPS, percentToBps } from "@/lib/beneficiaries";
+import { INVALID_SHARES_MESSAGE } from "@/lib/contractErrors";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -31,7 +34,7 @@ import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2, PlusCircle, Tag, X, Eye } from "lucide-react";
+import { Loader2, PlusCircle, Tag, X, Eye, UserPlus } from "lucide-react";
 import { TokenSelector, PREDEFINED_TOKENS } from "@/components/TokenSelector";
 import { cn } from "@/lib/utils";
 import { CampaignCard } from "@/components/CampaignCard";
@@ -46,11 +49,17 @@ const MIN_TARGET_TOKEN = 1; // MIN_TARGET = 10_000_000 stroops = 1.0 token
 const MAX_DURATION_DAYS = 365; // MAX_DURATION = 31_536_000 sec
 const MAX_METADATA_URI_LEN = 256; // MAX_METADATA_URI_LEN
 
+// Client-side cap on payout recipients — the contract has no limit, but every
+// beneficiary adds a token transfer to the claim, so keep claims affordable.
+const MAX_BENEFICIARIES = 10;
+
 // Tags constraints (client-side only — not enforced on-chain).
 const MAX_TAG_COUNT = 10;
 const MAX_TAG_LENGTH = 30;
 
-const formSchema = z.object({
+const SHARE_FORMAT_MESSAGE = "Enter a percentage with up to 2 decimals";
+
+const baseSchema = z.object({
   title: z
     .string()
     .min(5, "Title must be at least 5 characters")
@@ -60,6 +69,22 @@ const formSchema = z.object({
     .min(10, "Description must be at least 10 characters")
     .max(500, "Description cannot exceed 500 characters"),
   beneficiary: z.string().refine(isValidStellarAddress, "Invalid Stellar address"),
+  /** Primary beneficiary's share in percent; only editable once extra beneficiaries exist. */
+  beneficiaryShare: z.string(),
+  extraBeneficiaries: z.array(
+    z.object({
+      address: z.string().refine(isValidStellarAddress, "Invalid Stellar address"),
+      share: z.string(),
+    }),
+  ),
+  maxPerDonor: z
+    .string()
+    .optional()
+    .refine(
+      (val) =>
+        !val || val.trim() === "" || (/^\d+(\.\d{1,7})?$/.test(val.trim()) && Number(val) > 0),
+      "Maximum per donor must be a positive amount with up to 7 decimals",
+    ),
   category: z
     .enum(["medical", "food", "shelter", "education", "relief", "other"])
     .optional()
@@ -105,13 +130,86 @@ const formSchema = z.object({
     ),
 });
 
+/**
+ * Mirrors the contract's `InvalidShares` / `InvalidBeneficiary` checks so a bad
+ * payout split is blocked before the creator signs anything.
+ */
+const formSchema = baseSchema.superRefine((values, ctx) => {
+  if (values.extraBeneficiaries.length === 0) return;
+
+  const seen = new Set<string>([values.beneficiary]);
+  values.extraBeneficiaries.forEach((b, i) => {
+    if (seen.has(b.address)) {
+      ctx.addIssue({
+        code: "custom",
+        message: "This beneficiary is already listed",
+        path: ["extraBeneficiaries", i, "address"],
+      });
+    }
+    seen.add(b.address);
+  });
+  [values.beneficiary, ...values.extraBeneficiaries.map((b) => b.address)].forEach((addr, i) => {
+    if (addr === CONTRACT_ID) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Beneficiary cannot be the campaign contract address",
+        path: i === 0 ? ["beneficiary"] : ["extraBeneficiaries", i - 1, "address"],
+      });
+    }
+  });
+
+  const shares = [
+    { value: values.beneficiaryShare, path: ["beneficiaryShare"] },
+    ...values.extraBeneficiaries.map((b, i) => ({
+      value: b.share,
+      path: ["extraBeneficiaries", i, "share"],
+    })),
+  ];
+  let total = 0;
+  let allParsed = true;
+  for (const { value, path } of shares) {
+    const bps = percentToBps(value);
+    if (bps === null || bps <= 0) {
+      allParsed = false;
+      ctx.addIssue({
+        code: "custom",
+        message: bps === null ? SHARE_FORMAT_MESSAGE : "Share must be greater than 0%",
+        path,
+      });
+    } else {
+      total += bps;
+    }
+  }
+  if (allParsed && total !== TOTAL_SHARE_BPS) {
+    ctx.addIssue({
+      code: "custom",
+      message: `${INVALID_SHARES_MESSAGE} Currently ${(total / 100).toFixed(2).replace(/\.?0+$/, "")}%.`,
+      path: ["beneficiaryShares"],
+    });
+  }
+});
+
+type FormValues = z.infer<typeof baseSchema>;
+
+/** Payout split in the contract's basis-point form; the primary gets 100% when alone. */
+function buildBeneficiaries(values: Partial<FormValues>): { address: string; share: number }[] {
+  const extras = values.extraBeneficiaries ?? [];
+  if (extras.length === 0) {
+    return values.beneficiary ? [{ address: values.beneficiary, share: TOTAL_SHARE_BPS }] : [];
+  }
+  return [
+    { address: values.beneficiary ?? "", share: percentToBps(values.beneficiaryShare ?? "") ?? 0 },
+    ...extras.map((b) => ({ address: b.address, share: percentToBps(b.share) ?? 0 })),
+  ];
+}
+
 /** Build a synthetic Campaign object from current form values for preview. */
 function calculateDeadlineTimestamp(deadlineDaysStr: string): number {
   return Math.floor(Date.now() / 1000) + parseInt(deadlineDaysStr, 10) * 24 * 60 * 60;
 }
 
 function buildPreviewCampaign(
-  values: Partial<z.infer<typeof formSchema>>,
+  values: Partial<FormValues>,
   tags: string[],
   walletAddress: string,
 ): Campaign {
@@ -127,7 +225,7 @@ function buildPreviewCampaign(
       values.beneficiary ||
       walletAddress ||
       "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
-    beneficiaries: [],
+    beneficiaries: buildBeneficiaries(values),
     title: values.title || "Campaign Title",
     description: values.description || "",
     category: values.category || "other",
@@ -139,6 +237,10 @@ function buildPreviewCampaign(
     metadata_uri: values.metadataUri || undefined,
     website: values.website || undefined,
     twitter: values.twitter || undefined,
+    max_per_donor:
+      values.maxPerDonor && Number(values.maxPerDonor) > 0
+        ? BigInt(Math.round(Number(values.maxPerDonor) * 10_000_000))
+        : undefined,
     tags,
   };
 }
@@ -166,17 +268,25 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
   const [step, setStep] = useState(1);
   const totalSteps = 3;
 
-  type FormValues = z.infer<typeof formSchema>;
-
   const STEP_FIELDS: Record<number, Path<FormValues>[]> = {
     1: ["title", "description", "category", "website", "twitter", "metadataUri"],
-    2: ["beneficiary", "acceptedToken", "targetAmount", "deadlineDays"],
+    2: [
+      "beneficiary",
+      "beneficiaryShare",
+      "extraBeneficiaries",
+      "acceptedToken",
+      "targetAmount",
+      "deadlineDays",
+      "maxPerDonor",
+    ],
   };
 
   const nextStep = async () => {
     const fieldsToValidate = STEP_FIELDS[step] || [];
     const isValid = await form.trigger(fieldsToValidate);
-    if (isValid) {
+    // The share-total issue lives on a virtual path, so trigger() never
+    // reports it; check it explicitly before leaving the Funding step.
+    if (isValid && !(step === 2 && sharesTotalError)) {
       setStep((s) => Math.min(s + 1, totalSteps));
     }
   };
@@ -193,6 +303,9 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
       title: "",
       description: "",
       beneficiary: "",
+      beneficiaryShare: "100",
+      extraBeneficiaries: [],
+      maxPerDonor: "",
       category: "",
       targetAmount: "",
       deadlineDays: "30",
@@ -201,6 +314,11 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
       twitter: "",
       metadataUri: "",
     },
+  });
+
+  const extraBeneficiaryFields = useFieldArray({
+    control: form.control,
+    name: "extraBeneficiaries",
   });
 
   // Restore draft from sessionStorage and trigger validation once on mount
@@ -212,7 +330,7 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
         Object.entries(draft).forEach(([key, val]) => {
           if (key === "tags" && Array.isArray(val)) {
             setTags(val as string[]);
-          } else if (val !== undefined && key !== "tags") {
+          } else if (val !== undefined && typeof val === "string") {
             form.setValue(key as Path<FormValues>, val as string, { shouldDirty: true });
           }
         });
@@ -237,7 +355,9 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
       sessionStorage.removeItem("create_campaign_draft");
       return;
     }
-    const { beneficiary, ...draftToSave } = debouncedValues;
+    // Payout addresses are never persisted, so a stale draft can't silently
+    // route funds to the wrong account.
+    const { beneficiary, beneficiaryShare, extraBeneficiaries, ...draftToSave } = debouncedValues;
     sessionStorage.setItem("create_campaign_draft", JSON.stringify({ ...draftToSave, tags }));
   }, [debouncedValues, tags, isDirty]);
 
@@ -255,6 +375,33 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
   const metadataUriLen = metadataUri.length;
   const selectedTokenMeta = PREDEFINED_TOKENS.find((t) => t.address === watchAcceptedToken);
   const tokenSymbol = selectedTokenMeta ? selectedTokenMeta.symbol : "Tokens";
+
+  const watchedExtraBeneficiaries = form.watch("extraBeneficiaries") ?? [];
+  const hasMultipleBeneficiaries = watchedExtraBeneficiaries.length > 0;
+  const payoutSplit = buildBeneficiaries(formValues);
+  const sharesTotalBps = payoutSplit.reduce((sum, b) => sum + b.share, 0);
+  const sharesTotalError = hasMultipleBeneficiaries && sharesTotalBps !== TOTAL_SHARE_BPS;
+  const formatPercent = (bps: number) => `${(bps / 100).toFixed(2).replace(/\.?0+$/, "")}%`;
+  const watchedMaxPerDonor = form.watch("maxPerDonor") ?? "";
+
+  function addBeneficiary() {
+    if (watchedExtraBeneficiaries.length + 1 >= MAX_BENEFICIARIES) return;
+    // Pre-fill whatever share is still unallocated so the split stays at 100%
+    // when the creator is just carving out a slice.
+    const remainingBps = Math.max(0, TOTAL_SHARE_BPS - sharesTotalBps);
+    extraBeneficiaryFields.append({
+      address: "",
+      share: remainingBps > 0 ? (remainingBps / 100).toString() : "",
+    });
+  }
+
+  function removeBeneficiary(index: number) {
+    extraBeneficiaryFields.remove(index);
+    // Back to a single beneficiary: they receive everything again.
+    if (watchedExtraBeneficiaries.length === 1) {
+      form.setValue("beneficiaryShare", "100", { shouldValidate: true });
+    }
+  }
 
   // Build preview campaign from current form values (updated live)
   const previewCampaign = buildPreviewCampaign(formValues, tags, walletAddress ?? "");
@@ -294,7 +441,7 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
     }
   }
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
+  async function onSubmit(values: FormValues) {
     if (createCampaign.isPending || isUploadingImage) return; // Prevent duplicate submissions
 
     try {
@@ -303,6 +450,7 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
         title: values.title,
         description: values.description,
         beneficiary: values.beneficiary,
+        beneficiaries: buildBeneficiaries(values),
         category: values.category || "other",
         metadataUri: values.metadataUri || undefined,
         targetAmount: values.targetAmount,
@@ -310,6 +458,7 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
         acceptedToken: values.acceptedToken,
         website: values.website || undefined,
         twitter: values.twitter || undefined,
+        maxPerDonor: values.maxPerDonor?.trim() || null,
       });
       sessionStorage.removeItem("create_campaign_draft");
       setIsOpen(false);
@@ -687,7 +836,9 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
                 name="beneficiary"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Beneficiary Address</FormLabel>
+                    <FormLabel>
+                      {hasMultipleBeneficiaries ? "Beneficiary 1 Address" : "Beneficiary Address"}
+                    </FormLabel>
                     <FormControl>
                       <Input placeholder="G..." {...field} disabled={createCampaign.isPending} />
                     </FormControl>
@@ -705,6 +856,115 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
                   </FormItem>
                 )}
               />
+              {hasMultipleBeneficiaries && (
+                <FormField
+                  control={form.control}
+                  name="beneficiaryShare"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Beneficiary 1 Share (%)</FormLabel>
+                      <FormControl>
+                        <Input
+                          inputMode="decimal"
+                          placeholder="50"
+                          {...field}
+                          disabled={createCampaign.isPending}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {extraBeneficiaryFields.fields.map((item, index) => (
+                <div key={item.id} className="rounded-md border p-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">Beneficiary {index + 2}</p>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2"
+                      aria-label={`Remove beneficiary ${index + 2}`}
+                      onClick={() => removeBeneficiary(index)}
+                      disabled={createCampaign.isPending}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-[1fr,7rem] gap-3">
+                    <FormField
+                      control={form.control}
+                      name={`extraBeneficiaries.${index}.address`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Address</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder={`G... (beneficiary ${index + 2})`}
+                              {...field}
+                              disabled={createCampaign.isPending}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`extraBeneficiaries.${index}.share`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Share (%)</FormLabel>
+                          <FormControl>
+                            <Input
+                              inputMode="decimal"
+                              placeholder="50"
+                              {...field}
+                              disabled={createCampaign.isPending}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+              ))}
+
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={addBeneficiary}
+                  disabled={
+                    createCampaign.isPending ||
+                    watchedExtraBeneficiaries.length + 1 >= MAX_BENEFICIARIES
+                  }
+                >
+                  <UserPlus className="h-4 w-4" aria-hidden="true" /> Add beneficiary
+                </Button>
+                {hasMultipleBeneficiaries && (
+                  <p
+                    aria-live="polite"
+                    className={cn(
+                      "text-xs tabular-nums",
+                      sharesTotalError ? "text-destructive font-medium" : "text-muted-foreground",
+                    )}
+                  >
+                    Total: {formatPercent(sharesTotalBps)} of 100%
+                  </p>
+                )}
+              </div>
+              {sharesTotalError && (
+                <p role="alert" className="text-sm font-medium text-destructive">
+                  {INVALID_SHARES_MESSAGE} Currently {formatPercent(sharesTotalBps)}.
+                </p>
+              )}
+
               <FormField
                 control={form.control}
                 name="acceptedToken"
@@ -764,6 +1024,30 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
                   )}
                 />
               </div>
+              <FormField
+                control={form.control}
+                name="maxPerDonor"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Maximum per donor ({tokenSymbol}, Optional)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min={0}
+                        step="0.0000001"
+                        placeholder="No cap"
+                        {...field}
+                        disabled={createCampaign.isPending}
+                      />
+                    </FormControl>
+                    <FormDescription className="text-[11px]">
+                      Limits how much a single wallet can contribute in total. Leave empty for no
+                      cap.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
             {/* Step 3: Review */}
@@ -773,13 +1057,29 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
                   <p className="text-muted-foreground text-xs">Title</p>
                   <p className="font-medium">{watchedTitle || "N/A"}</p>
                 </div>
-                <div>
-                  <p className="text-muted-foreground text-xs">Beneficiary</p>
-                  <p className="font-medium break-all">{form.watch("beneficiary") || "N/A"}</p>
-                  {resolvedBeneficiaryName && (
-                    <p className="text-xs text-muted-foreground">{resolvedBeneficiaryName}</p>
-                  )}
-                </div>
+                {hasMultipleBeneficiaries ? (
+                  <div>
+                    <p className="text-muted-foreground text-xs">Beneficiaries</p>
+                    <ul className="space-y-1">
+                      {payoutSplit.map((b, i) => (
+                        <li key={i} className="flex items-start justify-between gap-3">
+                          <span className="font-medium break-all">{b.address || "N/A"}</span>
+                          <span className="font-medium tabular-nums shrink-0">
+                            {formatPercent(b.share)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-muted-foreground text-xs">Beneficiary</p>
+                    <p className="font-medium break-all">{form.watch("beneficiary") || "N/A"}</p>
+                    {resolvedBeneficiaryName && (
+                      <p className="text-xs text-muted-foreground">{resolvedBeneficiaryName}</p>
+                    )}
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <p className="text-muted-foreground text-xs">Target</p>
@@ -791,6 +1091,12 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
                     <p className="text-muted-foreground text-xs">Duration</p>
                     <p className="font-medium">{form.watch("deadlineDays") || "0"} Days</p>
                   </div>
+                </div>
+                <div>
+                  <p className="text-muted-foreground text-xs">Maximum per donor</p>
+                  <p className="font-medium">
+                    {watchedMaxPerDonor.trim() ? `${watchedMaxPerDonor} ${tokenSymbol}` : "No cap"}
+                  </p>
                 </div>
                 {tags.length > 0 && (
                   <div>
