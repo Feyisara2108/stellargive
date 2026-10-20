@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@/test/render";
 import React from "react";
 
 // Hoist mock state so it stays in sync across vi.mock closures
@@ -69,7 +69,6 @@ vi.mock("../../hooks/useCampaignSearch", () => ({
 }));
 
 import ExplorePage from "./page";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MockWalletProvider } from "@/components/MockWalletProvider";
 import { buildCampaign } from "@/test/factories";
 const replaceMock = vi.fn();
@@ -89,21 +88,11 @@ vi.mock("../../components/CampaignCard", () => ({
 }));
 vi.mock("../../components/Footer", () => ({ Footer: () => <div data-testid="footer" /> }));
 
-let queryClient: QueryClient;
-
 function renderPage() {
-  queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, gcTime: 0, staleTime: 0 },
-    },
-  });
-
   return render(
-    <QueryClientProvider client={queryClient}>
-      <MockWalletProvider>
-        <ExplorePage />
-      </MockWalletProvider>
-    </QueryClientProvider>,
+    <MockWalletProvider>
+      <ExplorePage />
+    </MockWalletProvider>,
   );
 }
 
@@ -115,9 +104,6 @@ beforeEach(() => {
   mockState.fetchNextPageCalls = 0;
   mockState.isLoading = false;
   mockState.isError = false;
-  if (queryClient) {
-    queryClient.clear();
-  }
 });
 
 describe("ExplorePage - Integrated Search & Hydration", () => {

@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen, fireEvent, waitFor, act } from "@/test/render";
 import * as wallet from "@/lib/wallet";
 import { WalletProvider } from "@/lib/WalletProvider";
 import { DonateModal } from "@/components/DonateModal";
@@ -68,15 +67,6 @@ const APP_NETWORK = NETWORK_PASSPHRASE;
 const UNSUPPORTED_NETWORK = Networks.PUBLIC;
 const WRONG_NETWORK_REASON = WRONG_NETWORK_MESSAGE;
 
-function makeQueryClient() {
-  return new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
-  });
-}
-
 /**
  * Harness rendering the three primary transactional actions:
  * 1. Donate (via DonateModal for an active campaign)
@@ -112,7 +102,6 @@ function renderGatedActions(options?: {
   fundedCampaign?: Campaign;
   cancelledCampaignId?: bigint;
 }) {
-  const queryClient = makeQueryClient();
   const activeCampaign =
     options?.activeCampaign ??
     makeCampaign({
@@ -137,17 +126,15 @@ function renderGatedActions(options?: {
   const cancelledCampaignId = options?.cancelledCampaignId ?? 303n;
 
   const result = render(
-    <QueryClientProvider client={queryClient}>
-      <WalletProvider>
-        <TooltipProvider delayDuration={0}>
-          <ActionGatingHarness
-            activeCampaign={activeCampaign}
-            fundedCampaign={fundedCampaign}
-            cancelledCampaignId={cancelledCampaignId}
-          />
-        </TooltipProvider>
-      </WalletProvider>
-    </QueryClientProvider>,
+    <WalletProvider>
+      <TooltipProvider delayDuration={0}>
+        <ActionGatingHarness
+          activeCampaign={activeCampaign}
+          fundedCampaign={fundedCampaign}
+          cancelledCampaignId={cancelledCampaignId}
+        />
+      </TooltipProvider>
+    </WalletProvider>,
   );
 
   return { ...result, activeCampaign, fundedCampaign, cancelledCampaignId };
