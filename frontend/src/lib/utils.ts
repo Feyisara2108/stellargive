@@ -37,11 +37,45 @@ export function isPlaceholderMetadataUri(uri?: string): boolean {
   return value === NO_IMAGE_METADATA_URI || LEGACY_PLACEHOLDER_URIS.has(value);
 }
 
+/**
+ * Public gateway used when `NEXT_PUBLIC_IPFS_GATEWAY` is unset. dweb.link is
+ * the IPFS Foundation's public gateway; operators can point this at their own
+ * pinned gateway without a code change.
+ */
+export const DEFAULT_IPFS_GATEWAY = "https://dweb.link/ipfs/";
+
+function ipfsGateway(): string {
+  const configured = process.env.NEXT_PUBLIC_IPFS_GATEWAY?.trim();
+  const gateway = configured || DEFAULT_IPFS_GATEWAY;
+  return gateway.endsWith("/") ? gateway : `${gateway}/`;
+}
+
+/**
+ * Resolve a metadata URI to a browser-loadable URL.
+ *
+ * This is the only place that understands `ipfs://`: it rewrites the scheme
+ * onto the configured gateway and passes `http(s)://` through unchanged.
+ * Anything else (or an empty value) has no usable image URL.
+ */
+export function resolveIpfsUrl(uri?: string): string | undefined {
+  if (!uri) return undefined;
+
+  const value = uri.trim();
+  if (!value) return undefined;
+
+  if (value.startsWith("ipfs://")) {
+    const path = value.slice("ipfs://".length).replace(/^ipfs\//, "");
+    if (!path) return undefined;
+    return `${ipfsGateway()}${path}`;
+  }
+
+  if (value.startsWith("http://") || value.startsWith("https://")) return value;
+  return undefined;
+}
+
 export function getCampaignImageUrl(uri?: string) {
   if (!uri || isPlaceholderMetadataUri(uri)) return undefined;
-  if (uri.startsWith("http")) return uri;
-  if (uri.startsWith("ipfs://")) return `https://ipfs.io/ipfs/${uri.replace("ipfs://", "")}`;
-  return undefined;
+  return resolveIpfsUrl(uri);
 }
 
 export function getStellarExpertTxUrl(txHash: string): string {
