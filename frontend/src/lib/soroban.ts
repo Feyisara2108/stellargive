@@ -487,8 +487,45 @@ async function simulateAndWarn(
   }
 }
 
+/** How long to keep polling after a transaction's on-chain time bound. */
+export const TRANSACTION_CONFIRMATION_MARGIN_MS = 10_000;
+
+/** Delay between `getTransaction` polls while confirmation is pending. */
+export const TRANSACTION_POLL_INTERVAL_MS = 1_000;
+
+/** Shown when a transaction is not confirmed by its time bound plus the margin. */
+export const TRANSACTION_TIMED_OUT_MESSAGE =
+  "Transaction timed out before it was confirmed. It may have been dropped or expired.";
+
+/** Thrown when confirmation polling reaches the transaction deadline. */
+export class TransactionTimeoutError extends Error {
+  readonly hash: string;
+
+  constructor(hash: string) {
+    super(TRANSACTION_TIMED_OUT_MESSAGE);
+    this.name = "TransactionTimeoutError";
+    this.hash = hash;
+  }
+}
+
+/**
+ * The absolute time after which a transaction cannot be included on-chain,
+ * plus a margin for ledger close and RPC propagation. Transactions are built
+ * with a 30-second time bound, so a missing time bound falls back to that.
+ */
+function confirmationDeadline(parsedTx: unknown): number {
+  const maxTime = Number(
+    (parsedTx as { timeBounds?: { maxTime?: string | number } }).timeBounds?.maxTime,
+  );
+  if (Number.isFinite(maxTime) && maxTime > 0) {
+    return maxTime * 1000 + TRANSACTION_CONFIRMATION_MARGIN_MS;
+  }
+  return Date.now() + 30_000 + TRANSACTION_CONFIRMATION_MARGIN_MS;
+}
+
 async function sendAndConfirm(signedXdr: string): Promise<SubmitTransactionResult> {
   const parsedTx = TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE);
+  const deadline = confirmationDeadline(parsedTx);
   const sendResponse = await server.sendTransaction(parsedTx);
 
   if (sendResponse.status === "ERROR") {
@@ -502,7 +539,13 @@ async function sendAndConfirm(signedXdr: string): Promise<SubmitTransactionResul
     txResult.status === rpc.Api.GetTransactionStatus.NOT_FOUND ||
     (txResult.status === rpc.Api.GetTransactionStatus.SUCCESS && !txResult.resultMetaXdr)
   ) {
-    await new Promise((r) => setTimeout(r, 1000));
+    const remainingMs = deadline - Date.now();
+    if (remainingMs <= 0) {
+      throw new TransactionTimeoutError(sendResponse.hash);
+    }
+    await new Promise((r) =>
+      setTimeout(r, Math.min(TRANSACTION_POLL_INTERVAL_MS, remainingMs)),
+    );
     txResult = await server.getTransaction(sendResponse.hash);
   }
 

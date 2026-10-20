@@ -83,6 +83,12 @@ describe("mapTransactionError", () => {
         "Transaction failed on-chain.",
       );
     });
+
+    it("maps a confirmation timeout to a timeout message (#1054)", () => {
+      expect(mapTransactionError(new Error("Transaction timed out before it was confirmed."))).toBe(
+        "Transaction timed out. It may have expired before confirmation; check the explorer before retrying.",
+      );
+    });
   });
 
   describe("generic fallback bucket", () => {
