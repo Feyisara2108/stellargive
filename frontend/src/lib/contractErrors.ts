@@ -132,6 +132,9 @@ export function mapTransactionError(error: unknown): string {
   ) {
     return "Network error. Please try again.";
   }
+  if (message.includes("timed out")) {
+    return "Transaction timed out. It may have expired before confirmation; check the explorer before retrying.";
+  }
   if (message.includes("Simulation failed") || message.includes("Transaction failed")) {
     return "Transaction failed on-chain.";
   }
