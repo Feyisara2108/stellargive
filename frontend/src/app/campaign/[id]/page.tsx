@@ -58,11 +58,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       description: defaultDescription,
       type: "website",
       siteName: "StellarGive",
+      images: ["/opengraph-image"],
     },
     twitter: {
-      card: "summary",
+      card: "summary_large_image",
       title: `Campaign #${resolvedParams.id} | StellarGive`,
       description: defaultDescription,
+      images: ["/opengraph-image"],
     },
   };
 
@@ -96,13 +98,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         description,
         type: "website",
         siteName: "StellarGive",
-        ...(imageUrl && { images: [{ url: imageUrl }] }),
+        images: [{ url: imageUrl ?? "/opengraph-image" }],
       },
       twitter: {
-        card: imageUrl ? "summary_large_image" : "summary",
+        card: "summary_large_image",
         title,
         description,
-        ...(imageUrl && { images: [imageUrl] }),
+        images: [imageUrl ?? "/opengraph-image"],
       },
     };
   } catch {

@@ -15,6 +15,7 @@ import { NETWORK_PASSPHRASE } from "./network";
 import { CONTRACT_ID, RPC_URL } from "./config";
 import { MAX_SIMULATION_FEE_STROOPS, STROOP_PRECISION, fromStroops, toStroops } from "./amounts";
 import { isValidAccountAddress } from "./strkey";
+import { logger } from "./logger";
 import {
   isNativeCampaign,
   isNativeCampaignUpdate,
@@ -473,14 +474,14 @@ async function simulateAndWarn(
 ) {
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    console.error("[soroban] simulation failed:", sim.error);
+    logger.error("[soroban] simulation failed:", sim.error);
     throw new Error(`Simulation failed: ${sim.error}`);
   }
 
   const minFee = Number(sim.minResourceFee ?? 0);
   if (minFee > MAX_SIMULATION_FEE_STROOPS) {
     const msg = `High gas: simulated fee ${minFee} stroops exceeds threshold ${MAX_SIMULATION_FEE_STROOPS}`;
-    console.warn(`[soroban] ⚠️ ${msg}`);
+    logger.warn(`[soroban] ${msg}`);
     if (options.onHighGasWarning) {
       options.onHighGasWarning(minFee);
     }

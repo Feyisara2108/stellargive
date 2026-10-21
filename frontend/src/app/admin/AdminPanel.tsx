@@ -30,6 +30,7 @@ import {
   useSetOwner,
 } from "@/hooks/useSoroban";
 import { useWallet } from "@/lib/WalletProvider";
+import { logger } from "@/lib/logger";
 import { isValidAccountAddress } from "@/lib/strkey";
 import { toast } from "sonner";
 import type { Campaign } from "@/lib/soroban";
@@ -513,7 +514,7 @@ export function AdminPanel({ ownedCampaigns }: AdminPanelProps) {
                   await cancelCampaign.mutateAsync(campaignToCancel.id);
                   setCampaignToCancel(null);
                 } catch (err) {
-                  console.error("Failed to cancel campaign:", err);
+                  logger.error("Failed to cancel campaign:", err);
                 }
               }}
             >
@@ -611,7 +612,7 @@ export function AdminPanel({ ownedCampaigns }: AdminPanelProps) {
                   setShowPauseConfirm(false);
                   setPauseConfirmText("");
                 } catch (err) {
-                  console.error("Failed to pause contract:", err);
+                  logger.error("Failed to pause contract:", err);
                 }
               }}
             >
@@ -687,7 +688,7 @@ export function AdminPanel({ ownedCampaigns }: AdminPanelProps) {
                   closeTransferConfirm();
                   setNewOwner("");
                 } catch (err) {
-                  console.error("Failed to transfer ownership:", err);
+                  logger.error("Failed to transfer ownership:", err);
                 }
               }}
             >
@@ -733,7 +734,7 @@ export function AdminPanel({ ownedCampaigns }: AdminPanelProps) {
                   await unpauseContract.mutateAsync();
                   setShowUnpauseConfirm(false);
                 } catch (err) {
-                  console.error("Failed to unpause contract:", err);
+                  logger.error("Failed to unpause contract:", err);
                 }
               }}
             >

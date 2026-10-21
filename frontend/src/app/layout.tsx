@@ -9,6 +9,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://stellargive.org"),
   title: "stellarGive | Relief Grant Platform",
   description: "A decentralized donation platform built on Stellar",
 };

@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Share2, Twitter, Copy, Check, Send, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
+import { logger } from "@/lib/logger";
 
 // We only need the ID and title from the campaign for sharing.
 // Doing a loose type helps us use it anywhere without full Campaign type requirement.
@@ -43,7 +44,7 @@ export function ShareButton({ campaign }: { campaign: ShareableCampaign }) {
       toast.success("Link copied!");
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      console.error("Failed to copy link:", err);
+      logger.error("Failed to copy link:", err);
       toast.error("Unable to copy link");
     }
   };

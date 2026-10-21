@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { AlertTriangle, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { logger } from "@/lib/logger";
 
 interface Props {
   children: React.ReactNode;
@@ -44,8 +45,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    // Forward to whatever error reporter is wired up (Sentry, console, etc.)
-    console.error("[ErrorBoundary] caught error:", error, info.componentStack);
+    logger.error("[ErrorBoundary] caught error:", error, info.componentStack);
   }
 
   reset = () => {

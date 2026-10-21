@@ -2,6 +2,7 @@ import { http, HttpResponse } from "msw";
 import { xdr, nativeToScVal, scValToNative } from "@stellar/stellar-sdk";
 import { buildCampaign, campaignToXdr, campaignArrayToXdr } from "../test/factories";
 import type { Campaign } from "@/lib/soroban";
+import { logger } from "@/lib/logger";
 
 // Mutable store for mock campaigns so tests can override or add to them
 export let MOCK_CAMPAIGNS: Campaign[] = [
@@ -86,7 +87,7 @@ export const handlers = [
             xdrResult = generateUpdatesArrayXdr();
           }
         } catch (e) {
-          console.error("Failed to parse txXdr in MSW handler", e);
+          logger.error("Failed to parse txXdr in MSW handler", e);
         }
       }
 
