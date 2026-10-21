@@ -270,7 +270,7 @@ export default function Home() {
     <div className="flex flex-col min-h-screen">
       <Navbar />
 
-      <main className="flex-1">
+      <div className="flex-1">
         {/* Hero Section */}
         <section className="py-16 md:py-24 bg-gradient-to-b from-primary/5 to-background border-b">
           <div className="container text-center space-y-6">
@@ -376,7 +376,7 @@ export default function Home() {
             </div>
           </div>
         </section>
-      </main>
+      </div>
     </div>
   );
 }

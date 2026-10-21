@@ -211,7 +211,7 @@ function ExploreContent() {
     <div className="flex flex-col min-h-screen">
       <Navbar />
 
-      <main className="flex-1 container py-12 space-y-8">
+      <div className="flex-1 container py-12 space-y-8">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <Compass className="w-6 h-6 text-primary" />
@@ -309,7 +309,7 @@ function ExploreContent() {
 
           <div ref={sentinelRef} className="h-4" aria-hidden="true" />
         </div>
-      </main>
+      </div>
     </div>
   );
 }
