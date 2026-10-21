@@ -33,11 +33,20 @@ function sym(s: string) {
   return nativeToScVal(s, { type: "symbol" });
 }
 
-function campaignScVal(): string {
+function campaignScVal(): xdr.ScVal {
   const c = FUNDED_CAMPAIGN;
   const entries: [string, xdr.ScVal][] = [
     ["accepted_token", new Address(TOKEN).toScVal()],
     ["beneficiary", new Address(WALLET).toScVal()],
+    [
+      "beneficiaries",
+      xdr.ScVal.scvVec([
+        xdr.ScVal.scvVec([
+          new Address(WALLET).toScVal(),
+          nativeToScVal(10000, { type: "u32" }),
+        ]),
+      ]),
+    ],
     ["category", nativeToScVal("Disaster", { type: "string" })],
     ["creator", new Address(WALLET).toScVal()],
     ["deadline", nativeToScVal(c.deadline, { type: "u64" })],
@@ -56,7 +65,7 @@ function campaignScVal(): string {
   ];
   return xdr.ScVal.scvMap(
     entries.map(([k, v]) => new xdr.ScMapEntry({ key: sym(k), val: v })),
-  ).toXDR("base64");
+  );
 }
 
 function decodeInvocation(txXdr: string): { fn: string; args: unknown[] } | null {
@@ -138,8 +147,21 @@ async function mockSorobanRPC(page: Page) {
           contentType: "application/json",
           body: JSON.stringify(
             wanted === FUNDED_CAMPAIGN.id
-              ? simOk(id, campaignScVal())
+              ? simOk(id, campaignScVal().toXDR("base64"))
               : simError(id, "Campaign not found"),
+          ),
+        });
+        return;
+      }
+
+      // The explore page lists campaigns via get_campaigns_paged; return the
+      // funded campaign so it appears under the "All" status tab.
+      if (fn === "get_campaigns_paged") {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(
+            simOk(id, xdr.ScVal.scvVec([campaignScVal()]).toXDR("base64")),
           ),
         });
         return;
@@ -242,8 +264,12 @@ test.describe("Claim funds on a funded campaign", () => {
   test("the beneficiary can claim and the control locks afterwards", async ({ page }) => {
     await page.goto("/explore");
 
-    // A funded campaign is excluded from the default "Active" tab.
-    await page.getByRole("tab", { name: /^All/i }).click();
+    // A funded campaign is excluded from the default "Active" tab. Scope to
+    // the status tablist so "All" (status) doesn't collide with "All Categories".
+    await page
+      .getByRole("tablist", { name: "Campaign status filters" })
+      .getByRole("tab", { name: /^All/i })
+      .click();
     await expect(page.getByText(FUNDED_CAMPAIGN.title)).toBeVisible({ timeout: 15_000 });
 
     await expect(claimControl(page)).toBeVisible();
