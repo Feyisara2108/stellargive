@@ -1,7 +1,8 @@
 import { http, HttpResponse } from "msw";
-import { xdr, nativeToScVal } from "@stellar/stellar-sdk";
+import { xdr, nativeToScVal, scValToNative } from "@stellar/stellar-sdk";
 import { buildCampaign, campaignToXdr, campaignArrayToXdr } from "../test/factories";
 import type { Campaign } from "@/lib/soroban";
+import { logger } from "@/lib/logger";
 
 // Mutable store for mock campaigns so tests can override or add to them
 export let MOCK_CAMPAIGNS: Campaign[] = [
@@ -65,6 +66,15 @@ export const handlers = [
               }
             }
           }
+          if (funcName === "get_campaigns_by_creator") {
+            const args = ic ? (typeof ic.args === "function" ? ic.args() : ic.args) : [];
+            if (args.length > 0) {
+              const creator = String(scValToNative(args[0]));
+              xdrResult = campaignArrayToXdr(
+                MOCK_CAMPAIGNS.filter((campaign) => campaign.creator === creator),
+              ).toXDR("base64");
+            }
+          }
           const rawStr = Buffer.from(txXdr, "base64").toString("utf-8");
           if (funcName === "get_campaigns_paged" || rawStr.includes("get_campaigns_paged")) {
             xdrResult = campaignArrayToXdr(MOCK_CAMPAIGNS).toXDR("base64");
@@ -77,7 +87,7 @@ export const handlers = [
             xdrResult = generateUpdatesArrayXdr();
           }
         } catch (e) {
-          console.error("Failed to parse txXdr in MSW handler", e);
+          logger.error("Failed to parse txXdr in MSW handler", e);
         }
       }
 

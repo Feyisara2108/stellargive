@@ -44,6 +44,7 @@ import {
 import { useCampaignTags } from "@/components/create-campaign/useCampaignTags";
 import { useImageUpload } from "@/components/create-campaign/useImageUpload";
 import { useBeneficiaryName } from "@/components/create-campaign/useBeneficiaryName";
+import { logger } from "@/lib/logger";
 
 export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
   const { isWrongNetwork, address: walletAddress } = useWallet();
@@ -145,7 +146,7 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
     } catch (e: unknown) {
       // Errors are already handled/displayed by the sonner toast inside the useCreateCampaign hook mutation wrapper,
       // but we catch it here to prevent uncaught promise rejections.
-      console.error(e);
+      logger.error(e);
     }
   }
 

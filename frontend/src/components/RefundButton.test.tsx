@@ -6,6 +6,7 @@ vi.mock("@/hooks/useSoroban", async () =>
   (await import("@/test/mockSoroban")).createSorobanMock({
     useRefundEligibility: vi.fn(),
     useClaimRefund: vi.fn(),
+    useRefund: vi.fn(),
   }),
 );
 
@@ -13,7 +14,7 @@ vi.mock("@/lib/WalletProvider", () => ({
   useWallet: vi.fn(),
 }));
 
-import { useRefundEligibility, useClaimRefund } from "@/hooks/useSoroban";
+import { useRefundEligibility, useClaimRefund, useRefund } from "@/hooks/useSoroban";
 import { useWallet } from "@/lib/WalletProvider";
 
 const CAMPAIGN_ID = 1n;
@@ -48,6 +49,7 @@ beforeEach(() => {
   vi.mocked(useWallet).mockReturnValue({ address: "GTESTADDRESS" } as any);
   vi.mocked(useRefundEligibility).mockReturnValue(mockEligibility() as any);
   vi.mocked(useClaimRefund).mockReturnValue(mockClaim() as any);
+  vi.mocked(useRefund).mockReturnValue(mockClaim() as any);
 });
 
 describe("RefundButton — visibility", () => {
@@ -142,6 +144,32 @@ describe("RefundButton — interaction", () => {
     });
     expect(mutate).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("uses refund(id, donor) mutation for an expired under-target campaign", async () => {
+    const mutate = vi.fn();
+    vi.mocked(useRefundEligibility).mockReturnValue(mockEligibility({ data: true }) as any);
+    vi.mocked(useRefund).mockReturnValue(mockClaim({ mutate }) as any);
+
+    render(<RefundButton campaignId={CAMPAIGN_ID} isCancelled={false} isExpiredUnfunded />);
+    fireEvent.click(screen.getByRole("button", { name: /Claim refund/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Confirm refund/i }));
+
+    await waitFor(() => expect(mutate).toHaveBeenCalledWith(CAMPAIGN_ID));
+    expect(mutate).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses claim_refund(donor, id) mutation for a cancelled campaign", async () => {
+    const mutate = vi.fn();
+    vi.mocked(useRefundEligibility).mockReturnValue(mockEligibility({ data: true }) as any);
+    vi.mocked(useClaimRefund).mockReturnValue(mockClaim({ mutate }) as any);
+
+    render(<RefundButton campaignId={CAMPAIGN_ID} isCancelled />);
+    fireEvent.click(screen.getByRole("button", { name: /Claim refund/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Confirm refund/i }));
+
+    await waitFor(() => expect(mutate).toHaveBeenCalledWith(CAMPAIGN_ID));
+    expect(mutate).toHaveBeenCalledTimes(1);
   });
 });
 

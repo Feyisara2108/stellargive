@@ -1,4 +1,5 @@
-"use client";
+import type { Metadata } from "next";
+import ExploreClient from "./ExploreClient";
 
 import { useState, useMemo, useEffect, useRef, Suspense } from "react";
 import { Navbar } from "@/components/Navbar";
@@ -313,13 +314,11 @@ function ExploreContent() {
     </div>
   );
 }
+export const metadata: Metadata = {
+  title: "Explore Relief Campaigns | StellarGive",
+  description: "Discover and support active relief campaigns on the Stellar network.",
+};
 
 export default function ExplorePage() {
-  // useSearchParams (used in ExploreContent) requires a Suspense boundary above it
-  // so Next.js can statically render the route without bailing out of CSR.
-  return (
-    <Suspense>
-      <ExploreContent />
-    </Suspense>
-  );
+  return <ExploreClient />;
 }

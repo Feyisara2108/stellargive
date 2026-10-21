@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useClaimFunds } from "@/hooks/useSoroban";
 import { useWallet } from "@/lib/WalletProvider";
+import { logger } from "@/lib/logger";
 import type { Campaign } from "@/lib/soroban";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
@@ -94,7 +95,7 @@ export function ClaimButton({ campaign }: { campaign: Campaign }) {
           .catch(() => {});
       }
     } catch (e: unknown) {
-      console.error(e);
+      logger.error(e);
     }
   };
 

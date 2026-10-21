@@ -12,6 +12,7 @@ import {
 import { WalletPicker } from "@/components/WalletPicker";
 import * as Sentry from "@sentry/nextjs";
 import { notify } from "@/lib/toast";
+import { logger } from "@/lib/logger";
 
 const APP_NETWORK_PASSPHRASE = process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE!;
 export const WALLET_CONNECTED_KEY = "stellargive:wallet-previously-connected";
@@ -219,7 +220,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem(WALLET_CONNECTED_KEY, "true");
         settlePicker(true);
       } catch (e) {
-        console.error("Failed to connect wallet", e);
+        logger.error("Failed to connect wallet", e);
         // The picker shows the error and stays open so another wallet can be tried.
         throw e;
       }
@@ -251,7 +252,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         await fetchWalletNetwork();
         return { supported: true, success: true };
       } catch (e) {
-        console.error("Failed to switch wallet network", e);
+        logger.error("Failed to switch wallet network", e);
         return { supported: true, success: false };
       }
     },

@@ -31,6 +31,7 @@ export function createSorobanMock(overrides: Record<string, unknown> = {}) {
     // Query hooks
     useCampaign: vi.fn(() => ({ ...idleQuery })),
     useRecentCampaigns: vi.fn(() => ({ ...idleQuery, data: [] })),
+    useCampaignsByCreator: vi.fn(() => ({ ...idleQuery, data: [] })),
     useCampaignsPaged: vi.fn(() => ({
       ...idleQuery,
       data: { pages: [{ campaigns: [], hasMore: false, nextOffset: 0 }], pageParams: [0] },
@@ -68,6 +69,7 @@ export function createSorobanMock(overrides: Record<string, unknown> = {}) {
     useDonate: vi.fn(() => ({ ...idleMutation })),
     useClaimFunds: vi.fn(() => ({ ...idleMutation })),
     useClaimRefund: vi.fn(() => ({ ...idleMutation })),
+    useRefund: vi.fn(() => ({ ...idleMutation })),
     useAddUpdate: vi.fn(() => ({ ...idleMutation })),
     useCancelCampaign: vi.fn(() => ({ ...idleMutation })),
     useAddToWhitelist: vi.fn(() => ({ ...idleMutation })),

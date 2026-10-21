@@ -3,6 +3,19 @@
 This document covers automated suites (unit, local-network integration, stress)
 and the manual cross-browser checklist.
 
+## Wave issue tracking
+
+These suites were delivered for the Stellar Wave Program and should remain linked
+to their GitHub issues so completion is tracked correctly:
+
+| Issue | Coverage |
+|---|---|
+| [#1163](https://github.com/Feyisara2108/stellargive/issues/1163) | Stress test script (`npm run stress-test`) |
+| [#1164](https://github.com/Feyisara2108/stellargive/issues/1164) | Struct-shaped event fixtures in `frontend/src/test/factories.ts` |
+| [#1165](https://github.com/Feyisara2108/stellargive/issues/1165) | Local Quickstart integration suite + `local-integration.yml` |
+
+Implementation originally landed in [#1169](https://github.com/Feyisara2108/stellargive/pull/1169); this follow-up ensures the issues are closed with the required `Closes` keywords so Wave can mark them complete.
+
 ## Stress test (testnet)
 
 `scripts/stress-test.js` funds 100 temporary accounts, creates a campaign, and

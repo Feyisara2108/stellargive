@@ -43,6 +43,8 @@ import { toast } from "sonner";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { DEDICATION_MAX_LENGTH, sanitizeMessage } from "@/lib/sanitize";
+import { isUserCancellation, mapTransactionError } from "@/lib/contractErrors";
+import { logger } from "@/lib/logger";
 
 const FIRED_MILESTONES = new Set<string>();
 const milestoneKey = (campaignId: bigint, m: MilestonePercent) => `${campaignId.toString()}:${m}`;
@@ -53,33 +55,6 @@ const MILESTONE_COPY: Record<MilestonePercent, { title: string; description: str
   75: { title: "75% funded!", description: "Almost at the finish line." },
   100: { title: "Fully funded!", description: "100% of the goal raised." },
 };
-
-function mapOnChainError(error: unknown): string | null {
-  const msg = (
-    error instanceof Error
-      ? error.message
-      : typeof error === "object" && error !== null && "message" in error
-        ? String((error as { message: unknown }).message)
-        : String(error)
-  ).trim();
-  if (msg.includes("User declined") || msg.includes("cancelled") || msg.includes("User rejected")) {
-    return null; // user-initiated, no inline error needed
-  }
-  if (getContractErrorCode(msg) === CONTRACT_ERROR_CODES.ExceedsDonorCap) {
-    return EXCEEDS_DONOR_CAP_MESSAGE;
-  }
-  if (msg.includes("Simulation failed") || msg.includes("Transaction failed")) {
-    return "The transaction was rejected on-chain. Check the donation amount and try again.";
-  }
-  if (
-    msg.includes("Network Error") ||
-    msg.includes("Failed to fetch") ||
-    msg.includes("Send failed")
-  ) {
-    return "Network error — please check your connection and try again.";
-  }
-  return "Something went wrong. Please try again.";
-}
 
 export function DonateModal({
   campaign,
@@ -260,7 +235,7 @@ export function DonateModal({
           });
         }
       } catch (milestoneErr) {
-        console.error("Failed to compute milestone toasts", milestoneErr);
+        logger.error("Failed to compute milestone toasts", milestoneErr);
       }
       setSuccessAmount(data.amount);
       setSuccessTxHash((result as { hash?: string })?.hash || "");
@@ -270,7 +245,7 @@ export function DonateModal({
           localStorage.setItem("stellargive_last_donated_amount", data.amount);
         }
       } catch (storageErr) {
-        console.error("Failed to save last donated amount to localStorage", storageErr);
+        logger.error("Failed to save last donated amount to localStorage", storageErr);
       }
       setShowSuccess(true);
       setIsOpen(false);
@@ -278,9 +253,8 @@ export function DonateModal({
       setIsAnonymous(false);
       setMessage("");
     } catch (e: unknown) {
-      console.error(e);
-      const inlineMsg = mapOnChainError(e);
-      if (inlineMsg) setSubmitError(inlineMsg);
+      logger.error(e);
+      if (!isUserCancellation(e)) setSubmitError(mapTransactionError(e));
     }
   };
 

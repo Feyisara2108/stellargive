@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import type { Path, UseFormReturn } from "react-hook-form";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { logger } from "@/lib/logger";
 import type { FormValues } from "./schema";
 
 export const DRAFT_STORAGE_KEY = "create_campaign_draft";
@@ -32,7 +33,7 @@ export function useCampaignDraft(
           }
         });
       } catch (e) {
-        console.error("Failed to restore campaign draft", e);
+        logger.error("Failed to restore campaign draft", e);
       }
     }
     void form.trigger();

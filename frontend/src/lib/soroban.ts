@@ -15,6 +15,7 @@ import { NETWORK_PASSPHRASE } from "./network";
 import { CONTRACT_ID, RPC_URL } from "./config";
 import { MAX_SIMULATION_FEE_STROOPS, STROOP_PRECISION, fromStroops, toStroops } from "./amounts";
 import { isValidAccountAddress } from "./strkey";
+import { logger } from "./logger";
 import {
   isNativeCampaign,
   isNativeCampaignUpdate,
@@ -255,6 +256,37 @@ export async function getRecentCampaigns(limit = 20, offset = 0): Promise<Campai
   return campaigns;
 }
 
+/** Loads all campaigns created by `creator`, regardless of their age. */
+export async function getCampaignsByCreator(creator: string): Promise<Campaign[]> {
+  const tx = new TransactionBuilder(
+    new Account("GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF", "0"),
+    {
+      fee: "100",
+      networkPassphrase: NETWORK_PASSPHRASE,
+    },
+  )
+    .addOperation(
+      Operation.invokeContractFunction({
+        contract: CONTRACT_ID,
+        function: "get_campaigns_by_creator",
+        args: [new Address(creator).toScVal()],
+      }),
+    )
+    .setTimeout(30)
+    .build();
+
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim)) {
+    throw new Error(`Simulation failed: ${sim.error}`);
+  }
+  if (!sim.result) throw new Error("Failed to get creator campaigns: no result");
+  const result = scValToNative(sim.result.retval);
+  if (!Array.isArray(result) || !result.every(isNativeCampaign)) {
+    throw new Error("Invalid creator campaigns result");
+  }
+  return result.map(parseCampaign);
+}
+
 async function fetchTotalCampaigns(): Promise<bigint> {
   const tx = new TransactionBuilder(
     new Account("GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF", "0"),
@@ -442,14 +474,14 @@ async function simulateAndWarn(
 ) {
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    console.error("[soroban] simulation failed:", sim.error);
+    logger.error("[soroban] simulation failed:", sim.error);
     throw new Error(`Simulation failed: ${sim.error}`);
   }
 
   const minFee = Number(sim.minResourceFee ?? 0);
   if (minFee > MAX_SIMULATION_FEE_STROOPS) {
     const msg = `High gas: simulated fee ${minFee} stroops exceeds threshold ${MAX_SIMULATION_FEE_STROOPS}`;
-    console.warn(`[soroban] ⚠️ ${msg}`);
+    logger.warn(`[soroban] ${msg}`);
     if (options.onHighGasWarning) {
       options.onHighGasWarning(minFee);
     }
@@ -520,24 +552,91 @@ export async function submitTransactionWithKeypair(
 
 /** How far back from the tip to scan for contract events (ledgers ≈ 5s each). */
 const EVENT_LOOKBACK_LEDGERS = 10_000;
+const MAX_EVENTS_PER_RPC_PAGE = 1_000;
 
 export async function getEvents(limit = 20) {
-  // Real Soroban RPC rejects `startLedger: 0`. Anchor near the tip instead.
-  let startLedger = 1;
-  try {
-    const latest = await server.getLatestLedger();
-    startLedger = Math.max(1, latest.sequence - EVENT_LOOKBACK_LEDGERS);
-  } catch {
-    // Fall through with startLedger = 1 if the tip cannot be read.
+  const requested = Math.max(0, Math.floor(limit));
+  if (requested === 0) return [];
+
+  const filters = contractEventFilters();
+  const pageSize = Math.min(requested, MAX_EVENTS_PER_RPC_PAGE);
+  let response = await requestEventsFromAvailableLedger(filters, pageSize);
+  const raw = [...response.events];
+  let pages = 1;
+
+  while (
+    raw.length < requested &&
+    response.events.length === pageSize &&
+    pages < EVENT_HISTORY_MAX_PAGES
+  ) {
+    response = await server.getEvents({
+      cursor: response.cursor,
+      filters,
+      limit: Math.min(pageSize, requested - raw.length),
+    });
+    raw.push(...response.events);
+    pages++;
   }
 
-  const response = await server.getEvents({
-    startLedger,
-    filters: contractEventFilters(),
-    limit,
-  });
+  return dedupeClaimEvents(raw.slice(0, requested).map(decodeEvent));
+}
 
-  return dedupeClaimEvents(response.events.map(decodeEvent));
+async function getOldestAvailableLedger(): Promise<number> {
+  let healthError: unknown;
+  try {
+    const { oldestLedger } = await server.getHealth();
+    if (Number.isSafeInteger(oldestLedger) && oldestLedger > 0) return oldestLedger;
+  } catch (error) {
+    healthError = error;
+  }
+
+  try {
+    const latest = await server.getLatestLedger();
+    return Math.max(1, latest.sequence - EVENT_LOOKBACK_LEDGERS);
+  } catch (latestError) {
+    if (healthError !== undefined) {
+      throw new Error("Unable to determine the oldest available event ledger.", {
+        cause: new AggregateError([healthError, latestError]),
+      });
+    }
+    throw latestError;
+  }
+}
+
+function isUnavailableLedgerRange(error: unknown): boolean {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "object" && error !== null && "message" in error
+        ? String(error.message)
+        : String(error);
+  return (
+    /start.?ledger/i.test(message) &&
+    /(range|retention|available|oldest|invalid|must|greater|less)/i.test(message)
+  );
+}
+
+async function requestEventsFromAvailableLedger(
+  filters: rpc.Api.EventFilter[],
+  limit: number,
+): Promise<Awaited<ReturnType<typeof server.getEvents>>> {
+  const startLedger = await getOldestAvailableLedger();
+  try {
+    return await server.getEvents({ startLedger, filters, limit });
+  } catch (error) {
+    if (!isUnavailableLedgerRange(error)) throw error;
+    const refreshedStart = await getOldestAvailableLedger();
+    const latest = await server.getLatestLedger();
+    return server.getEvents({
+      startLedger: Math.max(
+        startLedger + 1,
+        refreshedStart,
+        latest.sequence - EVENT_LOOKBACK_LEDGERS,
+      ),
+      filters,
+      limit,
+    });
+  }
 }
 
 /** Events per `getEvents` page in a full-history scan (the RPC caps `limit` at 10,000). */
@@ -571,17 +670,7 @@ export async function getEventHistory(
 ): Promise<EventHistory> {
   const filters = contractEventFilters();
 
-  // Start at the oldest retained ledger; fall back to a tip-anchored window
-  // if the RPC can't report its retention range.
-  let startLedger: number;
-  try {
-    startLedger = (await server.getHealth()).oldestLedger;
-  } catch {
-    const latest = await server.getLatestLedger();
-    startLedger = Math.max(1, latest.sequence - EVENT_LOOKBACK_LEDGERS);
-  }
-
-  let response = await server.getEvents({ startLedger, filters, limit: pageSize });
+  let response = await requestEventsFromAvailableLedger(filters, pageSize);
   const windowStart = response.oldestLedgerCloseTime || null;
   const raw = [...response.events];
   let pages = 1;

@@ -1,13 +1,11 @@
-"use client";
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import type { Metadata } from "next";
+import CreateClient from "./CreateClient";
 
-export default function CreateCampaign() {
-  const router = useRouter();
+export const metadata: Metadata = {
+  title: "Create a Campaign | StellarGive",
+  description: "Start a StellarGive relief campaign and invite the community to support it.",
+};
 
-  useEffect(() => {
-    router.replace("/?create=true");
-  }, [router]);
-
-  return null;
+export default function CreatePage() {
+  return <CreateClient />;
 }

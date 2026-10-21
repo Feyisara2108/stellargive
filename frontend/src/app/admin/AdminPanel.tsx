@@ -30,6 +30,7 @@ import {
   useSetOwner,
 } from "@/hooks/useSoroban";
 import { useWallet } from "@/lib/WalletProvider";
+import { logger } from "@/lib/logger";
 import { isValidAccountAddress } from "@/lib/strkey";
 import { toast } from "sonner";
 import type { Campaign } from "@/lib/soroban";
@@ -246,37 +247,39 @@ export function AdminPanel({ ownedCampaigns }: AdminPanelProps) {
       </div>
 
       {/* Contract Controls */}
-      <div className="border rounded-xl bg-card p-6 shadow-sm space-y-4">
-        <div className="space-y-2">
-          <h2 className="text-xl font-semibold flex items-center gap-2">
-            <Shield className="w-5 h-5 text-primary" />
-            Contract Controls
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Emergency controls for the contract owner. Pausing the contract disables all donations
-            and campaign creation.
-          </p>
-        </div>
+      {isContractOwner && (
+        <div className="border rounded-xl bg-card p-6 shadow-sm space-y-4">
+          <div className="space-y-2">
+            <h2 className="text-xl font-semibold flex items-center gap-2">
+              <Shield className="w-5 h-5 text-primary" />
+              Contract Controls
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Emergency controls for the contract owner. Pausing the contract disables all donations
+              and campaign creation.
+            </p>
+          </div>
 
-        <div className="flex gap-3">
-          <Button
-            variant="destructive"
-            onClick={() => setShowPauseConfirm(true)}
-            disabled={pauseContract.isPending}
-          >
-            <Pause className="w-4 h-4 mr-2" />
-            Pause Contract
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => setShowUnpauseConfirm(true)}
-            disabled={unpauseContract.isPending}
-          >
-            <Play className="w-4 h-4 mr-2" />
-            Unpause Contract
-          </Button>
+          <div className="flex gap-3">
+            <Button
+              variant="destructive"
+              onClick={() => setShowPauseConfirm(true)}
+              disabled={pauseContract.isPending}
+            >
+              <Pause className="w-4 h-4 mr-2" />
+              Pause Contract
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setShowUnpauseConfirm(true)}
+              disabled={unpauseContract.isPending}
+            >
+              <Play className="w-4 h-4 mr-2" />
+              Unpause Contract
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Ownership Transfer — owner only */}
       {isContractOwner && (
@@ -511,7 +514,7 @@ export function AdminPanel({ ownedCampaigns }: AdminPanelProps) {
                   await cancelCampaign.mutateAsync(campaignToCancel.id);
                   setCampaignToCancel(null);
                 } catch (err) {
-                  console.error("Failed to cancel campaign:", err);
+                  logger.error("Failed to cancel campaign:", err);
                 }
               }}
             >
@@ -609,7 +612,7 @@ export function AdminPanel({ ownedCampaigns }: AdminPanelProps) {
                   setShowPauseConfirm(false);
                   setPauseConfirmText("");
                 } catch (err) {
-                  console.error("Failed to pause contract:", err);
+                  logger.error("Failed to pause contract:", err);
                 }
               }}
             >
@@ -685,7 +688,7 @@ export function AdminPanel({ ownedCampaigns }: AdminPanelProps) {
                   closeTransferConfirm();
                   setNewOwner("");
                 } catch (err) {
-                  console.error("Failed to transfer ownership:", err);
+                  logger.error("Failed to transfer ownership:", err);
                 }
               }}
             >
@@ -731,7 +734,7 @@ export function AdminPanel({ ownedCampaigns }: AdminPanelProps) {
                   await unpauseContract.mutateAsync();
                   setShowUnpauseConfirm(false);
                 } catch (err) {
-                  console.error("Failed to unpause contract:", err);
+                  logger.error("Failed to unpause contract:", err);
                 }
               }}
             >

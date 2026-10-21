@@ -1,6 +1,7 @@
 // frontend/src/components/PostUpdateForm.tsx
 
 import React, { useState, useEffect, useRef } from "react";
+import { logger } from "@/lib/logger";
 
 interface PostUpdateFormProps {
   campaignId: string;
@@ -91,7 +92,7 @@ export const PostUpdateForm: React.FC<PostUpdateFormProps> = ({
       } catch (err: unknown) {
         // Restore the content so the user can retry without retyping.
         setContent(trimmedContent);
-        console.error("Failed to submit update to Soroban:", err);
+        logger.error("Failed to submit update to Soroban:", err);
         const msg =
           err instanceof Error
             ? err.message
@@ -112,7 +113,7 @@ export const PostUpdateForm: React.FC<PostUpdateFormProps> = ({
         } catch {}
         onSuccess();
       } catch (err: unknown) {
-        console.error("Failed to submit update to Soroban:", err);
+        logger.error("Failed to submit update to Soroban:", err);
         const msg =
           err instanceof Error
             ? err.message
