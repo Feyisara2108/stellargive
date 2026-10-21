@@ -6,9 +6,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@/test/render";
 import ExplorePage from "./page";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MockWalletProvider } from "@/components/MockWalletProvider";
 import { setMockCampaigns } from "@/mocks/handlers";
 import React from "react";
@@ -38,15 +37,10 @@ vi.mock("@/components/CampaignCard", () => ({
 }));
 
 function renderPage() {
-  const qc = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: 0 } },
-  });
   return render(
-    <QueryClientProvider client={qc}>
-      <MockWalletProvider>
-        <ExplorePage />
-      </MockWalletProvider>
-    </QueryClientProvider>,
+    <MockWalletProvider>
+      <ExplorePage />
+    </MockWalletProvider>,
   );
 }
 

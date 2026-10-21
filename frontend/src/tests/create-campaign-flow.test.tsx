@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen, fireEvent, waitFor, act } from "@/test/render";
 import { http, HttpResponse } from "msw";
 import { scValToNative } from "@stellar/stellar-sdk";
 import { server } from "@/mocks/setup";
@@ -72,26 +71,13 @@ vi.mock("@/components/TokenSelector", () => ({
 const MOCK_CID = "QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG";
 const MOCK_METADATA_URI = `ipfs://${MOCK_CID}`;
 
-function makeQueryClient() {
-  return new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
-  });
-}
-
 function renderCreateCampaignFlow() {
-  const queryClient = makeQueryClient();
-
   return render(
-    <QueryClientProvider client={queryClient}>
-      <MockWalletProvider>
-        <TooltipProvider delayDuration={0}>
-          <CreateCampaignForm inline />
-        </TooltipProvider>
-      </MockWalletProvider>
-    </QueryClientProvider>,
+    <MockWalletProvider>
+      <TooltipProvider delayDuration={0}>
+        <CreateCampaignForm inline />
+      </TooltipProvider>
+    </MockWalletProvider>,
   );
 }
 

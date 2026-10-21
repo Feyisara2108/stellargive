@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@/test/render";
 import { CampaignList } from "./CampaignList";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MockWalletProvider } from "./MockWalletProvider";
 import { server, errorHandlers } from "@/mocks/setup";
 import { setMockCampaigns } from "@/mocks/handlers";
@@ -54,20 +53,8 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => currentParams,
 }));
 
-function makeWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, gcTime: 0 },
-    },
-  });
-
-  return function Wrapper({ children }: { children: React.ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <MockWalletProvider>{children}</MockWalletProvider>
-      </QueryClientProvider>
-    );
-  };
+function renderList() {
+  return render(<MockWalletProvider><CampaignList /></MockWalletProvider>);
 }
 
 beforeEach(() => {
@@ -81,8 +68,7 @@ beforeEach(() => {
 describe("CampaignList - MSW Integrated States", () => {
   it("displays 'No campaigns found' and 'Create campaign' button when no campaigns exist", async () => {
     setMockCampaigns([]);
-    const Wrapper = makeWrapper();
-    render(<CampaignList />, { wrapper: Wrapper });
+    renderList();
 
     await waitFor(() => {
       expect(screen.getByText(/No campaigns found/i)).toBeInTheDocument();
@@ -98,8 +84,7 @@ describe("CampaignList - MSW Integrated States", () => {
       buildCampaign({ id: 1n, title: "Flood Relief" }),
       buildCampaign({ id: 2n, title: "School Supplies" }),
     ]);
-    const Wrapper = makeWrapper();
-    render(<CampaignList />, { wrapper: Wrapper });
+    renderList();
 
     await waitFor(() => {
       expect(screen.getByText("Flood Relief")).toBeInTheDocument();
@@ -110,8 +95,7 @@ describe("CampaignList - MSW Integrated States", () => {
 
   it("displays error message on RPC failure", async () => {
     server.use(...errorHandlers.transactionFailed);
-    const Wrapper = makeWrapper();
-    render(<CampaignList />, { wrapper: Wrapper });
+    renderList();
 
     await waitFor(() => {
       expect(screen.getByText(/Failed to load campaigns/i)).toBeInTheDocument();
@@ -120,8 +104,7 @@ describe("CampaignList - MSW Integrated States", () => {
 
   it("displays 'No campaigns match your search' when search filters out all campaigns", async () => {
     setMockCampaigns([buildCampaign({ id: 1n, title: "Flood Relief" })]);
-    const Wrapper = makeWrapper();
-    render(<CampaignList />, { wrapper: Wrapper });
+    renderList();
 
     await waitFor(() => {
       expect(screen.getByText("Flood Relief")).toBeInTheDocument();
@@ -151,8 +134,7 @@ describe("CampaignList - Search & URL sync", () => {
   });
 
   it("filters the grid by title as the user types", async () => {
-    const Wrapper = makeWrapper();
-    render(<CampaignList />, { wrapper: Wrapper });
+    renderList();
 
     await waitFor(() => {
       expect(screen.getByText("Flood Relief")).toBeInTheDocument();
@@ -170,8 +152,7 @@ describe("CampaignList - Search & URL sync", () => {
   });
 
   it("syncs the debounced query into the ?q= URL param", async () => {
-    const Wrapper = makeWrapper();
-    render(<CampaignList />, { wrapper: Wrapper });
+    renderList();
 
     const searchInput = await screen.findByPlaceholderText(/Search campaigns/i);
     fireEvent.change(searchInput, {
@@ -193,8 +174,7 @@ describe("CampaignList - Search & URL sync", () => {
       isLoading: false,
       error: null,
     };
-    const Wrapper = makeWrapper();
-    render(<CampaignList />, { wrapper: Wrapper });
+    renderList();
 
     await waitFor(() => {
       expect(screen.getByText("School Supplies")).toBeInTheDocument();
@@ -207,8 +187,7 @@ describe("CampaignList - Search & URL sync", () => {
 describe("CampaignList - Loading skeleton", () => {
   it("renders skeleton grid while campaigns are loading", () => {
     mockRecentCampaignsReturn = { data: undefined, isLoading: true, error: null };
-    const Wrapper = makeWrapper();
-    render(<CampaignList />, { wrapper: Wrapper });
+    renderList();
 
     expect(screen.getByTestId("skeleton-grid")).toBeInTheDocument();
     const skeletons = screen.getAllByTestId("campaign-skeleton");
@@ -221,8 +200,7 @@ describe("CampaignList - Loading skeleton", () => {
       isLoading: false,
       error: null,
     };
-    const Wrapper = makeWrapper();
-    render(<CampaignList />, { wrapper: Wrapper });
+    renderList();
 
     await waitFor(() => {
       expect(screen.getByText("Flood Relief")).toBeInTheDocument();
@@ -238,8 +216,7 @@ describe("CampaignList - Error state", () => {
       isLoading: false,
       error: new Error("Network failure"),
     };
-    const Wrapper = makeWrapper();
-    render(<CampaignList />, { wrapper: Wrapper });
+    renderList();
 
     expect(screen.getByText(/Failed to load campaigns/i)).toBeInTheDocument();
     expect(screen.getByText(/Please ensure you are on Testnet/i)).toBeInTheDocument();
@@ -251,8 +228,7 @@ describe("CampaignList - Error state", () => {
       isLoading: false,
       error: new Error("RPC error"),
     };
-    const Wrapper = makeWrapper();
-    render(<CampaignList />, { wrapper: Wrapper });
+    renderList();
 
     expect(screen.queryByTestId("campaign-card")).not.toBeInTheDocument();
     expect(screen.queryByTestId("skeleton-grid")).not.toBeInTheDocument();
@@ -266,8 +242,7 @@ describe("CampaignList - Empty state", () => {
       isLoading: false,
       error: null,
     };
-    const Wrapper = makeWrapper();
-    render(<CampaignList />, { wrapper: Wrapper });
+    renderList();
 
     expect(screen.getByText(/No campaigns found/i)).toBeInTheDocument();
     expect(screen.getByText(/Why not create the first one\?/i)).toBeInTheDocument();
@@ -281,8 +256,7 @@ describe("CampaignList - Empty state", () => {
       isLoading: false,
       error: null,
     };
-    const Wrapper = makeWrapper();
-    render(<CampaignList />, { wrapper: Wrapper });
+    renderList();
 
     expect(screen.queryByRole("button", { name: /load more/i })).not.toBeInTheDocument();
   });
@@ -293,8 +267,7 @@ describe("CampaignList - Empty state", () => {
       isLoading: false,
       error: null,
     };
-    const Wrapper = makeWrapper();
-    render(<CampaignList />, { wrapper: Wrapper });
+    renderList();
 
     expect(screen.queryByTestId("skeleton-grid")).not.toBeInTheDocument();
   });
@@ -329,8 +302,7 @@ describe("CampaignList - Virtualisation with react-window v2", () => {
     };
 
     try {
-      const Wrapper = makeWrapper();
-      render(<CampaignList />, { wrapper: Wrapper });
+      renderList();
 
       await waitFor(() => {
         expect(screen.getByRole("grid", { name: /Campaign list/i })).toBeInTheDocument();

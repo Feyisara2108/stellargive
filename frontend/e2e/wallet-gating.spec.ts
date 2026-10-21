@@ -33,6 +33,15 @@ function campaignScVal(): string {
   const entries: [string, xdr.ScVal][] = [
     ["accepted_token", new Address(TOKEN).toScVal()],
     ["beneficiary", new Address(CREATOR).toScVal()],
+    [
+      "beneficiaries",
+      xdr.ScVal.scvVec([
+        xdr.ScVal.scvVec([
+          new Address(CREATOR).toScVal(),
+          nativeToScVal(10000, { type: "u32" }),
+        ]),
+      ]),
+    ],
     ["category", nativeToScVal("Disaster", { type: "string" })],
     ["creator", new Address(CREATOR).toScVal()],
     ["deadline", nativeToScVal(9_999_999_999n, { type: "u64" })],
@@ -210,7 +219,12 @@ test.describe("Action gating with no wallet connected", () => {
     // Donate is blocked rather than submitting into a "Wallet not connected" error.
     await expect(donateButton(page)).toBeVisible();
     await expect(donateButton(page)).toBeDisabled();
-    await expect(donateButton(page)).toHaveAttribute("title", /Connect your wallet to donate/i);
+    // The disabled reason is exposed via aria-describedby (the donate button
+    // points at the "Connect your wallet to donate" tooltip) rather than a title.
+    await expect(donateButton(page)).toHaveAttribute(
+      "aria-describedby",
+      "donate-disabled-reason",
+    );
 
     // Nothing opened, so no amount field is reachable.
     await expect(donateDialog(page)).toHaveCount(0);

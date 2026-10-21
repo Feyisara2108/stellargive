@@ -36,6 +36,15 @@ function campaignScVal(): string {
   const entries: [string, xdr.ScVal][] = [
     ["accepted_token", new Address(TOKEN).toScVal()],
     ["beneficiary", new Address(CREATOR).toScVal()],
+    [
+      "beneficiaries",
+      xdr.ScVal.scvVec([
+        xdr.ScVal.scvVec([
+          new Address(CREATOR).toScVal(),
+          nativeToScVal(10000, { type: "u32" }),
+        ]),
+      ]),
+    ],
     ["category", nativeToScVal("Disaster", { type: "string" })],
     ["creator", new Address(CREATOR).toScVal()],
     ["deadline", nativeToScVal(9_999_999_999n, { type: "u64" })],

@@ -1,9 +1,101 @@
 import { test, expect, type Page } from "@playwright/test";
-import { nativeToScVal } from "@stellar/stellar-sdk";
+import { Address, Keypair, nativeToScVal, scValToNative, xdr } from "@stellar/stellar-sdk";
 
 // Deterministic test data matching the mock wallet defaults
 const MOCK_ADDRESS = "GTEST7SRIEMJXLK3LXKLS5RQ7JLDUZQUDVFNLWIM6DEDCZM5WLPSERV";
 const MOCK_TX_HASH = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2";
+
+const CREATOR = Keypair.fromRawEd25519Seed(Buffer.alloc(32, 1)).publicKey();
+const TOKEN = Keypair.fromRawEd25519Seed(Buffer.alloc(32, 2)).publicKey();
+
+function sym(s: string) {
+  return nativeToScVal(s, { type: "symbol" });
+}
+
+function simOk(id: number, retvalXdr: string) {
+  return {
+    jsonrpc: "2.0",
+    id,
+    result: {
+      transactionData: "",
+      minResourceFee: "100",
+      cost: { cpuInsns: "1000", memBytes: "1000" },
+      results: [{ xdr: retvalXdr }],
+      latestLedger: 1000,
+    },
+  };
+}
+
+/** Build the `get_campaign` retval as a properly-typed ScVal map, including the
+ *  `beneficiaries` vec the contract requires (the old `nativeToScVal` mock left
+ *  it out, so `isNativeCampaign` rejected the campaign and the page never loaded). */
+function campaignScVal(raised: bigint): string {
+  const entries: [string, xdr.ScVal][] = [
+    ["accepted_token", new Address(TOKEN).toScVal()],
+    ["beneficiary", new Address(CREATOR).toScVal()],
+    [
+      "beneficiaries",
+      xdr.ScVal.scvVec([
+        xdr.ScVal.scvVec([
+          new Address(CREATOR).toScVal(),
+          nativeToScVal(10000, { type: "u32" }),
+        ]),
+      ]),
+    ],
+    ["category", nativeToScVal("relief", { type: "string" })],
+    ["creator", new Address(CREATOR).toScVal()],
+    ["deadline", nativeToScVal(BigInt(Math.floor(Date.now() / 1000) + 86_400), { type: "u64" })],
+    ["description", nativeToScVal("Help the victims of the recent floods.", { type: "string" })],
+    ["id", nativeToScVal(1n, { type: "u64" })],
+    ["metadata_uri", nativeToScVal("", { type: "string" })],
+    ["raised_amount", nativeToScVal(raised, { type: "i128" })],
+    ["status", xdr.ScVal.scvMap([new xdr.ScMapEntry({ key: sym("Active"), val: xdr.ScVal.scvVoid() })])],
+    ["target_amount", nativeToScVal(100_000_000n, { type: "i128" })],
+    ["title", nativeToScVal("Flood Relief 2024", { type: "string" })],
+    ["twitter", nativeToScVal("", { type: "string" })],
+    ["website", nativeToScVal("", { type: "string" })],
+  ];
+  return xdr.ScVal.scvMap(
+    entries.map(([k, v]) => new xdr.ScMapEntry({ key: sym(k), val: v })),
+  ).toXDR("base64");
+}
+
+/** Decode the invoked contract function + args from a simulateTransaction request. */
+function decodeInvocation(txXdr: string): { fn: string; args: unknown[] } | null {
+  try {
+    const fromFn =
+      (xdr.TransactionEnvelope as any).fromXDR ?? (xdr.TransactionEnvelope as any).fromXdr;
+    const env = fromFn.call(xdr.TransactionEnvelope, txXdr, "base64");
+    const v1 = typeof (env as any).v1 === "function" ? (env as any).v1() : (env as any).v1;
+    const tx = v1 ? (typeof v1.tx === "function" ? v1.tx() : v1.tx) : null;
+    const ops = tx ? (typeof tx.operations === "function" ? tx.operations() : tx.operations) : [];
+    const op = ops?.[0];
+    const opBody = op ? (typeof op.body === "function" ? op.body() : op.body) : null;
+    const hostFnOp = opBody
+      ? typeof opBody.invokeHostFunctionOp === "function"
+        ? opBody.invokeHostFunctionOp()
+        : opBody.invokeHostFunctionOp ?? opBody.value
+      : null;
+    const hostFn = hostFnOp
+      ? typeof hostFnOp.hostFunction === "function"
+        ? hostFnOp.hostFunction()
+        : hostFnOp.hostFunction ?? hostFnOp.value
+      : null;
+    const ic = hostFn
+      ? typeof hostFn.invokeContract === "function"
+        ? hostFn.invokeContract()
+        : hostFn.invokeContract ?? hostFn.value
+      : null;
+    if (!ic) return null;
+    const fnNameVal = typeof ic.functionName === "function" ? ic.functionName() : ic.functionName;
+    const fn = fnNameVal?.toString() ?? "";
+    const argsVal = typeof ic.args === "function" ? ic.args() : ic.args;
+    const args = Array.isArray(argsVal) ? argsVal.map((a: any) => scValToNative(a)) : [];
+    return { fn, args };
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Intercept all Soroban RPC JSON-RPC calls and return mock responses.
@@ -24,54 +116,28 @@ async function mockSorobanRPC(page: Page) {
     const method = body.method || "";
 
     if (method === "simulateTransaction") {
-      const xdrString = body.params?.[0] || "";
-      const buffer = Buffer.from(xdrString, "base64");
+      const call = decodeInvocation(body.params?.transaction ?? "");
+      const fn = call?.fn ?? "";
+      let retvalXdr: string;
 
-      let retval: any;
-      if (buffer.includes("get_campaign")) {
-        const mockCampaign = {
-          id: 1n,
-          creator: "GDQP2QSYCDKUFGBAHQVHQVHQVHQVHQVHQVHQVHQVHQVHQVHQVHQVHQVH",
-          beneficiary: "GDQP2QSYCDKUFGBAHQVHQVHQVHQVHQVHQVHQVHQVHQVHQVHQVHQVHQVH",
-          title: "Flood Relief 2024",
-          description: "Help the victims of the recent floods.",
-          category: "relief",
-          target_amount: 100000000n, // 10 XLM
-          raised_amount: raisedAmount,
-          deadline: BigInt(Math.floor(Date.now() / 1000) + 86400), // active for 1 day
-          accepted_token: "CDLZFC3SYJYDTIW67FYOFNPZNR2BAZZB54JZWJZWJZWJZWJZWJZWJZWZ",
-          status: { Active: null },
-          metadata_uri: "https://example.com/metadata",
-          website: "https://example.com",
-          twitter: "https://twitter.com/example",
-        };
-        retval = nativeToScVal(mockCampaign);
-      } else if (buffer.includes("balance")) {
-        retval = nativeToScVal(1000000000n, { type: "i128" }); // 100 XLM
-      } else if (buffer.includes("get_total_campaigns")) {
-        retval = nativeToScVal(1n, { type: "u64" });
+      if (fn === "get_campaign") {
+        retvalXdr = campaignScVal(raisedAmount);
+      } else if (fn === "balance") {
+        retvalXdr = nativeToScVal(1_000_000_000n, { type: "i128" }).toXDR("base64"); // 100 XLM
+      } else if (fn === "get_total_campaigns") {
+        retvalXdr = nativeToScVal(1, { type: "u32" }).toXDR("base64");
+      } else if (fn === "decimals") {
+        retvalXdr = nativeToScVal(7, { type: "u32" }).toXDR("base64");
+      } else if (fn === "name" || fn === "symbol") {
+        retvalXdr = nativeToScVal("XLM", { type: "string" }).toXDR("base64");
       } else {
-        retval = nativeToScVal(null);
+        retvalXdr = xdr.ScVal.scvVoid().toXDR("base64");
       }
 
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          id: body.id,
-          result: {
-            transactionData: "",
-            minResourceFee: "100",
-            cost: { cpuInsns: "1000", memBytes: "1000" },
-            results: [
-              {
-                xdr: retval.toXDR("base64"),
-              },
-            ],
-            latestLedger: 1000,
-          },
-        }),
+        body: JSON.stringify(simOk(body.id, retvalXdr)),
       });
     } else if (method === "getAccount") {
       await route.fulfill({

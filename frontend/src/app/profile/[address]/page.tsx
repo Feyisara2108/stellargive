@@ -36,7 +36,7 @@ export default async function PublicProfilePage({ params }: PublicProfileProps) 
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
-      <main className="flex-1 container py-12 space-y-8">
+      <div className="flex-1 container py-12 space-y-8">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <UserCircle className="w-6 h-6 text-primary" />
@@ -52,7 +52,7 @@ export default async function PublicProfilePage({ params }: PublicProfileProps) 
             </p>
           </CardContent>
         </Card>
-      </main>
+      </div>
     </div>
   );
 }

@@ -17,8 +17,8 @@ test.describe("Keyboard Navigation & Accessibility", () => {
     // Press Enter to activate skip link
     await page.keyboard.press("Enter");
 
-    // The focus should move to the main content region (e.g. element with id="main-content")
-    const mainContent = page.locator("main"); // or whatever the skip link targets
+    // The focus should move to the single main content landmark the skip link targets.
+    const mainContent = page.locator("#main-content");
     await expect(mainContent).toBeFocused();
   });
 
