@@ -1,8 +1,12 @@
-"use client";
-
+import type { Metadata } from "next";
 import { Navbar } from "@/components/Navbar";
 import { Accordion, AccordionItem } from "@/components/ui/accordion";
 import { HelpCircle } from "lucide-react";
+
+export const metadata: Metadata = {
+  title: "Frequently Asked Questions | StellarGive",
+  description: "Find answers about donating, creating campaigns, wallets, and the Stellar network.",
+};
 
 export default function FaqPage() {
   return (
