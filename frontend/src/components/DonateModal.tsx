@@ -44,6 +44,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils";
 import { DEDICATION_MAX_LENGTH, sanitizeMessage } from "@/lib/sanitize";
 import { isUserCancellation, mapTransactionError } from "@/lib/contractErrors";
+import { logger } from "@/lib/logger";
 
 const FIRED_MILESTONES = new Set<string>();
 const milestoneKey = (campaignId: bigint, m: MilestonePercent) => `${campaignId.toString()}:${m}`;
@@ -234,7 +235,7 @@ export function DonateModal({
           });
         }
       } catch (milestoneErr) {
-        console.error("Failed to compute milestone toasts", milestoneErr);
+        logger.error("Failed to compute milestone toasts", milestoneErr);
       }
       setSuccessAmount(data.amount);
       setSuccessTxHash((result as { hash?: string })?.hash || "");
@@ -244,7 +245,7 @@ export function DonateModal({
           localStorage.setItem("stellargive_last_donated_amount", data.amount);
         }
       } catch (storageErr) {
-        console.error("Failed to save last donated amount to localStorage", storageErr);
+        logger.error("Failed to save last donated amount to localStorage", storageErr);
       }
       setShowSuccess(true);
       setIsOpen(false);
@@ -252,7 +253,7 @@ export function DonateModal({
       setIsAnonymous(false);
       setMessage("");
     } catch (e: unknown) {
-      console.error(e);
+      logger.error(e);
       if (!isUserCancellation(e)) setSubmitError(mapTransactionError(e));
     }
   };

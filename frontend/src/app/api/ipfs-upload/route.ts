@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { logger } from "@/lib/logger";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const RATE_LIMIT_WINDOW_MS = 60_000;
@@ -111,7 +112,7 @@ export async function POST(request: Request) {
 
     if (!pinataResponse.ok) {
       const body = await pinataResponse.text();
-      console.error("[ipfs-upload] Pinata upload failed", {
+      logger.error("[ipfs-upload] Pinata upload failed", {
         status: pinataResponse.status,
         body,
       });
@@ -126,7 +127,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ cid, metadata_uri: `ipfs://${cid}` });
   } catch (error: unknown) {
-    console.error("[ipfs-upload] Upload failed", error);
+    logger.error("[ipfs-upload] Upload failed", error);
     return NextResponse.json({ error: "Upload failed. Please try again." }, { status: 500 });
   }
 }
