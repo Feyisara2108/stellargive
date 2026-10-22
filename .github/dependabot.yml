@@ -1,12 +1,10 @@
 version: 2
 
 # Grouping strategy: per ecosystem, minor + patch updates are grouped into a single
-# low-risk PR per week, while MAJOR updates are excluded from the group so each
-# arrives as its own PR. This keeps the routine weekly bump small and reliably
-# mergeable, and isolates breaking major upgrades so one bad major can't block the
-# rest. (A dependency matching a group's patterns but NOT its update-types is
-# emitted as an individual PR.) Every ecosystem is capped at 5 open PRs so the
-# queue stays reviewable; nothing here merges or approves a PR automatically.
+# low-risk PR per week. Semver-major updates are ignored (see each `ignore:` block):
+# upgrade majors by hand, when there is time to test them. Every ecosystem is capped
+# at 5 open PRs so the queue stays reviewable; nothing here merges or approves a PR
+# automatically.
 updates:
   - package-ecosystem: "cargo"
     directory: "/contracts/stellar-give"
@@ -15,6 +13,9 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(deps/cargo)"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       cargo-minor-patch:
         patterns:
@@ -30,6 +31,9 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(deps/npm)"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       frontend-npm-minor-patch:
         patterns:
@@ -45,6 +49,9 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(deps/npm)"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       root-npm-minor-patch:
         patterns:
@@ -60,6 +67,9 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(deps/actions)"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       actions-minor-patch:
         patterns:
@@ -75,6 +85,9 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(deps/docker)"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       docker-minor-patch:
         patterns:
