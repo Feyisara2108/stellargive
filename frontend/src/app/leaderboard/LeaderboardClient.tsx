@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useCallback, Suspense } from "react";
+import { useMemo, useCallback, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Navbar } from "@/components/Navbar";
@@ -8,13 +8,8 @@ import { AddressLink } from "@/components/AddressLink";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useEventHistory, useResolvedName } from "@/hooks/useSoroban";
-import type { SorobanEvent } from "@/lib/soroban";
-import { fromStroops } from "@/lib/amounts";
-import { formatEventWindow, parseDonationEvent } from "@/lib/eventData";
-import { toCSV, downloadTextFile } from "@/utils/format";
-import { Trophy, ArrowDown, Download, User } from "lucide-react";
-import { useEvents, useResolvedName, useTokenMetadataBatch } from "@/hooks/useSoroban";
+import { useEventHistory, useResolvedName, useTokenMetadataBatch } from "@/hooks/useSoroban";
+import { formatEventWindow } from "@/lib/eventData";
 import { toCSV, downloadTextFile, formatTokenAmount } from "@/utils/format";
 import { Trophy, ArrowDown, Download } from "lucide-react";
 import { useWallet } from "@/lib/WalletProvider";
@@ -37,67 +32,6 @@ import {
 // capped request. The contract's per-campaign `get_top_donors` can't produce a
 // cross-campaign ranking, and RPC retention is a rolling window (about a week),
 // so the page always states the period its numbers cover.
-
-type TimeRange = "all" | "monthly" | "weekly";
-
-interface DonorTotal {
-  donor: string;
-  total: bigint;
-  donations: number;
-  campaigns: number;
-}
-
-/**
- * Aggregates every `received` event into one row per donor, ranked by total
- * amount donated across all campaigns. Anonymous donations (the zero address)
- * are excluded so they can't occupy a rank.
- */
-function aggregateDonors(events: SorobanEvent[] | undefined, timeRange: TimeRange): DonorTotal[] {
-  const totals = new Map<string, { total: bigint; donations: number; campaigns: Set<string> }>();
-
-  // Calculate time cutoff based on selected range
-  const now = Date.now();
-  let cutoffMs = 0;
-  if (timeRange === "weekly") {
-    cutoffMs = 7 * 24 * 60 * 60 * 1000;
-  } else if (timeRange === "monthly") {
-    cutoffMs = 30 * 24 * 60 * 60 * 1000;
-  }
-  const cutoff = cutoffMs > 0 ? now - cutoffMs : 0;
-
-  for (const event of events ?? []) {
-    const donation = parseDonationEvent(event);
-    if (!donation) continue;
-
-    // Filter by time range if not "all"
-    // `getEvents` stamps events with `createdAt` (ledger close time); `timestamp` is the legacy name.
-    const eventStamp = event.createdAt ?? event.timestamp;
-    if (cutoff > 0 && eventStamp) {
-      const eventTime = new Date(eventStamp).getTime();
-      if (eventTime < cutoff) continue;
-    }
-
-    const { donor, amount, campaignId } = donation;
-    if (!donor || amount === null || amount <= 0n) continue;
-
-    const entry = totals.get(donor) ?? { total: 0n, donations: 0, campaigns: new Set<string>() };
-    entry.total += amount;
-    entry.donations += 1;
-    if (campaignId) {
-      entry.campaigns.add(campaignId);
-    }
-    totals.set(donor, entry);
-  }
-
-  return Array.from(totals.entries())
-    .map(([donor, { total, donations, campaigns }]) => ({
-      donor,
-      total,
-      donations,
-      campaigns: campaigns.size,
-    }))
-    .sort((a, b) => (b.total === a.total ? 0 : b.total > a.total ? 1 : -1));
-}
 
 /**
  * The period the numbers on screen cover: the retained event window, narrowed
@@ -194,14 +128,11 @@ function LeaderboardContent() {
 
   const timeRange = (searchParams.get("range") as TimeRange) || "all";
 
-  const donors = useMemo(() => aggregateDonors(events, timeRange), [events, timeRange]);
-
   const periodLabel = useMemo(
     () => (history ? describePeriod(history.windowStart, history.windowEnd, timeRange) : null),
     [history, timeRange],
   );
 
-  const totalDonated = useMemo(() => donors.reduce((sum, d) => sum + d.total, 0n), [donors]);
   const donorsByToken = useMemo(
     () => aggregateDonorsByToken(events, timeRange),
     [events, timeRange],
