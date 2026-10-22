@@ -53,7 +53,9 @@ export function useCampaignDraft(
       clearCampaignDraft();
       return;
     }
-    const { beneficiary, ...draftToSave } = debouncedValues;
+    // Payout addresses are never persisted, so a stale draft can't silently
+    // route funds to the wrong account.
+    const { beneficiary, beneficiaryShare, extraBeneficiaries, ...draftToSave } = debouncedValues;
     sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify({ ...draftToSave, tags }));
   }, [debouncedValues, tags, isDirty]);
 
