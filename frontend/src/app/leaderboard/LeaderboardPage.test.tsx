@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 // mockSoroban is imported before the page so it is initialised by the time the
 // page's import of @/hooks/useSoroban runs the mock factory below.
@@ -150,8 +149,8 @@ describe("LeaderboardPage - coverage", () => {
     fireEvent.click(screen.getByRole("button", { name: /Export CSV/i }));
 
     const lines = downloadTextFile.mock.calls[0][1].split("\r\n");
-    expect(lines[1]).toBe(`1,${DONOR_A},225,225,1`);
-    expect(lines[2]).toBe(`2,${DONOR_B},225,225,1`);
+    expect(lines[1]).toBe(`1,${DONOR_A},0.0000225,225,1`);
+    expect(lines[2]).toBe(`2,${DONOR_B},0.0000225,225,1`);
   });
 
   it("flags a truncated scan", () => {
@@ -164,6 +163,9 @@ describe("LeaderboardPage - coverage", () => {
     expect(
       screen.getByText(/Only the oldest part of the window could be scanned/),
     ).toBeInTheDocument();
+  });
+});
+
 describe("LeaderboardPage - mixed tokens", () => {
   const mixedEvents = [
     receivedEvent(1, DONOR_A, 100_000_000, "e1", XLM), // 10 XLM
@@ -172,11 +174,7 @@ describe("LeaderboardPage - mixed tokens", () => {
   ];
 
   it("shows a total per token instead of one XLM figure", () => {
-    vi.mocked(useEvents).mockReturnValue({
-      data: mixedEvents,
-      isLoading: false,
-      isError: false,
-    } as any);
+    vi.mocked(useEventHistory).mockReturnValue(historyResult(mixedEvents));
 
     render(<LeaderboardPage />);
 
@@ -188,11 +186,7 @@ describe("LeaderboardPage - mixed tokens", () => {
   });
 
   it("ranks donors within the selected token only", () => {
-    vi.mocked(useEvents).mockReturnValue({
-      data: mixedEvents,
-      isLoading: false,
-      isError: false,
-    } as any);
+    vi.mocked(useEventHistory).mockReturnValue(historyResult(mixedEvents));
 
     render(<LeaderboardPage />);
 
@@ -209,11 +203,7 @@ describe("LeaderboardPage - mixed tokens", () => {
   });
 
   it("labels the USDC ranking and its CSV in USDC", () => {
-    vi.mocked(useEvents).mockReturnValue({
-      data: mixedEvents,
-      isLoading: false,
-      isError: false,
-    } as any);
+    vi.mocked(useEventHistory).mockReturnValue(historyResult(mixedEvents));
     currentParams = new URLSearchParams(`token=${USDC}`);
 
     render(<LeaderboardPage />);
