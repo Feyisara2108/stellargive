@@ -5,8 +5,8 @@ version: 2
 # arrives as its own PR. This keeps the routine weekly bump small and reliably
 # mergeable, and isolates breaking major upgrades so one bad major can't block the
 # rest. (A dependency matching a group's patterns but NOT its update-types is
-# emitted as an individual PR.) npm limits are raised to leave headroom for the
-# separate major PRs.
+# emitted as an individual PR.) Every ecosystem is capped at 5 open PRs so the
+# queue stays reviewable; nothing here merges or approves a PR automatically.
 updates:
   - package-ecosystem: "cargo"
     directory: "/contracts/stellar-give"
@@ -27,7 +27,7 @@ updates:
     directory: "/frontend"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(deps/npm)"
     groups:
@@ -42,7 +42,7 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(deps/npm)"
     groups:
