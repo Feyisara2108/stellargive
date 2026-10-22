@@ -2,7 +2,7 @@ services:
   stellar:
     # Pin a tag that supports Soroban protocol features used by soroban-sdk 27 (#1121)
     image: stellar/quickstart:soroban-dev
-    command: --standalone --enable-soroban --protocol-version 23
+    command: --local --protocol-version 23
     ports:
       - "${STELLAR_PORT_RPC:-8000}:8000"
       - "${STELLAR_PORT_FRIENDBOT:-8001}:8001"
