@@ -75,3 +75,10 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(deps/docker)"
+    groups:
+      docker-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
