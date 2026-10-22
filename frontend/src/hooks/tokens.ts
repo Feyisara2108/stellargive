@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getSACBalance, getTokenMetadata, resolveAddressName, fetchXlmPriceInUsd } from "@/lib/soroban";
+import { getSACBalance, getTokenMetadata, resolveAddressName } from "@/lib/soroban";
 
 export function useWalletBalance(tokenContractId: string | null | undefined, address: string | null) {
   return useQuery({ queryKey: ["wallet-balance", tokenContractId, address], queryFn: () => tokenContractId && address ? getSACBalance(tokenContractId, address) : null, enabled: !!tokenContractId && !!address, staleTime: 30_000, retry: false });
@@ -21,5 +21,3 @@ export function useTokenMetadataBatch(contractIds: string[]) {
     return Object.fromEntries(results);
   }, enabled: uniqueIds.length > 0, staleTime: 86_400_000 });
 }
-export { fetchXlmPriceInUsd };
-export function useXlmPrice() { return useQuery({ queryKey: ["xlm-price-usd"], queryFn: fetchXlmPriceInUsd, staleTime: 300_000, retry: 2 }); }
