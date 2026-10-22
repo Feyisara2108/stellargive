@@ -58,7 +58,7 @@ export function useDonate() {
 export function useClaimFunds() { return useContractMutation("claim_funds", (id, address) => [new Address(address).toScVal(), nativeToScVal(id, { type: "u64" })], "Transaction confirmed"); }
 export function useClaimRefund() { return useContractMutation("claim_refund", (id, address) => [new Address(address).toScVal(), nativeToScVal(id, { type: "u64" })], "Refund claimed successfully"); }
 export function useCancelCampaign() { return useContractMutation("cancel_campaign", (id, address) => [new Address(address).toScVal(), nativeToScVal(id, { type: "u64" })], "Campaign cancelled"); }
-export function useAddToWhitelist() { return useContractMutation("add_to_whitelist", (params) => [nativeToScVal(params.campaignId, { type: "u64" }), xdr.ScVal.scvVec([new Address(params.addressToWhitelist).toScVal()])], "Address whitelisted"); }
+export function useAddToWhitelist() { return useContractMutation<{ campaignId: bigint; addressToWhitelist: string }>("add_to_whitelist", (params) => [nativeToScVal(params.campaignId, { type: "u64" }), xdr.ScVal.scvVec([new Address(params.addressToWhitelist).toScVal()])], "Address whitelisted"); }
 export function useDonateFeeEstimate(params: { campaignId: bigint; amount: string; address: string | null; decimals: number }) {
   const amount = useDebouncedValue(params.amount, 600);
   return useQuery({
