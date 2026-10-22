@@ -299,7 +299,7 @@ export default function ProfilePage() {
               <TabsContent value="donations" className="mt-8">
                 <DonationsSection
                   donations={myDonationsEvents}
-                  campaigns={campaigns ?? []}
+                  campaigns={recentCampaigns ?? []}
                   emptyText="You haven't made any donations yet."
                   action={
                     <Button asChild variant="outline" size="sm">
