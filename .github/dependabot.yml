@@ -1,8 +1,9 @@
 version: 2
 
 # Grouping strategy: per ecosystem, minor + patch updates are grouped into a single
-# low-risk PR per week. Semver-major updates are ignored (see each `ignore:` block):
-# upgrade majors by hand, when there is time to test them. Every ecosystem is capped
+# low-risk PR per week. Semver-major updates are ignored for cargo, npm and docker
+# (see each `ignore:` block): upgrade those majors by hand, when there is time to
+# test them. GitHub Actions majors are still proposed. Every ecosystem is capped
 # at 5 open PRs so the queue stays reviewable; nothing here merges or approves a PR
 # automatically.
 updates:
@@ -67,9 +68,6 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(deps/actions)"
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
     groups:
       actions-minor-patch:
         patterns:
