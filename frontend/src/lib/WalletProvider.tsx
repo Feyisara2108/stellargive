@@ -9,6 +9,7 @@ import {
   getNetworkSwitcher,
   type WalletId,
 } from "@/lib/wallet";
+import { useQueryClient, type Query } from "@tanstack/react-query";
 import { WalletPicker } from "@/components/WalletPicker";
 import * as Sentry from "@sentry/nextjs";
 import { notify } from "@/lib/toast";
