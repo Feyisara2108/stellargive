@@ -1,11 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useEventHistory, usePlatformStats, useUniqueDonors } from "@/hooks/useSoroban";
+import {
+  useEventHistory,
+  usePlatformStats,
+  useTokenMetadataBatch,
+  useUniqueDonors,
+} from "@/hooks/useSoroban";
 import { formatEventWindow } from "@/lib/eventData";
 import type { EventHistory } from "@/lib/soroban";
 import { fromStroops } from "@/lib/amounts";
-import { usePlatformStats, useTokenMetadataBatch, useUniqueDonors } from "@/hooks/useSoroban";
 import { NATIVE_XLM_CONTRACT_ID } from "@/lib/tokens";
 import {
   describeToken,
