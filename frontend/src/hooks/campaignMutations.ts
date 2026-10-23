@@ -1,7 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Address, nativeToScVal, xdr } from "@stellar/stellar-sdk";
 import { useWallet } from "@/lib/WalletProvider";
-import { CONTRACT_ID, Campaign, SubmitTransactionResult, estimateFee, submitTransaction, toStroops } from "@/lib/soroban";
+import { CONTRACT_ID, Campaign, CampaignBeneficiary, SubmitTransactionResult, estimateFee, submitTransaction, toStroops } from "@/lib/soroban";
+import { TOTAL_SHARE_BPS, validateBeneficiaries } from "@/lib/beneficiaries";
 import { toRawAmount } from "@/utils/format";
 import { notify } from "@/lib/toast";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -30,9 +31,11 @@ function useContractMutation<T>(method: string, buildArgs: (value: T, address: s
 }
 export function useCreateCampaign() {
   const { address } = useWallet(); const queryClient = useQueryClient();
-  return useMutation({ mutationFn: async (params: { beneficiary: string; title: string; description: string; category?: string; metadataUri?: string; targetAmount: string; deadline: number; acceptedToken: string; website?: string; twitter?: string; maxPerDonor?: string | null }) => {
+  return useMutation({ mutationFn: async (params: { beneficiary: string; beneficiaries?: CampaignBeneficiary[]; title: string; description: string; category?: string; metadataUri?: string; targetAmount: string; deadline: number; acceptedToken: string; website?: string; twitter?: string; maxPerDonor?: string | null }) => {
     if (!address) throw new Error("Wallet not connected"); if (params.beneficiary === CONTRACT_ID) throw new Error("Beneficiary cannot be the campaign contract address.");
-    const beneficiaries = xdr.ScVal.scvVec([xdr.ScVal.scvVec([new Address(params.beneficiary).toScVal(), nativeToScVal(10000, { type: "u32" })])]);
+    const split = params.beneficiaries && params.beneficiaries.length > 0 ? params.beneficiaries : [{ address: params.beneficiary, share: TOTAL_SHARE_BPS }];
+    const splitError = validateBeneficiaries(split); if (splitError) throw new Error(splitError);
+    const beneficiaries = xdr.ScVal.scvVec(split.map((b) => xdr.ScVal.scvVec([new Address(b.address).toScVal(), nativeToScVal(b.share, { type: "u32" })])));
     return submitTransaction(address, "create_campaign", [new Address(address).toScVal(), beneficiaries, nativeToScVal(params.title, { type: "string" }), nativeToScVal(params.description, { type: "string" }), nativeToScVal(params.metadataUri || "https://example.com", { type: "string" }), nativeToScVal(params.category || "relief", { type: "symbol" }), nativeToScVal(toStroops(params.targetAmount), { type: "i128" }), nativeToScVal(BigInt(params.deadline), { type: "u64" }), new Address(params.acceptedToken).toScVal(), params.maxPerDonor ? nativeToScVal(toStroops(params.maxPerDonor), { type: "i128" }) : nativeToScVal(null, { type: "i128" })]);
   }, onMutate: () => ({ toastId: notify.loading() }), onSuccess: (data: SubmitTransactionResult, _v, context) => { notify.success("Transaction confirmed", { id: context?.toastId, hash: data.hash }); queryClient.invalidateQueries({ queryKey: ["campaigns"] }); }, onError: (error: unknown, _v, context) => notify.error(mapTransactionError(error), { id: context?.toastId }) });
 }

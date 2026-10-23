@@ -1,6 +1,6 @@
 "use client";
 
-import { useForm } from "react-hook-form";
+import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useCreateCampaign } from "@/hooks/useSoroban";
 import { useWallet } from "@/lib/WalletProvider";
@@ -19,12 +19,15 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, PlusCircle } from "lucide-react";
 import { PREDEFINED_TOKENS } from "@/components/TokenSelector";
+import { TOTAL_SHARE_BPS } from "@/lib/beneficiaries";
 import {
   DEFAULT_VALUES,
+  MAX_BENEFICIARIES,
   MAX_DESCRIPTION_LEN,
   STEP_FIELDS,
   STEP_LABELS,
   TOTAL_STEPS,
+  buildBeneficiaries,
   buildPreviewCampaign,
   calculateDeadlineTimestamp,
   formSchema,
@@ -67,6 +70,11 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
     defaultValues: DEFAULT_VALUES,
   });
 
+  const extraBeneficiaryFields = useFieldArray({
+    control: form.control,
+    name: "extraBeneficiaries",
+  });
+
   const tags = useCampaignTags();
   const upload = useImageUpload(form);
   const beneficiary = useBeneficiaryName(form);
@@ -75,7 +83,9 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
   const nextStep = async () => {
     const fieldsToValidate = STEP_FIELDS[step] || [];
     const isValid = await form.trigger(fieldsToValidate);
-    if (isValid) {
+    // The share-total issue lives on a virtual path, so trigger() never
+    // reports it; check it explicitly before leaving the Funding step.
+    if (isValid && !(step === 2 && sharesTotalError)) {
       setStep((s) => Math.min(s + 1, TOTAL_STEPS));
     }
   };
@@ -91,7 +101,6 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
   const sharesTotalBps = payoutSplit.reduce((sum, b) => sum + b.share, 0);
   const sharesTotalError = hasMultipleBeneficiaries && sharesTotalBps !== TOTAL_SHARE_BPS;
   const formatPercent = (bps: number) => `${(bps / 100).toFixed(2).replace(/\.?0+$/, "")}%`;
-  const watchedMaxPerDonor = form.watch("maxPerDonor") ?? "";
 
   function addBeneficiary() {
     if (watchedExtraBeneficiaries.length + 1 >= MAX_BENEFICIARIES) return;
@@ -181,11 +190,24 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
               disabled={createCampaign.isPending}
               tokenSymbol={tokenSymbol}
               beneficiary={beneficiary}
+              split={{
+                fields: extraBeneficiaryFields.fields,
+                hasMultiple: hasMultipleBeneficiaries,
+                canAdd: watchedExtraBeneficiaries.length + 1 < MAX_BENEFICIARIES,
+                onAdd: addBeneficiary,
+                onRemove: removeBeneficiary,
+                totalBps: sharesTotalBps,
+                totalError: sharesTotalError,
+                formatPercent,
+              }}
             />
             <ReviewStep
               active={step === 3}
               tokenSymbol={tokenSymbol}
               resolvedBeneficiaryName={beneficiary.resolvedBeneficiaryName}
+              payoutSplit={payoutSplit}
+              hasMultipleBeneficiaries={hasMultipleBeneficiaries}
+              formatPercent={formatPercent}
               tags={tags.tags}
               previewCampaign={previewCampaign}
               showPreview={showPreview}
