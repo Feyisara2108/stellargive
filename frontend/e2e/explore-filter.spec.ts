@@ -90,11 +90,11 @@ function campaignMap(c: Seed): xdr.ScVal {
 function decodeInvocation(txXdr: string): { fn: string; args: unknown[] } | null {
   try {
     const env = xdr.TransactionEnvelope.fromXDR(txXdr, "base64");
-    const op = env.v1().tx().operations()[0];
+    const op = (env as unknown as { v1(): xdr.TransactionV1Envelope }).v1().tx().operations()[0];
     const ic = op.body().invokeHostFunctionOp().hostFunction().invokeContract();
     return {
       fn: ic.functionName().toString(),
-      args: ic.args().map((a) => scValToNative(a)),
+      args: ic.args().map((a: xdr.ScVal) => scValToNative(a)),
     };
   } catch {
     return null;
@@ -118,7 +118,7 @@ function ok(id: number, retvalXdr: string) {
 async function mockSorobanRPC(page: Page) {
   await page.route("**/soroban/rpc*", async (route) => {
     const request = route.request();
-    let body: any = {};
+    let body: { method?: string; id?: number; params?: { transaction?: string } } = {};
     try {
       body = JSON.parse(request.postData() || "{}");
     } catch {
