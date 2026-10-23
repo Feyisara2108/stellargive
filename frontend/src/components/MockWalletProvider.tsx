@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useCallback } from "react";
-import { WalletContext, type ConnectResult } from "@/lib/WalletProvider";
+import { WalletContext } from "@/lib/WalletProvider";
 
 /**
  * Mock wallet context for E2E / CI testing without a browser wallet extension.
@@ -87,7 +87,7 @@ export function MockWalletProvider({ children }: { children: React.ReactNode }) 
     installFreighterMocks(address || DEFAULT_MOCK_ADDRESS, mockSignedTxXdr);
   }, [address, mockSignedTxXdr]);
 
-  const connect = useCallback(async (): Promise<ConnectResult> => {
+  const connect = useCallback(async (): Promise<boolean> => {
     const override = (window as unknown as MockWalletWindow).__mockWalletAddress;
     const next = typeof override === "string" ? override : DEFAULT_MOCK_ADDRESS;
     setAddress(next);
