@@ -1,141 +1,123 @@
 /**
- * #1143 — Test that the donation success dialog survives the Funded status flip.
+ * #1143 — the donation success dialog must survive the Active → Funded flip.
  *
- * When a donation completes a campaign's goal, the status flips to Funded on
- * refetch. The success dialog must remain visible (not unmount) at that point.
+ * When a donation completes a campaign's goal, the campaign refetches as
+ * Funded. DonateModal hides its form unless the campaign is Active, but the
+ * success dialog has to stay on screen at that point.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import "@testing-library/jest-dom";
+import type { Campaign } from "@/lib/soroban";
 
-// Mock the wallet context
-vi.mock("@/context/WalletContext", () => ({
-  useWallet: () => ({
-    address: "GTEST",
-    connect: vi.fn().mockResolvedValue("GTEST"),
-    connecting: false,
-    isNetworkMismatch: false,
+const WALLET = "GA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVSGZ";
+
+const walletState = vi.hoisted(() => ({
+  address: "GA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVSGZ" as string | null,
+  isWrongNetwork: false,
+}));
+
+const campaignState = vi.hoisted(() => ({ campaign: null as unknown }));
+const donateMutation = vi.hoisted(() => ({ mutateAsync: undefined as unknown }));
+
+vi.mock("@/lib/WalletProvider", () => ({
+  useWallet: () => walletState,
+}));
+
+vi.mock("@/hooks/useSoroban", async () =>
+  (await import("@/test/mockSoroban")).createSorobanMock({
+    useCampaign: () => ({
+      data: campaignState.campaign,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    }),
+    useCancelCampaign: () => ({ mutateAsync: vi.fn(), isPending: false }),
+    useEvents: () => ({ data: [], isLoading: false }),
+    useDonate: () => ({
+      mutateAsync: donateMutation.mutateAsync,
+      isPending: false,
+      isSuccess: false,
+    }),
   }),
+);
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
 }));
 
-// Mock the donation hook
-const mockUseDonation = vi.fn();
-vi.mock("@/hooks/useDonation", () => ({
-  useDonation: () => mockUseDonation(),
-}));
+// Side panels that fetch their own data and have nothing to do with the donate flow.
+vi.mock("@/components/RecentDonations", () => ({ RecentDonations: () => null }));
+vi.mock("@/components/ProjectUpdates", () => ({ ProjectUpdates: () => null }));
+vi.mock("@/components/TopDonors", () => ({ TopDonors: () => null }));
 
-// Mock the campaign hook
-const mockUseCampaign = vi.fn();
-vi.mock("@/hooks/useCampaign", () => ({
-  useCampaign: () => mockUseCampaign(),
-}));
+import { CampaignDetailsClient } from "./CampaignDetailsClient";
 
-import CampaignDetailsClient from "./CampaignDetailsClient";
+const TARGET = 1_000_000_000n; // 100 XLM
+const RAISED = 580_000_000n; // 58 XLM
 
-const activeCampaign = {
-  id: "campaign-1",
-  title: "Test Campaign",
-  description: "A test campaign",
-  goalAmount: 1000,
-  raisedAmount: 500,
-  status: "Active",
-  creator: "GCREATOR",
-  beneficiary: "GBENEF",
-  tokenAddress: "GTOKEN",
-  deadline: Date.now() + 86400000,
-};
+function makeCampaign(overrides: Partial<Campaign> = {}): Campaign {
+  return {
+    id: 1n,
+    creator: WALLET,
+    beneficiary: WALLET,
+    beneficiaries: [{ address: WALLET, share: 10000 }],
+    title: "Clean Water Initiative",
+    description: "Wells for three villages",
+    category: "relief",
+    target_amount: TARGET,
+    raised_amount: RAISED,
+    deadline: 0n,
+    accepted_token: "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+    status: "Active",
+    ...overrides,
+  };
+}
 
-const fundedCampaign = {
-  ...activeCampaign,
-  raisedAmount: 1000,
-  status: "Funded",
-};
+function renderPage() {
+  return render(<CampaignDetailsClient params={{ id: "1" }} breadcrumbs={[]} />);
+}
 
 describe("CampaignDetailsClient donation success dialog", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    mockUseCampaign.mockReturnValue({
-      campaign: activeCampaign,
-      refetch: vi.fn(),
-      isLoading: false,
-    });
-    mockUseDonation.mockReturnValue({
-      donate: vi.fn().mockResolvedValue(undefined),
-      isDonating: false,
-      error: null,
-    });
+    localStorage.clear();
+    walletState.address = WALLET;
+    walletState.isWrongNetwork = false;
+    campaignState.campaign = makeCampaign();
+    donateMutation.mutateAsync = vi.fn().mockResolvedValue({ hash: "TXHASH123" });
   });
 
-  it("keeps the success dialog visible when status flips to Funded after donation", async () => {
-    const refetch = vi.fn();
-    mockUseCampaign.mockReturnValue({
-      campaign: activeCampaign,
-      refetch,
-      isLoading: false,
-    });
+  it("keeps the success dialog visible when the donation flips the campaign to Funded", async () => {
+    const user = userEvent.setup();
+    const { rerender } = renderPage();
 
-    render(<CampaignDetailsClient campaignId="campaign-1" />);
+    await user.click(await screen.findByRole("button", { name: "Donate Now" }));
+    // 58 XLM raised of 100: a 42 XLM donation reaches the goal exactly.
+    await user.type(await screen.findByPlaceholderText("10.0"), "42");
+    await user.click(await screen.findByRole("button", { name: "Confirm Donation" }));
 
-    // Click donate button
-    const donateButton = screen.getByRole("button", { name: /donate/i });
-    await userEvent.click(donateButton);
+    expect(await screen.findByText("Donation Successful!")).toBeInTheDocument();
+    expect(donateMutation.mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ campaignId: 1n, amount: "42" }),
+    );
 
-    // Fill in donation amount that reaches the goal
-    const amountInput = screen.getByLabelText(/amount/i);
-    await userEvent.type(amountInput, "500");
+    // The refetch after the donation reports the campaign as Funded.
+    campaignState.campaign = makeCampaign({ raised_amount: TARGET, status: "Funded" });
+    rerender(<CampaignDetailsClient params={{ id: "1" }} breadcrumbs={[]} />);
 
-    // Submit donation
-    const confirmButton = screen.getByRole("button", { name: /confirm/i });
-    await userEvent.click(confirmButton);
-
-    // Wait for success dialog
-    await waitFor(() => {
-      expect(screen.getByText(/donation successful/i)).toBeInTheDocument();
-    });
-
-    // Simulate refetch with Funded status
-    mockUseCampaign.mockReturnValue({
-      campaign: fundedCampaign,
-      refetch,
-      isLoading: false,
-    });
-
-    // Success dialog should still be visible
-    await waitFor(() => {
-      expect(screen.getByText(/donation successful/i)).toBeInTheDocument();
-    });
-
-    // Donate trigger should be gone (campaign is funded)
-    expect(screen.queryByRole("button", { name: /donate/i })).not.toBeInTheDocument();
+    expect(screen.getByText("Donation Successful!")).toBeInTheDocument();
+    expect(screen.getByText("TXHASH123")).toBeInTheDocument();
+    // The campaign no longer accepts donations, so the form and its trigger are gone.
+    expect(screen.queryByRole("button", { name: "Donate Now" })).not.toBeInTheDocument();
   });
 
-  it("fails if DonateModal is gated on campaign status", async () => {
-    // This test will fail if the modal unmounts when status changes to Funded
-    const refetch = vi.fn();
-    mockUseCampaign.mockReturnValue({
-      campaign: activeCampaign,
-      refetch,
-      isLoading: false,
-    });
+  it("does not offer the donate form for a campaign that is already Funded", async () => {
+    campaignState.campaign = makeCampaign({ raised_amount: TARGET, status: "Funded" });
+    renderPage();
 
-    const { rerender } = render(<CampaignDetailsClient campaignId="campaign-1" />);
-
-    // Trigger donation
-    const donateButton = screen.getByRole("button", { name: /donate/i });
-    await userEvent.click(donateButton);
-
-    // Simulate status flip to Funded
-    mockUseCampaign.mockReturnValue({
-      campaign: fundedCampaign,
-      refetch,
-      isLoading: false,
-    });
-    rerender(<CampaignDetailsClient campaignId="campaign-1" />);
-
-    // If the modal is gated on status, this assertion will fail
-    // because the dialog will have unmounted
-    await waitFor(() => {
-      expect(screen.queryByText(/donation successful/i)).not.toBeNull();
-    });
+    expect(await screen.findByRole("heading", { name: "Clean Water Initiative" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Donate Now" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Donation Successful!")).not.toBeInTheDocument();
   });
 });
