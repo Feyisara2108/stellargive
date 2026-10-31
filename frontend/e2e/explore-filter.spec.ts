@@ -86,15 +86,23 @@ function campaignMap(c: Seed): xdr.ScVal {
   return xdr.ScVal.scvMap(entries.map(([k, v]) => new xdr.ScMapEntry({ key: sym(k), val: v })));
 }
 
+/** Reads an XDR union arm or struct field, which stellar-sdk exposes as a method or a property. */
+function field(obj: unknown, key: string): unknown {
+  const value = (obj as Record<string, unknown>)[key];
+  return typeof value === "function" ? (value as () => unknown).call(obj) : value;
+}
+
 /** Decode the contract function + args from a simulateTransaction request. */
 function decodeInvocation(txXdr: string): { fn: string; args: unknown[] } | null {
   try {
     const env = xdr.TransactionEnvelope.fromXDR(txXdr, "base64");
-    const op = env.v1().tx().operations()[0];
-    const ic = op.body().invokeHostFunctionOp().hostFunction().invokeContract();
+    const operations = field(field(field(env, "v1"), "tx"), "operations") as unknown[];
+    const body = field(operations[0], "body");
+    const hostFunction = field(field(body, "invokeHostFunctionOp"), "hostFunction");
+    const ic = field(hostFunction, "invokeContract");
     return {
-      fn: ic.functionName().toString(),
-      args: ic.args().map((a) => scValToNative(a)),
+      fn: String(field(ic, "functionName")),
+      args: (field(ic, "args") as xdr.ScVal[]).map((a) => scValToNative(a)),
     };
   } catch {
     return null;
@@ -118,14 +126,14 @@ function ok(id: number, retvalXdr: string) {
 async function mockSorobanRPC(page: Page) {
   await page.route("**/soroban/rpc*", async (route) => {
     const request = route.request();
-    let body: any = {};
+    let body: { method?: string; id?: number; params?: { transaction?: string } } = {};
     try {
       body = JSON.parse(request.postData() || "{}");
     } catch {
       // not JSON — pass through
     }
     const method = body.method || "";
-    const id = body.id;
+    const id = body.id ?? 0;
 
     if (method === "simulateTransaction") {
       const txXdr = body.params?.transaction ?? "";
