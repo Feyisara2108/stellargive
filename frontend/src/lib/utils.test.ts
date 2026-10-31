@@ -2,10 +2,12 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import {
   cn,
   calculateProgress,
+  DEFAULT_IPFS_GATEWAY,
   getCampaignImageUrl,
   getStellarExpertTxUrl,
   isPlaceholderMetadataUri,
   NO_IMAGE_METADATA_URI,
+  resolveIpfsUrl,
 } from "./utils";
 
 describe("utils", () => {
@@ -65,9 +67,9 @@ describe("utils", () => {
       expect(getCampaignImageUrl(url2)).toBe(url2);
     });
 
-    it("should convert ipfs:// URIs to ipfs.io gateway URLs", () => {
+    it("should convert ipfs:// URIs through the shared resolver", () => {
       expect(getCampaignImageUrl("ipfs://QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG")).toBe(
-        "https://ipfs.io/ipfs/QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG",
+        `${DEFAULT_IPFS_GATEWAY}QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG`,
       );
     });
 
@@ -83,6 +85,37 @@ describe("utils", () => {
     it("should return undefined for other unsupported uri schemes", () => {
       expect(getCampaignImageUrl("ftp://example.com")).toBeUndefined();
       expect(getCampaignImageUrl("data:image/png;base64,...")).toBeUndefined();
+    });
+  });
+
+  describe("resolveIpfsUrl (#1052)", () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("resolves ipfs:// URIs on the default gateway", () => {
+      expect(resolveIpfsUrl("ipfs://bafyTestCid123")).toBe(
+        `${DEFAULT_IPFS_GATEWAY}bafyTestCid123`,
+      );
+    });
+
+    it("uses NEXT_PUBLIC_IPFS_GATEWAY and normalises a missing trailing slash", () => {
+      vi.stubEnv("NEXT_PUBLIC_IPFS_GATEWAY", "https://gateway.example/ipfs");
+      expect(resolveIpfsUrl("ipfs://bafyTestCid123")).toBe(
+        "https://gateway.example/ipfs/bafyTestCid123",
+      );
+    });
+
+    it("passes https:// URLs through unchanged", () => {
+      expect(resolveIpfsUrl("https://example.com/image.png")).toBe(
+        "https://example.com/image.png",
+      );
+    });
+
+    it("returns undefined for empty input", () => {
+      expect(resolveIpfsUrl()).toBeUndefined();
+      expect(resolveIpfsUrl("")).toBeUndefined();
+      expect(resolveIpfsUrl("   ")).toBeUndefined();
     });
   });
 
