@@ -34,7 +34,8 @@ vi.mock("sonner", () => ({
 const submitTransactionMock = vi.hoisted(() => vi.fn());
 const TOKEN_CONTRACT = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
 
-vi.mock("@/lib/soroban", () => ({
+vi.mock("@/lib/soroban", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/soroban")>()),
   submitTransaction: submitTransactionMock,
   estimateFee: vi.fn().mockResolvedValue(null),
   getSACBalance: vi.fn().mockResolvedValue(1_000_0000000n),
@@ -175,7 +176,7 @@ describe("full donation flow with mock wallet provider", () => {
 
     await waitFor(() => expect(submitTransactionMock).toHaveBeenCalled());
     await waitFor(() => {
-      expect(screen.getAllByText(/transaction was rejected on-chain/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/transaction failed on-chain/i).length).toBeGreaterThan(0);
     });
     expect(screen.queryByText(/Donation Successful!/i)).not.toBeInTheDocument();
 

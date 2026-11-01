@@ -1,5 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { File as NodeFile } from "node:buffer";
 import { POST } from "./route";
+
+// The route is server code and runs against Node's File/FormData/Request, which is what Next.js
+// provides. jsdom replaces the global File and FormData with its own, and undici can neither
+// serialize nor parse those (and `file instanceof File` would never match a parsed upload), so
+// restore Node's implementations for this suite.
+const NodeFormData = (
+  await new Response("a=1", {
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+  }).formData()
+).constructor;
 
 const PNG_SIGNATURE = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 let requestIp = 1;
@@ -29,6 +40,8 @@ describe("POST /api/ipfs-upload", () => {
   const originalJwt = process.env.PINATA_JWT;
 
   beforeEach(() => {
+    vi.stubGlobal("File", NodeFile);
+    vi.stubGlobal("FormData", NodeFormData);
     process.env.PINATA_JWT = "test-jwt";
   });
 
@@ -92,8 +105,9 @@ describe("POST /api/ipfs-upload", () => {
   });
 
   it("returns 400 for an oversize file", async () => {
-    const file = makeFile();
-    Object.defineProperty(file, "size", { value: 5 * 1024 * 1024 + 1 });
+    const oversize = new Uint8Array(5 * 1024 * 1024 + 1);
+    oversize.set(PNG_SIGNATURE);
+    const file = makeFile("big.png", "image/png", [oversize]);
     const formData = new FormData();
     formData.append("file", file);
 
@@ -162,7 +176,9 @@ describe("POST /api/ipfs-upload", () => {
     expect(response.status).toBe(200);
     expect(body).toEqual({ cid: "bafyTestCid123", metadata_uri: "ipfs://bafyTestCid123" });
     const pinataForm = fetchMock.mock.calls[0][1].body as FormData;
-    expect(JSON.parse(pinataForm.get("pinataMetadata") as string)).toEqual({ name: "logo.png" });
+    expect(JSON.parse(pinataForm.get("pinataMetadata") as string)).toEqual({
+      name: "campaign__logo.png",
+    });
   });
 
   it("throttles repeated uploads from the same IP", async () => {

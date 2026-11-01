@@ -9,15 +9,18 @@ const sentry = vi.hoisted(() => ({
 
 vi.mock("@sentry/nextjs", () => sentry);
 
-import {
+// The global test setup (MSW handlers -> logger) imports ./sentry before this file's vi.mock is
+// registered, so a static import would keep the real @sentry/nextjs. Drop the module cache and
+// import it afresh so it binds to the mock above.
+vi.resetModules();
+const {
   captureRpcError,
   captureTransactionError,
   captureUnexpectedError,
   captureRouteError,
   initAnalytics,
   setAnalyticsConsent,
-  hasAnalyticsConsent,
-} from "./sentry";
+} = await import("./sentry");
 
 const CONSENT_KEY = "stellargive_analytics_consent";
 
