@@ -38,9 +38,18 @@ export default function OpenGraphImage() {
           </div>
           <div style={{ fontSize: 30, fontWeight: 700 }}>stellarGive</div>
         </div>
-        <div style={{ fontSize: 66, lineHeight: 1.08, fontWeight: 700, letterSpacing: -2 }}>
-          Every gift moves
-          <br />a campaign forward.
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            fontSize: 66,
+            lineHeight: 1.08,
+            fontWeight: 700,
+            letterSpacing: -2,
+          }}
+        >
+          <div>Every gift moves</div>
+          <div>a campaign forward.</div>
         </div>
         <div style={{ marginTop: 28, fontSize: 25, color: "#d3eee3" }}>
           Transparent relief campaigns on Stellar
