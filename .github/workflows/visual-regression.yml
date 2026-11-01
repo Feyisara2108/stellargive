@@ -23,7 +23,7 @@ jobs:
     # Same image the Linux baselines were generated in, so fonts/rendering match.
     # Keep the tag in sync with @playwright/test in frontend/package.json.
     container:
-      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
       options: --ipc=host
     timeout-minutes: 30
 
