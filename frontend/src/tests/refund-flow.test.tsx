@@ -443,11 +443,7 @@ describe("Integration: refund flow (donate -> cancel -> refund)", () => {
     renderRefundFlow(expiredCampaign, { showCancelButton: false });
 
     await waitFor(() => {
-      expect(estimateFeeMock).toHaveBeenCalledWith(
-        WALLET_ADDRESS,
-        "refund",
-        expect.any(Array),
-      );
+      expect(estimateFeeMock).toHaveBeenCalledWith(WALLET_ADDRESS, "refund", expect.any(Array));
     });
     fireEvent.click(await screen.findByRole("button", { name: /Claim refund/i }));
     fireEvent.click(await screen.findByRole("button", { name: /Confirm refund/i }));

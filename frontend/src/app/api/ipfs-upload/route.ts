@@ -8,11 +8,7 @@ const uploadAttempts = new Map<string, { count: number; resetAt: number }>();
 
 function getClientIp(request: Request): string | null {
   const forwardedFor = request.headers.get("x-forwarded-for");
-  return (
-    request.headers.get("x-real-ip")?.trim() ||
-    forwardedFor?.split(",")[0]?.trim() ||
-    null
-  );
+  return request.headers.get("x-real-ip")?.trim() || forwardedFor?.split(",")[0]?.trim() || null;
 }
 
 function isRateLimited(ip: string, now = Date.now()): boolean {
@@ -73,7 +69,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Upload request not allowed" }, { status: 403 });
     }
     if (isRateLimited(ip)) {
-      return NextResponse.json({ error: "Too many uploads. Please try again later." }, { status: 429 });
+      return NextResponse.json(
+        { error: "Too many uploads. Please try again later." },
+        { status: 429 },
+      );
     }
 
     const jwt = process.env.PINATA_JWT;

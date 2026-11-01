@@ -21,10 +21,7 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useWallet } from "@/lib/WalletProvider";
 import { toRawAmount } from "@/utils/format";
 import { NO_IMAGE_METADATA_URI } from "@/lib/utils";
-import {
-  INVALID_SHARES_MESSAGE,
-  mapTransactionError,
-} from "@/lib/contractErrors";
+import { INVALID_SHARES_MESSAGE, mapTransactionError } from "@/lib/contractErrors";
 export { mapTransactionError } from "@/lib/contractErrors";
 import { TOTAL_SHARE_BPS, validateBeneficiaries } from "@/lib/beneficiaries";
 

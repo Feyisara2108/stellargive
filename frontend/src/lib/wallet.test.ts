@@ -167,7 +167,10 @@ describe("wallet abstraction", () => {
     it("signs with Freighter for the connected account", async () => {
       freighterApi.requestAccess.mockResolvedValue({ address: "GF" });
       await connectWallet("freighter");
-      freighterApi.signTransaction.mockResolvedValue({ signedTxXdr: "SIGNED", signerAddress: "GF" });
+      freighterApi.signTransaction.mockResolvedValue({
+        signedTxXdr: "SIGNED",
+        signerAddress: "GF",
+      });
 
       await expect(signTransaction("UNSIGNED", SIGN_OPTS)).resolves.toBe("SIGNED");
       expect(freighterApi.signTransaction).toHaveBeenCalledWith("UNSIGNED", SIGN_OPTS);

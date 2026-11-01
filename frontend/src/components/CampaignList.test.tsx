@@ -54,7 +54,11 @@ vi.mock("next/navigation", () => ({
 }));
 
 function renderList() {
-  return render(<MockWalletProvider><CampaignList /></MockWalletProvider>);
+  return render(
+    <MockWalletProvider>
+      <CampaignList />
+    </MockWalletProvider>,
+  );
 }
 
 beforeEach(() => {

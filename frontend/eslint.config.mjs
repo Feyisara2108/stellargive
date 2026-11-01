@@ -17,13 +17,7 @@ const eslintConfig = [
   },
   {
     // Scope no-explicit-any relaxation to test files only per Issue #1046
-    files: [
-      "**/*.test.ts",
-      "**/*.test.tsx",
-      "**/__tests__/**",
-      "**/tests/**",
-      "**/test/**",
-    ],
+    files: ["**/*.test.ts", "**/*.test.tsx", "**/__tests__/**", "**/tests/**", "**/test/**"],
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
     },

@@ -78,10 +78,10 @@ export default function FaqPage() {
 
             <AccordionItem question="Which wallet do I need?">
               <p>
-                Any of the supported Stellar wallets: Freighter, Albedo, Hana or Rabet. Albedo
-                works straight from the browser with no extension. Pick one from
-                &quot;Connect Wallet&quot; in the navbar, make sure it&apos;s on testnet, and
-                you&apos;re ready to create campaigns and donate.
+                Any of the supported Stellar wallets: Freighter, Albedo, Hana or Rabet. Albedo works
+                straight from the browser with no extension. Pick one from &quot;Connect
+                Wallet&quot; in the navbar, make sure it&apos;s on testnet, and you&apos;re ready to
+                create campaigns and donate.
               </p>
             </AccordionItem>
 

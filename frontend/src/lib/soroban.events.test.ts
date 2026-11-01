@@ -16,7 +16,13 @@ vi.mock("@stellar/stellar-sdk", async (importActual) => {
   };
 });
 
-import { dedupeClaimEvents, eventTopicLabel, getEventHistory, getEvents, server } from "@/lib/soroban";
+import {
+  dedupeClaimEvents,
+  eventTopicLabel,
+  getEventHistory,
+  getEvents,
+  server,
+} from "@/lib/soroban";
 
 const rpcServer = server as unknown as {
   getHealth: ReturnType<typeof vi.fn>;

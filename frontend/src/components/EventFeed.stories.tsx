@@ -8,7 +8,11 @@ const stroops = (xlm: number): bigint => BigInt(xlm) * 10_000_000n;
 
 const mockEvents = [
   makeDonationEvent("evt-1", "GABC", stroops(250), 1n, 52301),
-  makeCreatedEvent("evt-2", { id: 2n, creator: "GCREATOR", target_amount: stroops(500_000) }, 52280),
+  makeCreatedEvent(
+    "evt-2",
+    { id: 2n, creator: "GCREATOR", target_amount: stroops(500_000) },
+    52280,
+  ),
   makeClaimedEvent(
     "evt-3",
     { campaign_id: 3n, beneficiary: "GBENE", amount: stroops(120_000) },

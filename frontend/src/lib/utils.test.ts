@@ -94,9 +94,7 @@ describe("utils", () => {
     });
 
     it("resolves ipfs:// URIs on the default gateway", () => {
-      expect(resolveIpfsUrl("ipfs://bafyTestCid123")).toBe(
-        `${DEFAULT_IPFS_GATEWAY}bafyTestCid123`,
-      );
+      expect(resolveIpfsUrl("ipfs://bafyTestCid123")).toBe(`${DEFAULT_IPFS_GATEWAY}bafyTestCid123`);
     });
 
     it("uses NEXT_PUBLIC_IPFS_GATEWAY and normalises a missing trailing slash", () => {
@@ -107,9 +105,7 @@ describe("utils", () => {
     });
 
     it("passes https:// URLs through unchanged", () => {
-      expect(resolveIpfsUrl("https://example.com/image.png")).toBe(
-        "https://example.com/image.png",
-      );
+      expect(resolveIpfsUrl("https://example.com/image.png")).toBe("https://example.com/image.png");
     });
 
     it("returns undefined for empty input", () => {

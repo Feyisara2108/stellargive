@@ -143,9 +143,9 @@ describe("formatEventAmount", () => {
 
   it("formats claimed and created amounts via field name", () => {
     expect(formatEventAmount(makeClaimedEvent("c1", { amount: 15_000_000n }))).toBe("1.5 XLM");
-    expect(formatEventAmount(makeCreatedEvent("c2", { target_amount: 15_000_000n }), "target_amount")).toBe(
-      "1.5 XLM",
-    );
+    expect(
+      formatEventAmount(makeCreatedEvent("c2", { target_amount: 15_000_000n }), "target_amount"),
+    ).toBe("1.5 XLM");
   });
 });
 

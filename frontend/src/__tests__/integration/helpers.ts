@@ -18,8 +18,7 @@ import {
   submitTransactionWithKeypair,
 } from "@/lib/soroban";
 
-export const FRIENDBOT_URL =
-  process.env.FRIENDBOT_URL || "http://localhost:8000/friendbot";
+export const FRIENDBOT_URL = process.env.FRIENDBOT_URL || "http://localhost:8000/friendbot";
 
 /** Minimum donation in stroops (matches contract `MIN_DONATION`). */
 export const MIN_DONATION_STROOPS = 1_000_000n;
@@ -105,8 +104,7 @@ export async function createCampaign(
     deadline: bigint;
   }>,
 ): Promise<bigint> {
-  const deadline =
-    overrides?.deadline ?? BigInt(Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60);
+  const deadline = overrides?.deadline ?? BigInt(Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60);
   const args = buildCreateCampaignArgs({
     creator: creator.publicKey(),
     beneficiary: creator.publicKey(),

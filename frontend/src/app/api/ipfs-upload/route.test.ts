@@ -151,10 +151,7 @@ describe("POST /api/ipfs-upload", () => {
       ok: true,
       json: async () => ({ IpfsHash: "bafyTestCid123" }),
     });
-    vi.stubGlobal(
-      "fetch",
-      fetchMock,
-    );
+    vi.stubGlobal("fetch", fetchMock);
 
     const formData = new FormData();
     formData.append("file", makeFile("../campaign\r\nlogo.png"));
@@ -181,9 +178,7 @@ describe("POST /api/ipfs-upload", () => {
     for (let i = 0; i < 11; i += 1) {
       const formData = new FormData();
       formData.append("file", makeFile());
-      responses.push(
-        await POST(makeRequest(formData, { "x-forwarded-for": "198.51.100.10" })),
-      );
+      responses.push(await POST(makeRequest(formData, { "x-forwarded-for": "198.51.100.10" })));
     }
 
     expect(responses.slice(0, 10).every((response) => response.status === 200)).toBe(true);

@@ -544,9 +544,7 @@ async function sendAndConfirm(signedXdr: string): Promise<SubmitTransactionResul
     if (remainingMs <= 0) {
       throw new TransactionTimeoutError(sendResponse.hash);
     }
-    await new Promise((r) =>
-      setTimeout(r, Math.min(TRANSACTION_POLL_INTERVAL_MS, remainingMs)),
-    );
+    await new Promise((r) => setTimeout(r, Math.min(TRANSACTION_POLL_INTERVAL_MS, remainingMs)));
     txResult = await server.getTransaction(sendResponse.hash);
   }
 

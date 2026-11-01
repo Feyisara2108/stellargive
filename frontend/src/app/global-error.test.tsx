@@ -21,9 +21,7 @@ describe("GlobalError (app/global-error.tsx)", () => {
 
   it("renders the error heading", () => {
     render(<GlobalError error={makeError()} reset={resetMock} />);
-    expect(
-      screen.getByRole("heading", { name: /something went wrong/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /something went wrong/i })).toBeInTheDocument();
   });
 
   it("renders the supporting copy about the team being notified", () => {
