@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import type { RpcRequestBody } from "./support/xdr";
 
 const VALID_BENEFICIARY = "G" + "A".repeat(55);
 const MOCK_TX_HASH = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6";
@@ -6,7 +7,7 @@ const MOCK_TX_HASH = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5
 async function mockSorobanRPC(page: Page) {
   await page.route("**/soroban/rpc*", async (route) => {
     const request = route.request();
-    let body: any = {};
+    let body: RpcRequestBody = {};
     try {
       body = JSON.parse(request.postData() || "{}");
     } catch {

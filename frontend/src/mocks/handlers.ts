@@ -27,6 +27,12 @@ export function generateUpdatesArrayXdr() {
   return xdr.ScVal.scvVec([map]).toXDR("base64");
 }
 
+/** Reads an XDR union arm or struct field, which stellar-sdk exposes as a method or a property. */
+function field(obj: unknown, key: string): unknown {
+  const value = (obj as Record<string, unknown> | null | undefined)?.[key];
+  return typeof value === "function" ? (value as () => unknown).call(obj) : value;
+}
+
 export const handlers = [
   http.post("*/rpc", async ({ request }) => {
     const body = (await request.json()) as {
@@ -41,25 +47,19 @@ export const handlers = [
       let xdrResult = "";
       if (txXdr) {
         try {
-          const fromFn = (xdr.TransactionEnvelope as any).fromXDR ?? (xdr.TransactionEnvelope as any).fromXdr;
-          const env = fromFn.call(xdr.TransactionEnvelope, txXdr, "base64");
-          const v1 = typeof (env as any).v1 === "function" ? (env as any).v1() : (env as any).v1;
-          const tx = v1 ? (typeof v1.tx === "function" ? v1.tx() : v1.tx) : null;
-          const ops = tx ? (typeof tx.operations === "function" ? tx.operations() : tx.operations) : [];
-          const op = ops?.[0];
-          const opBody = op ? (typeof op.body === "function" ? op.body() : op.body) : null;
-          const hostFnOp = opBody ? (typeof opBody.invokeHostFunctionOp === "function" ? opBody.invokeHostFunctionOp() : (opBody.invokeHostFunctionOp ?? opBody.value)) : null;
-          const hostFn = hostFnOp ? (typeof hostFnOp.hostFunction === "function" ? hostFnOp.hostFunction() : (hostFnOp.hostFunction ?? hostFnOp.value)) : null;
-          const ic = hostFn ? (typeof hostFn.invokeContract === "function" ? hostFn.invokeContract() : (hostFn.invokeContract ?? hostFn.value)) : null;
-          const fnNameVal = ic ? (typeof ic.functionName === "function" ? ic.functionName() : ic.functionName) : null;
-          const funcName = fnNameVal?.toString() ?? "";
+          const env = xdr.TransactionEnvelope.fromXDR(txXdr, "base64");
+          const operations = field(field(field(env, "v1"), "tx"), "operations") as unknown[];
+          const hostFunction = field(
+            field(field(operations?.[0], "body"), "invokeHostFunctionOp"),
+            "hostFunction",
+          );
+          const ic = field(hostFunction, "invokeContract");
+          const funcName = String(field(ic, "functionName") ?? "");
+          const args = (field(ic, "args") as xdr.ScVal[] | undefined) ?? [];
 
           if (funcName === "get_campaign") {
-            const args = ic ? (typeof ic.args === "function" ? ic.args() : ic.args) : [];
             if (args.length > 0) {
-              const u64Val = typeof args[0].u64 === "function" ? args[0].u64() : (args[0].u64 ?? args[0].value);
-              const low = u64Val?.low ?? u64Val;
-              const reqId = Number(low);
+              const reqId = Number(scValToNative(args[0]));
               const campaign = MOCK_CAMPAIGNS.find((c) => Number(c.id) === reqId);
               if (campaign) {
                 xdrResult = campaignToXdr(campaign).toXDR("base64");
@@ -67,7 +67,6 @@ export const handlers = [
             }
           }
           if (funcName === "get_campaigns_by_creator") {
-            const args = ic ? (typeof ic.args === "function" ? ic.args() : ic.args) : [];
             if (args.length > 0) {
               const creator = String(scValToNative(args[0]));
               xdrResult = campaignArrayToXdr(

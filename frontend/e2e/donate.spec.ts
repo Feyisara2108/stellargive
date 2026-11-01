@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
-import { Address, Keypair, nativeToScVal, scValToNative, xdr } from "@stellar/stellar-sdk";
+import { Address, Keypair, nativeToScVal, xdr } from "@stellar/stellar-sdk";
+import { type RpcRequestBody, decodeInvocation } from "./support/xdr";
 
 // Deterministic test data matching the mock wallet defaults
 const MOCK_ADDRESS = "GTEST7SRIEMJXLK3LXKLS5RQ7JLDUZQUDVFNLWIM6DEDCZM5WLPSERV";
@@ -36,10 +37,7 @@ function campaignScVal(raised: bigint): string {
     [
       "beneficiaries",
       xdr.ScVal.scvVec([
-        xdr.ScVal.scvVec([
-          new Address(CREATOR).toScVal(),
-          nativeToScVal(10000, { type: "u32" }),
-        ]),
+        xdr.ScVal.scvVec([new Address(CREATOR).toScVal(), nativeToScVal(10000, { type: "u32" })]),
       ]),
     ],
     ["category", nativeToScVal("relief", { type: "string" })],
@@ -49,7 +47,10 @@ function campaignScVal(raised: bigint): string {
     ["id", nativeToScVal(1n, { type: "u64" })],
     ["metadata_uri", nativeToScVal("", { type: "string" })],
     ["raised_amount", nativeToScVal(raised, { type: "i128" })],
-    ["status", xdr.ScVal.scvMap([new xdr.ScMapEntry({ key: sym("Active"), val: xdr.ScVal.scvVoid() })])],
+    [
+      "status",
+      xdr.ScVal.scvMap([new xdr.ScMapEntry({ key: sym("Active"), val: xdr.ScVal.scvVoid() })]),
+    ],
     ["target_amount", nativeToScVal(100_000_000n, { type: "i128" })],
     ["title", nativeToScVal("Flood Relief 2024", { type: "string" })],
     ["twitter", nativeToScVal("", { type: "string" })],
@@ -58,43 +59,6 @@ function campaignScVal(raised: bigint): string {
   return xdr.ScVal.scvMap(
     entries.map(([k, v]) => new xdr.ScMapEntry({ key: sym(k), val: v })),
   ).toXDR("base64");
-}
-
-/** Decode the invoked contract function + args from a simulateTransaction request. */
-function decodeInvocation(txXdr: string): { fn: string; args: unknown[] } | null {
-  try {
-    const fromFn =
-      (xdr.TransactionEnvelope as any).fromXDR ?? (xdr.TransactionEnvelope as any).fromXdr;
-    const env = fromFn.call(xdr.TransactionEnvelope, txXdr, "base64");
-    const v1 = typeof (env as any).v1 === "function" ? (env as any).v1() : (env as any).v1;
-    const tx = v1 ? (typeof v1.tx === "function" ? v1.tx() : v1.tx) : null;
-    const ops = tx ? (typeof tx.operations === "function" ? tx.operations() : tx.operations) : [];
-    const op = ops?.[0];
-    const opBody = op ? (typeof op.body === "function" ? op.body() : op.body) : null;
-    const hostFnOp = opBody
-      ? typeof opBody.invokeHostFunctionOp === "function"
-        ? opBody.invokeHostFunctionOp()
-        : opBody.invokeHostFunctionOp ?? opBody.value
-      : null;
-    const hostFn = hostFnOp
-      ? typeof hostFnOp.hostFunction === "function"
-        ? hostFnOp.hostFunction()
-        : hostFnOp.hostFunction ?? hostFnOp.value
-      : null;
-    const ic = hostFn
-      ? typeof hostFn.invokeContract === "function"
-        ? hostFn.invokeContract()
-        : hostFn.invokeContract ?? hostFn.value
-      : null;
-    if (!ic) return null;
-    const fnNameVal = typeof ic.functionName === "function" ? ic.functionName() : ic.functionName;
-    const fn = fnNameVal?.toString() ?? "";
-    const argsVal = typeof ic.args === "function" ? ic.args() : ic.args;
-    const args = Array.isArray(argsVal) ? argsVal.map((a: any) => scValToNative(a)) : [];
-    return { fn, args };
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -106,7 +70,7 @@ async function mockSorobanRPC(page: Page) {
 
   await page.route("**/soroban/rpc*", async (route) => {
     const request = route.request();
-    let body: any = {};
+    let body: RpcRequestBody = {};
     try {
       body = JSON.parse(request.postData() || "{}");
     } catch {
@@ -137,7 +101,7 @@ async function mockSorobanRPC(page: Page) {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify(simOk(body.id, retvalXdr)),
+        body: JSON.stringify(simOk(body.id ?? 0, retvalXdr)),
       });
     } else if (method === "getAccount") {
       await route.fulfill({

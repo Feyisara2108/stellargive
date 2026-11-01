@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
-import { Address, Keypair, nativeToScVal, scValToNative, xdr } from "@stellar/stellar-sdk";
+import { Address, Keypair, nativeToScVal, xdr } from "@stellar/stellar-sdk";
+import { type RpcRequestBody, decodeInvocation } from "./support/xdr";
 
 /**
  * E2E: claim-refund on a cancelled campaign (#270 — covers #211).
@@ -39,10 +40,7 @@ function campaignScVal(): string {
     [
       "beneficiaries",
       xdr.ScVal.scvVec([
-        xdr.ScVal.scvVec([
-          new Address(CREATOR).toScVal(),
-          nativeToScVal(10000, { type: "u32" }),
-        ]),
+        xdr.ScVal.scvVec([new Address(CREATOR).toScVal(), nativeToScVal(10000, { type: "u32" })]),
       ]),
     ],
     ["category", nativeToScVal("Disaster", { type: "string" })],
@@ -64,32 +62,6 @@ function campaignScVal(): string {
   return xdr.ScVal.scvMap(
     entries.map(([k, v]) => new xdr.ScMapEntry({ key: sym(k), val: v })),
   ).toXDR("base64");
-}
-
-function decodeInvocation(txXdr: string): { fn: string; args: unknown[] } | null {
-  try {
-    const fromFn = (xdr.TransactionEnvelope as any).fromXDR ?? (xdr.TransactionEnvelope as any).fromXdr;
-    const env = fromFn.call(xdr.TransactionEnvelope, txXdr, "base64");
-    const v1 = typeof (env as any).v1 === "function" ? (env as any).v1() : (env as any).v1;
-    const tx = v1 ? (typeof v1.tx === "function" ? v1.tx() : v1.tx) : null;
-    const ops = tx ? (typeof tx.operations === "function" ? tx.operations() : tx.operations) : [];
-    const op = ops?.[0];
-    const opBody = op ? (typeof op.body === "function" ? op.body() : op.body) : null;
-    const hostFnOp = opBody ? (typeof opBody.invokeHostFunctionOp === "function" ? opBody.invokeHostFunctionOp() : (opBody.invokeHostFunctionOp ?? opBody.value)) : null;
-    const hostFn = hostFnOp ? (typeof hostFnOp.hostFunction === "function" ? hostFnOp.hostFunction() : (hostFnOp.hostFunction ?? hostFnOp.value)) : null;
-    const ic = hostFn ? (typeof hostFn.invokeContract === "function" ? hostFn.invokeContract() : (hostFn.invokeContract ?? hostFn.value)) : null;
-    if (!ic) return null;
-    const fnNameVal = typeof ic.functionName === "function" ? ic.functionName() : ic.functionName;
-    const fn = fnNameVal?.toString() ?? "";
-    const argsVal = typeof ic.args === "function" ? ic.args() : ic.args;
-    const args = Array.isArray(argsVal) ? argsVal.map((a: any) => scValToNative(a)) : [];
-    return {
-      fn,
-      args,
-    };
-  } catch {
-    return null;
-  }
 }
 
 function simOk(id: number, retvalXdr: string) {
@@ -117,14 +89,14 @@ function simError(id: number, message: string) {
 async function mockSorobanRPC(page: Page, isDonor: boolean) {
   await page.route("**/soroban/rpc*", async (route) => {
     const request = route.request();
-    let body: any = {};
+    let body: RpcRequestBody = {};
     try {
       body = JSON.parse(request.postData() || "{}");
     } catch {
       // not JSON
     }
     const method = body.method || "";
-    const id = body.id;
+    const id = body.id ?? 0;
 
     if (method === "getAccount") {
       await route.fulfill({

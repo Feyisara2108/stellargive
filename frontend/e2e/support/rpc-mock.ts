@@ -1,5 +1,8 @@
 import type { Page } from "@playwright/test";
-import { Address, Keypair, nativeToScVal, scValToNative, xdr } from "@stellar/stellar-sdk";
+import { Address, Keypair, nativeToScVal, xdr } from "@stellar/stellar-sdk";
+import { type RpcRequestBody, decodeInvocation } from "./xdr";
+
+export { decodeInvocation };
 
 /**
  * Shared Soroban RPC mocking for e2e specs that read campaigns off the
@@ -73,43 +76,6 @@ export function campaignScVal(c: CampaignSeed): string {
 /** Base64 XDR of a vec of campaign maps — the `get_campaigns_paged` retval shape. */
 export function campaignsPagedScVal(campaigns: CampaignSeed[]): string {
   return xdr.ScVal.scvVec(campaigns.map(campaignToScVal)).toXDR("base64");
-}
-
-/** Decode the contract function + args from a simulateTransaction request. */
-export function decodeInvocation(txXdr: string): { fn: string; args: unknown[] } | null {
-  try {
-    const fromFn =
-      (xdr.TransactionEnvelope as any).fromXDR ?? (xdr.TransactionEnvelope as any).fromXdr;
-    const env = fromFn.call(xdr.TransactionEnvelope, txXdr, "base64");
-    const v1 = typeof (env as any).v1 === "function" ? (env as any).v1() : (env as any).v1;
-    const tx = v1 ? (typeof v1.tx === "function" ? v1.tx() : v1.tx) : null;
-    const ops = tx ? (typeof tx.operations === "function" ? tx.operations() : tx.operations) : [];
-    const op = ops?.[0];
-    const opBody = op ? (typeof op.body === "function" ? op.body() : op.body) : null;
-    const hostFnOp = opBody
-      ? typeof opBody.invokeHostFunctionOp === "function"
-        ? opBody.invokeHostFunctionOp()
-        : opBody.invokeHostFunctionOp ?? opBody.value
-      : null;
-    const hostFn = hostFnOp
-      ? typeof hostFnOp.hostFunction === "function"
-        ? hostFnOp.hostFunction()
-        : hostFnOp.hostFunction ?? hostFnOp.value
-      : null;
-    const ic = hostFn
-      ? typeof hostFn.invokeContract === "function"
-        ? hostFn.invokeContract()
-        : hostFn.invokeContract ?? hostFn.value
-      : null;
-    if (!ic) return null;
-    const fnNameVal = typeof ic.functionName === "function" ? ic.functionName() : ic.functionName;
-    const fn = fnNameVal?.toString() ?? "";
-    const argsVal = typeof ic.args === "function" ? ic.args() : ic.args;
-    const args = Array.isArray(argsVal) ? argsVal.map((a: any) => scValToNative(a)) : [];
-    return { fn, args };
-  } catch {
-    return null;
-  }
 }
 
 export function ok(id: number, retvalXdr: string) {
@@ -194,14 +160,14 @@ export async function mockSorobanRPC(
 
   await page.route("**/soroban/rpc*", async (route) => {
     const request = route.request();
-    let body: any = {};
+    let body: RpcRequestBody = {};
     try {
       body = JSON.parse(request.postData() || "{}");
     } catch {
       // not JSON — pass through
     }
     const method = body.method || "";
-    const id = body.id;
+    const id = body.id ?? 0;
 
     if (method === "simulateTransaction") {
       const txXdr = body.params?.transaction ?? "";
