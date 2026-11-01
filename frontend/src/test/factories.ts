@@ -193,16 +193,11 @@ export function campaignToXdr(campaign: Campaign) {
     new xdr.ScMapEntry({
       key: nativeToScVal("beneficiaries", { type: "symbol" }),
       val: xdr.ScVal.scvVec(
+        // The contract stores each beneficiary as an (address, share) tuple, i.e. a two-item vec.
         campaign.beneficiaries.map((b) =>
-          xdr.ScVal.scvMap([
-            new xdr.ScMapEntry({
-              key: nativeToScVal("address", { type: "symbol" }),
-              val: new Address(b.address).toScVal(),
-            }),
-            new xdr.ScMapEntry({
-              key: nativeToScVal("share", { type: "symbol" }),
-              val: nativeToScVal(b.share, { type: "u32" }),
-            }),
+          xdr.ScVal.scvVec([
+            new Address(b.address).toScVal(),
+            nativeToScVal(b.share, { type: "u32" }),
           ]),
         ),
       ),
@@ -237,12 +232,8 @@ export function campaignToXdr(campaign: Campaign) {
     }),
     new xdr.ScMapEntry({
       key: nativeToScVal("status", { type: "symbol" }),
-      val: xdr.ScVal.scvMap([
-        new xdr.ScMapEntry({
-          key: nativeToScVal(campaign.status, { type: "symbol" }),
-          val: xdr.ScVal.scvVoid(),
-        }),
-      ]),
+      // A unit-variant contract enum is stored as a vec holding the variant's symbol.
+      val: xdr.ScVal.scvVec([nativeToScVal(campaign.status, { type: "symbol" })]),
     }),
   ];
   return xdr.ScVal.scvMap(entries);

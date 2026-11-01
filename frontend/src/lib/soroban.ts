@@ -18,6 +18,7 @@ import { isValidAccountAddress } from "./strkey";
 import { logger } from "./logger";
 import {
   isNativeCampaign,
+  parseCampaignStatus,
   isNativeCampaignUpdate,
   type NativeCampaign,
 } from "./bindings/stellarGive";
@@ -120,7 +121,7 @@ function parseCampaign(native: NativeCampaign): Campaign {
     raised_amount: native.raised_amount,
     deadline: native.deadline,
     accepted_token: native.accepted_token,
-    status: native.status,
+    status: parseCampaignStatus(native.status) ?? "Active",
     website: native.website?.toString(),
     twitter: native.twitter?.toString(),
     max_per_donor:
