@@ -1,6 +1,7 @@
 import fs from "fs";
 import { test, expect, type Page } from "@playwright/test";
 import { Address, Keypair, nativeToScVal, xdr } from "@stellar/stellar-sdk";
+import type { RpcRequestBody } from "./support/xdr";
 
 /**
  * E2E: donor leaderboard (#1158).
@@ -76,7 +77,7 @@ async function mockSorobanRPC(page: Page, options: { failEvents?: boolean } = {}
   );
 
   await page.route("**/soroban/rpc*", async (route) => {
-    let body: any = {};
+    let body: RpcRequestBody = {};
     try {
       body = JSON.parse(route.request().postData() || "{}");
     } catch {
@@ -248,7 +249,7 @@ test.describe("Leaderboard (/leaderboard)", () => {
 
   test("highlights the connected wallet and shows its rank", async ({ page }) => {
     await page.addInitScript((addr) => {
-      (window as any).__mockWalletAddress = addr;
+      window.__mockWalletAddress = addr;
     }, CAROL);
     await mockSorobanRPC(page);
     await page.goto("/leaderboard");

@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { Keypair } from "@stellar/stellar-sdk";
+import type { RpcRequestBody } from "./support/xdr";
 
 /**
  * E2E: create-campaign failure path.
@@ -21,7 +22,7 @@ const MOCK_TX_HASH = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5
 
 async function mockSorobanRPC(page: Page) {
   await page.route("**/soroban/rpc*", async (route) => {
-    let body: any = {};
+    let body: RpcRequestBody = {};
     try {
       body = JSON.parse(route.request().postData() || "{}");
     } catch {
@@ -29,7 +30,7 @@ async function mockSorobanRPC(page: Page) {
     }
 
     const method = body.method || "";
-    const id = body.id;
+    const id = body.id ?? 0;
 
     if (method === "simulateTransaction") {
       await route.fulfill({
@@ -116,7 +117,7 @@ async function mockSorobanRPC(page: Page) {
 test.describe("Create Campaign — RPC failure path", () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript((addr) => {
-      (window as any).__mockWalletAddress = addr;
+      window.__mockWalletAddress = addr;
     }, WALLET);
     await mockSorobanRPC(page);
   });

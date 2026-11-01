@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
-import { Address, Keypair, nativeToScVal, scValToNative, xdr } from "@stellar/stellar-sdk";
+import { Address, Keypair, nativeToScVal, xdr } from "@stellar/stellar-sdk";
+import { type RpcRequestBody, decodeInvocation } from "./support/xdr";
 
 /**
  * E2E: action gating while no wallet is connected.
@@ -36,10 +37,7 @@ function campaignScVal(): string {
     [
       "beneficiaries",
       xdr.ScVal.scvVec([
-        xdr.ScVal.scvVec([
-          new Address(CREATOR).toScVal(),
-          nativeToScVal(10000, { type: "u32" }),
-        ]),
+        xdr.ScVal.scvVec([new Address(CREATOR).toScVal(), nativeToScVal(10000, { type: "u32" })]),
       ]),
     ],
     ["category", nativeToScVal("Disaster", { type: "string" })],
@@ -63,32 +61,6 @@ function campaignScVal(): string {
   ).toXDR("base64");
 }
 
-function decodeInvocation(txXdr: string): { fn: string; args: unknown[] } | null {
-  try {
-    const fromFn = (xdr.TransactionEnvelope as any).fromXDR ?? (xdr.TransactionEnvelope as any).fromXdr;
-    const env = fromFn.call(xdr.TransactionEnvelope, txXdr, "base64");
-    const v1 = typeof (env as any).v1 === "function" ? (env as any).v1() : (env as any).v1;
-    const tx = v1 ? (typeof v1.tx === "function" ? v1.tx() : v1.tx) : null;
-    const ops = tx ? (typeof tx.operations === "function" ? tx.operations() : tx.operations) : [];
-    const op = ops?.[0];
-    const opBody = op ? (typeof op.body === "function" ? op.body() : op.body) : null;
-    const hostFnOp = opBody ? (typeof opBody.invokeHostFunctionOp === "function" ? opBody.invokeHostFunctionOp() : (opBody.invokeHostFunctionOp ?? opBody.value)) : null;
-    const hostFn = hostFnOp ? (typeof hostFnOp.hostFunction === "function" ? hostFnOp.hostFunction() : (hostFnOp.hostFunction ?? hostFnOp.value)) : null;
-    const ic = hostFn ? (typeof hostFn.invokeContract === "function" ? hostFn.invokeContract() : (hostFn.invokeContract ?? hostFn.value)) : null;
-    if (!ic) return null;
-    const fnNameVal = typeof ic.functionName === "function" ? ic.functionName() : ic.functionName;
-    const fn = fnNameVal?.toString() ?? "";
-    const argsVal = typeof ic.args === "function" ? ic.args() : ic.args;
-    const args = Array.isArray(argsVal) ? argsVal.map((a: any) => scValToNative(a)) : [];
-    return {
-      fn,
-      args,
-    };
-  } catch {
-    return null;
-  }
-}
-
 function simOk(id: number, retvalXdr: string) {
   return {
     jsonrpc: "2.0",
@@ -109,14 +81,14 @@ function simError(id: number, message: string) {
 
 async function mockSorobanRPC(page: Page) {
   await page.route("**/soroban/rpc*", async (route) => {
-    let body: any = {};
+    let body: RpcRequestBody = {};
     try {
       body = JSON.parse(route.request().postData() || "{}");
     } catch {
       // not JSON
     }
     const method = body.method || "";
-    const id = body.id;
+    const id = body.id ?? 0;
 
     if (method === "getAccount") {
       await route.fulfill({
@@ -202,8 +174,8 @@ const donateDialog = (page: Page) => page.getByRole("dialog", { name: /Donate to
 test.describe("Action gating with no wallet connected", () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript((addr) => {
-      (window as any).__mockWalletDisconnected = true;
-      (window as any).__mockWalletAddress = addr;
+      window.__mockWalletDisconnected = true;
+      window.__mockWalletAddress = addr;
     }, WALLET);
     await mockSorobanRPC(page);
   });
@@ -221,10 +193,7 @@ test.describe("Action gating with no wallet connected", () => {
     await expect(donateButton(page)).toBeDisabled();
     // The disabled reason is exposed via aria-describedby (the donate button
     // points at the "Connect your wallet to donate" tooltip) rather than a title.
-    await expect(donateButton(page)).toHaveAttribute(
-      "aria-describedby",
-      "donate-disabled-reason",
-    );
+    await expect(donateButton(page)).toHaveAttribute("aria-describedby", "donate-disabled-reason");
 
     // Nothing opened, so no amount field is reachable.
     await expect(donateDialog(page)).toHaveCount(0);

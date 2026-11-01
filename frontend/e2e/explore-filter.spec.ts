@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
-import { Address, Keypair, nativeToScVal, scValToNative, xdr } from "@stellar/stellar-sdk";
+import { Address, Keypair, nativeToScVal, xdr } from "@stellar/stellar-sdk";
+import { decodeInvocation } from "./support/xdr";
 
 /**
  * E2E: Explore category filter, search empty-state, and "Load more" pagination (#1133).
@@ -84,29 +85,6 @@ function campaignMap(c: Seed): xdr.ScVal {
     ["website", nativeToScVal("", { type: "string" })],
   ];
   return xdr.ScVal.scvMap(entries.map(([k, v]) => new xdr.ScMapEntry({ key: sym(k), val: v })));
-}
-
-/** Reads an XDR union arm or struct field, which stellar-sdk exposes as a method or a property. */
-function field(obj: unknown, key: string): unknown {
-  const value = (obj as Record<string, unknown>)[key];
-  return typeof value === "function" ? (value as () => unknown).call(obj) : value;
-}
-
-/** Decode the contract function + args from a simulateTransaction request. */
-function decodeInvocation(txXdr: string): { fn: string; args: unknown[] } | null {
-  try {
-    const env = xdr.TransactionEnvelope.fromXDR(txXdr, "base64");
-    const operations = field(field(field(env, "v1"), "tx"), "operations") as unknown[];
-    const body = field(operations[0], "body");
-    const hostFunction = field(field(body, "invokeHostFunctionOp"), "hostFunction");
-    const ic = field(hostFunction, "invokeContract");
-    return {
-      fn: String(field(ic, "functionName")),
-      args: (field(ic, "args") as xdr.ScVal[]).map((a) => scValToNative(a)),
-    };
-  } catch {
-    return null;
-  }
 }
 
 function ok(id: number, retvalXdr: string) {

@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
-import { Address, Keypair, nativeToScVal, scValToNative, xdr } from "@stellar/stellar-sdk";
+import { Address, Keypair, nativeToScVal, xdr } from "@stellar/stellar-sdk";
+import type { RpcRequestBody } from "./support/xdr";
 
 const CREATOR = "GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFXYSFSSTY2FOWOWPPTXY";
 const TOKEN = "CDLZFC3SYJYDTIW67FYOFNPZNR2BAZZB54JZWJZWJZWJZWJZWJZWJZWZ";
@@ -64,32 +65,6 @@ function campaignScVal(c: Seed): string {
   return nativeToScVal(mockCampaign).toXDR("base64");
 }
 
-function decodeInvocation(txXdr: string): { fn: string; args: unknown[] } | null {
-  try {
-    const fromFn = (xdr.TransactionEnvelope as any).fromXDR ?? (xdr.TransactionEnvelope as any).fromXdr;
-    const env = fromFn.call(xdr.TransactionEnvelope, txXdr, "base64");
-    const v1 = typeof (env as any).v1 === "function" ? (env as any).v1() : (env as any).v1;
-    const tx = v1 ? (typeof v1.tx === "function" ? v1.tx() : v1.tx) : null;
-    const ops = tx ? (typeof tx.operations === "function" ? tx.operations() : tx.operations) : [];
-    const op = ops?.[0];
-    const opBody = op ? (typeof op.body === "function" ? op.body() : op.body) : null;
-    const hostFnOp = opBody ? (typeof opBody.invokeHostFunctionOp === "function" ? opBody.invokeHostFunctionOp() : (opBody.invokeHostFunctionOp ?? opBody.value)) : null;
-    const hostFn = hostFnOp ? (typeof hostFnOp.hostFunction === "function" ? hostFnOp.hostFunction() : (hostFnOp.hostFunction ?? hostFnOp.value)) : null;
-    const ic = hostFn ? (typeof hostFn.invokeContract === "function" ? hostFn.invokeContract() : (hostFn.invokeContract ?? hostFn.value)) : null;
-    if (!ic) return null;
-    const fnNameVal = typeof ic.functionName === "function" ? ic.functionName() : ic.functionName;
-    const fn = fnNameVal?.toString() ?? "";
-    const argsVal = typeof ic.args === "function" ? ic.args() : ic.args;
-    const args = Array.isArray(argsVal) ? argsVal.map((a: any) => scValToNative(a)) : [];
-    return {
-      fn,
-      args,
-    };
-  } catch {
-    return null;
-  }
-}
-
 function ok(id: number, retvalXdr: string) {
   return {
     jsonrpc: "2.0",
@@ -107,14 +82,14 @@ function ok(id: number, retvalXdr: string) {
 async function mockSorobanRPC(page: Page) {
   await page.route("**/soroban/rpc*", async (route) => {
     const request = route.request();
-    let body: any = {};
+    let body: RpcRequestBody = {};
     try {
       body = JSON.parse(request.postData() || "{}");
     } catch {
       // ignore
     }
     const method = body.method || "";
-    const id = body.id;
+    const id = body.id ?? 0;
 
     if (method === "getLatestLedger" || method === "getHealth") {
       await route.fulfill({
@@ -130,10 +105,10 @@ async function mockSorobanRPC(page: Page) {
     }
 
     if (method === "simulateTransaction") {
-      const xdrString = body.params?.transaction ?? body.params?.[0] ?? "";
+      const xdrString = body.params?.transaction ?? "";
       const buffer = Buffer.from(xdrString, "base64");
 
-      let retval: any;
+      let retval: xdr.ScVal | undefined;
       if (buffer.includes("get_campaign")) {
         const mockCampaign = {
           id: 1n,
@@ -192,7 +167,7 @@ async function mockSorobanRPC(page: Page) {
             transactionData: "",
             minResourceFee: "100",
             cost: { cpuInsns: "1000", memBytes: "1000" },
-            results: [{ xdr: retval.toXDR("base64") }],
+            results: [{ xdr: retval?.toXDR("base64") }],
             latestLedger: 1000,
           },
         }),
