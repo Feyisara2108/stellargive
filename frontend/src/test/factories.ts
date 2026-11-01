@@ -101,9 +101,7 @@ export type CreatedEventData = {
   target_amount: bigint;
 };
 
-export const makeCreatedEventData = (
-  overrides?: Partial<CreatedEventData>,
-): CreatedEventData => ({
+export const makeCreatedEventData = (overrides?: Partial<CreatedEventData>): CreatedEventData => ({
   id: 1n,
   creator: WALLET_ADDRESS,
   target_amount: 100_000_000n,
@@ -123,9 +121,7 @@ export type ClaimedEventData = {
   beneficiary: string;
 };
 
-export const makeClaimedEventData = (
-  overrides?: Partial<ClaimedEventData>,
-): ClaimedEventData => ({
+export const makeClaimedEventData = (overrides?: Partial<ClaimedEventData>): ClaimedEventData => ({
   campaign_id: 1n,
   amount: 50_000_000n,
   beneficiary: WALLET_ADDRESS,

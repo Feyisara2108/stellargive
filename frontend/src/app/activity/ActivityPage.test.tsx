@@ -1,11 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import ActivityPage from "./page";
-import {
-  makeCreatedEvent,
-  makeDonationEvent,
-  NATIVE_TOKEN_ADDRESS,
-} from "@/test/factories";
+import { makeCreatedEvent, makeDonationEvent, NATIVE_TOKEN_ADDRESS } from "@/test/factories";
 
 // fromStroops is the only soroban export the page reaches (via @/lib/eventData).
 vi.mock("@/lib/soroban", () => ({
@@ -123,7 +119,11 @@ describe("ActivityPage - malformed event payloads", () => {
           },
         },
         // Creation event with a non-numeric target
-        makeCreatedEvent("e2", { id: 2n, creator: DONOR, target_amount: "not-a-number" as any }, 11),
+        makeCreatedEvent(
+          "e2",
+          { id: 2n, creator: DONOR, target_amount: "not-a-number" as any },
+          11,
+        ),
         // Claim event with no data at all
         { id: "e3", topic: "claimed", ledger: 12 },
         // Entries that are not events at all

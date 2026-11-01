@@ -59,7 +59,8 @@ const CONTRACT_ERROR_MESSAGES: Record<number, string> = {
   [CONTRACT_ERROR_CODES.CampaignNotActive]: "This campaign is no longer accepting donations.",
   [CONTRACT_ERROR_CODES.ClaimNotAllowed]: "Campaign funds cannot be claimed yet.",
   [CONTRACT_ERROR_CODES.AlreadyClaimed]: "The campaign funds have already been claimed.",
-  [CONTRACT_ERROR_CODES.ReentrancyDetected]: "The transaction could not be processed safely. Please retry.",
+  [CONTRACT_ERROR_CODES.ReentrancyDetected]:
+    "The transaction could not be processed safely. Please retry.",
   [CONTRACT_ERROR_CODES.EmptyTitle]: "A campaign title is required.",
   [CONTRACT_ERROR_CODES.NothingToClaim]: "There are no campaign funds available to claim.",
   [CONTRACT_ERROR_CODES.InvalidShares]: INVALID_SHARES_MESSAGE,
@@ -79,11 +80,13 @@ const CONTRACT_ERROR_MESSAGES: Record<number, string> = {
   [CONTRACT_ERROR_CODES.InvalidUpdateContent]: "The campaign update content is invalid.",
   [CONTRACT_ERROR_CODES.TooManyUpdates]: "This campaign has reached its update limit.",
   [CONTRACT_ERROR_CODES.InvalidBeneficiary]: "The campaign beneficiary is invalid.",
-  [CONTRACT_ERROR_CODES.CommentTooLong]: "Your comment is too long. Please shorten it and try again.",
+  [CONTRACT_ERROR_CODES.CommentTooLong]:
+    "Your comment is too long. Please shorten it and try again.",
   [CONTRACT_ERROR_CODES.InvalidCategory]: "Choose a valid campaign category.",
   [CONTRACT_ERROR_CODES.NotWhitelisted]: "This address is not allowed to perform this action.",
   [CONTRACT_ERROR_CODES.DescriptionTooLong]: "The campaign description is too long.",
-  [CONTRACT_ERROR_CODES.ContractPaused]: "The contract is temporarily paused. Please try again later.",
+  [CONTRACT_ERROR_CODES.ContractPaused]:
+    "The contract is temporarily paused. Please try again later.",
   [CONTRACT_ERROR_CODES.RefundNotAllowed]: "A refund is not available for this campaign yet.",
   [CONTRACT_ERROR_CODES.CampaignNotCancelled]: "This campaign has not been cancelled.",
   [CONTRACT_ERROR_CODES.NothingToRefund]: "There is no contribution left to refund.",

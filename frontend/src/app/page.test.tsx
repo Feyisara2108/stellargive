@@ -210,9 +210,7 @@ describe("Home page", () => {
       render(<Home />);
 
       // Reduced motion renders a static grid instead of the carousel.
-      expect(
-        screen.queryByRole("region", { name: "Featured campaigns" }),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByRole("region", { name: "Featured campaigns" })).not.toBeInTheDocument();
       expect(screen.getAllByTestId("campaign-card")).toHaveLength(3);
 
       // No auto-advance fires even after the interval would have elapsed.

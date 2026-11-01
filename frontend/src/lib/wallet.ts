@@ -38,7 +38,10 @@ interface WalletAdapter extends WalletInfo {
   restore?(): Promise<string | null>;
   /** Network passphrase the wallet is on, or null if unknown. */
   getNetwork(): Promise<string | null>;
-  signTransaction(xdr: string, opts: { networkPassphrase: string; address: string }): Promise<string>;
+  signTransaction(
+    xdr: string,
+    opts: { networkPassphrase: string; address: string },
+  ): Promise<string>;
   /** Present only on wallets that can switch networks on the user's behalf. */
   setNetwork?(networkPassphrase: string): Promise<void>;
 }

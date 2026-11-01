@@ -30,7 +30,9 @@ describe("RouteError (app/error.tsx)", () => {
 
   it("renders the error heading", () => {
     render(<RouteError error={makeError()} reset={resetMock} />);
-    expect(screen.getByRole("heading", { name: /something went wrong on this page/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /something went wrong on this page/i }),
+    ).toBeInTheDocument();
   });
 
   it("renders the supporting copy", () => {
