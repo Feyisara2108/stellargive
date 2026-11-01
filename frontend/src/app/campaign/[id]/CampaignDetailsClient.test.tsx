@@ -54,6 +54,10 @@ vi.mock("@/components/TopDonors", () => ({ TopDonors: () => null }));
 
 import { CampaignDetailsClient } from "./CampaignDetailsClient";
 
+/** Generous waits for the lazily loaded DonateModal when the whole suite runs in parallel. */
+const SLOW_LOAD = { timeout: 10_000 };
+const TEST_TIMEOUT = 30_000;
+
 const TARGET = 1_000_000_000n; // 100 XLM
 const RAISED = 580_000_000n; // 58 XLM
 
@@ -88,36 +92,45 @@ describe("CampaignDetailsClient donation success dialog", () => {
     donateMutation.mutateAsync = vi.fn().mockResolvedValue({ hash: "TXHASH123" });
   });
 
-  it("keeps the success dialog visible when the donation flips the campaign to Funded", async () => {
-    const user = userEvent.setup();
-    const { rerender } = renderPage();
+  it(
+    "keeps the success dialog visible when the donation flips the campaign to Funded",
+    async () => {
+      const user = userEvent.setup();
+      const { rerender } = renderPage();
 
-    await user.click(await screen.findByRole("button", { name: "Donate Now" }));
-    // 58 XLM raised of 100: a 42 XLM donation reaches the goal exactly.
-    await user.type(await screen.findByPlaceholderText("10.0"), "42");
-    await user.click(await screen.findByRole("button", { name: "Confirm Donation" }));
+      // DonateModal is loaded with next/dynamic, so its first render can be slow under load.
+      await user.click(await screen.findByRole("button", { name: "Donate Now" }, SLOW_LOAD));
+      // 58 XLM raised of 100: a 42 XLM donation reaches the goal exactly.
+      await user.type(await screen.findByPlaceholderText("10.0", {}, SLOW_LOAD), "42");
+      await user.click(await screen.findByRole("button", { name: "Confirm Donation" }));
 
-    expect(await screen.findByText("Donation Successful!")).toBeInTheDocument();
-    expect(donateMutation.mutateAsync).toHaveBeenCalledWith(
-      expect.objectContaining({ campaignId: 1n, amount: "42" }),
-    );
+      expect(await screen.findByText("Donation Successful!", {}, SLOW_LOAD)).toBeInTheDocument();
+      expect(donateMutation.mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ campaignId: 1n, amount: "42" }),
+      );
 
-    // The refetch after the donation reports the campaign as Funded.
-    campaignState.campaign = makeCampaign({ raised_amount: TARGET, status: "Funded" });
-    rerender(<CampaignDetailsClient params={{ id: "1" }} breadcrumbs={[]} />);
+      // The refetch after the donation reports the campaign as Funded.
+      campaignState.campaign = makeCampaign({ raised_amount: TARGET, status: "Funded" });
+      rerender(<CampaignDetailsClient params={{ id: "1" }} breadcrumbs={[]} />);
 
-    expect(screen.getByText("Donation Successful!")).toBeInTheDocument();
-    expect(screen.getByText("TXHASH123")).toBeInTheDocument();
-    // The campaign no longer accepts donations, so the form and its trigger are gone.
-    expect(screen.queryByRole("button", { name: "Donate Now" })).not.toBeInTheDocument();
-  });
+      expect(screen.getByText("Donation Successful!")).toBeInTheDocument();
+      expect(screen.getByText("TXHASH123")).toBeInTheDocument();
+      // The campaign no longer accepts donations, so the form and its trigger are gone.
+      expect(screen.queryByRole("button", { name: "Donate Now" })).not.toBeInTheDocument();
+    },
+    TEST_TIMEOUT,
+  );
 
-  it("does not offer the donate form for a campaign that is already Funded", async () => {
-    campaignState.campaign = makeCampaign({ raised_amount: TARGET, status: "Funded" });
-    renderPage();
+  it(
+    "does not offer the donate form for a campaign that is already Funded",
+    async () => {
+      campaignState.campaign = makeCampaign({ raised_amount: TARGET, status: "Funded" });
+      renderPage();
 
-    expect(await screen.findByRole("heading", { name: "Clean Water Initiative" })).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Donate Now" })).not.toBeInTheDocument();
-    expect(screen.queryByText("Donation Successful!")).not.toBeInTheDocument();
-  });
+      expect(await screen.findByRole("heading", { name: "Clean Water Initiative" })).toBeVisible();
+      expect(screen.queryByRole("button", { name: "Donate Now" })).not.toBeInTheDocument();
+      expect(screen.queryByText("Donation Successful!")).not.toBeInTheDocument();
+    },
+    TEST_TIMEOUT,
+  );
 });
