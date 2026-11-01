@@ -104,11 +104,15 @@ const slide = (n: number) => new RegExp(`Showing featured campaign ${n} of 3`);
 function swipe(element: HTMLElement, fromX: number, toX: number) {
   const start = new Event("touchstart", { bubbles: true, cancelable: true });
   Object.defineProperty(start, "touches", { value: [{ clientX: fromX }], configurable: true });
-  element.dispatchEvent(start);
+  act(() => {
+    element.dispatchEvent(start);
+  });
 
   const end = new Event("touchend", { bubbles: true, cancelable: true });
   Object.defineProperty(end, "changedTouches", { value: [{ clientX: toX }], configurable: true });
-  element.dispatchEvent(end);
+  act(() => {
+    element.dispatchEvent(end);
+  });
 }
 
 beforeEach(() => {

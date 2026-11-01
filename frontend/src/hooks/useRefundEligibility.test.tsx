@@ -182,7 +182,9 @@ describe("useRefundEligibility — query key", () => {
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(queryClient.getQueryData(["refund-eligibility", "7", WALLET])).toBe(true);
+    expect(queryClient.getQueryData(["refund-eligibility", "7", WALLET, "claim_refund"])).toBe(
+      true,
+    );
   });
 
   it("caches separately per wallet, so one address cannot answer for another", async () => {
@@ -202,8 +204,12 @@ describe("useRefundEligibility — query key", () => {
     });
     await waitFor(() => expect(second.result.current.isSuccess).toBe(true));
 
-    expect(queryClient.getQueryData(["refund-eligibility", "7", WALLET])).toBe(true);
-    expect(queryClient.getQueryData(["refund-eligibility", "7", other])).toBe(false);
+    expect(queryClient.getQueryData(["refund-eligibility", "7", WALLET, "claim_refund"])).toBe(
+      true,
+    );
+    expect(queryClient.getQueryData(["refund-eligibility", "7", other, "claim_refund"])).toBe(
+      false,
+    );
   });
 
   it("caches separately per campaign", async () => {
@@ -216,7 +222,11 @@ describe("useRefundEligibility — query key", () => {
     const second = renderHook(() => useRefundEligibility(9n, true), { wrapper: Wrapper });
     await waitFor(() => expect(second.result.current.isSuccess).toBe(true));
 
-    expect(queryClient.getQueryData(["refund-eligibility", "7", WALLET])).toBe(true);
-    expect(queryClient.getQueryData(["refund-eligibility", "9", WALLET])).toBe(true);
+    expect(queryClient.getQueryData(["refund-eligibility", "7", WALLET, "claim_refund"])).toBe(
+      true,
+    );
+    expect(queryClient.getQueryData(["refund-eligibility", "9", WALLET, "claim_refund"])).toBe(
+      true,
+    );
   });
 });

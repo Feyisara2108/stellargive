@@ -35,6 +35,13 @@ vi.mock("next/dynamic", () => {
   };
 });
 
+// jsdom swaps the global Uint8Array for its own realm's, so the byte arrays that Node's Buffer and
+// TextEncoder return fail `instanceof Uint8Array`. @stellar/js-xdr asserts exactly that when it
+// serializes a transaction, so restore Node's constructor.
+if (!(Buffer.from("a") instanceof Uint8Array)) {
+  globalThis.Uint8Array = Object.getPrototypeOf(Buffer.prototype).constructor;
+}
+
 process.env.NEXT_PUBLIC_SOROBAN_RPC_URL = "http://localhost:8000/rpc";
 process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE = "Standalone Network ; February 2017";
 process.env.NEXT_PUBLIC_CONTRACT_ID = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";

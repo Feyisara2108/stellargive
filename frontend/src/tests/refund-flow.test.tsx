@@ -52,7 +52,8 @@ const getCampaignMock = vi.hoisted(() => vi.fn());
 const TOKEN_CONTRACT = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
 const OTHER_USER_ADDRESS = "GB7BVRZLMK3R5GY7GL7QG2PVIOW6NZWZNDQG5PPWQ63YZJ5X3G5M3ABC";
 
-vi.mock("@/lib/soroban", () => ({
+vi.mock("@/lib/soroban", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/soroban")>()),
   CONTRACT_ID: "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
   submitTransaction: submitTransactionMock,
   estimateFee: estimateFeeMock,

@@ -47,7 +47,8 @@ vi.mock("sonner", () => ({
 
 // Mock Soroban RPC methods
 const submitTransactionMock = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/soroban", () => ({
+vi.mock("@/lib/soroban", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/soroban")>()),
   submitTransaction: submitTransactionMock,
   estimateFee: vi.fn().mockResolvedValue(1000n),
   getSACBalance: vi.fn().mockResolvedValue(1_000_0000000n),

@@ -47,9 +47,20 @@ describe("FaqPage - accordion", () => {
   });
 });
 
+/** Render the page and expand the given (collapsed by default) accordion items. */
+async function openItems(questions: string[]) {
+  const { default: userEvent } = await import("@testing-library/user-event");
+  const user = userEvent.setup();
+  render(<FaqPage />);
+  for (const q of questions) {
+    await user.click(screen.getByRole("button", { name: q }));
+  }
+  return user;
+}
+
 describe("FaqPage - external links", () => {
-  it("links to Friendbot and Stellar Lab with target=_blank and rel=noopener noreferrer", () => {
-    render(<FaqPage />);
+  it("links to Friendbot and Stellar Lab with target=_blank and rel=noopener noreferrer", async () => {
+    await openItems(["How do I get testnet XLM?"]);
 
     const friendbotLink = screen.getByRole("link", { name: /friendbot\.stellar\.org/i });
     expect(friendbotLink).toHaveAttribute("href", "https://friendbot.stellar.org");
@@ -62,18 +73,19 @@ describe("FaqPage - external links", () => {
     expect(labLink).toHaveAttribute("rel", "noopener noreferrer");
   });
 
-  it("links to Freighter and StellarExpert", () => {
-    render(<FaqPage />);
+  it("lists Freighter as a supported wallet (plain text) and links to StellarExpert", async () => {
+    await openItems(["Which wallet do I need?", "How can I verify activity on-chain?"]);
 
-    const freighterLink = screen.getByRole("link", { name: /Freighter/i });
-    expect(freighterLink).toHaveAttribute("href", "https://www.freighter.app");
+    // Freighter is named in the wallet answer but is no longer a hyperlink.
+    expect(screen.getByText(/supported Stellar wallets: Freighter/i)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Freighter/i })).not.toBeInTheDocument();
 
     const expertLink = screen.getByRole("link", { name: /StellarExpert/i });
     expect(expertLink).toHaveAttribute("href", "https://stellar.expert/explorer/testnet");
   });
 
-  it("links to the Stellar developer docs and the internal activity page", () => {
-    render(<FaqPage />);
+  it("links to the Stellar developer docs and the internal activity page", async () => {
+    await openItems(["What is Soroban?", "How can I verify activity on-chain?"]);
 
     const devDocsLink = screen.getByRole("link", { name: /Stellar developer docs/i });
     expect(devDocsLink).toHaveAttribute(

@@ -243,10 +243,9 @@ describe("DonateModal", () => {
 
       // Rendered inline and again in the assertive live region.
       await waitFor(() => {
-        expect(
-          screen.getAllByText(/Network error — please check your connection and try again\./i)
-            .length,
-        ).toBeGreaterThan(0);
+        expect(screen.getAllByText(/Network error\. Please try again\./i).length).toBeGreaterThan(
+          0,
+        );
       });
 
       expect(screen.queryByText(/Donation Successful!/i)).not.toBeInTheDocument();
@@ -318,7 +317,7 @@ describe("DonateModal", () => {
 
     it("shows the campaign's maximum per donor", async () => {
       render(<DonateModal campaign={cappedCampaign} open onOpenChange={() => {}} />);
-      expect(await screen.findByText(/Maximum per donor: 20 XLM/i)).toBeInTheDocument();
+      expect(await screen.findByText(/Limit: 20 XLM per donor/i)).toBeInTheDocument();
     });
 
     it("blocks a single donation above the cap with the ExceedsDonorCap message", async () => {
@@ -327,7 +326,7 @@ describe("DonateModal", () => {
       fireEvent.change(input, { target: { value: "25" } });
 
       expect(
-        await screen.findByText(/exceeds the campaign's maximum per donor/i),
+        await screen.findByText("This campaign allows at most 20 XLM per donor"),
       ).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /Confirm Donation/i })).toBeDisabled();
     });

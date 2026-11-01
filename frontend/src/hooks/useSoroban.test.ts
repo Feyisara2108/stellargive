@@ -2,8 +2,16 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
-import { server as rpcServer } from "@/lib/soroban";
-import { Account, Address, Keypair, nativeToScVal } from "@stellar/stellar-sdk";
+import { server as rpcServer, NETWORK_PASSPHRASE } from "@/lib/soroban";
+import {
+  Account,
+  Address,
+  Keypair,
+  TransactionBuilder,
+  nativeToScVal,
+  scValToNative,
+  xdr,
+} from "@stellar/stellar-sdk";
 import { http, HttpResponse } from "msw";
 import { server, errorHandlers } from "../mocks/setup";
 import { MOCK_CAMPAIGNS, setMockCampaigns } from "../mocks/handlers";
@@ -112,11 +120,129 @@ function makeRawEvent(id: string, topicSymbol: string) {
   };
 }
 
+/**
+ * Answers `getHealth` (oldest retained ledger) so the event queries can pick a
+ * start ledger. Returns nothing for other methods, so MSW falls through to the
+ * next handler. The shared default handlers do not implement `getHealth`, and
+ * their `getLatestLedger` response lacks the header/metadata XDR that
+ * stellar-sdk v17 requires, so without this the event lookups fail.
+ */
+const healthHandler = http.post("*/rpc", async ({ request }) => {
+  const body = (await request.clone().json()) as any;
+  if (body.method !== "getHealth") return undefined;
+  return HttpResponse.json({
+    id: body.id,
+    jsonrpc: "2.0",
+    result: {
+      status: "healthy",
+      latestLedger: 123456,
+      oldestLedger: 1,
+      ledgerRetentionWindow: 120960,
+    },
+  });
+});
+
+/**
+ * Encodes a campaign the way the app decodes it (`NativeCampaign`): beneficiaries
+ * as `[address, share]` tuples and status as a bare symbol. The shared
+ * `campaignToXdr` factory still emits the pre-#1196 shape (beneficiaries as maps,
+ * status as `{ Active: null }`), which `isNativeCampaign` rejects.
+ */
+function nativeCampaignScVal(c: Campaign): xdr.ScVal {
+  const entry = (key: string, val: xdr.ScVal) =>
+    new xdr.ScMapEntry({ key: nativeToScVal(key, { type: "symbol" }), val });
+  return xdr.ScVal.scvMap([
+    entry("accepted_token", new Address(c.accepted_token).toScVal()),
+    entry(
+      "beneficiaries",
+      xdr.ScVal.scvVec(
+        c.beneficiaries.map((b) =>
+          xdr.ScVal.scvVec([
+            new Address(b.address).toScVal(),
+            nativeToScVal(b.share, { type: "u32" }),
+          ]),
+        ),
+      ),
+    ),
+    entry("category", nativeToScVal(c.category, { type: "symbol" })),
+    entry("creator", new Address(c.creator).toScVal()),
+    entry("deadline", nativeToScVal(c.deadline, { type: "u64" })),
+    entry("description", nativeToScVal(c.description, { type: "string" })),
+    entry("id", nativeToScVal(c.id, { type: "u64" })),
+    entry("raised_amount", nativeToScVal(c.raised_amount, { type: "i128" })),
+    entry("status", nativeToScVal(c.status, { type: "symbol" })),
+    entry("target_amount", nativeToScVal(c.target_amount, { type: "i128" })),
+    entry("title", nativeToScVal(c.title, { type: "string" })),
+  ]);
+}
+
+/**
+ * Serves the campaign read calls from `MOCK_CAMPAIGNS` using `nativeCampaignScVal`.
+ * Any other simulated function falls through to the default handlers.
+ */
+const campaignReadHandler = http.post("*/rpc", async ({ request }) => {
+  const body = (await request.clone().json()) as any;
+  if (body.method !== "simulateTransaction") return undefined;
+  const txXdr: string | undefined = body.params?.transaction ?? body.params?.[0];
+  if (!txXdr) return undefined;
+
+  const tx = TransactionBuilder.fromXDR(txXdr, NETWORK_PASSPHRASE) as any;
+  const call = tx.operations[0]?.func?.invokeContract;
+  if (!call) return undefined;
+  const args: xdr.ScVal[] = call.args;
+
+  let retval: xdr.ScVal;
+  switch (call.functionName.toString()) {
+    case "get_campaign": {
+      const found = MOCK_CAMPAIGNS.find((c) => c.id === BigInt(scValToNative(args[0])));
+      if (!found) return undefined;
+      retval = nativeCampaignScVal(found);
+      break;
+    }
+    case "get_campaigns_paged": {
+      const offset = Number(scValToNative(args[0]));
+      const limit = Number(scValToNative(args[1]));
+      retval = xdr.ScVal.scvVec(
+        MOCK_CAMPAIGNS.slice(offset, offset + limit).map(nativeCampaignScVal),
+      );
+      break;
+    }
+    case "get_campaigns_by_creator": {
+      const creator = String(scValToNative(args[0]));
+      retval = xdr.ScVal.scvVec(
+        MOCK_CAMPAIGNS.filter((c) => c.creator === creator).map(nativeCampaignScVal),
+      );
+      break;
+    }
+    default:
+      return undefined;
+  }
+
+  return HttpResponse.json({
+    id: body.id,
+    jsonrpc: "2.0",
+    result: {
+      latestLedger: 1000,
+      transactionData: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+      minResourceFee: "52521",
+      events: [],
+      results: [{ xdr: retval.toXDR("base64"), auth: [] }],
+    },
+  });
+});
+
 /** Overrides the `getEvents` RPC method only; other methods 404 via the default fallback. */
 function useEventsFixture(events: ReturnType<typeof makeRawEvent>[]) {
   server.use(
     http.post("*/rpc", async ({ request }) => {
       const body = (await request.json()) as any;
+      if (body.method === "getHealth") {
+        return HttpResponse.json({
+          id: body.id,
+          jsonrpc: "2.0",
+          result: { status: "healthy", latestLedger: 123456, oldestLedger: 1 },
+        });
+      }
       if (body.method !== "getEvents") {
         return HttpResponse.json({
           id: body.id,
@@ -152,6 +278,7 @@ describe("useSoroban", () => {
       disconnect: vi.fn(),
     } as any);
     vi.spyOn(rpcServer, "getAccount").mockResolvedValue(new Account(WALLET, "1"));
+    server.use(healthHandler, campaignReadHandler);
   });
 
   describe("Queries", () => {
@@ -868,7 +995,7 @@ describe("pause/unpause and platform config", () => {
   function simulatedFunctions(spy: { mock: { calls: unknown[][] } }): string[] {
     return spy.mock.calls.map((call) => {
       const op = (call[0] as any).operations[0];
-      return op.func.invokeContract().functionName().toString();
+      return op.func.invokeContract.functionName.toString();
     });
   }
 
@@ -918,7 +1045,7 @@ describe("pause/unpause and platform config", () => {
       expect(simulated.length).toBeGreaterThan(0);
       expect(simulated.every((fn) => fn === method)).toBe(true);
       const op = (simSpy.mock.calls[0][0] as any).operations[0];
-      expect(op.func.invokeContract().args()).toHaveLength(0);
+      expect(op.func.invokeContract.args).toHaveLength(0);
     });
 
     it("shows a loading toast then a success toast and invalidates platform-config", async () => {
@@ -1015,7 +1142,7 @@ describe("pause/unpause and platform config", () => {
   describe("getPlatformConfig", () => {
     function mockConfigSimulation() {
       return vi.spyOn(rpcServer, "simulateTransaction").mockImplementation((async (tx: any) => {
-        const fn = tx.operations[0].func.invokeContract().functionName().toString();
+        const fn = tx.operations[0].func.invokeContract.functionName.toString();
         return {
           result: {
             retval:
@@ -1049,7 +1176,7 @@ describe("pause/unpause and platform config", () => {
   describe("usePlatformConfig", () => {
     it("returns the platform config on success", async () => {
       vi.spyOn(rpcServer, "simulateTransaction").mockImplementation((async (tx: any) => {
-        const fn = tx.operations[0].func.invokeContract().functionName().toString();
+        const fn = tx.operations[0].func.invokeContract.functionName.toString();
         return {
           result: {
             retval:
