@@ -26,7 +26,13 @@ const ALLOWED = new Set([
 // Prebuilt libvips binaries for sharp, an optional Next.js dependency used for
 // server-side image optimisation. LGPL is satisfied by dynamic linking and the
 // library never ships in the browser bundle.
-const EXCEPTIONS = [{ prefix: "@img/sharp-libvips-", license: "LGPL-3.0-or-later" }];
+const EXCEPTIONS = [
+  { prefix: "@img/sharp-libvips-", license: "LGPL-3.0-or-later" },
+  // lightningcss is a build-time CSS tool reached through @sentry/nextjs -> @sentry/cloudflare ->
+  // vite. MPL-2.0 is file-level copyleft and applies only if we modify and redistribute its own
+  // source files; it never ships in the browser bundle.
+  { prefix: "lightningcss", license: "MPL-2.0" },
+];
 
 const start = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
