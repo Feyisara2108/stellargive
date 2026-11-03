@@ -1,8 +1,14 @@
 # cargo-audit configuration.
-# This advisory is a transitive proc-macro dependency pulled in through
+# RUSTSEC-2024-0436 is a transitive proc-macro dependency pulled in through
 # soroban-sdk -> soroban-wasmi -> wasmi_core. There is no patched paste release;
 # re-evaluate when soroban-sdk moves to a dependency tree that removes paste.
+#
+# RUSTSEC-2026-0387 (timing side channels in crypto-bigint) is fixed in crypto-bigint 0.7.6, but
+# soroban-sdk 27 pins 0.5.5 through soroban-env-host -> k256/p256 -> elliptic-curve 0.13. We do
+# not use that code path ourselves and cannot bump it; the newest soroban-sdk is still a release
+# candidate. Remove this ignore when a stable soroban-sdk updates crypto-bigint.
 [advisories]
 ignore = [
     "RUSTSEC-2024-0436", # `paste` unmaintained; transitive via soroban-wasmi/wasmi_core
+    "RUSTSEC-2026-0387", # crypto-bigint 0.5.5 timing issues; pinned by soroban-env-host (fixed in 0.7.6)
 ]
