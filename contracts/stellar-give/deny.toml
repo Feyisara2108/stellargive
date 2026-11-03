@@ -15,6 +15,12 @@ unmaintained = "workspace"
 db-urls = ["https://github.com/rustsec/advisory-db"]
 # Path where the advisory database is cloned/fetched.
 db-path = "~/.cargo/advisory-db"
+# Temporary: crypto-bigint 0.5.5 is pinned by soroban-sdk 27 (soroban-env-host -> k256/p256 ->
+# elliptic-curve 0.13); the fix needs 0.7.6. Remove when a stable soroban-sdk updates it.
+# Keep in sync with .cargo/audit.toml.
+ignore = [
+  { id = "RUSTSEC-2026-0387", reason = "crypto-bigint 0.5.5 is pinned by soroban-env-host; fixed upstream in 0.7.6" },
+]
 
 # ── Licenses ──────────────────────────────────────────────────────────────────
 [licenses]
