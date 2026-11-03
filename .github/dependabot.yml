@@ -1,17 +1,21 @@
 version: 2
 
 # Grouping strategy: per ecosystem, minor + patch updates are grouped into a single
-# low-risk PR per week. Semver-major updates are ignored for cargo, npm and docker
-# (see each `ignore:` block): upgrade those majors by hand, when there is time to
-# test them. GitHub Actions majors are still proposed. Every ecosystem is capped
-# at 5 open PRs so the queue stays reviewable; nothing here merges or approves a PR
-# automatically.
+# low-risk PR per month, so there are at most five update PRs a month. Semver-major
+# updates are ignored for cargo, npm and docker (see each `ignore:` block): upgrade
+# those majors by hand, when there is time to test them. GitHub Actions majors are
+# still proposed. Every ecosystem is capped at 2 open PRs so the queue stays
+# reviewable; nothing here merges or approves a PR automatically.
+#
+# This file only controls version updates. Dependabot security alerts and security
+# updates are a separate repository setting and keep working regardless of the
+# schedule here.
 updates:
   - package-ecosystem: "cargo"
     directory: "/contracts/stellar-give"
     schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
+      interval: "monthly"
+    open-pull-requests-limit: 2
     commit-message:
       prefix: "chore(deps/cargo)"
     ignore:
@@ -28,8 +32,8 @@ updates:
   - package-ecosystem: "npm"
     directory: "/frontend"
     schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
+      interval: "monthly"
+    open-pull-requests-limit: 2
     commit-message:
       prefix: "chore(deps/npm)"
     ignore:
@@ -46,8 +50,8 @@ updates:
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
+      interval: "monthly"
+    open-pull-requests-limit: 2
     commit-message:
       prefix: "chore(deps/npm)"
     ignore:
@@ -64,8 +68,8 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
+      interval: "monthly"
+    open-pull-requests-limit: 2
     commit-message:
       prefix: "chore(deps/actions)"
     groups:
@@ -79,8 +83,8 @@ updates:
   - package-ecosystem: "docker"
     directory: "/frontend"
     schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
+      interval: "monthly"
+    open-pull-requests-limit: 2
     commit-message:
       prefix: "chore(deps/docker)"
     ignore:
