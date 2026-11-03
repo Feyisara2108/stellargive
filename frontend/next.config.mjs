@@ -19,13 +19,17 @@ const withBundleAnalyzer = bundleAnalyzer({
 // loaded on demand (see `loadSoroban` in hooks/useSoroban.ts), so no route
 // entrypoint carries it; it lives in one async chunk.
 //
-// Measured baseline (Oct 2026, `npm run analyze`):
-//   - largest entrypoint: `main-app` (shared runtime) 613 KiB; largest page
-//     entrypoint: app/explore/page 303 KiB
-//   - largest asset: the lazily loaded SDK chunk, 710 KiB
-// Each budget is that baseline plus ~25%. Per-route first-load totals are
-// printed by `node scripts/measure-route-js.mjs` after an analyze build.
-const ENTRYPOINT_JS_BUDGET_BYTES = 768 * 1024;
+// Measured baseline (Nov 2026, `npm run analyze`):
+//   - every page entrypoint is 883 KiB - 1.02 MiB (`app/not-found` 883 KiB, `app/explore/page`
+//     1.01 MiB). About 413 KiB of that is one shared chunk holding the Sentry browser SDK
+//     (including session replay), which is loaded on every route; the rest is the Next.js
+//     runtime (main, framework, polyfills).
+//   - largest asset: the lazily loaded SDK chunk, 709 KiB
+// The entrypoint budget is the largest entrypoint plus ~25%. Making Sentry load lazily (after
+// analytics consent) would bring the entrypoints back to about 600 KiB; tighten the budget again
+// when that lands. Per-route first-load totals are printed by `node scripts/measure-route-js.mjs`
+// after an analyze build.
+const ENTRYPOINT_JS_BUDGET_BYTES = 1280 * 1024;
 const ASSET_JS_BUDGET_BYTES = 896 * 1024;
 
 /** @type {import('next').NextConfig} */
