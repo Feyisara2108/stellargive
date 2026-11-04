@@ -244,19 +244,18 @@ fn test_unauthorized_error_asserted() {
         }])
         .try_cancel_campaign(&campaign_id);
 
-    assert_eq!(result, Err(Ok(stellar_give::ContractError::Unauthorized)));
+    // cancel_campaign gates on `creator.require_auth()`, so a caller who is not the creator is
+    // stopped by the host's auth check (an abort), not by a `ContractError` the contract returns.
+    assert_eq!(result, Err(Err(soroban_sdk::InvokeError::Abort)));
 }
 
 #[test]
 fn test_already_initialized_error_asserted() {
-    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) =
+    let (_env, client, creator, _beneficiary, _donor, _admin, _token_client, _) =
         register_and_setup_without_auth_mock();
 
-    // Initialize once
-    client.mock_all_auths().initialize(&creator);
-
-    // Initialize again should fail
-    let result = client.try_initialize(&creator);
+    // The helper has already initialized the contract, so a second initialize must be rejected.
+    let result = client.mock_all_auths().try_initialize(&creator);
     assert_eq!(
         result,
         Err(Ok(stellar_give::ContractError::AlreadyInitialized))
