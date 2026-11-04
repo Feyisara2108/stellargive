@@ -2,7 +2,7 @@ use soroban_sdk::{symbol_short, testutils::Address as _, Address, String};
 
 mod helpers;
 use helpers::{register_and_setup, set_timestamp, single_ben};
-use stellar_give::ContractError;
+use stellar_give::{ContractError, MIN_DONATION};
 
 #[test]
 fn test_long_title_rejected() {
@@ -315,7 +315,8 @@ fn test_invalid_url_rejected() {
         &None,
     );
 
-    assert_eq!(result, Err(Ok(ContractError::InvalidUrl)));
+    // create_campaign validates this field as the metadata URI (`ipfs://` or `https://`).
+    assert_eq!(result, Err(Ok(ContractError::InvalidMetadataUri)));
 }
 
 #[test]
@@ -346,6 +347,8 @@ fn test_comment_too_long_rejected() {
     }
     let long_comment = String::from_str(&env, &long_comment_raw);
 
-    let result = client.try_donate(&donor, &id, &1_000_i128, &false, &Some(long_comment));
+    // The amount must clear MIN_DONATION first, otherwise InvalidAmount is returned before the
+    // comment length is checked.
+    let result = client.try_donate(&donor, &id, &MIN_DONATION, &false, &Some(long_comment));
     assert_eq!(result, Err(Ok(ContractError::CommentTooLong)));
 }
