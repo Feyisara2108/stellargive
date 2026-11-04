@@ -38,7 +38,7 @@ jobs:
           restore-keys: ${{ runner.os }}-cargo-audit-
 
       - name: Install cargo-audit
-        uses: taiki-e/install-action@861a07ce7084f55488e375df125cdc99bba60eb7 # v2
+        uses: taiki-e/install-action@1919c4a95903d2c33e4a221102edca87309fc14b # v2
         with:
           tool: cargo-audit@0.22.2
 
