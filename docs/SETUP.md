@@ -290,7 +290,7 @@ To ensure a smooth developer experience, we recommend using:
 docker compose up
 ```
 
-- Stellar quickstart is pinned (`stellar/quickstart:soroban-dev`) with `--protocol-version 23` (matches soroban-sdk 27).
+- Stellar quickstart uses `stellar/quickstart:testing` with `--local` (its default protocol matches soroban-sdk 27). The old `soroban-dev` tag is from 2024 and only supports protocol 20.
 - Soroban RPC is exposed at `http://localhost:8000/soroban/rpc`.
 - The frontend container is wired to that RPC URL and the testnet passphrase via `NEXT_PUBLIC_SOROBAN_RPC_URL` / `NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE`.
 - Build contracts for `wasm32v1-none` (same target as CI): `./scripts/build-contract.sh`.
