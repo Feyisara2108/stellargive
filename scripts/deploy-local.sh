@@ -85,6 +85,13 @@ if [ "$funded" -ne 1 ] && account_exists; then funded=1; fi
 [ "$funded" -eq 1 ] || { echo "error: deployer ${DEPLOYER_PK} was not funded by Friendbot at ${FRIENDBOT_URL}" >&2; exit 1; }
 echo "    Funded"
 
+echo "==> Deploying the native XLM token contract (the Stellar Asset Contract)…"
+# A fresh standalone network has no contract for native XLM, and the campaign contract reads
+# the token's decimals when it creates or funds a campaign. The contract id is deterministic and
+# already built into the frontend for this passphrase. "Already deployed" is not an error.
+$CLI contract asset deploy --asset native --source "$SOURCE_ALIAS" --network "$NETWORK_NAME" >/dev/null 2>&1 \
+  || echo "    (native token contract already deployed, or deploy skipped)"
+
 echo "==> Building contract WASM…"
 bash "$ROOT_DIR/scripts/build-contract.sh"
 
