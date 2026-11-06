@@ -63,10 +63,27 @@ fi
 DEPLOYER_PK=$($CLI keys address "$SOURCE_ALIAS")
 echo "    Deployer: $DEPLOYER_PK"
 
+HORIZON_BASE="${HORIZON_URL:-http://localhost:8000}"
+account_exists() {
+  curl -sf "${HORIZON_BASE}/accounts/${DEPLOYER_PK}" >/dev/null 2>&1
+}
+
 echo "==> Funding deployer via Friendbot…"
-curl -sf "${FRIENDBOT_URL}?addr=${DEPLOYER_PK}" >/dev/null || \
-  curl -sf -X POST "${FRIENDBOT_URL}" -d "addr=${DEPLOYER_PK}" >/dev/null || \
-  echo "warning: Friendbot request returned non-zero; continuing if account already funded"
+# Quickstart reports the RPC healthy before Friendbot has started, so a single request right
+# after the health check can fail. Retry until the account exists instead of continuing unfunded.
+funded=0
+for i in $(seq 1 45); do
+  if account_exists; then
+    funded=1
+    break
+  fi
+  curl -sf "${FRIENDBOT_URL}?addr=${DEPLOYER_PK}" >/dev/null 2>&1 || \
+    curl -sf -X POST "${FRIENDBOT_URL}" -d "addr=${DEPLOYER_PK}" >/dev/null 2>&1 || true
+  sleep 2
+done
+if [ "$funded" -ne 1 ] && account_exists; then funded=1; fi
+[ "$funded" -eq 1 ] || { echo "error: deployer ${DEPLOYER_PK} was not funded by Friendbot at ${FRIENDBOT_URL}" >&2; exit 1; }
+echo "    Funded"
 
 echo "==> Building contract WASM…"
 bash "$ROOT_DIR/scripts/build-contract.sh"
