@@ -1,8 +1,10 @@
 services:
   stellar:
-    # Pin a tag that supports Soroban protocol features used by soroban-sdk 27 (#1121)
-    image: stellar/quickstart:soroban-dev
-    command: --local --protocol-version 23
+    # `testing` follows the protocol that soroban-sdk 27 targets. `soroban-dev` was last built in
+    # 2024 (protocol 20), so `--local` could not start with `--protocol-version 23`: stellar-core
+    # exited with "Protocol version error: supported is up to 20, passed is 23".
+    image: stellar/quickstart:testing
+    command: --local
     ports:
       - "${STELLAR_PORT_RPC:-8000}:8000"
       - "${STELLAR_PORT_FRIENDBOT:-8001}:8001"
