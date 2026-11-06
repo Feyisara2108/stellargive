@@ -24,7 +24,7 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: read
-      issues: write
+      issues: read
     env:
       # When empty, Playwright starts the local dev server instead.
       E2E_BASE_URL: ${{ inputs.preview_url || vars.E2E_PREVIEW_URL }}
@@ -66,55 +66,3 @@ jobs:
             frontend/playwright-report/
           retention-days: 14
           if-no-files-found: warn
-
-      - name: Open or update failure issue
-        if: failure()
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        with:
-          script: |
-            const label = "nightly-e2e";
-            const title = "Nightly E2E run is failing";
-            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const target = process.env.E2E_BASE_URL || "local dev server";
-            const body = [
-              `The nightly Playwright run failed on ${new Date().toISOString().slice(0, 10)}.`,
-              "",
-              `- Run: ${runUrl}`,
-              `- Commit: ${context.sha}`,
-              `- Target: ${target}`,
-              "",
-              "Traces and screenshots are attached to the run as the `nightly-e2e-failure-" + context.runId + "` artifact.",
-            ].join("\n");
-
-            try {
-              await github.rest.issues.createLabel({
-                ...context.repo,
-                name: label,
-                color: "d93f0b",
-                description: "Tracks failures of the nightly E2E run",
-              });
-            } catch (e) {
-              // Label already exists.
-            }
-
-            const { data: open } = await github.rest.issues.listForRepo({
-              ...context.repo,
-              labels: label,
-              state: "open",
-              per_page: 1,
-            });
-
-            if (open.length > 0) {
-              await github.rest.issues.createComment({
-                ...context.repo,
-                issue_number: open[0].number,
-                body,
-              });
-            } else {
-              await github.rest.issues.create({
-                ...context.repo,
-                title,
-                body,
-                labels: [label],
-              });
-            }
