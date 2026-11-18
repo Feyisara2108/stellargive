@@ -63,6 +63,11 @@ title = "Gitleaks config for stellarGive"
       # nativeTokenContractId()` was matched as a generic secret. This is a
       # function name, not a credential.
       '''^nativeTokenContractId$''',
+      # Leaderboard helpers: `selectedToken = pickLeaderboardToken(...)` and
+      # `byToken = aggregateDonorsByToken(...)` matched as generic secrets
+      # (a name ending in `Token`, then `=`, then a long identifier). These are
+      # function names, not credentials.
+      '''^(pickLeaderboardToken|aggregateDonorsByToken)$''',
     ]
 
 [[rules]]
