@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { CONTRACT_ERROR_CODES, getContractErrorCode, mapTransactionError } from "./contractErrors";
+import {
+  CONTRACT_ERROR_CODES,
+  NETWORK_RETRY_EXHAUSTED_MESSAGE,
+  getContractErrorCode,
+  mapTransactionError,
+} from "./contractErrors";
 
 describe("getContractErrorCode", () => {
   it("extracts the code from a host error string", () => {
@@ -32,6 +37,12 @@ describe("getContractErrorCode", () => {
     it("uses the generic on-chain fallback when the contract code is unknown", () => {
       expect(mapTransactionError(new Error("Simulation failed: host invocation error"))).toBe(
         "Transaction failed on-chain.",
+      );
+    });
+
+    it("maps exhausted send retries to a specific message", () => {
+      expect(mapTransactionError(new Error(NETWORK_RETRY_EXHAUSTED_MESSAGE))).toBe(
+        NETWORK_RETRY_EXHAUSTED_MESSAGE,
       );
     });
   });

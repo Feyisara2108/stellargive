@@ -16,6 +16,7 @@ import { CONTRACT_ID, RPC_URL } from "./config";
 import { MAX_SIMULATION_FEE_STROOPS, STROOP_PRECISION, fromStroops, toStroops } from "./amounts";
 import { isValidAccountAddress } from "./strkey";
 import { logger } from "./logger";
+import { NETWORK_RETRY_EXHAUSTED_MESSAGE } from "./contractErrors";
 import {
   isNativeCampaign,
   parseCampaignStatus,
@@ -495,6 +496,12 @@ export const TRANSACTION_CONFIRMATION_MARGIN_MS = 10_000;
 /** Delay between `getTransaction` polls while confirmation is pending. */
 export const TRANSACTION_POLL_INTERVAL_MS = 1_000;
 
+/** Total `sendTransaction` attempts when the node answers `TRY_AGAIN_LATER`. */
+export const SEND_RETRY_ATTEMPTS = 3;
+
+/** Backoff between `TRY_AGAIN_LATER` send attempts. */
+export const SEND_RETRY_DELAY_MS = 1_000;
+
 /** Shown when a transaction is not confirmed by its time bound plus the margin. */
 export const TRANSACTION_TIMED_OUT_MESSAGE =
   "Transaction timed out before it was confirmed. It may have been dropped or expired.";
@@ -525,10 +532,29 @@ function confirmationDeadline(parsedTx: unknown): number {
   return Date.now() + 30_000 + TRANSACTION_CONFIRMATION_MARGIN_MS;
 }
 
+/**
+ * Submits a signed transaction, retrying a bounded number of times while the
+ * node answers `TRY_AGAIN_LATER` (it did not queue the transaction, so polling
+ * its hash would only wait out the deadline).
+ */
+async function sendWithRetry(parsedTx: ReturnType<typeof TransactionBuilder.fromXDR>) {
+  let response = await server.sendTransaction(parsedTx);
+  for (let attempt = 1; attempt < SEND_RETRY_ATTEMPTS; attempt++) {
+    if (response.status !== "TRY_AGAIN_LATER") break;
+    await new Promise((resolve) => setTimeout(resolve, SEND_RETRY_DELAY_MS));
+    response = await server.sendTransaction(parsedTx);
+  }
+  return response;
+}
+
 async function sendAndConfirm(signedXdr: string): Promise<SubmitTransactionResult> {
   const parsedTx = TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE);
   const deadline = confirmationDeadline(parsedTx);
-  const sendResponse = await server.sendTransaction(parsedTx);
+  const sendResponse = await sendWithRetry(parsedTx);
+
+  if (sendResponse.status === "TRY_AGAIN_LATER") {
+    throw new Error(NETWORK_RETRY_EXHAUSTED_MESSAGE);
+  }
 
   if (sendResponse.status === "ERROR") {
     const errorXdr = "errorResultXdr" in sendResponse ? sendResponse.errorResultXdr : undefined;
@@ -536,6 +562,7 @@ async function sendAndConfirm(signedXdr: string): Promise<SubmitTransactionResul
     throw new Error(`Send failed: ${JSON.stringify(errorXdr || errorResult)}`);
   }
 
+  // `PENDING` and `DUPLICATE` both mean the node knows the hash, so poll it.
   let txResult = await server.getTransaction(sendResponse.hash);
   while (
     txResult.status === rpc.Api.GetTransactionStatus.NOT_FOUND ||
