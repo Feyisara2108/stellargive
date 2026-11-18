@@ -1,8 +1,21 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CONTRACT_DIR="$ROOT_DIR/contracts/stellar-give"
+
+if command -v stellar >/dev/null 2>&1; then
+    CLI=stellar
+elif command -v soroban >/dev/null 2>&1; then
+    CLI=soroban
+else
+    echo "Error: neither 'stellar' nor 'soroban' CLI found in PATH." >&2
+    exit 1
+fi
+
+echo "Using $CLI CLI."
 echo "Building contract..."
-cd contracts/stellar-give
+cd "$CONTRACT_DIR"
 cargo build --release --target wasm32v1-none
 
 ORIGINAL_WASM="target/wasm32v1-none/release/stellar_give.wasm"
@@ -16,7 +29,7 @@ fi
 ORIGINAL_SIZE=$(stat -c%s "$ORIGINAL_WASM" 2>/dev/null || stat -f%z "$ORIGINAL_WASM")
 
 echo "Optimizing WASM..."
-soroban contract optimize --wasm "$ORIGINAL_WASM"
+"$CLI" contract optimize --wasm "$ORIGINAL_WASM"
 
 if [ ! -f "$OPTIMIZED_WASM" ]; then
     echo "Error: Optimized WASM not found at $OPTIMIZED_WASM"
