@@ -41,7 +41,7 @@ cp .env.example frontend/.env.local
 
 Set:
 - `NEXT_PUBLIC_SOROBAN_RPC_URL`
-- `STELLAR_NETWORK_PASSPHRASE`
+- `NEXT_PUBLIC_NETWORK_PASSPHRASE`
 - `NEXT_PUBLIC_CONTRACT_ADDRESS` (use current deployed ID or fill after deploy)
 
 ## 3. Fund a Testnet Identity
@@ -112,7 +112,7 @@ Vercel allows assigning environment variables to specific target environments (*
 | `NEXT_PUBLIC_SOROBAN_RPC_URL` | **Preview** & **Development** | Testnet RPC: `https://soroban-testnet.stellar.org` |
 | `NEXT_PUBLIC_SOROBAN_RPC_URL` | **Production** | Mainnet RPC / custom production endpoint |
 | `NEXT_PUBLIC_NETWORK_PASSPHRASE` | **Preview** & **Development** | `Test SDF Network ; September 2015` |
-| `NEXT_PUBLIC_NETWORK_PASSPHRASE` | **Production** | `Public Global Stellar Network ; October 2015` |
+| `NEXT_PUBLIC_NETWORK_PASSPHRASE` | **Production** | `Public Global Stellar Network ; September 2015` |
 
 Make sure to deselect the environments appropriately when adding each key to prevent preview URLs from pulling Mainnet configuration.
 

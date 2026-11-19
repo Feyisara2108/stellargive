@@ -68,6 +68,169 @@ RUN_LOCAL_STELLAR=1 \
 `contracts/**`, `frontend/src/lib/soroban.ts`, and the integration helpers
 (see `.github/workflows/local-integration.yml`).
 
+## Troubleshooting the local network
+
+### Node is not healthy yet
+
+**Symptom printed by `deploy-local.sh`:**
+
+```text
+error: no healthy Soroban RPC found at http://localhost:8000/soroban/rpc http://localhost:8000/rpc. Is 'docker compose up -d stellar' running?
+```
+
+The node is still starting, or Docker cannot publish the configured RPC port. Confirm that the container is running and inspect its health:
+
+```bash
+docker compose ps stellar
+docker compose logs stellar
+```
+
+Quickstart has a 10-second Docker health-check start period. Wait for it to become `healthy`, then retry:
+
+```bash
+docker compose up -d stellar
+./scripts/deploy-local.sh
+```
+
+If it still fails, use a clean node reset:
+
+```bash
+docker compose down -v
+docker compose up -d stellar
+```
+
+### RPC or Friendbot port conflict
+
+`STELLAR_PORT_RPC` controls RPC port `8000` and `STELLAR_PORT_FRIENDBOT` controls Friendbot port `8001` by default. Confirm which process owns them:
+
+```bash
+lsof -nP -iTCP:8000 -sTCP:LISTEN
+lsof -nP -iTCP:8001 -sTCP:LISTEN
+```
+
+Stop the conflicting process or choose free ports before starting the stack:
+
+```bash
+STELLAR_PORT_RPC=18000 STELLAR_PORT_FRIENDBOT=18001 docker compose up -d stellar
+STELLAR_PORT_RPC=18000 STELLAR_PORT_FRIENDBOT=18001 ./scripts/deploy-local.sh
+```
+
+### Friendbot does not fund the deployer
+
+**Symptom printed by `deploy-local.sh`:**
+
+```text
+error: deployer <PUBLIC_KEY> was not funded by Friendbot at <FRIENDBOT_URL>
+```
+
+Friendbot or Horizon may be starting later than the RPC health check. Confirm Horizon and Friendbot directly:
+
+```bash
+curl -i http://localhost:8001/friendbot
+curl -i http://localhost:8000/accounts
+```
+
+A non-`404`/non-`000` Friendbot response indicates the service is reachable. Retry funding and deployment after the node is healthy:
+
+```bash
+docker compose restart stellar
+./scripts/deploy-local.sh
+```
+
+If Friendbot remains unavailable, reset all local ledger state:
+
+```bash
+docker compose down -v
+docker compose up -d stellar
+./scripts/deploy-local.sh
+```
+
+### `wasm32v1-none` target is missing
+
+Cause: `cargo` cannot build the contract target for Soroban. Confirm installed Rust targets:
+
+```bash
+rustup target list --installed
+```
+
+Install the target and rebuild:
+
+```bash
+rustup target add wasm32v1-none
+./scripts/build-contract.sh
+```
+
+### Stellar or Soroban CLI is missing
+
+**Symptom printed by `deploy-local.sh`:**
+
+```text
+error: neither stellar nor soroban CLI found in PATH
+```
+
+`build-contract.sh` prints the same prerequisite failure as:
+
+```text
+Error: neither 'stellar' nor 'soroban' CLI found in PATH.
+```
+
+Confirm the executable lookup:
+
+```bash
+command -v stellar
+command -v soroban
+```
+
+Install or restore the Stellar CLI, then confirm it is on `PATH`:
+
+```bash
+export PATH="$HOME/.cargo/bin:$PATH"
+stellar --help
+```
+
+macOS users who installed the CLI with Homebrew can also run:
+
+```bash
+brew link stellar-cli
+stellar --help
+```
+
+### Missing WASM artifact
+
+**Symptom printed by `deploy-local.sh`:**
+
+```text
+error: no WASM artifact found after build
+```
+
+Confirm whether the build produced either supported artifact:
+
+```bash
+ls -l contracts/stellar-give/target/wasm32v1-none/release/stellar_give.wasm contracts/stellar-give/target/wasm32v1-none/release/stellar_give.optimized.wasm
+./scripts/build-contract.sh
+```
+
+The build script fails explicitly if the optimized artifact is missing or exceeds its 50KB budget.
+
+### Stale `frontend/.env.local` values
+
+A stale contract ID, RPC URL, or network passphrase causes integration tests to target the wrong local node. Confirm the generated values:
+
+```bash
+cat frontend/.env.local
+./scripts/deploy-local.sh
+cat frontend/.env.local
+```
+
+Remove stale local values and regenerate them, or reset only the local environment file:
+
+```bash
+rm -f frontend/.env.local
+./scripts/deploy-local.sh
+```
+
+The deployment script writes `NEXT_PUBLIC_CONTRACT_ID`, `NEXT_PUBLIC_SOROBAN_RPC_URL=http://localhost:8000/rpc`, and `NEXT_PUBLIC_NETWORK_PASSPHRASE='Standalone Network ; February 2017'`.
+
 ## Cross-Browser Testing Guide
 
 This section outlines the manual testing procedures for StellarGive across major browsers to ensure consistent user experience and performance.
