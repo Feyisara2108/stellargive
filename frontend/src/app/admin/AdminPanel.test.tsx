@@ -399,9 +399,14 @@ describe("AdminPanel – post update", () => {
 });
 
 describe("AdminPanel – whitelist", () => {
+  // Drive the Radix select with the keyboard: its pointer open/select sequence does not settle in
+  // jsdom, which left these tests waiting until the 20s timeout.
   async function selectCampaign(user: ReturnType<typeof userEvent.setup>) {
-    await user.click(screen.getByRole("combobox"));
-    await user.click(await screen.findByRole("option", { name: /Flood Relief/ }));
+    screen.getByRole("combobox").focus();
+    await user.keyboard("{Enter}");
+    const option = await screen.findByRole("option", { name: /Flood Relief/ });
+    option.focus();
+    await user.keyboard("{Enter}");
   }
 
   it("disables submit until a campaign and address are provided", async () => {

@@ -1,5 +1,5 @@
 import { setupServer } from "msw/node";
-import { handlers } from "./handlers";
+import { handlers, resetMockCampaigns } from "./handlers";
 
 export const server = setupServer(...handlers);
 
@@ -12,6 +12,7 @@ beforeAll(() => {
 
 afterEach(() => {
   server.resetHandlers();
+  resetMockCampaigns();
 });
 
 afterAll(() => {
