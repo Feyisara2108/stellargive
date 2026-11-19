@@ -50,6 +50,10 @@ export const EXCEEDS_DONOR_CAP_MESSAGE =
 /** Shown when beneficiary shares don't add up to exactly 100%. */
 export const INVALID_SHARES_MESSAGE = "Beneficiary shares must add up to exactly 100%.";
 
+/** Shown when the RPC keeps answering `TRY_AGAIN_LATER` and never accepts the transaction. */
+export const NETWORK_RETRY_EXHAUSTED_MESSAGE =
+  "The network did not accept the transaction after several attempts. Please try again.";
+
 const CONTRACT_ERROR_MESSAGES: Record<number, string> = {
   [CONTRACT_ERROR_CODES.Unauthorized]: "You are not authorized to perform this action.",
   [CONTRACT_ERROR_CODES.InvalidDeadline]: "Choose a campaign deadline in the future.",
@@ -128,6 +132,7 @@ export function mapTransactionError(error: unknown): string {
 
   const message = errorMessage(error);
   if (isUserCancellation(error)) return "Transaction was cancelled.";
+  if (message.includes(NETWORK_RETRY_EXHAUSTED_MESSAGE)) return NETWORK_RETRY_EXHAUSTED_MESSAGE;
   if (
     message.includes("Network Error") ||
     message.includes("Failed to fetch") ||

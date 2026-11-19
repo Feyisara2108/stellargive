@@ -38,9 +38,17 @@ export function toStroops(amount: string | number): bigint {
 }
 
 export function fromStroops(stroops: bigint | string | number): string {
+  if (typeof stroops === "number" && !Number.isInteger(stroops)) {
+    throw new Error("Invalid stroops: value must be an integer");
+  }
+
   const n = BigInt(stroops);
-  const intPart = (n / 10_000_000n).toString();
-  const decRaw = (n % 10_000_000n).toString().padStart(7, "0");
+  const negative = n < 0n;
+  const abs = negative ? -n : n;
+
+  const intPart = (abs / 10_000_000n).toString();
+  const decRaw = (abs % 10_000_000n).toString().padStart(7, "0");
   const decPart = decRaw.replace(/0+$/, "");
-  return decPart.length > 0 ? `${intPart}.${decPart}` : intPart;
+  const magnitude = decPart.length > 0 ? `${intPart}.${decPart}` : intPart;
+  return negative ? `-${magnitude}` : magnitude;
 }

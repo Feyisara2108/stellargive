@@ -30,17 +30,29 @@ Idempotency:
   the script exits cleanly rather than deploying again. Pass --force to override.
 
 Rollback / verify:
-  See docs/deployment.md for manual rollback and verification steps.
+  See docs/DEPLOYMENT.md for manual rollback and verification steps.
 USAGE
+}
+
+# Exit with usage when a value-taking flag has no value. `${2-}` keeps `set -u`
+# from turning a bare `--network` into an unbound-variable error.
+require_value() {
+  local flag="$1"
+  local value="${2-}"
+  if [ -z "$value" ]; then
+    echo "error: $flag requires a value" >&2
+    usage >&2
+    exit 1
+  fi
 }
 
 # Parse flags
 POS_COUNT=1
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
-    --network) NETWORK="$2"; shift 2 ;;
-    --source)  SOURCE="$2";  shift 2 ;;
-    --wasm)    WASM="$2";    shift 2 ;;
+    --network) require_value "$1" "${2-}"; NETWORK="$2"; shift 2 ;;
+    --source)  require_value "$1" "${2-}"; SOURCE="$2";  shift 2 ;;
+    --wasm)    require_value "$1" "${2-}"; WASM="$2";    shift 2 ;;
     --force)   FORCE=true;   shift   ;;
     -h|--help) usage; exit 0          ;;
     -*)
@@ -64,16 +76,18 @@ done
 # --- Idempotency check -----------------------------------------------------------
 # If a deployment record already exists for this network, skip unless --force.
 if [ -f "$DEPLOY_RECORD" ] && [ "$FORCE" = false ]; then
-  EXISTING=$(python3 -c "
+  EXISTING=$(python3 - "$DEPLOY_RECORD" "$NETWORK" <<'PYEOF' 2>/dev/null || true
 import json, sys
 try:
-    records = json.load(open('$DEPLOY_RECORD'))
-    entry = next((r for r in records if r.get('network') == '$NETWORK'), None)
+    path, network = sys.argv[1], sys.argv[2]
+    records = json.load(open(path))
+    entry = next((r for r in records if r.get("network") == network), None)
     if entry:
-        print(entry.get('contractId', ''))
+        print(entry.get("contractId", ""))
 except Exception:
     pass
-" 2>/dev/null || true)
+PYEOF
+)
   if [ -n "$EXISTING" ]; then
     echo "ℹ️  Contract already deployed on $NETWORK: $EXISTING"
     echo "   Pass --force to redeploy."
@@ -83,10 +97,12 @@ fi
 
 # --- Logging setup ---------------------------------------------------------------
 mkdir -p "$(dirname "$LOG_FILE")"
-echo "=== Deployment Attempt: $(date) ===" >> "$LOG_FILE"
-echo "Network: $NETWORK"  >> "$LOG_FILE"
-echo "Source:  $SOURCE"   >> "$LOG_FILE"
-echo "WASM:    $WASM"     >> "$LOG_FILE"
+{
+  echo "=== Deployment Attempt: $(date) ==="
+  echo "Network: $NETWORK"
+  echo "Source:  $SOURCE"
+  echo "WASM:    $WASM"
+} >> "$LOG_FILE"
 
 # --- Detect CLI ------------------------------------------------------------------
 if   command -v soroban >/dev/null 2>&1; then CLI="soroban"
@@ -174,7 +190,9 @@ echo "Deployment record updated: $DEPLOY_RECORD" | tee -a "$LOG_FILE"
 
 # --- Update frontend/.env.local --------------------------------------------------
 if grep -q "NEXT_PUBLIC_CONTRACT_ID=" "$FRONTEND_ENV_LOCAL"; then
-  perl -pi -e "s/NEXT_PUBLIC_CONTRACT_ID=.*/NEXT_PUBLIC_CONTRACT_ID=$CONTRACT_ID/" "$FRONTEND_ENV_LOCAL"
+  # Pass the ID through the environment so it is never interpolated into the
+  # perl program text.
+  NEW_CONTRACT_ID="$CONTRACT_ID" perl -pi -e 's/^NEXT_PUBLIC_CONTRACT_ID=.*$/NEXT_PUBLIC_CONTRACT_ID=$ENV{NEW_CONTRACT_ID}/' "$FRONTEND_ENV_LOCAL"
 else
   # Ensure file ends with a newline before appending
   [ -s "$FRONTEND_ENV_LOCAL" ] && [ "$(tail -c1 "$FRONTEND_ENV_LOCAL" | wc -l)" -eq 0 ] && echo "" >> "$FRONTEND_ENV_LOCAL"
@@ -192,5 +210,5 @@ echo "   Contract ID: $CONTRACT_ID"
 echo "   WASM hash:   $WASM_HASH"
 echo "   Record:      $DEPLOY_RECORD"
 echo ""
-echo "To verify:  $CLI contract invoke --id $CONTRACT_ID --network $NETWORK -- version"
-echo "For rollback steps see: docs/deployment.md"
+echo "To verify:  $CLI contract invoke --id $CONTRACT_ID --network $NETWORK -- get_total_campaigns"
+echo "For rollback steps see: docs/DEPLOYMENT.md"

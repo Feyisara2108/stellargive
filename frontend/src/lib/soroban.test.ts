@@ -1,5 +1,13 @@
-import { describe, it, expect, vi } from "vitest";
-import { StrKey } from "@stellar/stellar-sdk";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
+import { Account, Keypair, StrKey } from "@stellar/stellar-sdk";
+
+const mocks = vi.hoisted(() => ({
+  getAccount: vi.fn(),
+  simulateTransaction: vi.fn(),
+  prepareTransaction: vi.fn(),
+  sendTransaction: vi.fn(),
+  getTransaction: vi.fn(),
+}));
 
 // Mock rpc.Server so the module-level `new rpc.Server(RPC_URL)` doesn't throw in tests
 vi.mock("@stellar/stellar-sdk", async (importActual) => {
@@ -10,7 +18,7 @@ vi.mock("@stellar/stellar-sdk", async (importActual) => {
       ...actual.rpc,
       // Must be a constructable function (not an arrow) — soroban.ts does `new rpc.Server(...)`
       Server: vi.fn(function () {
-        return {};
+        return mocks;
       }),
     },
   };
@@ -23,7 +31,11 @@ import {
   isValidStellarAddress,
   MIN_DONATION,
   computeMinimumReserve,
+  submitTransactionWithKeypair,
+  SEND_RETRY_ATTEMPTS,
+  SEND_RETRY_DELAY_MS,
 } from "@/lib/soroban";
+import { NETWORK_RETRY_EXHAUSTED_MESSAGE } from "@/lib/contractErrors";
 
 describe("MIN_DONATION", () => {
   it("matches the contract's 1,000,000-stroop (0.1 XLM) minimum", () => {
@@ -286,5 +298,70 @@ describe("isValidStellarAddress", () => {
   it("rejects characters outside the base32 alphabet", () => {
     expect(isValidStellarAddress(`${G_ADDRESS.slice(0, 55)}1`)).toBe(false);
     expect(isValidStellarAddress(`${G_ADDRESS.slice(0, 55)}!`)).toBe(false);
+  });
+});
+
+describe("sendTransaction status handling", () => {
+  let keypair: Keypair;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+
+    keypair = Keypair.random();
+    mocks.getAccount.mockResolvedValue(new Account(keypair.publicKey(), "0"));
+    mocks.simulateTransaction.mockResolvedValue({ minResourceFee: "0" });
+    mocks.prepareTransaction.mockImplementation(async (tx: unknown) => tx);
+    mocks.getTransaction.mockResolvedValue({ status: "SUCCESS", resultMetaXdr: "result-meta" });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.clearAllMocks();
+  });
+
+  it("retries TRY_AGAIN_LATER and succeeds once the node accepts the transaction", async () => {
+    mocks.sendTransaction
+      .mockResolvedValueOnce({ status: "TRY_AGAIN_LATER" })
+      .mockResolvedValueOnce({ status: "PENDING", hash: "retry-success-hash" });
+
+    const submission = submitTransactionWithKeypair(keypair, "donate", []);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(mocks.sendTransaction).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(SEND_RETRY_DELAY_MS);
+    await expect(submission).resolves.toMatchObject({
+      status: "SUCCESS",
+      hash: "retry-success-hash",
+    });
+    expect(mocks.sendTransaction).toHaveBeenCalledTimes(2);
+    expect(mocks.getTransaction).toHaveBeenCalledWith("retry-success-hash");
+  });
+
+  it("throws after exhausting TRY_AGAIN_LATER retries without waiting for the deadline", async () => {
+    mocks.sendTransaction.mockResolvedValue({ status: "TRY_AGAIN_LATER" });
+
+    const submission = submitTransactionWithKeypair(keypair, "donate", []);
+    const assertion = expect(submission).rejects.toThrow(NETWORK_RETRY_EXHAUSTED_MESSAGE);
+
+    await vi.advanceTimersByTimeAsync(SEND_RETRY_DELAY_MS * (SEND_RETRY_ATTEMPTS + 1));
+    await assertion;
+
+    expect(mocks.sendTransaction).toHaveBeenCalledTimes(SEND_RETRY_ATTEMPTS);
+    expect(mocks.getTransaction).not.toHaveBeenCalled();
+  });
+
+  it("polls by hash when the node reports DUPLICATE", async () => {
+    mocks.sendTransaction.mockResolvedValue({ status: "DUPLICATE", hash: "duplicate-hash" });
+
+    const submission = submitTransactionWithKeypair(keypair, "donate", []);
+    await vi.advanceTimersByTimeAsync(1);
+
+    await expect(submission).resolves.toMatchObject({
+      status: "SUCCESS",
+      hash: "duplicate-hash",
+    });
+    expect(mocks.sendTransaction).toHaveBeenCalledTimes(1);
+    expect(mocks.getTransaction).toHaveBeenCalledWith("duplicate-hash");
   });
 });
