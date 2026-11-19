@@ -2,6 +2,21 @@ import "@testing-library/jest-dom/vitest";
 import "../mocks/setup";
 import { vi } from "vitest";
 
+// The MSW handlers import the logger, which imports ./lib/sentry, so every test file would load the
+// real Sentry SDK. Stub it globally; sentry.test.ts and other files that need specific behaviour
+// still override this with their own vi.mock.
+vi.mock("@sentry/nextjs", () => ({
+  init: vi.fn(),
+  getClient: vi.fn(),
+  captureException: vi.fn(),
+  captureMessage: vi.fn(),
+  captureRouterTransitionStart: vi.fn(),
+  setUser: vi.fn(),
+  withScope: vi.fn((callback: (scope: unknown) => void) =>
+    callback({ setTag: vi.fn(), setExtra: vi.fn(), setContext: vi.fn(), setLevel: vi.fn() }),
+  ),
+}));
+
 // Mock next/dynamic generically using React.lazy to run dynamic imports asynchronously under test
 vi.mock("next/dynamic", () => {
   return {

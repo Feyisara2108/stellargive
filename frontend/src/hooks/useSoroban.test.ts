@@ -121,28 +121,6 @@ function makeRawEvent(id: string, topicSymbol: string) {
 }
 
 /**
- * Answers `getHealth` (oldest retained ledger) so the event queries can pick a
- * start ledger. Returns nothing for other methods, so MSW falls through to the
- * next handler. The shared default handlers do not implement `getHealth`, and
- * their `getLatestLedger` response lacks the header/metadata XDR that
- * stellar-sdk v17 requires, so without this the event lookups fail.
- */
-const healthHandler = http.post("*/rpc", async ({ request }) => {
-  const body = (await request.clone().json()) as any;
-  if (body.method !== "getHealth") return undefined;
-  return HttpResponse.json({
-    id: body.id,
-    jsonrpc: "2.0",
-    result: {
-      status: "healthy",
-      latestLedger: 123456,
-      oldestLedger: 1,
-      ledgerRetentionWindow: 120960,
-    },
-  });
-});
-
-/**
  * Encodes a campaign the way the app decodes it (`NativeCampaign`): beneficiaries
  * as `[address, share]` tuples and status as a bare symbol. The shared
  * `campaignToXdr` factory still emits the pre-#1196 shape (beneficiaries as maps,
@@ -278,7 +256,7 @@ describe("useSoroban", () => {
       disconnect: vi.fn(),
     } as any);
     vi.spyOn(rpcServer, "getAccount").mockResolvedValue(new Account(WALLET, "1"));
-    server.use(healthHandler, campaignReadHandler);
+    server.use(campaignReadHandler);
   });
 
   describe("Queries", () => {
