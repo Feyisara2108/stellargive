@@ -3,7 +3,7 @@
 use soroban_sdk::{
     symbol_short,
     testutils::{Address as _, MockAuth, MockAuthInvoke},
-    Address, BytesN, IntoVal, String, Symbol, Vec,
+    Address, BytesN, IntoVal, String, Symbol, TryFromVal, Vec,
 };
 use stellar_give::ContractError;
 
@@ -51,6 +51,35 @@ fn test_upgrade_success_and_preserves_state() {
         }])
         .upgrade(&new_wasm_hash);
 
+    // Assert that a successful upgrade emits Upgraded with data equal to new_wasm_hash
+    let event = helpers::get_events(&env)
+        .into_iter()
+        .find(|(addr, topics, _)| {
+            addr == &client.address
+                && topics
+                    .get(0)
+                    .and_then(|t| Symbol::try_from_val(&env, &t).ok())
+                    == Some(symbol_short!("Upgraded"))
+        })
+        .expect("upgrade must emit an Upgraded event");
+
+    let topics = &event.1;
+    assert_eq!(
+        topics.len(),
+        1,
+        "Upgraded event must carry exactly one topic"
+    );
+    let topic_sym = Symbol::try_from_val(&env, &topics.get(0).unwrap())
+        .expect("topic[0] must decode as Symbol");
+    assert_eq!(topic_sym, symbol_short!("Upgraded"));
+
+    let data_hash = BytesN::<32>::try_from_val(&env, &event.2)
+        .expect("Upgraded event data must decode as BytesN<32>");
+    assert_eq!(
+        data_hash, new_wasm_hash,
+        "Upgraded event data must equal the new wasm hash"
+    );
+
     // The new code is now the one executing...
     let version: u32 = env.invoke_contract(
         &client.address,
@@ -93,4 +122,53 @@ fn test_upgrade_reverts_non_owner() {
         .try_upgrade(&new_wasm_hash);
 
     assert!(result.is_err());
+
+    let has_upgraded = helpers::get_events(&env)
+        .into_iter()
+        .any(|(addr, topics, _)| {
+            addr == client.address
+                && topics
+                    .get(0)
+                    .and_then(|t| Symbol::try_from_val(&env, &t).ok())
+                    == Some(symbol_short!("Upgraded"))
+        });
+    assert!(
+        !has_upgraded,
+        "rejected upgrade must not emit Upgraded event"
+    );
+}
+
+#[test]
+fn test_set_owner_reverts_non_owner_and_emits_no_event() {
+    let (env, client, _, _, _, _, _, _) = register_and_setup_without_auth_mock();
+    let attacker = Address::generate(&env);
+    let new_owner = Address::generate(&env);
+
+    let result = client
+        .mock_auths(&[MockAuth {
+            address: &attacker,
+            invoke: &MockAuthInvoke {
+                contract: &client.address,
+                fn_name: "set_owner",
+                args: (new_owner.clone(),).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .try_set_owner(&new_owner);
+
+    assert!(result.is_err());
+
+    let has_owner_set = helpers::get_events(&env)
+        .into_iter()
+        .any(|(addr, topics, _)| {
+            addr == client.address
+                && topics
+                    .get(0)
+                    .and_then(|t| Symbol::try_from_val(&env, &t).ok())
+                    == Some(symbol_short!("OwnerSet"))
+        });
+    assert!(
+        !has_owner_set,
+        "rejected set_owner must not emit OwnerSet event"
+    );
 }

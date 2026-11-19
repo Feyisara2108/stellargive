@@ -102,6 +102,17 @@ fn upgrade_rejects_non_owner_caller() {
         result.is_err(),
         "upgrade must reject a caller that is not the owner"
     );
+    let has_upgraded = get_events(&env).into_iter().any(|(addr, topics, _)| {
+        addr == client.address
+            && topics
+                .get(0)
+                .and_then(|t| Symbol::try_from_val(&env, &t).ok())
+                == Some(symbol_short!("Upgraded"))
+    });
+    assert!(
+        !has_upgraded,
+        "rejected upgrade must not emit Upgraded event"
+    );
 }
 
 #[test]
@@ -156,6 +167,17 @@ fn set_owner_rejects_non_owner_caller() {
         result.is_err(),
         "set_owner must reject a caller that is not the current owner"
     );
+    let has_owner_set = get_events(&env).into_iter().any(|(addr, topics, _)| {
+        addr == client.address
+            && topics
+                .get(0)
+                .and_then(|t| Symbol::try_from_val(&env, &t).ok())
+                == Some(symbol_short!("OwnerSet"))
+    });
+    assert!(
+        !has_owner_set,
+        "rejected set_owner must not emit OwnerSet event"
+    );
 }
 
 #[test]
@@ -207,14 +229,33 @@ fn set_owner_emits_owner_set_event() {
             (new_owner.clone(),).into_val(&env)
         )])
         .set_owner(&new_owner);
-    let found = get_events(&env).into_iter().any(|(addr, topics, _)| {
-        addr == client.address
-            && topics
-                .get(0)
-                .and_then(|t| Symbol::try_from_val(&env, &t).ok())
-                == Some(symbol_short!("OwnerSet"))
-    });
-    assert!(found, "set_owner must emit an OwnerSet event");
+    let event = get_events(&env)
+        .into_iter()
+        .find(|(addr, topics, _)| {
+            addr == &client.address
+                && topics
+                    .get(0)
+                    .and_then(|t| Symbol::try_from_val(&env, &t).ok())
+                    == Some(symbol_short!("OwnerSet"))
+        })
+        .expect("set_owner must emit an OwnerSet event");
+
+    let topics = &event.1;
+    assert_eq!(
+        topics.len(),
+        1,
+        "OwnerSet event must carry exactly one topic"
+    );
+    let topic_sym = Symbol::try_from_val(&env, &topics.get(0).unwrap())
+        .expect("topic[0] must decode as Symbol");
+    assert_eq!(topic_sym, symbol_short!("OwnerSet"));
+
+    let data_owner =
+        Address::try_from_val(&env, &event.2).expect("OwnerSet event data must decode as Address");
+    assert_eq!(
+        data_owner, new_owner,
+        "OwnerSet event data must equal new owner"
+    );
 }
 
 // ── ownership transfer chain ──────────────────────────────────────────────
