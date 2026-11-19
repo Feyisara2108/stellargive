@@ -216,6 +216,9 @@ fn test_upgrade_rejects_non_owner() {
 
 // #1149 — assert Unauthorized and AlreadyInitialized errors explicitly
 
+// Despite its name, this test asserts the host auth abort, not
+// `ContractError::Unauthorized`. The enum value is asserted for `claim_funds`
+// in `test_claim_funds.rs::unauthorized_claim_fails`.
 #[test]
 fn test_unauthorized_error_asserted() {
     let (env, client, creator, beneficiary, _donor, _admin, token_client, _) =

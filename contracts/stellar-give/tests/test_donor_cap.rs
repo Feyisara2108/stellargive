@@ -8,7 +8,7 @@
 //! case.
 
 use soroban_sdk::{symbol_short, Env, String};
-use stellar_give::{ContractError, StellarGiveContractClient};
+use stellar_give::{ContractError, StellarGiveContractClient, MIN_DONATION};
 
 mod helpers;
 use helpers::{register_and_setup, set_timestamp, single_ben};
@@ -237,4 +237,66 @@ fn test_non_whitelisted_donor_rejected_even_under_cap() {
         Err(Ok(ContractError::NotWhitelisted)),
         "non-whitelisted donor must be rejected immediately, even if donation is below cap"
     );
+}
+
+// ── create_campaign rejects unusable caps (#1355) ──────────────────────────
+
+fn try_create_with_cap(
+    env: &Env,
+    client: &StellarGiveContractClient<'static>,
+    creator: &soroban_sdk::Address,
+    beneficiary: &soroban_sdk::Address,
+    token_address: &soroban_sdk::Address,
+    cap: i128,
+) -> Result<u64, ContractError> {
+    let bens = single_ben(env, beneficiary);
+    match client.try_create_campaign(
+        creator,
+        &bens,
+        &String::from_str(env, "Donor Cap Campaign"),
+        &String::from_str(env, "A test campaign description."),
+        &String::from_str(env, "https://example.com/meta"),
+        &symbol_short!("relief"),
+        &50_000_000_i128,
+        &2_000_u64,
+        token_address,
+        &Some(cap),
+    ) {
+        Ok(Ok(id)) => Ok(id),
+        Err(Ok(err)) => Err(err),
+        other => panic!("unexpected create_campaign result: {other:?}"),
+    }
+}
+
+#[test]
+fn test_create_rejects_cap_below_min_donation() {
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _token_admin_client) =
+        register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    for cap in [0_i128, -1, MIN_DONATION - 1] {
+        let result = try_create_with_cap(
+            &env,
+            &client,
+            &creator,
+            &beneficiary,
+            &token_client.address,
+            cap,
+        );
+        assert_eq!(result, Err(ContractError::InvalidAmount), "cap {cap} must be rejected");
+    }
+}
+
+#[test]
+fn test_create_accepts_cap_equal_to_min_donation() {
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _token_admin_client) =
+        register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let token = token_client.address.clone();
+    let result = try_create_with_cap(&env, &client, &creator, &beneficiary, &token, MIN_DONATION);
+    let campaign_id = result.expect("a cap equal to MIN_DONATION must be accepted");
+
+    client.donate(&donor, &campaign_id, &MIN_DONATION, &false, &None);
+    assert_eq!(client.get_campaign(&campaign_id).raised_amount, MIN_DONATION);
 }

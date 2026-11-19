@@ -98,9 +98,67 @@ fn unauthorized_claim_fails() {
     client.donate(&donor, &campaign_id, &1_000_000, &false, &None);
     set_timestamp(&env, 1_100);
 
+    // The campaign is past its deadline with funds raised, so it is claimable;
+    // a stranger must be refused by the authorization check, not ClaimNotAllowed.
     let attacker = Address::generate(&env);
     let result = client.try_claim_funds(&attacker, &campaign_id);
-    assert!(result.is_err());
+    assert_eq!(result, Err(Ok(ContractError::Unauthorized)));
+}
+
+/// Expired, funded campaign whose creator is not one of the beneficiaries.
+fn expired_campaign_with_separate_creator(
+    env: &Env,
+    client: &StellarGiveContractClient<'static>,
+    creator: &Address,
+    beneficiary: &Address,
+    donor: &Address,
+    token_address: &Address,
+) -> u64 {
+    set_timestamp(env, 200);
+    let bens = single_ben(env, beneficiary);
+    let campaign_id = client.create_campaign(
+        creator,
+        &bens,
+        &String::from_str(env, "Food Support"),
+        &String::from_str(env, "A sample campaign description."),
+        &String::from_str(env, "https://example.com/meta"),
+        &symbol_short!("relief"),
+        &10_000_000,
+        &1_000,
+        token_address,
+        &None,
+    );
+    client.donate(donor, &campaign_id, &1_000_000, &false, &None);
+    set_timestamp(env, 1_100);
+    campaign_id
+}
+
+#[test]
+fn creator_who_is_not_beneficiary_can_claim() {
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
+    let campaign_id = expired_campaign_with_separate_creator(
+        &env,
+        &client,
+        &creator,
+        &beneficiary,
+        &donor,
+        &token_client.address,
+    );
+    assert!(client.try_claim_funds(&creator, &campaign_id).is_ok());
+}
+
+#[test]
+fn beneficiary_who_is_not_creator_can_claim() {
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
+    let campaign_id = expired_campaign_with_separate_creator(
+        &env,
+        &client,
+        &creator,
+        &beneficiary,
+        &donor,
+        &token_client.address,
+    );
+    assert!(client.try_claim_funds(&beneficiary, &campaign_id).is_ok());
 }
 
 // ── multi-beneficiary splits ──────────────────────────────────────────────
