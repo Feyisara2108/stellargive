@@ -233,7 +233,7 @@ fn test_refund_double_call_errors() {
     let result = client.try_refund(&campaign_id, &donor);
     assert_eq!(
         result,
-        Err(Ok(ContractError::NothingToClaim)),
+        Err(Ok(ContractError::NothingToRefund)),
         "second refund must error (no double payout)"
     );
 }
@@ -400,5 +400,53 @@ fn test_claim_refund_transfer_failure_rolls_back_contribution() {
     // the failed attempt left the contribution intact.
     token_admin.mint(&client.address, &donation);
     assert_eq!(client.claim_refund(&donor, &campaign_id), donation);
+    assert_eq!(client.get_campaign(&campaign_id).raised_amount, 0);
+}
+
+#[test]
+fn test_refund_returns_transfer_failed_and_leaves_contribution_unchanged() {
+    let (env, client, creator, beneficiary, donor, _admin, token_client, token_admin) =
+        register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let campaign_id = create_default_campaign(
+        &env,
+        &client,
+        &creator,
+        &beneficiary,
+        &token_client.address,
+        2_000,
+    );
+    let donation = 5_000_000_i128;
+    client.donate(&donor, &campaign_id, &donation, &false, &None);
+
+    set_timestamp(&env, 3_000);
+
+    // Drain the escrow so the token transfer cannot succeed.
+    token_client.burn(&client.address, &donation);
+    assert_eq!(
+        token_client.balance(&client.address),
+        0,
+        "escrow must be empty before the refund is attempted"
+    );
+
+    let result = client.try_refund(&campaign_id, &donor);
+    assert_eq!(
+        result,
+        Err(Ok(ContractError::RefundTransferFailed)),
+        "a failing escrow transfer must surface as RefundTransferFailed"
+    );
+
+    // The contribution must remain unchanged so the donor can retry later.
+    let campaign = client.get_campaign(&campaign_id);
+    assert_eq!(
+        campaign.raised_amount, donation,
+        "raised_amount must survive a failed refund"
+    );
+
+    // Refill the escrow and the refund settles.
+    token_admin.mint(&client.address, &donation);
+    let retry = client.try_refund(&campaign_id, &donor);
+    assert!(retry.is_ok(), "refund must succeed once escrow is refilled");
     assert_eq!(client.get_campaign(&campaign_id).raised_amount, 0);
 }

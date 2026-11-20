@@ -173,3 +173,46 @@ pub fn get_events(env: &Env) -> std::vec::Vec<(Address, Vec<soroban_sdk::Val>, s
     }
     result
 }
+
+/// Test setup that registers the contract without initializing it.
+#[allow(dead_code)]
+pub fn register_without_initialize() -> (
+    Env,
+    StellarGiveContractClient<'static>,
+    Address,
+    Address,
+    Address,
+    Address,
+    token::Client<'static>,
+    token::StellarAssetClient<'static>,
+) {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let creator = Address::generate(&env);
+    let beneficiary = Address::generate(&env);
+    let donor = Address::generate(&env);
+    let platform_admin = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+
+    let token_id = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let token_client = token::Client::new(&env, &token_id.address());
+    let token_admin_client = token::StellarAssetClient::new(&env, &token_id.address());
+
+    token_admin_client.mint(&donor, &1_000_000_000_000);
+    token_admin_client.mint(&creator, &1_000_000_000_000);
+
+    let contract_id = env.register_contract(None, StellarGiveContract);
+    let client = StellarGiveContractClient::new(&env, &contract_id);
+
+    (
+        env,
+        client,
+        creator,
+        beneficiary,
+        donor,
+        platform_admin,
+        token_client,
+        token_admin_client,
+    )
+}

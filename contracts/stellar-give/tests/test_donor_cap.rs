@@ -283,7 +283,11 @@ fn test_create_rejects_cap_below_min_donation() {
             &token_client.address,
             cap,
         );
-        assert_eq!(result, Err(ContractError::InvalidAmount), "cap {cap} must be rejected");
+        assert_eq!(
+            result,
+            Err(ContractError::InvalidAmount),
+            "cap {cap} must be rejected"
+        );
     }
 }
 
@@ -298,5 +302,8 @@ fn test_create_accepts_cap_equal_to_min_donation() {
     let campaign_id = result.expect("a cap equal to MIN_DONATION must be accepted");
 
     client.donate(&donor, &campaign_id, &MIN_DONATION, &false, &None);
-    assert_eq!(client.get_campaign(&campaign_id).raised_amount, MIN_DONATION);
+    assert_eq!(
+        client.get_campaign(&campaign_id).raised_amount,
+        MIN_DONATION
+    );
 }

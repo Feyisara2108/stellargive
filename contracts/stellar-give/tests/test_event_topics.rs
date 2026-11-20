@@ -669,6 +669,60 @@ fn test_goal_crossing_donation_emits_goal_reached_and_autoclaimed() {
     );
 }
 
+#[test]
+fn test_goal_crossing_donation_emits_donation_event_with_running_total() {
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let bens = single_ben(&env, &beneficiary);
+    let target = 10_000_000_i128;
+    let id = client.create_campaign(
+        &creator,
+        &bens,
+        &String::from_str(&env, "Goal Crossing Event Test"),
+        &String::from_str(&env, "A test campaign description."),
+        &String::from_str(&env, "https://example.com/meta"),
+        &symbol_short!("relief"),
+        &target,
+        &5_000_u64,
+        &token_client.address,
+        &None,
+    );
+
+    // Donate exact target to trigger auto-claim
+    client.donate(&donor, &id, &target, &false, &None);
+
+    let all_events = helpers::get_events(&env);
+
+    // Capture the DonationEvent from the same transaction
+    let donation_event = all_events
+        .iter()
+        .find(|(addr, topics, _)| {
+            addr == &client.address
+                && topics
+                    .get(0)
+                    .and_then(|t| Symbol::try_from_val(&env, &t).ok())
+                    == Some(symbol_short!("donation"))
+                && topics
+                    .get(1)
+                    .and_then(|t| Symbol::try_from_val(&env, &t).ok())
+                    == Some(symbol_short!("received"))
+        })
+        .expect("DonationEvent must be emitted on goal-crossing donation");
+
+    let donation_payload = DonationEvent::try_from_val(&env, &donation_event.2)
+        .expect("event data must decode as DonationEvent");
+
+    assert_eq!(donation_payload.campaign_id, id);
+    assert_eq!(donation_payload.donor, donor);
+    assert_eq!(donation_payload.amount, target);
+    assert_eq!(
+        donation_payload.total_raised, target,
+        "DonationEvent.total_raised must reflect the pre-settlement cumulative total"
+    );
+    assert_eq!(donation_payload.accepted_token, token_client.address);
+}
+
 /// DonationEvent fields must decode correctly via `try_from_val` with all
 /// required fields: campaign_id, donor, amount, total_raised, accepted_token, comment.
 #[test]

@@ -351,3 +351,63 @@ fn test_get_campaigns_empty_ids_returns_empty() {
     let result = client.get_campaigns(&ids);
     assert_eq!(result.len(), 0);
 }
+
+#[test]
+fn test_paged_offset_u64_max_returns_empty_without_panic() {
+    let (env, client, _creator, beneficiary, _donor, _admin, token_client, token_admin_client) =
+        register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    create_n_campaigns(
+        &env,
+        &client,
+        &beneficiary,
+        &token_client.address,
+        &token_admin_client,
+        5,
+    );
+
+    let try_res = client.try_get_campaigns_paged(&u64::MAX, &20);
+    assert_eq!(try_res.unwrap().unwrap().len(), 0);
+
+    let page = client.get_campaigns_paged(&u64::MAX, &20);
+    assert_eq!(page.len(), 0);
+}
+
+#[test]
+fn test_paged_offset_u64_max_minus_one_returns_empty_without_panic() {
+    let (env, client, _creator, beneficiary, _donor, _admin, token_client, token_admin_client) =
+        register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    create_n_campaigns(
+        &env,
+        &client,
+        &beneficiary,
+        &token_client.address,
+        &token_admin_client,
+        5,
+    );
+
+    let page = client.get_campaigns_paged(&(u64::MAX - 1), &20);
+    assert_eq!(page.len(), 0);
+}
+
+#[test]
+fn test_paged_limit_u32_max_clamped_without_panic() {
+    let (env, client, _creator, beneficiary, _donor, _admin, token_client, token_admin_client) =
+        register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    create_n_campaigns(
+        &env,
+        &client,
+        &beneficiary,
+        &token_client.address,
+        &token_admin_client,
+        25,
+    );
+
+    let page = client.get_campaigns_paged(&0, &u32::MAX);
+    assert_eq!(page.len(), 20, "limit u32::MAX must clamp to 20");
+}

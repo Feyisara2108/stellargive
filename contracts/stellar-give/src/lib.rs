@@ -54,6 +54,8 @@ pub struct DonationEvent {
     pub campaign_id: u64,
     pub donor: Address,
     pub amount: i128,
+    /// Cumulative amount raised by the campaign immediately after this donation,
+    /// before any settlement or auto-claim resets the stored balance.
     pub total_raised: i128,
     pub accepted_token: Address,
     pub comment: Option<String>,
@@ -690,7 +692,9 @@ impl StellarGiveContract {
     /// * `accepted_token` - Token contract address. Must implement the Soroban token interface.
     ///
     /// # Errors
+    /// * `NotInitialized` if the contract has not been initialized with an admin.
     /// * `InvalidToken` if `accepted_token` does not implement `decimals()` and `symbol()`.
+    /// * `CreationFeeTransferFailed` if transferring the creation fee to the admin fails.
     /// * `InvalidBeneficiary` if any beneficiary matches the contract address.
     /// * `InvalidAmount` if `max_per_donor` is `Some(cap)` with `cap < MIN_DONATION`.
     ///   Checked before the creation fee transfer.
@@ -770,13 +774,12 @@ impl StellarGiveContract {
         }
 
         // Small creation fee discourages campaign spam and storage bloat.
-        if let Ok(admin) = read_admin(&env) {
-            if token::Client::new(&env, &accepted_token)
-                .try_transfer(&creator, &admin, &CREATION_FEE_STROOPS)
-                .is_err()
-            {
-                return Err(ContractError::CreationFeeTransferFailed);
-            }
+        let admin = read_admin(&env)?;
+        if token::Client::new(&env, &accepted_token)
+            .try_transfer(&creator, &admin, &CREATION_FEE_STROOPS)
+            .is_err()
+        {
+            return Err(ContractError::CreationFeeTransferFailed);
         }
 
         if beneficiaries.is_empty() {
@@ -912,6 +915,8 @@ impl StellarGiveContract {
                 .checked_add(amount)
                 .ok_or(ContractError::ArithmeticError)?;
 
+            let total_raised_after_donation = campaign.raised_amount;
+
             let goal_reached = old_raised < campaign.target_amount
                 && campaign.raised_amount >= campaign.target_amount;
 
@@ -972,7 +977,7 @@ impl StellarGiveContract {
                     campaign_id: campaign.id,
                     donor: event_donor,
                     amount,
-                    total_raised: campaign.raised_amount,
+                    total_raised: total_raised_after_donation,
                     accepted_token: campaign.accepted_token.clone(),
                     comment: comment.clone(),
                 },
@@ -1154,6 +1159,18 @@ impl StellarGiveContract {
     }
 
     /// Refunds a donor's contribution when a campaign expires without meeting its target.
+    ///
+    /// # Arguments
+    /// * `campaign_id` - ID of the expired campaign.
+    /// * `donor` - Address reclaiming its contribution. Must authorize the call.
+    ///
+    /// # Errors
+    /// * `ContractPaused` if the contract is paused.
+    /// * `CampaignNotFound` if `campaign_id` does not exist.
+    /// * `RefundNotAllowed` if the campaign is not expired or met its target.
+    /// * `NothingToRefund` if the donor has no recorded contribution.
+    /// * `RefundTransferFailed` if transferring tokens from escrow to the donor fails.
+    /// * `ArithmeticError` if subtracting the refunded amount underflows.
     pub fn refund(env: Env, campaign_id: u64, donor: Address) -> Result<(), ContractError> {
         ensure_not_paused(&env)?;
         donor.require_auth();
@@ -1172,23 +1189,25 @@ impl StellarGiveContract {
 
             let donated = read_donor_contribution(&env, campaign_id, &donor);
             if donated <= 0 {
-                return Err(ContractError::NothingToClaim);
+                return Err(ContractError::NothingToRefund);
             }
 
-            // Transfer exact donated amount back to the donor.
-            token::Client::new(&env, &campaign.accepted_token).transfer(
-                &env.current_contract_address(),
-                &donor,
-                &donated,
-            );
-
-            // Reset donor contribution and update campaign total.
+            // Reset donor contribution and update campaign total before transfer
+            // so reentrancy is prevented and state is consistent.
             write_donor_contribution(&env, campaign_id, &donor, 0);
             campaign.raised_amount = campaign
                 .raised_amount
                 .checked_sub(donated)
                 .ok_or(ContractError::ArithmeticError)?;
             write_campaign(&env, &campaign);
+
+            // Transfer exact donated amount back to the donor.
+            if token::Client::new(&env, &campaign.accepted_token)
+                .try_transfer(&env.current_contract_address(), &donor, &donated)
+                .is_err()
+            {
+                return Err(ContractError::RefundTransferFailed);
+            }
 
             env.events().publish(
                 (symbol_short!("refund"),),
@@ -1255,23 +1274,26 @@ impl StellarGiveContract {
         result
     }
 
-    #[allow(unused_mut)]
-    pub fn get_campaigns_paged(env: Env, offset: u64, mut limit: u32) -> Vec<Campaign> {
-        if limit > 20 {
-            limit = 20;
-        }
+    /// Returns a paged slice of campaigns ordered by ascending ID with derived status.
+    ///
+    /// The `limit` parameter is clamped to a maximum of 20. If `offset` places the
+    /// start beyond the last campaign ID, an empty `Vec` is returned without panic.
+    pub fn get_campaigns_paged(env: Env, offset: u64, limit: u32) -> Vec<Campaign> {
+        let clamped_limit = limit.min(20);
         let mut result = Vec::new(&env);
         let next_id = read_next_id(&env);
-        let start_id = offset + 1;
+        let last_id = if next_id > 0 { next_id - 1 } else { 0 };
 
-        let mut end_id = offset + (limit as u64);
-        if end_id >= next_id {
-            if next_id > 0 {
-                end_id = next_id - 1;
-            } else {
-                end_id = 0;
-            }
+        let start_id = match offset.checked_add(1) {
+            Some(s) => s,
+            None => return result,
+        };
+
+        if start_id > last_id {
+            return result;
         }
+
+        let end_id = offset.saturating_add(clamped_limit as u64).min(last_id);
 
         let now = env.ledger().timestamp();
         for id in start_id..=end_id {
