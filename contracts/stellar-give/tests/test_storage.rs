@@ -1,6 +1,6 @@
-use soroban_sdk::testutils::storage::Persistent;
-use soroban_sdk::testutils::{Events as _, Ledger};
-use soroban_sdk::{symbol_short, Env, String, TryFromVal};
+use soroban_sdk::testutils::storage::{Instance, Persistent};
+use soroban_sdk::testutils::{Address as _, Events as _, Ledger};
+use soroban_sdk::{symbol_short, Address, Env, String, TryFromVal};
 
 mod helpers;
 use helpers::{create_default_campaign, register_and_setup, set_timestamp};
@@ -311,4 +311,241 @@ fn test_next_id_migration_from_persistent() {
         2_000,
     );
     assert_eq!(campaign_id, 42);
+}
+
+const UPGRADE_FIXTURE_WASM: &[u8] = include_bytes!("fixtures/upgrade_fixture.wasm");
+
+fn advance_sequence(env: &Env, count: u32) {
+    let mut info = env.ledger().get();
+    info.sequence_number += count;
+    info.timestamp += 100;
+    env.ledger().set(info);
+}
+
+fn get_instance_ttl(env: &Env, client: &StellarGiveContractClient<'static>) -> u32 {
+    env.as_contract(&client.address, || env.storage().instance().get_ttl())
+}
+
+#[test]
+fn test_instance_ttl_extended_by_donate() {
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let campaign_id = create_default_campaign(
+        &env,
+        &client,
+        &creator,
+        &beneficiary,
+        &token_client.address,
+        10_000,
+    );
+
+    advance_sequence(&env, 502_000);
+    let ttl_before = get_instance_ttl(&env, &client);
+    assert!(
+        ttl_before < 17_280,
+        "instance TTL must drop below threshold before donate"
+    );
+
+    client.donate(&donor, &campaign_id, &1_000_000, &false, &None);
+
+    let ttl_after = get_instance_ttl(&env, &client);
+    assert!(
+        ttl_after >= EXPECTED_TTL - 10,
+        "donate must extend instance TTL back near bump amount"
+    );
+}
+
+#[test]
+fn test_instance_ttl_extended_by_claim_funds() {
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let campaign_id = create_default_campaign(
+        &env,
+        &client,
+        &creator,
+        &beneficiary,
+        &token_client.address,
+        2_000,
+    );
+    client.donate(&donor, &campaign_id, &1_000_000, &false, &None);
+
+    set_timestamp(&env, 3_000);
+    advance_sequence(&env, 502_000);
+    let ttl_before = get_instance_ttl(&env, &client);
+    assert!(ttl_before < 17_280);
+
+    client.claim_funds(&beneficiary, &campaign_id);
+
+    let ttl_after = get_instance_ttl(&env, &client);
+    assert!(
+        ttl_after >= EXPECTED_TTL - 10,
+        "claim_funds must extend instance TTL back near bump amount"
+    );
+}
+
+#[test]
+fn test_instance_ttl_extended_by_cancel_campaign() {
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let campaign_id = create_default_campaign(
+        &env,
+        &client,
+        &creator,
+        &beneficiary,
+        &token_client.address,
+        10_000,
+    );
+
+    advance_sequence(&env, 502_000);
+    let ttl_before = get_instance_ttl(&env, &client);
+    assert!(ttl_before < 17_280);
+
+    client.cancel_campaign(&campaign_id);
+
+    let ttl_after = get_instance_ttl(&env, &client);
+    assert!(
+        ttl_after >= EXPECTED_TTL - 10,
+        "cancel_campaign must extend instance TTL back near bump amount"
+    );
+}
+
+#[test]
+fn test_instance_ttl_extended_by_refund() {
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let campaign_id = create_default_campaign(
+        &env,
+        &client,
+        &creator,
+        &beneficiary,
+        &token_client.address,
+        2_000,
+    );
+    client.donate(&donor, &campaign_id, &1_000_000, &false, &None);
+
+    set_timestamp(&env, 3_000);
+    advance_sequence(&env, 502_000);
+    let ttl_before = get_instance_ttl(&env, &client);
+    assert!(ttl_before < 17_280);
+
+    client.refund(&campaign_id, &donor);
+
+    let ttl_after = get_instance_ttl(&env, &client);
+    assert!(
+        ttl_after >= EXPECTED_TTL - 10,
+        "refund must extend instance TTL back near bump amount"
+    );
+}
+
+#[test]
+fn test_instance_ttl_extended_by_claim_refund() {
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let campaign_id = create_default_campaign(
+        &env,
+        &client,
+        &creator,
+        &beneficiary,
+        &token_client.address,
+        10_000,
+    );
+    client.donate(&donor, &campaign_id, &1_000_000, &false, &None);
+    client.cancel_campaign(&campaign_id);
+
+    advance_sequence(&env, 502_000);
+    let ttl_before = get_instance_ttl(&env, &client);
+    assert!(ttl_before < 17_280);
+
+    client.claim_refund(&donor, &campaign_id);
+
+    let ttl_after = get_instance_ttl(&env, &client);
+    assert!(
+        ttl_after >= EXPECTED_TTL - 10,
+        "claim_refund must extend instance TTL back near bump amount"
+    );
+}
+
+#[test]
+fn test_instance_ttl_extended_by_pause() {
+    let (env, client, _creator, _beneficiary, _donor, _admin, _token_client, _) =
+        register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    advance_sequence(&env, 502_000);
+    let ttl_before = get_instance_ttl(&env, &client);
+    assert!(ttl_before < 17_280);
+
+    client.pause();
+
+    let ttl_after = get_instance_ttl(&env, &client);
+    assert!(
+        ttl_after >= EXPECTED_TTL - 10,
+        "pause must extend instance TTL back near bump amount"
+    );
+}
+
+#[test]
+fn test_instance_ttl_extended_by_unpause() {
+    let (env, client, _creator, _beneficiary, _donor, _admin, _token_client, _) =
+        register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    client.pause();
+    advance_sequence(&env, 502_000);
+    let ttl_before = get_instance_ttl(&env, &client);
+    assert!(ttl_before < 17_280);
+
+    client.unpause();
+
+    let ttl_after = get_instance_ttl(&env, &client);
+    assert!(
+        ttl_after >= EXPECTED_TTL - 10,
+        "unpause must extend instance TTL back near bump amount"
+    );
+}
+
+#[test]
+fn test_instance_ttl_extended_by_set_owner() {
+    let (env, client, _creator, _beneficiary, _donor, _admin, _token_client, _) =
+        register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    advance_sequence(&env, 502_000);
+    let ttl_before = get_instance_ttl(&env, &client);
+    assert!(ttl_before < 17_280);
+
+    let new_owner = Address::generate(&env);
+    client.set_owner(&new_owner);
+
+    let ttl_after = get_instance_ttl(&env, &client);
+    assert!(
+        ttl_after >= EXPECTED_TTL - 10,
+        "set_owner must extend instance TTL back near bump amount"
+    );
+}
+
+#[test]
+fn test_instance_ttl_extended_by_upgrade() {
+    let (env, client, _creator, _beneficiary, _donor, _admin, _token_client, _) =
+        register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let new_wasm_hash = env.deployer().upload_contract_wasm(UPGRADE_FIXTURE_WASM);
+
+    advance_sequence(&env, 502_000);
+    let ttl_before = get_instance_ttl(&env, &client);
+    assert!(ttl_before < 17_280);
+
+    client.upgrade(&new_wasm_hash);
+
+    let ttl_after = get_instance_ttl(&env, &client);
+    assert!(
+        ttl_after >= EXPECTED_TTL - 10,
+        "upgrade must extend instance TTL back near bump amount"
+    );
 }

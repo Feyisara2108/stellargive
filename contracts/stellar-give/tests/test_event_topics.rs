@@ -10,8 +10,8 @@ use soroban_sdk::{symbol_short, String, Symbol, TryFromVal};
 mod helpers;
 use helpers::{create_default_campaign, register_and_setup, set_timestamp, single_ben};
 use stellar_give::{
-    AutoClaimedEvent, CampaignUpdateEvent, CreatedEvent, DonationEvent, GoalReachedEvent,
-    RefundEvent,
+    AutoClaimedEvent, CampaignUpdateEvent, CancelledEvent, CreatedEvent, DonationEvent,
+    GoalReachedEvent, PausedEvent, RefundEvent, UnpausedEvent,
 };
 
 /// `create_campaign` emits exactly one contract event whose single topic is
@@ -941,5 +941,154 @@ fn test_update_event_snapshot() {
         CampaignUpdateEvent::try_from_val(&env, &event.2).expect("event data must decode"),
         expected_payload,
         "Update event snapshot mismatch"
+    );
+}
+
+#[test]
+fn test_cancel_event_topic_and_payload() {
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let bens = single_ben(&env, &beneficiary);
+    let campaign_id = client.create_campaign(
+        &creator,
+        &bens,
+        &String::from_str(&env, "Cancel Test"),
+        &String::from_str(&env, "Description"),
+        &String::from_str(&env, "https://example.com/meta"),
+        &symbol_short!("relief"),
+        &10_000_000_i128,
+        &2_000_u64,
+        &token_client.address,
+        &None,
+    );
+
+    client.cancel_campaign(&campaign_id);
+
+    let event = helpers::get_events(&env)
+        .into_iter()
+        .find(|(addr, topics, _)| {
+            addr == &client.address
+                && topics
+                    .get(0)
+                    .and_then(|t| Symbol::try_from_val(&env, &t).ok())
+                    == Some(symbol_short!("cancel"))
+        })
+        .expect("CancelledEvent must be emitted by cancel_campaign");
+
+    let topics = &event.1;
+    assert_eq!(topics.len(), 1, "cancel event must carry exactly one topic");
+    let topic_sym = Symbol::try_from_val(&env, &topics.get(0).unwrap())
+        .expect("topic[0] must decode as Symbol");
+    assert_eq!(topic_sym, symbol_short!("cancel"));
+
+    let payload = CancelledEvent::try_from_val(&env, &event.2)
+        .expect("event data must decode as CancelledEvent");
+    assert_eq!(payload.id, campaign_id);
+    assert_eq!(payload.creator, creator);
+}
+
+#[test]
+fn test_pause_event_topic_and_payload() {
+    let (env, client, _creator, _beneficiary, _donor, admin, _token_client, _) =
+        register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    client.pause();
+
+    let event = helpers::get_events(&env)
+        .into_iter()
+        .find(|(addr, topics, _)| {
+            addr == &client.address
+                && topics
+                    .get(0)
+                    .and_then(|t| Symbol::try_from_val(&env, &t).ok())
+                    == Some(symbol_short!("paused"))
+        })
+        .expect("PausedEvent must be emitted by pause");
+
+    let topics = &event.1;
+    assert_eq!(topics.len(), 1, "paused event must carry exactly one topic");
+    let topic_sym = Symbol::try_from_val(&env, &topics.get(0).unwrap())
+        .expect("topic[0] must decode as Symbol");
+    assert_eq!(topic_sym, symbol_short!("paused"));
+
+    let payload =
+        PausedEvent::try_from_val(&env, &event.2).expect("event data must decode as PausedEvent");
+    assert_eq!(payload.admin, admin);
+}
+
+#[test]
+fn test_unpause_event_topic_and_payload() {
+    let (env, client, _creator, _beneficiary, _donor, admin, _token_client, _) =
+        register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    client.pause();
+    client.unpause();
+
+    let event = helpers::get_events(&env)
+        .into_iter()
+        .find(|(addr, topics, _)| {
+            addr == &client.address
+                && topics
+                    .get(0)
+                    .and_then(|t| Symbol::try_from_val(&env, &t).ok())
+                    == Some(symbol_short!("unpaused"))
+        })
+        .expect("UnpausedEvent must be emitted by unpause");
+
+    let topics = &event.1;
+    assert_eq!(
+        topics.len(),
+        1,
+        "unpaused event must carry exactly one topic"
+    );
+    let topic_sym = Symbol::try_from_val(&env, &topics.get(0).unwrap())
+        .expect("topic[0] must decode as Symbol");
+    assert_eq!(topic_sym, symbol_short!("unpaused"));
+
+    let payload = UnpausedEvent::try_from_val(&env, &event.2)
+        .expect("event data must decode as UnpausedEvent");
+    assert_eq!(payload.admin, admin);
+}
+
+#[test]
+fn test_failed_cancel_campaign_emits_no_cancel_event() {
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let bens = single_ben(&env, &beneficiary);
+    let campaign_id = client.create_campaign(
+        &creator,
+        &bens,
+        &String::from_str(&env, "Auto Claimed Campaign"),
+        &String::from_str(&env, "Description"),
+        &String::from_str(&env, "https://example.com/meta"),
+        &symbol_short!("relief"),
+        &10_000_000_i128,
+        &2_000_u64,
+        &token_client.address,
+        &None,
+    );
+
+    // Donate full amount -> auto-claimed and status becomes Claimed
+    client.donate(&donor, &campaign_id, &10_000_000_i128, &false, &None);
+
+    let res = client.try_cancel_campaign(&campaign_id);
+    assert!(res.is_err(), "cancel on funded/claimed campaign must fail");
+
+    let has_cancel_event = helpers::get_events(&env)
+        .into_iter()
+        .any(|(addr, topics, _)| {
+            addr == client.address
+                && topics
+                    .get(0)
+                    .and_then(|t| Symbol::try_from_val(&env, &t).ok())
+                    == Some(symbol_short!("cancel"))
+        });
+    assert!(
+        !has_cancel_event,
+        "failed cancel_campaign must emit no cancel event"
     );
 }

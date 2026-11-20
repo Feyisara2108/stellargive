@@ -201,7 +201,9 @@ fn paused_key() -> Symbol {
 }
 
 /// Returns `Err(ContractPaused)` when the contract is in paused state.
+/// Also extends the instance TTL since instance storage is accessed here.
 fn ensure_not_paused(env: &Env) -> Result<(), ContractError> {
+    extend_instance_ttl(env);
     if env
         .storage()
         .instance()
@@ -242,6 +244,8 @@ pub const MAX_DESCRIPTION_LENGTH: u32 = 500;
 pub const MAX_COMMENT_LEN: u32 = 250;
 /// Fixed creation fee in stroops, sent to platform admin.
 pub const CREATION_FEE_STROOPS: i128 = 100_000;
+/// Storage bloat guard: maximum batch size for adding addresses to a whitelist.
+pub const MAX_WHITELIST_BATCH_SIZE: u32 = 50;
 
 fn is_allowed_category(category: &Symbol) -> bool {
     category == &symbol_short!("medical")
@@ -656,6 +660,15 @@ impl StellarGiveContract {
     /// One-shot initializer. Sets the platform admin address that receives
     /// the fee portion of every successful claim. Must be called before any
     /// `claim_funds` invocation.
+    ///
+    /// # Arguments
+    /// * `admin` - Platform admin address.
+    ///
+    /// # Returns
+    /// `Ok(())` on success.
+    ///
+    /// # Errors
+    /// * `ContractError::AlreadyInitialized` if already initialized.
     pub fn initialize(env: Env, admin: Address) -> Result<(), ContractError> {
         if env.storage().persistent().has(&admin_key()) {
             return Err(ContractError::AlreadyInitialized);
@@ -669,8 +682,18 @@ impl StellarGiveContract {
 
     /// Pauses the contract. Only callable by the platform admin.
     /// While paused, all state-mutating functions (create_campaign, donate,
-    /// cancel_campaign, claim_funds, add_update, refund) will return ContractPaused.
+    /// cancel_campaign, claim_funds, add_update, refund, add_to_whitelist) will return `ContractPaused`.
+    ///
+    /// # Arguments
+    /// None (aside from `env`).
+    ///
+    /// # Returns
+    /// `Ok(())` on success.
+    ///
+    /// # Errors
+    /// * `ContractError::NotInitialized` if the platform admin is not initialized.
     pub fn pause(env: Env) -> Result<(), ContractError> {
+        extend_instance_ttl(&env);
         let admin = read_admin(&env)?;
         admin.require_auth();
         env.storage().instance().set(&paused_key(), &true);
@@ -680,7 +703,17 @@ impl StellarGiveContract {
     }
 
     /// Unpauses the contract. Only callable by the platform admin.
+    ///
+    /// # Arguments
+    /// None (aside from `env`).
+    ///
+    /// # Returns
+    /// `Ok(())` on success.
+    ///
+    /// # Errors
+    /// * `ContractError::NotInitialized` if the platform admin is not initialized.
     pub fn unpause(env: Env) -> Result<(), ContractError> {
+        extend_instance_ttl(&env);
         let admin = read_admin(&env)?;
         admin.require_auth();
         env.storage().instance().set(&paused_key(), &false);
@@ -704,6 +737,9 @@ impl StellarGiveContract {
     /// # Errors
     /// * `InvalidToken` if `accepted_token` does not implement `decimals()` and `symbol()`.
     /// * `InvalidBeneficiary` if any beneficiary matches the contract address.
+    ///
+    /// # Returns
+    /// `Ok(u64)` with the unique ID of the created campaign.
     #[allow(clippy::too_many_arguments)]
     pub fn create_campaign(
         env: Env,
@@ -845,6 +881,22 @@ impl StellarGiveContract {
     /// * `donor` - Address providing the donation. Must be authenticated.
     /// * `campaign_id` - ID of the campaign to donate to.
     /// * `amount` - Donation amount in stroops. Must be >= `MIN_DONATION`.
+    /// * `is_anonymous` - Whether to obscure the donor address in public events.
+    /// * `comment` - Optional donor comment.
+    ///
+    /// # Returns
+    /// `Ok(())` on success.
+    ///
+    /// # Errors
+    /// * `ContractError::ContractPaused` if the contract is paused.
+    /// * `ContractError::InvalidAmount` if amount is below `MIN_DONATION`.
+    /// * `ContractError::CommentTooLong` if comment exceeds `MAX_COMMENT_LEN`.
+    /// * `ContractError::ReentrancyDetected` if a reentrant call is detected.
+    /// * `ContractError::CampaignNotFound` if the campaign ID does not exist.
+    /// * `ContractError::CampaignNotActive` if the campaign is not active.
+    /// * `ContractError::NotWhitelisted` if the campaign is private and the donor is not whitelisted.
+    /// * `ContractError::ExceedsDonorCap` if donation exceeds the donor cap.
+    /// * `ContractError::TokenTransferFailed` if token transfer from donor fails.
     pub fn donate(
         env: Env,
         donor: Address,
@@ -981,7 +1033,21 @@ impl StellarGiveContract {
         result
     }
 
-    /// Cancels a campaign before fundraising begins.
+    /// Cancels an Active campaign at any time before it is funded or expired.
+    ///
+    /// Donors may subsequently reclaim their contributions using `claim_refund`.
+    /// Requires authorization from the campaign creator. Emits a `CancelledEvent`.
+    ///
+    /// # Arguments
+    /// * `id` - ID of the campaign to cancel.
+    ///
+    /// # Returns
+    /// `Ok(())` on successful cancellation.
+    ///
+    /// # Errors
+    /// * `ContractError::ContractPaused` if the contract is paused.
+    /// * `ContractError::CampaignNotFound` if no campaign exists with the given ID.
+    /// * `ContractError::CampaignNotActive` if the campaign is already funded, expired, or cancelled.
     pub fn cancel_campaign(env: Env, id: u64) -> Result<(), ContractError> {
         ensure_not_paused(&env)?;
         let mut campaign = read_campaign(&env, id)?;
@@ -1020,7 +1086,15 @@ impl StellarGiveContract {
     ///
     /// # Returns
     /// `Ok(amount)` with the refunded amount in stroops.
+    ///
+    /// # Errors
+    /// * `ContractError::CampaignNotFound` if no campaign exists with the given ID.
+    /// * `ContractError::CampaignNotCancelled` if the campaign is not in Cancelled status.
+    /// * `ContractError::NothingToRefund` if the donor has no recorded contribution.
+    /// * `ContractError::RefundTransferFailed` if the token transfer back to the donor fails.
+    /// * `ContractError::ArithmeticError` if amount subtraction overflows.
     pub fn claim_refund(env: Env, donor: Address, campaign_id: u64) -> Result<i128, ContractError> {
+        extend_instance_ttl(&env);
         donor.require_auth();
 
         let mut campaign = read_campaign(&env, campaign_id)?;
@@ -1074,11 +1148,19 @@ impl StellarGiveContract {
     /// absorbs any rounding dust so that `fee + Σpayouts == raised_amount` exactly.
     ///
     /// # Arguments
-    /// * `caller` - Address requesting payout. Must be the creator or a beneficiary.
+    /// * `beneficiary` - Address requesting payout. Must be the creator or a beneficiary.
     /// * `campaign_id` - ID of the campaign to claim.
     ///
     /// # Returns
     /// `Ok(gross_amount)` with the total settled amount in stroops.
+    ///
+    /// # Errors
+    /// * `ContractError::ContractPaused` if the contract is paused.
+    /// * `ContractError::CampaignNotFound` if no campaign exists with the given ID.
+    /// * `ContractError::AlreadyClaimed` if funds have already been claimed.
+    /// * `ContractError::Unauthorized` if the caller is neither creator nor beneficiary.
+    /// * `ContractError::ClaimNotAllowed` if the campaign has not reached its target and has not expired.
+    /// * `ContractError::NothingToClaim` if the raised amount is zero.
     pub fn claim_funds(
         env: Env,
         beneficiary: Address,
@@ -1151,6 +1233,19 @@ impl StellarGiveContract {
     }
 
     /// Refunds a donor's contribution when a campaign expires without meeting its target.
+    ///
+    /// # Arguments
+    /// * `campaign_id` - ID of the expired campaign.
+    /// * `donor` - Address of the donor requesting a refund. Must be authenticated.
+    ///
+    /// # Returns
+    /// `Ok(())` on successful refund.
+    ///
+    /// # Errors
+    /// * `ContractError::ContractPaused` if the contract is paused.
+    /// * `ContractError::CampaignNotFound` if the campaign does not exist.
+    /// * `ContractError::RefundNotAllowed` if the campaign is not expired or if the target was met.
+    /// * `ContractError::NothingToClaim` if the donor has no recorded contribution.
     pub fn refund(env: Env, campaign_id: u64, donor: Address) -> Result<(), ContractError> {
         ensure_not_paused(&env)?;
         donor.require_auth();
@@ -1203,7 +1298,21 @@ impl StellarGiveContract {
         result
     }
 
+    /// Upgrades the contract WASM bytecode to a new version.
+    ///
+    /// Requires authorization from the contract owner. Emits an `Upgraded` event
+    /// containing the new WASM hash.
+    ///
+    /// # Arguments
+    /// * `new_wasm_hash` - The 32-byte hash of the new contract WASM code installed on the network.
+    ///
+    /// # Returns
+    /// `Ok(())` on successful upgrade.
+    ///
+    /// # Errors
+    /// * `ContractError::NotInitialized` if the contract owner is not initialized.
     pub fn upgrade(env: Env, new_wasm_hash: soroban_sdk::BytesN<32>) -> Result<(), ContractError> {
+        extend_instance_ttl(&env);
         let owner: Address = env
             .storage()
             .instance()
@@ -1217,6 +1326,18 @@ impl StellarGiveContract {
         Ok(())
     }
 
+    /// Retrieves the current owner address of the contract.
+    ///
+    /// This is a read-only query requiring no authorization.
+    ///
+    /// # Arguments
+    /// None (aside from `env`).
+    ///
+    /// # Returns
+    /// `Ok(Address)` containing the owner address.
+    ///
+    /// # Errors
+    /// * `ContractError::NotInitialized` if the contract owner is not initialized.
     pub fn get_owner(env: Env) -> Result<Address, ContractError> {
         env.storage()
             .instance()
@@ -1224,7 +1345,21 @@ impl StellarGiveContract {
             .ok_or(ContractError::NotInitialized)
     }
 
+    /// Transfers ownership of the contract to a new address.
+    ///
+    /// Requires authorization from the current contract owner. Emits an `OwnerSet`
+    /// event with the new owner address.
+    ///
+    /// # Arguments
+    /// * `new_owner` - Address to receive contract ownership.
+    ///
+    /// # Returns
+    /// `Ok(())` on successful ownership transfer.
+    ///
+    /// # Errors
+    /// * `ContractError::NotInitialized` if the contract owner is not initialized.
     pub fn set_owner(env: Env, new_owner: Address) -> Result<(), ContractError> {
+        extend_instance_ttl(&env);
         let owner: Address = env
             .storage()
             .instance()
@@ -1237,6 +1372,20 @@ impl StellarGiveContract {
         Ok(())
     }
 
+    /// Retrieves all campaigns created by a specific address.
+    ///
+    /// Scans all campaign IDs sequentially from 1 up to the current counter,
+    /// returning all matching records with dynamic status derivation based on the
+    /// current ledger timestamp.
+    ///
+    /// # Arguments
+    /// * `creator` - Address of the campaign creator.
+    ///
+    /// # Returns
+    /// `Vec<Campaign>` containing all campaigns created by `creator`.
+    ///
+    /// # Errors
+    /// This function is infallible and returns an empty vector if no campaigns are found.
     pub fn get_campaigns_by_creator(env: Env, creator: Address) -> Vec<Campaign> {
         let mut result = Vec::new(&env);
         let next_id = read_next_id(&env);
@@ -1252,6 +1401,20 @@ impl StellarGiveContract {
         result
     }
 
+    /// Retrieves a paginated slice of campaigns.
+    ///
+    /// Results are returned in order of campaign ID starting from `offset + 1`.
+    /// The page size is clamped to a maximum of 20 campaigns.
+    ///
+    /// # Arguments
+    /// * `offset` - Number of campaigns to skip (0-indexed offset).
+    /// * `limit` - Maximum number of campaigns to return (clamped to a maximum of 20).
+    ///
+    /// # Returns
+    /// `Vec<Campaign>` containing the requested page of campaigns with derived status.
+    ///
+    /// # Errors
+    /// This function is infallible and returns an empty vector if no campaigns match the range.
     #[allow(unused_mut)]
     pub fn get_campaigns_paged(env: Env, offset: u64, mut limit: u32) -> Vec<Campaign> {
         if limit > 20 {
@@ -1280,6 +1443,19 @@ impl StellarGiveContract {
         result
     }
 
+    /// Retrieves multiple campaigns by their IDs in a single batch call.
+    ///
+    /// Accepts up to 50 campaign IDs. For each ID in the input list, the returned
+    /// vector contains `Some(Campaign)` if found or `None` if not found.
+    ///
+    /// # Arguments
+    /// * `ids` - Vec of campaign IDs to retrieve (maximum 50 IDs).
+    ///
+    /// # Returns
+    /// `Ok(Vec<Option<Campaign>>)` matching the order of input `ids`.
+    ///
+    /// # Errors
+    /// * `ContractError::LimitExceeded` if `ids.len()` exceeds 50.
     pub fn get_campaigns(env: Env, ids: Vec<u64>) -> Result<Vec<Option<Campaign>>, ContractError> {
         if ids.len() > 50 {
             return Err(ContractError::LimitExceeded);
@@ -1301,6 +1477,15 @@ impl StellarGiveContract {
     }
 
     /// Returns the current state of a campaign with a derived status.
+    ///
+    /// # Arguments
+    /// * `campaign_id` - ID of the campaign to retrieve.
+    ///
+    /// # Returns
+    /// `Ok(Campaign)` containing the campaign details.
+    ///
+    /// # Errors
+    /// * `ContractError::CampaignNotFound` if no campaign exists with the given ID.
     pub fn get_campaign(env: Env, campaign_id: u64) -> Result<Campaign, ContractError> {
         let mut campaign = read_campaign(&env, campaign_id)?;
         campaign.status = derive_status(env.ledger().timestamp(), &campaign);
@@ -1311,12 +1496,30 @@ impl StellarGiveContract {
     ///
     /// This value is derived from the NEXT_ID storage key and reflects all campaigns
     /// created, including expired or cancelled campaigns.
+    ///
+    /// # Arguments
+    /// None (aside from `env`).
+    ///
+    /// # Returns
+    /// `u64` total count of campaigns created.
+    ///
+    /// # Errors
+    /// This function is infallible.
     pub fn get_total_campaigns(env: Env) -> u64 {
         let next_id = read_next_id(&env);
         next_id.saturating_sub(1)
     }
 
     /// Returns the top 5 donors for a campaign sorted by donated amount.
+    ///
+    /// # Arguments
+    /// * `campaign_id` - ID of the campaign.
+    ///
+    /// # Returns
+    /// `Ok(Vec<(Address, i128)>)` containing top donors and amounts.
+    ///
+    /// # Errors
+    /// * `ContractError::CampaignNotFound` if no campaign exists with the given ID.
     pub fn get_top_donors(
         env: Env,
         campaign_id: u64,
@@ -1329,6 +1532,15 @@ impl StellarGiveContract {
     ///
     /// Returns 0 if the deadline has passed, otherwise returns the number of seconds
     /// until the deadline. This is a read-only function that requires no authentication.
+    ///
+    /// # Arguments
+    /// * `campaign_id` - ID of the campaign.
+    ///
+    /// # Returns
+    /// `Ok(u64)` seconds remaining until deadline.
+    ///
+    /// # Errors
+    /// * `ContractError::CampaignNotFound` if no campaign exists with the given ID.
     pub fn get_time_left(env: Env, campaign_id: u64) -> Result<u64, ContractError> {
         let campaign = read_campaign(&env, campaign_id)?;
         let now = env.ledger().timestamp();
@@ -1340,12 +1552,31 @@ impl StellarGiveContract {
         }
     }
 
-    /// Adds a batch of addresses to the campaign whitelist. Only the creator may call.
+    /// Adds a batch of addresses to the campaign whitelist.
+    ///
+    /// Only the campaign creator may call this function. The batch size is capped
+    /// at `MAX_WHITELIST_BATCH_SIZE` (50 addresses) to bound execution resources.
+    ///
+    /// # Arguments
+    /// * `id` - ID of the campaign.
+    /// * `addresses` - Vec of addresses to add to the whitelist (maximum `MAX_WHITELIST_BATCH_SIZE`).
+    ///
+    /// # Returns
+    /// `Ok(())` on success.
+    ///
+    /// # Errors
+    /// * `ContractError::ContractPaused` if the contract is paused.
+    /// * `ContractError::LimitExceeded` if `addresses.len()` exceeds `MAX_WHITELIST_BATCH_SIZE`.
+    /// * `ContractError::CampaignNotFound` if the campaign does not exist.
     pub fn add_to_whitelist(
         env: Env,
         id: u64,
         addresses: Vec<Address>,
     ) -> Result<(), ContractError> {
+        ensure_not_paused(&env)?;
+        if addresses.len() > MAX_WHITELIST_BATCH_SIZE {
+            return Err(ContractError::LimitExceeded);
+        }
         let campaign = read_campaign(&env, id)?;
         campaign.creator.require_auth();
 
@@ -1358,6 +1589,19 @@ impl StellarGiveContract {
     }
 
     /// Adds an update to a campaign. Maximum 10 updates allowed.
+    ///
+    /// # Arguments
+    /// * `id` - ID of the campaign.
+    /// * `content` - Content of the update. Must not be empty.
+    ///
+    /// # Returns
+    /// `Ok(())` on success.
+    ///
+    /// # Errors
+    /// * `ContractError::ContractPaused` if the contract is paused.
+    /// * `ContractError::CampaignNotFound` if no campaign exists with the given ID.
+    /// * `ContractError::InvalidUpdateContent` if content is empty.
+    /// * `ContractError::TooManyUpdates` if 10 updates have already been posted.
     pub fn add_update(env: Env, id: u64, content: String) -> Result<(), ContractError> {
         ensure_not_paused(&env)?;
         let campaign = read_campaign(&env, id)?;
@@ -1393,6 +1637,18 @@ impl StellarGiveContract {
     }
 
     /// Retrieves all updates for a campaign in chronological order.
+    ///
+    /// A campaign can have at most 10 updates. This is a read-only query
+    /// requiring no authorization.
+    ///
+    /// # Arguments
+    /// * `id` - ID of the campaign.
+    ///
+    /// # Returns
+    /// `Vec<Update>` containing all updates posted for the campaign.
+    ///
+    /// # Errors
+    /// This function is infallible and returns an empty vector if no updates exist.
     pub fn get_updates(env: Env, id: u64) -> Vec<Update> {
         let count = read_update_count(&env, id);
         let mut updates = Vec::new(&env);
