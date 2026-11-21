@@ -5,7 +5,7 @@ use soroban_sdk::{symbol_short, String};
 
 mod helpers;
 use helpers::{create_default_campaign, register_and_setup, set_timestamp, single_ben};
-use stellar_give::{CampaignStatus, ContractError, StellarGiveContractClient};
+use stellar_give::{CampaignStatus, ContractError, StellarGiveContractClient, MAX_BENEFICIARIES};
 
 fn to_stroops(amount: &str) -> i128 {
     let parts: Vec<&str> = amount.split('.').collect();
@@ -532,6 +532,15 @@ fn test_split_3_beneficiaries_1_1_9998() {
 #[test]
 fn test_split_5_beneficiaries() {
     run_split_fixture(&[500, 1_500, 2_000, 3_000, 3_000]);
+}
+
+#[test]
+fn test_split_max_beneficiaries_settles_exactly() {
+    let count = MAX_BENEFICIARIES as usize;
+    let mut shares = vec![10_000 / MAX_BENEFICIARIES; count];
+    let assigned: u32 = shares.iter().sum();
+    shares[0] += 10_000 - assigned;
+    run_split_fixture(&shares);
 }
 
 // ── claim_funds: ClaimNotAllowed guard (#7, #1151) ─────────────────────────

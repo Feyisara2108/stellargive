@@ -153,6 +153,8 @@ pub enum ContractError {
     ExceedsDonorCap = 18,
     InvalidMetadataUri = 19,
     MetadataUriTooLong = 20,
+    /// Reserved: not currently returned by any entry point. Kept so that error
+    /// code numbering stays stable for clients that map code 21.
     InvalidUrl = 21,
     ArithmeticError = 22,
     LimitExceeded = 23,
@@ -242,6 +244,9 @@ pub const MAX_METADATA_URI_LEN: u32 = 256;
 pub const MAX_DESCRIPTION_LENGTH: u32 = 500;
 /// Optional donor comment length cap.
 pub const MAX_COMMENT_LEN: u32 = 250;
+/// Maximum beneficiaries per campaign. Settlement makes one token transfer per
+/// beneficiary, so the list is capped to keep claims within the resource budget.
+pub const MAX_BENEFICIARIES: u32 = 10;
 /// Fixed creation fee in stroops, sent to platform admin.
 pub const CREATION_FEE_STROOPS: i128 = 100_000;
 /// Storage bloat guard: maximum batch size for adding addresses to a whitelist.
@@ -560,23 +565,6 @@ fn sync_status(env: &Env, campaign: &mut Campaign) {
     }
 }
 
-/// Validates that a URL is a plausible HTTPS or IPFS metadata/social link.
-/// Keeps campaign metadata constrained to safe, externally resolvable URIs.
-#[allow(dead_code, clippy::manual_range_contains)]
-fn validate_url(url: &String) -> Result<(), ContractError> {
-    let len = url.len() as usize;
-    if !(8..=200).contains(&len) {
-        return Err(ContractError::InvalidUrl);
-    }
-    let mut buf = [0u8; 200];
-    let dest_slice = &mut buf[0..len];
-    url.copy_into_slice(dest_slice);
-    if &dest_slice[0..8] != b"https://" {
-        return Err(ContractError::InvalidUrl);
-    }
-    Ok(())
-}
-
 fn validate_token_contract(env: &Env, token_address: &Address) -> Result<(), ContractError> {
     let client = token::Client::new(env, token_address);
     if client.try_decimals().is_err() {
@@ -740,6 +728,10 @@ impl StellarGiveContract {
     ///
     /// # Returns
     /// `Ok(u64)` with the unique ID of the created campaign.
+    /// * `InvalidAmount` if `max_per_donor` is `Some(cap)` with `cap < MIN_DONATION`.
+    ///   Checked before the creation fee transfer.
+    /// * `LimitExceeded` if there are more than `MAX_BENEFICIARIES` beneficiaries.
+    /// * `InvalidShares` if any beneficiary share is 0 or the shares do not sum to `10_000`.
     #[allow(clippy::too_many_arguments)]
     pub fn create_campaign(
         env: Env,
@@ -774,6 +766,11 @@ impl StellarGiveContract {
         }
         if !is_allowed_category(&category) {
             return Err(ContractError::InvalidCategory);
+        }
+        if let Some(cap) = max_per_donor {
+            if cap < MIN_DONATION {
+                return Err(ContractError::InvalidAmount);
+            }
         }
 
         let mut is_valid = false;
@@ -821,6 +818,9 @@ impl StellarGiveContract {
         if beneficiaries.is_empty() {
             return Err(ContractError::InvalidShares);
         }
+        if beneficiaries.len() > MAX_BENEFICIARIES {
+            return Err(ContractError::LimitExceeded);
+        }
 
         // Prevent self-referential payout plans. If the contract is listed as a
         // beneficiary, claim settlement would route funds back into the contract
@@ -829,6 +829,9 @@ impl StellarGiveContract {
 
         let mut total_bps: u64 = 0;
         for (_, share) in beneficiaries.iter() {
+            if share == 0 {
+                return Err(ContractError::InvalidShares);
+            }
             total_bps += u64::from(share);
         }
         if total_bps != 10_000 {

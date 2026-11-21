@@ -13,7 +13,7 @@ use soroban_sdk::testutils::Address as _;
 use soroban_sdk::{symbol_short, token, Address, String, Symbol, TryFromVal, Vec};
 use stellar_give::{
     CampaignStatus, ContractError, CreatedEvent, StellarGiveContractClient,
-    MAX_CAMPAIGNS_PER_CREATOR, MAX_DURATION, MIN_TARGET,
+    MAX_BENEFICIARIES, MAX_CAMPAIGNS_PER_CREATOR, MAX_DURATION, MIN_TARGET,
 };
 
 // ── happy path and stored state ────────────────────────────────────────────
@@ -1172,4 +1172,77 @@ fn create_campaign_emits_created_event_with_correct_payload() {
     assert_eq!(payload.id, id);
     assert_eq!(payload.creator, creator);
     assert_eq!(payload.target_amount, 25_000_000);
+}
+
+// ── reserved InvalidUrl code (#1353) ───────────────────────────────────────
+
+#[test]
+fn new_campaign_has_no_website_or_twitter() {
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let bens = single_ben(&env, &beneficiary);
+    let id = create_standard_campaign(&client, &creator, &bens, &token_client.address);
+    let campaign = client.get_campaign(&id);
+    assert_eq!(campaign.website, None);
+    assert_eq!(campaign.twitter, None);
+}
+
+#[test]
+fn invalid_url_error_code_stays_21() {
+    assert_eq!(ContractError::InvalidUrl as u32, 21);
+}
+
+// ── beneficiary list limits (#1356) ────────────────────────────────────────
+
+#[test]
+fn create_campaign_rejects_more_than_max_beneficiaries() {
+    let (env, client, creator, _beneficiary, _donor, _admin, token_client, _) =
+        register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let count = MAX_BENEFICIARIES + 1;
+    let mut bens = Vec::new(&env);
+    for i in 0..count {
+        let share = if i == 0 { 10_000 - (count - 1) } else { 1 };
+        bens.push_back((Address::generate(&env), share));
+    }
+
+    let result = client.try_create_campaign(
+        &creator,
+        &bens,
+        &String::from_str(&env, "Test Campaign"),
+        &String::from_str(&env, "A sample campaign description."),
+        &String::from_str(&env, "https://example.com/meta"),
+        &symbol_short!("relief"),
+        &10_000_000,
+        &2_000,
+        &token_client.address,
+        &None,
+    );
+    assert_eq!(result, Err(Ok(ContractError::LimitExceeded)));
+}
+
+#[test]
+fn create_campaign_rejects_zero_share_beneficiary() {
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let mut bens = Vec::new(&env);
+    bens.push_back((beneficiary.clone(), 10_000_u32));
+    bens.push_back((Address::generate(&env), 0_u32));
+
+    let result = client.try_create_campaign(
+        &creator,
+        &bens,
+        &String::from_str(&env, "Test Campaign"),
+        &String::from_str(&env, "A sample campaign description."),
+        &String::from_str(&env, "https://example.com/meta"),
+        &symbol_short!("relief"),
+        &10_000_000,
+        &2_000,
+        &token_client.address,
+        &None,
+    );
+    assert_eq!(result, Err(Ok(ContractError::InvalidShares)));
 }

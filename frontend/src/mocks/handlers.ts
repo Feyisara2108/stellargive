@@ -4,14 +4,21 @@ import { buildCampaign, campaignToXdr, campaignArrayToXdr } from "../test/factor
 import type { Campaign } from "@/lib/soroban";
 import { logger } from "@/lib/logger";
 
-// Mutable store for mock campaigns so tests can override or add to them
-export let MOCK_CAMPAIGNS: Campaign[] = [
+const DEFAULT_MOCK_CAMPAIGNS: Campaign[] = [
   buildCampaign({ id: 1n, title: "First Campaign", raised_amount: 500n, target_amount: 1000n }),
   buildCampaign({ id: 2n, title: "Second Campaign", category: "medical", status: "Active" }),
 ];
 
+// Mutable store for mock campaigns so tests can override or add to them
+export let MOCK_CAMPAIGNS: Campaign[] = [...DEFAULT_MOCK_CAMPAIGNS];
+
 export function setMockCampaigns(campaigns: Campaign[]) {
   MOCK_CAMPAIGNS = campaigns;
+}
+
+/** Restores the seed campaigns; called from the shared afterEach in ./setup. */
+export function resetMockCampaigns() {
+  MOCK_CAMPAIGNS = [...DEFAULT_MOCK_CAMPAIGNS];
 }
 
 export function generateUpdatesArrayXdr() {
@@ -74,15 +81,17 @@ export const handlers = [
               ).toXDR("base64");
             }
           }
-          const rawStr = Buffer.from(txXdr, "base64").toString("utf-8");
-          if (funcName === "get_campaigns_paged" || rawStr.includes("get_campaigns_paged")) {
-            xdrResult = campaignArrayToXdr(MOCK_CAMPAIGNS).toXDR("base64");
-          } else if (
-            funcName === "get_recent_campaigns" ||
-            rawStr.includes("get_recent_campaigns")
-          ) {
+          if (funcName === "get_campaigns_paged") {
+            let page = MOCK_CAMPAIGNS;
+            if (args.length >= 2) {
+              const offset = Number(scValToNative(args[0]));
+              const limit = Number(scValToNative(args[1]));
+              page = MOCK_CAMPAIGNS.slice(offset, offset + limit);
+            }
+            xdrResult = campaignArrayToXdr(page).toXDR("base64");
+          } else if (funcName === "get_recent_campaigns") {
             xdrResult = campaignArrayToXdr(MOCK_CAMPAIGNS.slice(0, 5)).toXDR("base64");
-          } else if (funcName === "get_updates" || rawStr.includes("get_updates")) {
+          } else if (funcName === "get_updates") {
             xdrResult = generateUpdatesArrayXdr();
           }
         } catch (e) {
@@ -222,6 +231,19 @@ export const handlers = [
               created_at: "2024-01-01T00:00:00Z",
             },
           ],
+        },
+      });
+    }
+
+    if (method === "getHealth") {
+      return HttpResponse.json({
+        id: body.id,
+        jsonrpc: "2.0",
+        result: {
+          status: "healthy",
+          latestLedger: 123456,
+          oldestLedger: 1,
+          ledgerRetentionWindow: 120960,
         },
       });
     }

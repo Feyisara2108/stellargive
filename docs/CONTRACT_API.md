@@ -1,12 +1,125 @@
 # StellarGive Contract API
 
-This document describes the `stellar-give` Soroban contract public API, error variants, storage layout, and example payloads for integrators.
+This document describes the [`stellar-give`](../contracts/stellar-give/src/lib.rs) Soroban contract public API, error variants, storage layout, and example payloads for integrators.
 
 ## Overview
 
-The contract exposes many public methods, including campaign creation and browsing, donations and claims, refund and whitelist operations, updates, and read helpers.
+The contract exposes 22 public methods, including campaign creation and browsing, donations and claims, refund and whitelist operations, updates, administrative controls, and read helpers.
+
+All state-changing methods require caller authentication via `require_auth()`.
 
 ## Method Reference
+
+### initialize
+
+```rust
+pub fn initialize(env: Env, admin: Address) -> Result<(), ContractError>
+```
+
+Arguments
+
+- `env` - Contract environment.
+- `admin` - Platform administrator address. Receives the platform fee portion (1%) of payouts. Also set as the initial upgrade `owner`.
+
+Authorization
+
+- `admin` must authenticate the call via `admin.require_auth()`.
+
+Emitted events
+
+- None.
+
+Returns
+
+- `Ok(())` on success.
+
+Errors
+
+- `AlreadyInitialized` if admin is already set in persistent storage.
+- `Unauthorized` if `admin` is not authenticated.
+
+Example illustrative invocation (not executed):
+
+```json
+{
+  "method": "initialize",
+  "params": [
+    "GA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVSGZ"
+  ]
+}
+```
+
+### pause
+
+```rust
+pub fn pause(env: Env) -> Result<(), ContractError>
+```
+
+Arguments
+
+- `env` - Contract environment.
+
+Authorization
+
+- Platform administrator (`admin`) must authenticate the call via `admin.require_auth()`.
+
+Emitted events
+
+- Emits `(symbol_short!("paused"),)` carrying `PausedEvent { admin }`.
+
+Returns
+
+- `Ok(())` on success.
+
+Errors
+
+- `NotInitialized` if the platform administrator is not set.
+- `Unauthorized` if the caller is not the platform administrator.
+
+Example illustrative invocation (not executed):
+
+```json
+{
+  "method": "pause",
+  "params": []
+}
+```
+
+### unpause
+
+```rust
+pub fn unpause(env: Env) -> Result<(), ContractError>
+```
+
+Arguments
+
+- `env` - Contract environment.
+
+Authorization
+
+- Platform administrator (`admin`) must authenticate the call via `admin.require_auth()`.
+
+Emitted events
+
+- Emits `(symbol_short!("unpaused"),)` carrying `UnpausedEvent { admin }`.
+
+Returns
+
+- `Ok(())` on success.
+
+Errors
+
+- `NotInitialized` if the platform administrator is not set.
+- `Unauthorized` if the caller is not the platform administrator.
+
+Example illustrative invocation (not executed):
+
+```json
+{
+  "method": "unpause",
+  "params": []
+}
+```
 
 ### create_campaign
 
@@ -42,6 +155,14 @@ Arguments
 
 > [!WARNING]
 > **No ownership verification:** The contract only validates metadata/social URL prefixes and shape. There is no on-chain cryptographic verification of ownership. These links are informational only.
+
+Authorization
+
+- `creator` must authenticate the call via `creator.require_auth()`.
+
+Emitted events
+
+- Emits `(symbol_short!("created"),)` carrying `CreatedEvent { id, creator, target_amount }`.
 
 Returns
 
@@ -111,12 +232,22 @@ Arguments
 > [!NOTE]
 > **Privacy Trade-offs:** On-chain ledger transfers remain public. The underlying token contract still records a transfer originating from the donor's address. `is_anonymous` only masks application-level events and dashboard displays.
 
+Authorization
+
+- `donor` must authenticate the call via `donor.require_auth()`.
+
+Emitted events
+
+- Emits `(symbol_short!("donation"), symbol_short!("received"))` carrying `DonationEvent`.
+- If the donation causes `raised_amount >= target_amount` for the first time, additionally emits `(Symbol::new(env, "goal_reached"),)` carrying `GoalReachedEvent` followed by `(Symbol::new(env, "autoclaimed"),)` carrying `AutoClaimedEvent`.
+
 Returns
 
 - `Ok(())` on success.
 
 Errors
 
+- `ContractPaused` while the contract is paused.
 - `Unauthorized` if `donor` is not authenticated.
 - `InvalidAmount` if `amount <= 0`.
 - `CampaignNotFound` if the campaign ID does not exist.
@@ -125,7 +256,7 @@ Errors
 - `ExceedsDonorCap` if the total donation would exceed `max_per_donor`.
 - `CommentTooLong` if a comment exceeds `MAX_COMMENT_LEN` (250 characters).
 
-Example JSON-RPC payload
+Example illustrative invocation (not executed):
 
 ```json
 {
@@ -136,6 +267,91 @@ Example JSON-RPC payload
     "1000000",
     false,
     null
+  ]
+}
+```
+
+### cancel_campaign
+
+```rust
+pub fn cancel_campaign(env: Env, id: u64) -> Result<(), ContractError>
+```
+
+Arguments
+
+- `env` - Contract environment.
+- `id` - Campaign ID to cancel.
+
+Authorization
+
+- Campaign `creator` must authenticate the call via `campaign.creator.require_auth()`.
+
+Emitted events
+
+- Emits `(symbol_short!("cancel"),)` carrying `CancelledEvent { id, creator }`.
+
+Returns
+
+- `Ok(())` on success.
+
+Errors
+
+- `ContractPaused` while the contract is paused.
+- `CampaignNotFound` if the campaign ID does not exist.
+- `Unauthorized` if the caller is not the campaign creator.
+- `CampaignNotActive` if the campaign derived status is not `Active`.
+
+Example illustrative invocation (not executed):
+
+```json
+{
+  "method": "cancel_campaign",
+  "params": [1]
+}
+```
+
+### claim_refund
+
+```rust
+pub fn claim_refund(env: Env, donor: Address, campaign_id: u64) -> Result<i128, ContractError>
+```
+
+Arguments
+
+- `env` - Contract environment.
+- `donor` - Address reclaiming its contribution.
+- `campaign_id` - ID of the cancelled campaign.
+
+Authorization
+
+- `donor` must authenticate the call via `donor.require_auth()`.
+
+Emitted events
+
+- Emits `(symbol_short!("refund"), campaign_id)` carrying `RefundEvent { campaign_id, donor, amount }`.
+
+Returns
+
+- `Ok(amount)` where `amount` is the refunded amount in stroops (`i128`).
+
+Errors
+
+- `Unauthorized` if `donor` is not authenticated.
+- `CampaignNotFound` if the campaign ID does not exist.
+- `CampaignNotCancelled` if the campaign status is not `Cancelled`.
+- `NothingToRefund` if the donor has no recorded contribution remaining.
+- `ArithmeticError` if campaign raised_amount arithmetic underflows.
+- `RefundTransferFailed` if the token transfer to the donor fails.
+- `ReentrancyDetected` if the reentrancy lock is already held.
+
+Example illustrative invocation (not executed):
+
+```json
+{
+  "method": "claim_refund",
+  "params": [
+    "GD...DONOR_ADDRESS...",
+    1
   ]
 }
 ```
@@ -156,12 +372,22 @@ Arguments
 - `beneficiary` - Authorized beneficiary or campaign creator requesting the payout. Must call `require_auth()`.
 - `campaign_id` - Campaign ID to claim.
 
+Authorization
+
+- `beneficiary` must call `require_auth()`. The caller must be either the campaign creator or one of the configured beneficiaries.
+
+Emitted events
+
+- Emits `(symbol_short!("funds"), symbol_short!("claimed"))` carrying `(campaign.id, beneficiary, amount, campaign.accepted_token)`.
+- Emits `(symbol_short!("claimed"), campaign.id)` carrying `ClaimedEvent { campaign_id, amount, beneficiary }`.
+
 Returns
 
-- `Ok(total)` where `total` is the amount distributed in stroops.
+- `Ok(total)` where `total` is the amount distributed in stroops (`i128`).
 
 Errors
 
+- `ContractPaused` while the contract is paused.
 - `Unauthorized` if `caller` is neither the campaign creator nor a beneficiary.
 - `CampaignNotFound` if the campaign ID does not exist.
 - `AlreadyClaimed` if funds have already been claimed.
@@ -169,7 +395,7 @@ Errors
 - `NothingToClaim` if there is no raised amount to distribute.
 - `TokenTransferFailed` if a payout transfer fails during distribution.
 
-Example JSON-RPC payload
+Example illustrative invocation (not executed):
 
 ```json
 {
@@ -177,6 +403,166 @@ Example JSON-RPC payload
   "params": [
     "GB...CALLER_ADDRESS...",
     1
+  ]
+}
+```
+
+### refund
+
+```rust
+pub fn refund(env: Env, campaign_id: u64, donor: Address) -> Result<(), ContractError>
+```
+
+Arguments
+
+- `env` - Contract environment.
+- `campaign_id` - ID of the expired campaign.
+- `donor` - Address reclaiming its contribution.
+
+Authorization
+
+- `donor` must authenticate the call via `donor.require_auth()`.
+
+Emitted events
+
+- Emits `(symbol_short!("refund"),)` carrying `RefundEvent { campaign_id, donor, amount: donated }`.
+
+Returns
+
+- `Ok(())` on success. (Note: returns `Result<(), ContractError>`, does not return the amount).
+
+Errors
+
+- `ContractPaused` while the contract is paused.
+- `Unauthorized` if `donor` is not authenticated.
+- `CampaignNotFound` if the campaign ID does not exist.
+- `RefundNotAllowed` if the campaign status is not `Expired` or if `raised_amount >= target_amount`.
+- `NothingToClaim` if the donor has no recorded contribution remaining.
+- `TokenTransferFailed` if the token transfer to the donor fails.
+- `ArithmeticError` if campaign raised_amount underflows.
+- `ReentrancyDetected` if the reentrancy lock is already held.
+
+Example illustrative invocation (not executed):
+
+```json
+{
+  "method": "refund",
+  "params": [
+    1,
+    "GD...DONOR_ADDRESS..."
+  ]
+}
+```
+
+### upgrade
+
+```rust
+pub fn upgrade(env: Env, new_wasm_hash: soroban_sdk::BytesN<32>) -> Result<(), ContractError>
+```
+
+Arguments
+
+- `env` - Contract environment.
+- `new_wasm_hash` - 32-byte hash (`soroban_sdk::BytesN<32>`) of the newly uploaded WASM bytecode.
+
+Authorization
+
+- Current upgrade `owner` must authenticate the call via `owner.require_auth()`.
+
+Emitted events
+
+- Emits `(symbol_short!("Upgraded"),)` carrying `new_wasm_hash` (`BytesN<32>`).
+
+Returns
+
+- `Ok(())` on success.
+
+Errors
+
+- `NotInitialized` if the contract is not initialized.
+- `Unauthorized` if caller is not the owner.
+
+Example illustrative invocation (not executed):
+
+```json
+{
+  "method": "upgrade",
+  "params": [
+    "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
+  ]
+}
+```
+
+### get_owner
+
+```rust
+pub fn get_owner(env: Env) -> Result<Address, ContractError>
+```
+
+Arguments
+
+- `env` - Contract environment.
+
+Authorization
+
+- None (public read-only query).
+
+Emitted events
+
+- None.
+
+Returns
+
+- `Ok(Address)` returning the current contract owner address.
+
+Errors
+
+- `NotInitialized` if the contract is not initialized.
+
+Example illustrative invocation (not executed):
+
+```json
+{
+  "method": "get_owner",
+  "params": []
+}
+```
+
+### set_owner
+
+```rust
+pub fn set_owner(env: Env, new_owner: Address) -> Result<(), ContractError>
+```
+
+Arguments
+
+- `env` - Contract environment.
+- `new_owner` - Address to receive owner rights.
+
+Authorization
+
+- Current upgrade `owner` must authenticate the call via `owner.require_auth()`.
+
+Emitted events
+
+- Emits `(symbol_short!("OwnerSet"),)` carrying `new_owner` (`Address`).
+
+Returns
+
+- `Ok(())` on success.
+
+Errors
+
+- `NotInitialized` if the contract is not initialized.
+- `Unauthorized` if caller is not the current owner.
+
+Example illustrative invocation (not executed):
+
+```json
+{
+  "method": "set_owner",
+  "params": [
+    "GA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVSGZ"
   ]
 }
 ```
@@ -200,7 +586,7 @@ Errors
 
 - `CampaignNotFound` if the campaign ID does not exist.
 
-Example JSON-RPC payload
+Example illustrative invocation (not executed):
 
 ```json
 {
@@ -228,7 +614,7 @@ Errors
 
 - `CampaignNotFound` if the campaign ID does not exist.
 
-Example JSON-RPC payload
+Example illustrative invocation (not executed):
 
 ```json
 {
@@ -251,7 +637,7 @@ pub fn get_campaigns_by_creator(env: Env, creator: Address) -> Vec<Campaign>
 ### get_campaigns_paged
 
 ```rust
-pub fn get_campaigns_paged(env: Env, offset: u64, limit: u32) -> Vec<Campaign>
+pub fn get_campaigns_paged(env: Env, offset: u64, mut limit: u32) -> Vec<Campaign>
 ```
 
 - Arguments: `offset` is the number of campaign IDs to skip, and `limit` is the requested page size.
@@ -323,6 +709,44 @@ pub fn get_updates(env: Env, id: u64) -> Vec<Update>
 - Limit: at most 10 updates per campaign.
 - Errors: this function returns no `Result`/error. Unknown campaign IDs return an empty vector.
 
+## Pause Behavior
+
+The contract supports an administrative pause mechanism operated by the platform administrator via `pause` and `unpause`. When paused, the `ensure_not_paused` guard halts state-changing operations across the contract.
+
+Specifically, calling any of the following functions while the contract is paused immediately returns `Err(ContractError::ContractPaused)`:
+- `create_campaign`
+- `donate`
+- `cancel_campaign`
+- `claim_funds`
+- `refund`
+- `add_update`
+
+The following functions are not blocked by `ensure_not_paused`:
+- `claim_refund`: intentionally remains available during a pause so donors can reclaim funds from already-cancelled campaigns.
+- `unpause`: enables the platform administrator to restore normal operations.
+- `initialize` and `pause`: lifecycle and pause administration.
+- `upgrade` and `set_owner`: emergency maintenance operations guarded by owner authentication.
+- `get_owner` and all read-only getters (`get_campaign`, `get_top_donors`, `get_campaigns_by_creator`, `get_campaigns_paged`, `get_campaigns`, `get_total_campaigns`, `get_time_left`, `get_updates`).
+- `add_to_whitelist`.
+
+## Refund Mechanisms: `refund` vs. `claim_refund`
+
+The contract provides two distinct refund mechanisms tailored to different campaign states:
+
+- **`refund` (Expired Campaigns Below Target):**
+  When a campaign reaches its deadline without meeting its funding target (`status == Expired` and `raised_amount < target_amount`), donors reclaim their contributions via `refund(env, campaign_id, donor)`. This function is guarded by `ensure_not_paused` (blocked with `ContractPaused` while the contract is paused). It returns `Result<(), ContractError>` (`Ok(())` on success; does not return the amount). If the donor has no contribution recorded, it returns `ContractError::NothingToClaim`.
+- **`claim_refund` (Cancelled Campaigns):**
+  When a campaign is cancelled by its creator (`status == Cancelled`), donors reclaim their contributions via `claim_refund(env, donor, campaign_id)`. This function is intentionally not guarded by `ensure_not_paused`, allowing donors to recover funds even if the contract is paused. It returns `Result<i128, ContractError>` (`Ok(amount)` where `amount` is the refunded amount in stroops). If the donor has no contribution recorded, it returns `ContractError::NothingToRefund`.
+
+| Property | `refund` | `claim_refund` |
+|---|---|---|
+| **Target Campaign State** | Expired campaigns that failed to reach their target (`status == Expired` and `raised_amount < target_amount`). | Cancelled campaigns (`status == Cancelled`). |
+| **Return Value** | `Result<(), ContractError>` — returns `Ok(())` on success (does not return amount). | `Result<i128, ContractError>` — returns `Ok(amount)` where `amount` is the refunded amount in stroops. |
+| **Pause Behavior** | Guarded by `ensure_not_paused`: blocked while paused (`ContractPaused`). | Not guarded by `ensure_not_paused`: donors can reclaim their contributions even while paused. |
+| **Emitted Event** | `(symbol_short!("refund"),)` with payload `RefundEvent { campaign_id, donor, amount }`. | `(symbol_short!("refund"), campaign_id)` with payload `RefundEvent { campaign_id, donor, amount }`. |
+| **Empty Contribution Error** | `ContractError::NothingToClaim` | `ContractError::NothingToRefund` |
+| **Invalid State Error** | `ContractError::RefundNotAllowed` | `ContractError::CampaignNotCancelled` |
+
 ## Status derivation
 
 Read functions derive `Campaign.status` at read time through `derive_status(now, campaign)`:
@@ -354,7 +778,7 @@ Additional public API limits not backed by named constants: a paged read returns
 
 ## ContractError Reference
 
-The table contains all 37 `ContractError` variants. Numeric codes are the contract ABI values and are also used by `frontend/src/lib/contractErrors.ts`.
+The table contains all 37 `ContractError` variants. Numeric codes are the contract ABI values and are also used by [`frontend/src/lib/contractErrors.ts`](../frontend/src/lib/contractErrors.ts).
 
 | Code | Variant | Trigger condition |
 |---:|---|---|
