@@ -36,24 +36,20 @@ function campaignScVal(): string {
   const c = CANCELLED_CAMPAIGN;
   const entries: [string, xdr.ScVal][] = [
     ["accepted_token", new Address(TOKEN).toScVal()],
-    ["beneficiary", new Address(CREATOR).toScVal()],
     [
       "beneficiaries",
       xdr.ScVal.scvVec([
         xdr.ScVal.scvVec([new Address(CREATOR).toScVal(), nativeToScVal(10000, { type: "u32" })]),
       ]),
     ],
-    ["category", nativeToScVal("Disaster", { type: "string" })],
+    ["category", sym("Disaster")],
     ["creator", new Address(CREATOR).toScVal()],
     ["deadline", nativeToScVal(9_999_999_999n, { type: "u64" })],
     ["description", nativeToScVal("A cancelled campaign open for refunds", { type: "string" })],
     ["id", nativeToScVal(BigInt(c.id), { type: "u64" })],
     ["metadata_uri", nativeToScVal("", { type: "string" })],
     ["raised_amount", nativeToScVal(c.raised, { type: "i128" })],
-    [
-      "status",
-      xdr.ScVal.scvMap([new xdr.ScMapEntry({ key: sym(c.status), val: xdr.ScVal.scvVoid() })]),
-    ],
+    ["status", xdr.ScVal.scvVec([sym(c.status)])],
     ["target_amount", nativeToScVal(c.target, { type: "i128" })],
     ["title", nativeToScVal(c.title, { type: "string" })],
     ["twitter", nativeToScVal("", { type: "string" })],
@@ -218,7 +214,7 @@ async function mockSorobanRPC(page: Page, isDonor: boolean) {
 const refundControl = (page: Page) => page.getByRole("button", { name: /Claim refund/i });
 
 test.describe("Claim refund on a cancelled campaign", () => {
-  test("a prior donor can claim a refund successfully", async ({ page }) => {
+  test("a prior donor (isDonor=true) can claim a refund successfully", async ({ page }) => {
     await mockSorobanRPC(page, /* isDonor */ true);
     await page.goto(`/campaign/${CANCELLED_CAMPAIGN.id}`);
 
@@ -234,12 +230,14 @@ test.describe("Claim refund on a cancelled campaign", () => {
     await expect(refundControl(page)).toHaveCount(0);
   });
 
-  test("a non-donor never sees the refund control", async ({ page }) => {
+  test("a non-donor (isDonor=false) never sees the refund control", async ({ page }) => {
     await mockSorobanRPC(page, /* isDonor */ false);
     await page.goto(`/campaign/${CANCELLED_CAMPAIGN.id}`);
 
     // The campaign loads, but the refund control must not appear.
-    await expect(page.getByText(CANCELLED_CAMPAIGN.title)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("heading", { name: CANCELLED_CAMPAIGN.title })).toBeVisible({
+      timeout: 15_000,
+    });
     await expect(refundControl(page)).toHaveCount(0);
   });
 });
