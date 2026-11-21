@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import ExploreClient from "./ExploreClient";
 
 export const metadata: Metadata = {
-  title: "Explore Relief Campaigns | StellarGive",
+  title: "Explore Relief Campaigns",
   description: "Discover and support active relief campaigns on the Stellar network.",
 };
 

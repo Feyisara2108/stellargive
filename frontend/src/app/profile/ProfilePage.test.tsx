@@ -46,13 +46,19 @@ vi.mock("@/hooks/useSoroban", async () =>
 
 // Mock components
 vi.mock("@/components/Navbar", () => ({ Navbar: () => <div /> }));
-vi.mock("@/components/CampaignCard", () => ({ CampaignCard: () => <div /> }));
-vi.mock("@/components/WalletConnect", () => ({ WalletConnect: () => <div /> }));
-vi.mock("@/components/AddressLink", () => ({
-  AddressLink: ({ address }: { address: string }) => <span>{address}</span>,
+vi.mock("@/components/CampaignCard", () => ({
+  CampaignCard: ({ campaign }: { campaign: { title: string } }) => (
+    <div data-testid="campaign-card">{campaign.title}</div>
+  ),
 }));
+vi.mock("@/components/WalletConnect", () => ({ WalletConnect: () => <div /> }));
 
-import { useRecentCampaigns, useEvents } from "@/hooks/useSoroban";
+import {
+  useCampaignsByCreator,
+  useRecentCampaigns,
+  useEvents,
+  useTokenMetadataBatch,
+} from "@/hooks/useSoroban";
 
 describe("ProfilePage - Empty States", () => {
   it("displays empty state messages and action buttons when no campaigns created or supported", () => {
@@ -120,5 +126,113 @@ describe("ProfilePage - malformed event payloads", () => {
     fireEvent.click(screen.getByRole("tab", { name: /My Donations/i }));
 
     expect(screen.getByText(/You haven't made any donations yet/i)).toBeInTheDocument();
+  });
+});
+
+describe("ProfilePage - donation rows", () => {
+  const USDC_TOKEN = "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA";
+  const donationTo = (campaignId: bigint, amount: bigint, acceptedToken: string) => ({
+    id: `d-${campaignId}`,
+    topic: "received",
+    data: {
+      campaign_id: campaignId,
+      donor: TEST_ADDRESS,
+      amount,
+      total_raised: amount,
+      accepted_token: acceptedToken,
+      comment: null,
+    },
+  });
+
+  it("links an unlisted campaign to its campaign page, not to an account explorer", () => {
+    vi.mocked(useRecentCampaigns).mockReturnValue({ data: [], isLoading: false } as any);
+    vi.mocked(useEvents).mockReturnValue({
+      data: [donationTo(7n, 50_000_000n, "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC")],
+      isLoading: false,
+    } as any);
+
+    render(<ProfilePage />);
+    fireEvent.click(screen.getByRole("tab", { name: /My Donations/i }));
+
+    const link = screen.getByRole("link", { name: "Campaign #7" });
+    expect(link).toHaveAttribute("href", "/campaign/7");
+    expect(screen.queryByText(/To campaign ID: 7/)).not.toBeInTheDocument();
+    expect(screen.getByText("5 XLM Donated")).toBeInTheDocument();
+  });
+
+  it("formats the amount with the donation's own token decimals and symbol", () => {
+    vi.mocked(useRecentCampaigns).mockReturnValue({ data: [], isLoading: false } as any);
+    vi.mocked(useEvents).mockReturnValue({
+      data: [donationTo(3n, 2_500_000n, USDC_TOKEN)],
+      isLoading: false,
+    } as any);
+    vi.mocked(useTokenMetadataBatch).mockReturnValue({
+      data: { [USDC_TOKEN]: { symbol: "USDC", decimals: 6 } },
+    } as any);
+
+    render(<ProfilePage />);
+    fireEvent.click(screen.getByRole("tab", { name: /My Donations/i }));
+
+    expect(screen.getByText("2.5 USDC Donated")).toBeInTheDocument();
+    expect(useTokenMetadataBatch).toHaveBeenCalledWith([USDC_TOKEN]);
+  });
+});
+
+describe("ProfilePage - My Campaigns status filter", () => {
+  const campaign = (id: number, status: string) => ({
+    id: BigInt(id),
+    title: `${status} campaign ${id}`,
+    status,
+    raised_amount: 0n,
+  });
+
+  const renderWith = (created: ReturnType<typeof campaign>[]) => {
+    vi.mocked(useCampaignsByCreator).mockReturnValue({ data: created, isLoading: false } as any);
+    vi.mocked(useRecentCampaigns).mockReturnValue({ data: [], isLoading: false } as any);
+    vi.mocked(useEvents).mockReturnValue({ data: [], isLoading: false } as any);
+    render(<ProfilePage />);
+  };
+
+  it("counts each chip by the campaigns that selecting it shows", () => {
+    renderWith([
+      campaign(1, "Active"),
+      campaign(2, "Funded"),
+      campaign(3, "Cancelled"),
+      campaign(4, "Expired"),
+      campaign(5, "Claimed"),
+    ]);
+
+    const funded = screen.getByRole("button", { name: /Funded/ });
+    expect(screen.getByRole("button", { name: /Active/ })).toHaveTextContent("(1)");
+    expect(funded).toHaveTextContent("(1)");
+
+    fireEvent.click(funded);
+    expect(screen.getAllByTestId("campaign-card")).toHaveLength(1);
+    expect(screen.getByText("Funded campaign 2")).toBeInTheDocument();
+  });
+
+  it("marks the selected chip with aria-pressed", () => {
+    renderWith([campaign(1, "Active")]);
+
+    const all = screen.getByRole("button", { name: "All" });
+    const active = screen.getByRole("button", { name: /Active/ });
+    expect(screen.getByRole("group", { name: /Status/ })).toBeInTheDocument();
+    expect(all).toHaveAttribute("aria-pressed", "true");
+    expect(active).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(active);
+    expect(all).toHaveAttribute("aria-pressed", "false");
+    expect(active).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("explains an empty filter instead of claiming no campaigns exist", () => {
+    renderWith([campaign(1, "Active")]);
+
+    fireEvent.click(screen.getByRole("button", { name: /Funded/ }));
+    expect(screen.queryByText(/You haven't created any campaigns yet/i)).not.toBeInTheDocument();
+    expect(screen.getByText("None of your campaigns are Funded.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show all campaigns" }));
+    expect(screen.getByText("Active campaign 1")).toBeInTheDocument();
   });
 });

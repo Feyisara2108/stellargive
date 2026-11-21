@@ -88,7 +88,7 @@ describe("CampaignPage (server)", () => {
     const metadata = await generateMetadata({ params });
     const element = await CampaignPage({ params });
 
-    expect(metadata.title).toBe("Flood Relief | StellarGive");
+    expect(metadata.title).toBe("Flood Relief");
     expect(getCampaignMock).toHaveBeenCalledTimes(1);
     expect(element.props.initialCampaign).toBe(campaign);
     expect(element.props.breadcrumbs.at(-1).label).toBe("Flood Relief");

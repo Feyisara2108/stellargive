@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import AdminClient from "./AdminClient";
 
 export const metadata: Metadata = {
-  title: "Campaign Administration | StellarGive",
+  title: "Campaign Administration",
   description: "Manage StellarGive campaigns and platform settings.",
 };
 

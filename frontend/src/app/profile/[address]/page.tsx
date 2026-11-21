@@ -14,17 +14,15 @@ export async function generateMetadata({ params }: PublicProfileProps): Promise<
   const truncatedAddress = `${address.slice(0, 6)}...${address.slice(-4)}`;
 
   return {
-    title: `Profile ${truncatedAddress} - StellarGive`,
+    title: `Profile ${truncatedAddress}`,
     description: `View the StellarGive profile for ${truncatedAddress}. See campaigns created and supported.`,
     openGraph: {
-      title: `Profile ${truncatedAddress} - StellarGive`,
       description: `View the StellarGive profile for ${truncatedAddress}. See campaigns created and supported.`,
       type: "profile",
       siteName: "StellarGive",
     },
     twitter: {
       card: "summary",
-      title: `Profile ${truncatedAddress} - StellarGive`,
       description: `View the StellarGive profile for ${truncatedAddress}. See campaigns created and supported.`,
     },
   };

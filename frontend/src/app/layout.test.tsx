@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import RootLayout from "./layout";
+import RootLayout, { metadata } from "./layout";
 
 // next/font/google requires network access to fetch font metadata at build
 // time and isn't set up to run under vitest; every consumer just needs a
@@ -82,5 +82,24 @@ describe("RootLayout skip link (#697)", () => {
 
     main?.focus();
     expect(main).toHaveFocus();
+  });
+});
+
+describe("RootLayout metadata", () => {
+  it("brands every page title through a single template", () => {
+    expect(metadata.title).toEqual({
+      default: "StellarGive | Relief Grant Platform",
+      template: "%s | StellarGive",
+    });
+  });
+
+  it("gives every page openGraph and twitter defaults", () => {
+    expect(metadata.openGraph).toMatchObject({ type: "website", siteName: "StellarGive" });
+    expect(metadata.twitter).toMatchObject({ card: "summary_large_image" });
+  });
+
+  it("leaves social titles unset so Next fills them from each page's own title", () => {
+    expect(metadata.openGraph).not.toHaveProperty("title");
+    expect(metadata.twitter).not.toHaveProperty("title");
   });
 });
