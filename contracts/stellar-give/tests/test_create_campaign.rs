@@ -12,8 +12,8 @@ use helpers::{get_events, register_and_setup, set_timestamp, single_ben};
 use soroban_sdk::testutils::Address as _;
 use soroban_sdk::{symbol_short, token, Address, String, Symbol, TryFromVal, Vec};
 use stellar_give::{
-    CampaignStatus, ContractError, CreatedEvent, StellarGiveContractClient,
-    MAX_BENEFICIARIES, MAX_CAMPAIGNS_PER_CREATOR, MAX_DURATION, MIN_TARGET,
+    CampaignStatus, ContractError, CreatedEvent, StellarGiveContractClient, MAX_BENEFICIARIES,
+    MAX_CAMPAIGNS_PER_CREATOR, MAX_DURATION, MIN_TARGET,
 };
 
 // ── happy path and stored state ────────────────────────────────────────────
@@ -1245,4 +1245,54 @@ fn create_campaign_rejects_zero_share_beneficiary() {
         &None,
     );
     assert_eq!(result, Err(Ok(ContractError::InvalidShares)));
+}
+
+#[test]
+fn test_create_campaign_uninitialized_returns_not_initialized_and_leaves_count_zero() {
+    let (env, client, creator, beneficiary, _donor, platform_admin, token_client, _) =
+        helpers::register_without_initialize();
+    set_timestamp(&env, 1_000);
+
+    let bens = single_ben(&env, &beneficiary);
+    let result = client.try_create_campaign(
+        &creator,
+        &bens,
+        &String::from_str(&env, "Uninit Test"),
+        &String::from_str(&env, "A test campaign description."),
+        &String::from_str(&env, "https://example.com/meta"),
+        &symbol_short!("relief"),
+        &10_000_000_i128,
+        &5_000_u64,
+        &token_client.address,
+        &None,
+    );
+
+    assert_eq!(
+        result,
+        Err(Ok(ContractError::NotInitialized)),
+        "create_campaign on uninitialized contract must fail with NotInitialized"
+    );
+    assert_eq!(
+        client.get_total_campaigns(),
+        0,
+        "no campaign id should be consumed when initialization check fails"
+    );
+
+    // After initialize, the exact same call succeeds and gets id 1
+    client.initialize(&platform_admin);
+    let second_result = client.try_create_campaign(
+        &creator,
+        &bens,
+        &String::from_str(&env, "Uninit Test"),
+        &String::from_str(&env, "A test campaign description."),
+        &String::from_str(&env, "https://example.com/meta"),
+        &symbol_short!("relief"),
+        &10_000_000_i128,
+        &5_000_u64,
+        &token_client.address,
+        &None,
+    );
+
+    assert_eq!(second_result, Ok(Ok(1)));
+    assert_eq!(client.get_total_campaigns(), 1);
 }

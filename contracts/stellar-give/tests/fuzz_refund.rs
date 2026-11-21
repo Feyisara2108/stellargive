@@ -8,7 +8,7 @@
 //! 2. **Per-donor cap**: a donor can never refund more than they personally
 //!    donated (the contract returns exactly the recorded contribution).
 //! 3. **Double-refund protection**: a second refund on the same campaign by
-//!    the same donor reverts with `NothingToClaim` rather than succeeding
+//!    the same donor reverts with `NothingToRefund` rather than succeeding
 //!    or double-paying.
 
 use proptest::prelude::*;
@@ -170,7 +170,7 @@ proptest! {
     }
 
     /// Invariant: a second refund attempt by the same donor on the same
-    /// campaign must revert with `NothingToClaim` (double-refund protection).
+    /// campaign must revert with `NothingToRefund` (double-refund protection).
     #[test]
     fn fuzz_double_refund_reverts(
         donation_amount in MIN_DONATION..=500_000_000_i128,
@@ -200,8 +200,8 @@ proptest! {
         let second_result = client.try_refund(&campaign_id, &donor);
         prop_assert_eq!(
             second_result,
-            Err(Ok(ContractError::NothingToClaim)),
-            "second refund must revert with NothingToClaim"
+            Err(Ok(ContractError::NothingToRefund)),
+            "second refund must revert with NothingToRefund"
         );
 
         // Balance must not change after failed second refund
@@ -289,8 +289,8 @@ proptest! {
         let result = client.try_refund(&campaign_id, &non_donor);
         prop_assert_eq!(
             result,
-            Err(Ok(ContractError::NothingToClaim)),
-            "non-donor refund must revert with NothingToClaim"
+            Err(Ok(ContractError::NothingToRefund)),
+            "non-donor refund must revert with NothingToRefund"
         );
     }
 }

@@ -318,15 +318,18 @@ fn claim_funds_fails_when_admin_not_initialized() {
     let creator = Address::generate(&env);
     let beneficiary = Address::generate(&env);
     let donor = Address::generate(&env);
+    let platform_admin = Address::generate(&env);
     let token_admin = Address::generate(&env);
 
     let token_id = env.register_stellar_asset_contract_v2(token_admin.clone());
     let token_client = token::Client::new(&env, &token_id.address());
     let token_admin_client = token::StellarAssetClient::new(&env, &token_id.address());
     token_admin_client.mint(&donor, &100_000_000_000);
+    token_admin_client.mint(&creator, &100_000_000_000);
 
     let contract_id = env.register_contract(None, StellarGiveContract);
     let client = StellarGiveContractClient::new(&env, &contract_id);
+    client.initialize(&platform_admin);
 
     let mut bens = Vec::new(&env);
     bens.push_back((beneficiary.clone(), 10_000_u32));
@@ -348,9 +351,15 @@ fn claim_funds_fails_when_admin_not_initialized() {
     client.donate(&donor, &campaign_id, &5_000_000, &false, &None);
     set_timestamp(&env, 6_000); // past the deadline so a manual claim is allowed
 
+    // Remove the admin key to verify claim_funds fails when admin is missing.
+    env.as_contract(&contract_id, || {
+        env.storage().persistent().remove(&symbol_short!("ADMIN"));
+    });
+
     let result = client.try_claim_funds(&creator, &campaign_id);
-    assert!(
-        result.is_err(),
+    assert_eq!(
+        result,
+        Err(Ok(ContractError::NotInitialized)),
         "claim must fail when platform admin is not initialized"
     );
 }

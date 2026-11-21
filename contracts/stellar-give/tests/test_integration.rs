@@ -180,7 +180,7 @@ fn test_refund_rejects_nothing_to_claim() {
     set_timestamp(&env, 3_000);
 
     let result = client.try_refund(&campaign_id, &donor);
-    assert_eq!(result, Err(Ok(ContractError::NothingToClaim)));
+    assert_eq!(result, Err(Ok(ContractError::NothingToRefund)));
 }
 
 #[test]
