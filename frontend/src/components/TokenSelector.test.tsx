@@ -1,7 +1,9 @@
 import React from "react";
 import { vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import { TokenSelector, PREDEFINED_TOKENS } from "./TokenSelector";
+import { getTokenMetadata, type TokenMetadata } from "@/lib/soroban";
+import { toast } from "sonner";
 import "@testing-library/jest-dom";
 
 // USDC is only listed when configured; give the picker a second token to select.
@@ -18,6 +20,7 @@ vi.mock("lucide-react", () => ({
   ChevronDown: () => <div data-testid="chevron-down-icon" />,
   Coins: () => <div data-testid="coins-icon" />,
   ShieldCheck: () => <div data-testid="shield-check-icon" />,
+  AlertTriangle: () => <div data-testid="alert-triangle-icon" />,
 }));
 
 vi.mock("@/lib/soroban", () => ({
@@ -149,5 +152,110 @@ describe("TokenSelector — recent tokens", () => {
     render(<TokenSelector value="" onChange={onChange} />);
     openMenu();
     expect(screen.queryByTestId("recent-tokens")).not.toBeInTheDocument();
+  });
+});
+
+describe("TokenSelector — custom token", () => {
+  const onChange = vi.fn();
+  // Each test uses its own id: the metadata cache lives at module level.
+  const contractId = (c: string) => `C${c.repeat(55)}`;
+  const meta = (symbol: string): TokenMetadata => ({ symbol, decimals: 7, name: symbol });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.localStorage.clear();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const openCustomForm = () => {
+    render(<TokenSelector value="" onChange={onChange} />);
+    fireEvent.click(screen.getAllByRole("button")[0]);
+    fireEvent.click(screen.getByRole("button", { name: /Add Custom Token/i }));
+    return screen.getByPlaceholderText(/Contract ID/);
+  };
+
+  const type = (input: HTMLElement, value: string) => fireEvent.change(input, { target: { value } });
+
+  test("rejects a malformed id and clears the error when the input is emptied", () => {
+    const input = openCustomForm();
+    type(input, "GABC");
+    expect(
+      screen.getByText("Invalid contract format. Must start with 'C' and be 56 characters."),
+    ).toBeInTheDocument();
+
+    type(input, "");
+    expect(screen.queryByText(/Invalid contract format/)).not.toBeInTheDocument();
+    expect(getTokenMetadata).not.toHaveBeenCalled();
+  });
+
+  test("validates after the 600 ms debounce and shows the symbol", async () => {
+    let resolve!: (m: TokenMetadata) => void;
+    vi.mocked(getTokenMetadata).mockReturnValue(new Promise((r) => (resolve = r)));
+    const input = openCustomForm();
+    type(input, contractId("A"));
+
+    act(() => {
+      vi.advanceTimersByTime(599);
+    });
+    expect(getTokenMetadata).not.toHaveBeenCalled();
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(screen.getByText(/Validating SAC interface compliance/)).toBeInTheDocument();
+    await vi.waitFor(() => expect(getTokenMetadata).toHaveBeenCalledWith(contractId("A")));
+
+    await act(async () => resolve(meta("TKA")));
+    await vi.waitFor(() => expect(screen.getByText("TKA")).toBeInTheDocument());
+    expect(toast.success).toHaveBeenCalledWith("Validated SAC compliant token: TKA");
+    expect(screen.queryByText(/Validating SAC interface compliance/)).not.toBeInTheDocument();
+  });
+
+  test("shows the lookup error message", async () => {
+    vi.mocked(getTokenMetadata).mockRejectedValue(new Error("not a token contract"));
+    const input = openCustomForm();
+    type(input, contractId("B"));
+    act(() => {
+      vi.advanceTimersByTime(600);
+    });
+    await vi.waitFor(() => expect(screen.getByText("not a token contract")).toBeInTheDocument());
+  });
+
+  test("shows a generic message for a non-Error rejection", async () => {
+    vi.mocked(getTokenMetadata).mockRejectedValue("boom");
+    const input = openCustomForm();
+    type(input, contractId("E"));
+    act(() => {
+      vi.advanceTimersByTime(600);
+    });
+    await vi.waitFor(() =>
+      expect(screen.getByText("Failed to validate SAC interface compliance")).toBeInTheDocument(),
+    );
+  });
+
+  test("uses the cache for a repeated id and adds the token", async () => {
+    vi.mocked(getTokenMetadata).mockResolvedValue(meta("TKD"));
+    const input = openCustomForm();
+    type(input, contractId("D"));
+    act(() => {
+      vi.advanceTimersByTime(600);
+    });
+    await vi.waitFor(() => expect(screen.getByText("TKD")).toBeInTheDocument());
+
+    type(input, "");
+    type(input, contractId("D"));
+    expect(screen.getByText("TKD")).toBeInTheDocument();
+    act(() => {
+      vi.advanceTimersByTime(600);
+    });
+    expect(getTokenMetadata).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: /Add & Select/i }));
+    expect(onChange).toHaveBeenCalledWith(contractId("D"));
+    expect(screen.queryByPlaceholderText(/Contract ID/)).not.toBeInTheDocument();
   });
 });
