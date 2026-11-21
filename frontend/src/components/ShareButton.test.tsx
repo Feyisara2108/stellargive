@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { ShareButton } from "./ShareButton";
 
 vi.mock("sonner", () => ({
@@ -9,7 +9,12 @@ vi.mock("sonner", () => ({
   },
 }));
 
+vi.mock("@/lib/logger", () => ({
+  logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
+}));
+
 import { toast } from "sonner";
+import { logger } from "@/lib/logger";
 
 const CAMPAIGN = { id: 5n, title: "Clean Water Project" };
 const EXPECTED_URL = `${window.location.origin}/campaign/5`;
@@ -170,5 +175,107 @@ describe("ShareButton — social intents", () => {
     const [, target, features] = vi.mocked(window.open).mock.calls[0];
     expect(target).toBe("_blank");
     expect(features).toBe("noopener,noreferrer");
+  });
+});
+
+describe("ShareButton — other networks", () => {
+  const text = `Check out "Clean Water Project" on StellarGive`;
+
+  it("opens the Telegram share URL", async () => {
+    render(<ShareButton campaign={CAMPAIGN} />);
+    await openShareDialog();
+    fireEvent.click(screen.getByRole("button", { name: /share on telegram/i }));
+    expect(window.open).toHaveBeenCalledWith(
+      `https://t.me/share/url?url=${encodeURIComponent(EXPECTED_URL)}&text=${encodeURIComponent(text)}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
+  });
+
+  it("opens the WhatsApp share URL with the link in the text", async () => {
+    render(<ShareButton campaign={CAMPAIGN} />);
+    await openShareDialog();
+    fireEvent.click(screen.getByRole("button", { name: /share on whatsapp/i }));
+    expect(window.open).toHaveBeenCalledWith(
+      `https://api.whatsapp.com/send?text=${encodeURIComponent(`${text}: ${EXPECTED_URL}`)}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
+  });
+});
+
+describe("ShareButton — native share", () => {
+  afterEach(() => {
+    // @ts-expect-error - cleaning up our own test-only stub
+    delete navigator.share;
+  });
+
+  function stubShare(impl: () => Promise<void>) {
+    const share = vi.fn(impl);
+    Object.defineProperty(navigator, "share", { value: share, configurable: true });
+    return share;
+  }
+
+  it("uses navigator.share when available and thanks the user", async () => {
+    const share = stubShare(() => Promise.resolve());
+    render(<ShareButton campaign={CAMPAIGN} />);
+    fireEvent.click(screen.getByRole("button", { name: /share campaign/i }));
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Thanks for sharing!"));
+    expect(share).toHaveBeenCalledWith(
+      expect.objectContaining({ title: CAMPAIGN.title, url: EXPECTED_URL }),
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("ignores an AbortError from the share sheet", async () => {
+    vi.mocked(toast.error).mockClear();
+    const share = stubShare(() => Promise.reject(new DOMException("cancelled", "AbortError")));
+    render(<ShareButton campaign={CAMPAIGN} />);
+    fireEvent.click(screen.getByRole("button", { name: /share campaign/i }));
+
+    await waitFor(() => expect(share).toHaveBeenCalled());
+    await act(async () => {});
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the dialog when navigator.share fails for another reason", async () => {
+    stubShare(() => Promise.reject(new Error("not allowed")));
+    render(<ShareButton campaign={CAMPAIGN} />);
+    fireEvent.click(screen.getByRole("button", { name: /share campaign/i }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+});
+
+describe("ShareButton — copy feedback timing", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("resets the copied state after 2 seconds", async () => {
+    render(<ShareButton campaign={CAMPAIGN} />);
+    await openShareDialog();
+    vi.useFakeTimers();
+
+    fireEvent.click(screen.getByRole("button", { name: /copy campaign link/i }));
+    await act(async () => {});
+    expect(screen.getByText("Copied!")).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(screen.getByText("Copy Link")).toBeInTheDocument();
+  });
+
+  it("logs a failed copy through the logger", async () => {
+    vi.mocked(navigator.clipboard.writeText).mockRejectedValueOnce(new Error("denied"));
+    render(<ShareButton campaign={CAMPAIGN} />);
+    await openShareDialog();
+
+    fireEvent.click(screen.getByRole("button", { name: /copy campaign link/i }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Unable to copy link"));
+    expect(logger.error).toHaveBeenCalledWith("Failed to copy link:", expect.any(Error));
   });
 });

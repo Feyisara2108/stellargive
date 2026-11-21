@@ -11,6 +11,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import {
   cancelCampaign,
+  claimFunds,
   claimRefund,
   createCampaign,
   donate,
@@ -117,5 +118,31 @@ describe.skipIf(!RUN)("local Stellar network integration", () => {
 
     const cancelled = await getCampaign(refundCampaignId);
     expect(cancelled.status).toBe("Cancelled");
+  }, 180_000);
+
+  it("pays a funded campaign out through claim_funds", async () => {
+    const target = 10_000_000n;
+    const fundedId = await createCampaign(admin, {
+      title: "Claim Integration Campaign",
+      targetAmount: target,
+    });
+    await donate(donor, fundedId, target);
+    expect((await getCampaign(fundedId)).status).toBe("Funded");
+
+    const claimed = await claimFunds(admin, fundedId);
+    expect(claimed).toBe(target);
+
+    const after = await getCampaign(fundedId);
+    expect(after.status).toBe("Claimed");
+    expect(after.raised_amount).toBe(0n);
+
+    // Give the RPC a moment to index the claim event.
+    await new Promise((r) => setTimeout(r, 3000));
+    const events = await getEvents(50);
+    const claimEvent = events.find(
+      (e) => e.topic === "claimed" && getCampaignId(e) === fundedId.toString(),
+    );
+    expect(claimEvent, "expected a claimed event for the funded campaign").toBeTruthy();
+    expect(getEventPayload(claimEvent!)).not.toBeNull();
   }, 180_000);
 });
