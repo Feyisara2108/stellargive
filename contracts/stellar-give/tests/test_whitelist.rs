@@ -6,7 +6,7 @@ use helpers::{
     create_default_campaign, register_and_setup, register_and_setup_without_auth_mock,
     set_timestamp, single_ben,
 };
-use stellar_give::ContractError;
+use stellar_give::{ContractError, MAX_WHITELIST_BATCH_SIZE};
 
 #[test]
 fn test_non_whitelisted_donor_rejected() {
@@ -177,4 +177,67 @@ fn test_non_whitelisted_donor_rejected_with_cap_configured() {
     // Donor is not whitelisted, and tries to donate amount under cap
     let result = client.try_donate(&donor, &campaign_id, &(cap - 1_000_000), &false, &None);
     assert_eq!(result, Err(Ok(ContractError::NotWhitelisted)));
+}
+
+#[test]
+fn test_add_to_whitelist_exact_max_batch_succeeds() {
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let bens = single_ben(&env, &beneficiary);
+    let campaign_id = client.create_campaign(
+        &creator,
+        &bens,
+        &String::from_str(&env, "Max Whitelist Campaign"),
+        &String::from_str(&env, "A test campaign description."),
+        &String::from_str(&env, "https://example.com/meta"),
+        &symbol_short!("relief"),
+        &10_000_000,
+        &2_000,
+        &token_client.address,
+        &None,
+    );
+
+    let mut addrs = Vec::new(&env);
+    for _ in 0..MAX_WHITELIST_BATCH_SIZE {
+        addrs.push_back(Address::generate(&env));
+    }
+
+    let result = client.try_add_to_whitelist(&campaign_id, &addrs);
+    assert!(
+        result.is_ok(),
+        "adding exactly MAX_WHITELIST_BATCH_SIZE must succeed"
+    );
+}
+
+#[test]
+fn test_add_to_whitelist_exceeding_max_batch_fails() {
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
+    set_timestamp(&env, 1_000);
+
+    let bens = single_ben(&env, &beneficiary);
+    let campaign_id = client.create_campaign(
+        &creator,
+        &bens,
+        &String::from_str(&env, "Oversized Whitelist Campaign"),
+        &String::from_str(&env, "A test campaign description."),
+        &String::from_str(&env, "https://example.com/meta"),
+        &symbol_short!("relief"),
+        &10_000_000,
+        &2_000,
+        &token_client.address,
+        &None,
+    );
+
+    let mut addrs = Vec::new(&env);
+    for _ in 0..=MAX_WHITELIST_BATCH_SIZE {
+        addrs.push_back(Address::generate(&env));
+    }
+
+    let result = client.try_add_to_whitelist(&campaign_id, &addrs);
+    assert_eq!(
+        result,
+        Err(Ok(ContractError::LimitExceeded)),
+        "adding MAX_WHITELIST_BATCH_SIZE + 1 must fail with LimitExceeded"
+    );
 }
