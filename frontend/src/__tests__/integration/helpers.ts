@@ -150,4 +150,12 @@ export async function claimRefund(donor: Keypair, campaignId: bigint): Promise<b
   return BigInt(scValToNative((result as any).returnValue));
 }
 
+export async function claimFunds(beneficiary: Keypair, campaignId: bigint): Promise<bigint> {
+  const result = await submitTransactionWithKeypair(beneficiary, "claim_funds", [
+    new Address(beneficiary.publicKey()).toScVal(),
+    nativeToScVal(campaignId, { type: "u64" }),
+  ]);
+  return BigInt(scValToNative((result as any).returnValue));
+}
+
 export { CONTRACT_ID, getCampaign, getEvents, Keypair, Operation, TransactionBuilder };
