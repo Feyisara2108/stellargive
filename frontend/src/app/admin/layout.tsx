@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Admin Dashboard | StellarGive",
   robots: {
     index: false,
     follow: false,

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import ActivityClient from "./ActivityClient";
 
 export const metadata: Metadata = {
-  title: "On-Chain Activity | StellarGive",
+  title: "On-Chain Activity",
   description: "Browse recent campaign creation, donation, and claim events on StellarGive.",
 };
 

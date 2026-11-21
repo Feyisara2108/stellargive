@@ -15,7 +15,7 @@ vi.mock("@/lib/soroban", () => ({
   },
 }));
 
-import { useEvents } from "@/hooks/useSoroban";
+import { useEvents, useTokenMetadataBatch } from "@/hooks/useSoroban";
 
 const CAMPAIGN_ID = 1n;
 const ANONYMOUS_DONOR = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
@@ -25,6 +25,7 @@ import { makeDonationEvent } from "@/test/factories";
 
 beforeEach(() => {
   vi.mocked(useEvents).mockReset();
+  vi.mocked(useTokenMetadataBatch).mockReturnValue({ data: {} } as any);
 });
 
 describe("RecentDonations — loading state", () => {
@@ -317,5 +318,63 @@ describe("RecentDonations — dedication messages", () => {
     } as any);
     const { container } = render(<RecentDonations campaignId={CAMPAIGN_ID} />);
     expect(container.querySelector("p.italic")).toBeNull();
+  });
+});
+
+describe("RecentDonations — non-XLM tokens", () => {
+  const USDC_TOKEN = "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA";
+
+  it("shows the amount in the donation's own token and decimals", () => {
+    vi.mocked(useEvents).mockReturnValue({
+      data: [
+        makeDonationEvent("0-1", REAL_DONOR, 5_000_000n, CAMPAIGN_ID, 100, {
+          accepted_token: USDC_TOKEN,
+        }),
+      ],
+      isLoading: false,
+      isError: false,
+    } as any);
+    vi.mocked(useTokenMetadataBatch).mockReturnValue({
+      data: { [USDC_TOKEN]: { symbol: "USDC", decimals: 6 } },
+    } as any);
+    const onDonateAgain = vi.fn();
+    render(<RecentDonations campaignId={CAMPAIGN_ID} onDonateAgain={onDonateAgain} />);
+
+    expect(screen.getByText("5 USDC")).toBeInTheDocument();
+    expect(screen.queryByText(/XLM/)).not.toBeInTheDocument();
+    expect(useTokenMetadataBatch).toHaveBeenCalledWith([USDC_TOKEN]);
+
+    fireEvent.click(screen.getByRole("button", { name: /donate again/i }));
+    expect(onDonateAgain).toHaveBeenCalledWith("5");
+  });
+
+  it("does not offer Donate again while the token's decimals are unknown", () => {
+    vi.mocked(useEvents).mockReturnValue({
+      data: [
+        makeDonationEvent("0-1", REAL_DONOR, 5_000_000n, CAMPAIGN_ID, 100, {
+          accepted_token: USDC_TOKEN,
+        }),
+      ],
+      isLoading: false,
+      isError: false,
+    } as any);
+    vi.mocked(useTokenMetadataBatch).mockReturnValue({ data: undefined } as any);
+    render(<RecentDonations campaignId={CAMPAIGN_ID} onDonateAgain={vi.fn()} />);
+
+    expect(screen.queryByText(/XLM/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /donate again/i })).not.toBeInTheDocument();
+  });
+
+  it("pre-fills Donate again with the XLM amount for native donations", () => {
+    vi.mocked(useEvents).mockReturnValue({
+      data: [makeDonationEvent("0-1", REAL_DONOR, 50_000_000n, CAMPAIGN_ID)],
+      isLoading: false,
+      isError: false,
+    } as any);
+    const onDonateAgain = vi.fn();
+    render(<RecentDonations campaignId={CAMPAIGN_ID} onDonateAgain={onDonateAgain} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /donate again/i }));
+    expect(onDonateAgain).toHaveBeenCalledWith("5");
   });
 });

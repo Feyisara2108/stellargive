@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useEvents } from "@/hooks/useSoroban";
+import { useEvents, useTokenMetadataBatch } from "@/hooks/useSoroban";
 import { formatTokenAmount } from "@/utils/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -11,6 +11,8 @@ import { AddressLink } from "@/components/AddressLink";
 import { RelativeTime } from "@/components/RelativeTime";
 import { sanitizeMessage } from "@/lib/sanitize";
 import { parseDonationEvent } from "@/lib/eventData";
+import { NATIVE_XLM_CONTRACT_ID } from "@/lib/tokens";
+import { UNKNOWN_TOKEN, describeToken, tokensNeedingMetadata } from "@/lib/tokenTotals";
 
 const INITIAL_BATCH_SIZE = 10;
 const BATCH_SIZE = 10;
@@ -59,7 +61,9 @@ export function RecentDonations({
   campaignId: bigint;
   /**
    * When provided, each donation row shows a "Donate again" shortcut that calls
-   * this with the row's amount (in XLM). The parent only passes it for active
+   * this with the row's amount in whole units of the token that donation was
+   * made in (e.g. "12.5"). It is not offered while that token's decimals are
+   * still unknown. The parent only passes it for active
    * campaigns, so the action is hidden once a campaign is no longer donatable.
    */
   onDonateAgain?: (amountXLM: string) => void;
@@ -76,6 +80,23 @@ export function RecentDonations({
   }, [campaignId]);
 
   const { data: allEvents, isLoading, isError } = useEvents();
+
+  // Filter for donations to this specific campaign, sorted by ledger descending.
+  // DonationEvent: { campaign_id, donor, amount, total_raised, accepted_token, comment }
+  const donations = allEvents
+    ?.flatMap((event) => {
+      const donation = parseDonationEvent(event);
+      return donation && donation.campaignId === campaignId.toString() ? [{ event, donation }] : [];
+    })
+    .sort((a, b) => Number(b.event.ledger) - Number(a.event.ledger));
+
+  // Each amount is in raw units of that donation's accepted_token, so its
+  // symbol and decimals come from the token instead of being assumed XLM.
+  const { data: tokenMetas } = useTokenMetadataBatch(
+    tokensNeedingMetadata(
+      new Set(donations?.map(({ donation }) => donation.acceptedToken ?? UNKNOWN_TOKEN)),
+    ),
+  );
 
   if (isLoading) {
     return (
@@ -117,15 +138,6 @@ export function RecentDonations({
     );
   }
 
-  // Filter for donations to this specific campaign, sorted by ledger descending.
-  // DonationEvent: { campaign_id, donor, amount, total_raised, accepted_token, comment }
-  const donations = allEvents
-    ?.flatMap((event) => {
-      const donation = parseDonationEvent(event);
-      return donation && donation.campaignId === campaignId.toString() ? [{ event, donation }] : [];
-    })
-    .sort((a, b) => Number(b.event.ledger) - Number(a.event.ledger));
-
   const visibleDonations = donations?.slice(0, visibleCount);
   const hasMore = Boolean(donations && visibleCount < donations.length);
 
@@ -148,7 +160,13 @@ export function RecentDonations({
             {visibleDonations.map(({ event, donation }) => {
               const donorAddress = donation.donor;
               const message = donation.comment ? sanitizeMessage(donation.comment) : "";
-              const amountStroops = donation.amount ?? 0n;
+              const tokenId = donation.acceptedToken ?? UNKNOWN_TOKEN;
+              const tokenMeta = tokenMetas?.[tokenId];
+              const { symbol, decimals } = describeToken(tokenId, tokenMeta);
+              const amount = formatTokenAmount(donation.amount ?? 0n, decimals);
+              // describeToken falls back to 7 decimals until metadata loads, so only
+              // pre-fill "Donate again" once the real decimals are known.
+              const decimalsKnown = tokenId === NATIVE_XLM_CONTRACT_ID || Boolean(tokenMeta);
               return (
                 <div
                   key={event.id}
@@ -160,7 +178,9 @@ export function RecentDonations({
                   />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm truncate">
-                      <span className="font-bold">{formatTokenAmount(amountStroops, 7)} XLM</span>{" "}
+                      <span className="font-bold">
+                        {amount} {symbol}
+                      </span>{" "}
                       donated by{" "}
                       {donorAddress ? (
                         <AddressLink address={donorAddress} className="text-muted-foreground" />
@@ -184,12 +204,12 @@ export function RecentDonations({
                       )}
                     </p>
                   </div>
-                  {onDonateAgain && (
+                  {onDonateAgain && decimalsKnown && (
                     <Button
                       variant="ghost"
                       size="sm"
                       className="shrink-0 h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-primary"
-                      onClick={() => onDonateAgain(formatTokenAmount(amountStroops, 7))}
+                      onClick={() => onDonateAgain(amount)}
                     >
                       <RotateCcw className="h-3 w-3" aria-hidden="true" />
                       Donate again

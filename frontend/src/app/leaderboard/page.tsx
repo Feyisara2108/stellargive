@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import LeaderboardClient from "./LeaderboardClient";
 
 export const metadata: Metadata = {
-  title: "Donor Leaderboard | StellarGive",
+  title: "Donor Leaderboard",
   description: "See the leading supporters of StellarGive relief campaigns.",
 };
 

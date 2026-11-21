@@ -10,10 +10,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatCard } from "@/components/ui/stat-card";
-import { useCampaignsByCreator, useRecentCampaigns, useEvents } from "@/hooks/useSoroban";
+import {
+  useCampaignsByCreator,
+  useRecentCampaigns,
+  useEvents,
+  useTokenMetadataBatch,
+} from "@/hooks/useSoroban";
 import { type Campaign, type SorobanEvent } from "@/lib/soroban";
-import { MISSING_FIELD, formatStroops, parseDonationEvent } from "@/lib/eventData";
-import { AddressLink } from "@/components/AddressLink";
+import { MISSING_FIELD, parseDonationEvent } from "@/lib/eventData";
+import { UNKNOWN_TOKEN, describeToken, tokensNeedingMetadata } from "@/lib/tokenTotals";
 import { useWallet } from "@/lib/WalletProvider";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { formatTokenAmount } from "@/utils/format";
@@ -26,6 +31,9 @@ import {
   TrendingUp,
   Megaphone,
 } from "lucide-react";
+
+const PROFILE_STATUS_FILTERS = ["all", "Active", "Funded"] as const;
+type ProfileStatusFilter = (typeof PROFILE_STATUS_FILTERS)[number];
 
 export default function ProfilePage() {
   const { address, isConnected } = useWallet();
@@ -82,9 +90,7 @@ export default function ProfilePage() {
     }, [createdCampaigns, recentCampaigns, events, address]);
 
   // Status filter for "My Campaigns" tab (#820).
-  const [profileStatusFilter, setProfileStatusFilter] = useState<"all" | "Active" | "Funded">(
-    "all",
-  );
+  const [profileStatusFilter, setProfileStatusFilter] = useState<ProfileStatusFilter>("all");
   const filteredCreated = useMemo(
     () =>
       profileStatusFilter === "all"
@@ -92,6 +98,13 @@ export default function ProfilePage() {
         : created.filter((c) => c.status === profileStatusFilter),
     [created, profileStatusFilter],
   );
+  // Each chip counts exactly what selecting it shows, so "Funded" is not every
+  // campaign that isn't Active (Cancelled, Expired and Claimed are neither).
+  const statusCounts: Record<ProfileStatusFilter, number> = {
+    all: created.length,
+    Active: activeCount,
+    Funded: created.filter((c) => c.status === "Funded").length,
+  };
 
   // Auth guard — the dashboard is meaningless without a connected wallet.
   if (!isConnected || !address) {
@@ -252,12 +265,22 @@ export default function ProfilePage() {
 
               <TabsContent value="campaigns" className="mt-8 space-y-8">
                 {/* Status filters for created campaigns (#820) */}
-                <div className="flex flex-wrap gap-2 items-center">
-                  <span className="text-sm text-muted-foreground mr-1">Status:</span>
-                  {(["all", "Active", "Funded"] as const).map((status) => (
+                <div
+                  role="group"
+                  aria-labelledby="profile-status-filter-label"
+                  className="flex flex-wrap gap-2 items-center"
+                >
+                  <span
+                    id="profile-status-filter-label"
+                    className="text-sm text-muted-foreground mr-1"
+                  >
+                    Status:
+                  </span>
+                  {PROFILE_STATUS_FILTERS.map((status) => (
                     <button
                       key={status}
                       type="button"
+                      aria-pressed={profileStatusFilter === status}
                       onClick={() => setProfileStatusFilter(status)}
                       className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors ${
                         profileStatusFilter === status
@@ -267,21 +290,33 @@ export default function ProfilePage() {
                     >
                       {status === "all" ? "All" : status}
                       {status !== "all" && (
-                        <span className="ml-1 opacity-70">
-                          ({status === "Active" ? activeCount : created.length - activeCount})
-                        </span>
+                        <span className="ml-1 opacity-70">({statusCounts[status]})</span>
                       )}
                     </button>
                   ))}
                 </div>
                 <Section
                   title="Campaigns I Created"
-                  emptyText="You haven't created any campaigns yet."
+                  emptyText={
+                    created.length === 0 || profileStatusFilter === "all"
+                      ? "You haven't created any campaigns yet."
+                      : `None of your campaigns are ${profileStatusFilter}.`
+                  }
                   campaigns={filteredCreated}
                   action={
-                    <Button asChild variant="outline" size="sm">
-                      <Link href="/create">Create your first campaign</Link>
-                    </Button>
+                    created.length === 0 || profileStatusFilter === "all" ? (
+                      <Button asChild variant="outline" size="sm">
+                        <Link href="/create">Create your first campaign</Link>
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setProfileStatusFilter("all")}
+                      >
+                        Show all campaigns
+                      </Button>
+                    )
                   }
                 />
                 <Section
@@ -327,6 +362,15 @@ function DonationsSection({
   emptyText: string;
   action?: React.ReactNode;
 }) {
+  const parsed = donations.map((event) => ({ event, donation: parseDonationEvent(event) }));
+  // Each amount is in raw units of that donation's accepted_token, so its
+  // symbol and decimals come from the token instead of being assumed XLM.
+  const { data: tokenMetas } = useTokenMetadataBatch(
+    tokensNeedingMetadata(
+      new Set(parsed.map(({ donation }) => donation?.acceptedToken ?? UNKNOWN_TOKEN)),
+    ),
+  );
+
   return (
     <section className="space-y-4">
       <AsyncBoundary
@@ -341,10 +385,14 @@ function DonationsSection({
         }
       >
         <div className="flex flex-col gap-4">
-          {donations.map((event, idx) => {
-            const donation = parseDonationEvent(event);
+          {parsed.map(({ event, donation }, idx) => {
             const campaignId = donation?.campaignId ?? null;
-            const amount = formatStroops(donation?.amount ?? null);
+            const tokenId = donation?.acceptedToken ?? UNKNOWN_TOKEN;
+            const { symbol, decimals } = describeToken(tokenId, tokenMetas?.[tokenId]);
+            const amount =
+              donation?.amount == null
+                ? MISSING_FIELD
+                : `${formatTokenAmount(donation.amount, decimals)} ${symbol}`;
             const campaign = campaignId
               ? campaigns.find((c) => c.id.toString() === campaignId)
               : undefined;
@@ -365,8 +413,16 @@ function DonationsSection({
                         </Link>
                       </p>
                     ) : campaignId ? (
+                      // Not in the recent-campaigns list, so the title is unknown. A campaign
+                      // id is a small integer, not a Stellar address: link to its page.
                       <p className="text-sm text-muted-foreground mt-1">
-                        To campaign ID: <AddressLink address={campaignId} />
+                        To campaign:{" "}
+                        <Link
+                          href={`/campaign/${campaignId}`}
+                          className="text-primary hover:underline"
+                        >
+                          Campaign #{campaignId}
+                        </Link>
                       </p>
                     ) : (
                       <p className="text-sm text-muted-foreground mt-1">
