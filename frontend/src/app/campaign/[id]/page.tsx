@@ -47,14 +47,14 @@ const loadCampaign = cache((id: bigint) => getCampaign(id));
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const resolvedParams = await params;
-  const defaultTitle = "StellarGive | Relief Grant Platform";
   const defaultDescription = "A decentralized donation platform built on Stellar.";
 
+  // openGraph/twitter titles are left out: Next fills them from `title` after the
+  // root layout template adds the " | StellarGive" suffix.
   const fallback: Metadata = {
-    title: `Campaign #${resolvedParams.id} | StellarGive`,
+    title: `Campaign #${resolvedParams.id}`,
     description: defaultDescription,
     openGraph: {
-      title: `Campaign #${resolvedParams.id} | StellarGive`,
       description: defaultDescription,
       type: "website",
       siteName: "StellarGive",
@@ -62,7 +62,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     },
     twitter: {
       card: "summary_large_image",
-      title: `Campaign #${resolvedParams.id} | StellarGive`,
       description: defaultDescription,
       images: ["/opengraph-image"],
     },
@@ -83,7 +82,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
             .map((b) => formatBasisPoints(b.share))
             .join(", ")}. `
         : "";
-    const title = `${campaign.title} | StellarGive`;
+    const title = campaign.title;
     const description = `${campaign.title} — ${fromStroops(
       campaign.raised_amount,
     )} of ${fromStroops(campaign.target_amount)} XLM raised. ${benDesc}Support this campaign on StellarGive.`;
@@ -94,7 +93,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title,
       description,
       openGraph: {
-        title,
         description,
         type: "website",
         siteName: "StellarGive",
@@ -102,7 +100,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       },
       twitter: {
         card: "summary_large_image",
-        title,
         description,
         images: [imageUrl ?? "/opengraph-image"],
       },

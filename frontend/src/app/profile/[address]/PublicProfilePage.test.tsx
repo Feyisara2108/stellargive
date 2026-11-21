@@ -40,7 +40,7 @@ describe("PublicProfilePage - generateMetadata", () => {
     });
 
     const truncated = `${VALID_ADDRESS.slice(0, 6)}...${VALID_ADDRESS.slice(-4)}`;
-    expect(metadata.title).toBe(`Profile ${truncated} - StellarGive`);
+    expect(metadata.title).toBe(`Profile ${truncated}`);
     expect(metadata.description).toContain(truncated);
   });
 
@@ -50,6 +50,6 @@ describe("PublicProfilePage - generateMetadata", () => {
     });
 
     const truncated = `${INVALID_ADDRESS.slice(0, 6)}...${INVALID_ADDRESS.slice(-4)}`;
-    expect(metadata.title).toBe(`Profile ${truncated} - StellarGive`);
+    expect(metadata.title).toBe(`Profile ${truncated}`);
   });
 });
