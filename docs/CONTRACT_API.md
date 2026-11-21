@@ -1,6 +1,6 @@
 # StellarGive Contract API
 
-This document describes the `stellar-give` Soroban contract public API, error variants, storage layout, and example payloads for integrators.
+This document describes the [`stellar-give`](../contracts/stellar-give/src/lib.rs) Soroban contract public API, error variants, storage layout, and example payloads for integrators.
 
 ## Overview
 
@@ -724,6 +724,7 @@ Specifically, calling any of the following functions while the contract is pause
 The following functions are not blocked by `ensure_not_paused`:
 - `claim_refund`: intentionally remains available during a pause so donors can reclaim funds from already-cancelled campaigns.
 - `unpause`: enables the platform administrator to restore normal operations.
+- `initialize` and `pause`: lifecycle and pause administration.
 - `upgrade` and `set_owner`: emergency maintenance operations guarded by owner authentication.
 - `get_owner` and all read-only getters (`get_campaign`, `get_top_donors`, `get_campaigns_by_creator`, `get_campaigns_paged`, `get_campaigns`, `get_total_campaigns`, `get_time_left`, `get_updates`).
 - `add_to_whitelist`.
@@ -732,10 +733,15 @@ The following functions are not blocked by `ensure_not_paused`:
 
 The contract provides two distinct refund mechanisms tailored to different campaign states:
 
+- **`refund` (Expired Campaigns Below Target):**
+  When a campaign reaches its deadline without meeting its funding target (`status == Expired` and `raised_amount < target_amount`), donors reclaim their contributions via `refund(env, campaign_id, donor)`. This function is guarded by `ensure_not_paused` (blocked with `ContractPaused` while the contract is paused). It returns `Result<(), ContractError>` (`Ok(())` on success; does not return the amount). If the donor has no contribution recorded, it returns `ContractError::NothingToClaim`.
+- **`claim_refund` (Cancelled Campaigns):**
+  When a campaign is cancelled by its creator (`status == Cancelled`), donors reclaim their contributions via `claim_refund(env, donor, campaign_id)`. This function is intentionally not guarded by `ensure_not_paused`, allowing donors to recover funds even if the contract is paused. It returns `Result<i128, ContractError>` (`Ok(amount)` where `amount` is the refunded amount in stroops). If the donor has no contribution recorded, it returns `ContractError::NothingToRefund`.
+
 | Property | `refund` | `claim_refund` |
 |---|---|---|
 | **Target Campaign State** | Expired campaigns that failed to reach their target (`status == Expired` and `raised_amount < target_amount`). | Cancelled campaigns (`status == Cancelled`). |
-| **Return Value** | `Result<(), ContractError>` — returns `Ok(())` on success. | `Result<i128, ContractError>` — returns `Ok(amount)` where `amount` is the refunded amount in stroops. |
+| **Return Value** | `Result<(), ContractError>` — returns `Ok(())` on success (does not return amount). | `Result<i128, ContractError>` — returns `Ok(amount)` where `amount` is the refunded amount in stroops. |
 | **Pause Behavior** | Guarded by `ensure_not_paused`: blocked while paused (`ContractPaused`). | Not guarded by `ensure_not_paused`: donors can reclaim their contributions even while paused. |
 | **Emitted Event** | `(symbol_short!("refund"),)` with payload `RefundEvent { campaign_id, donor, amount }`. | `(symbol_short!("refund"), campaign_id)` with payload `RefundEvent { campaign_id, donor, amount }`. |
 | **Empty Contribution Error** | `ContractError::NothingToClaim` | `ContractError::NothingToRefund` |
@@ -772,7 +778,7 @@ Additional public API limits not backed by named constants: a paged read returns
 
 ## ContractError Reference
 
-The table contains all 37 `ContractError` variants. Numeric codes are the contract ABI values and are also used by `frontend/src/lib/contractErrors.ts`.
+The table contains all 37 `ContractError` variants. Numeric codes are the contract ABI values and are also used by [`frontend/src/lib/contractErrors.ts`](../frontend/src/lib/contractErrors.ts).
 
 | Code | Variant | Trigger condition |
 |---:|---|---|
