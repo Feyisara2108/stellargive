@@ -36,11 +36,13 @@ export function CampaignStatusBadge({
       customClasses = "bg-primary/10 text-primary hover:bg-primary/20 border-transparent";
       break;
     case "Active":
-      customClasses = "bg-green-500/20 text-green-500 hover:bg-green-500/30 border-transparent";
+      customClasses =
+        "bg-green-500/20 text-green-700 dark:text-green-400 hover:bg-green-500/30 border-transparent";
       break;
     case "Funded":
     case "Claimed":
-      customClasses = "bg-blue-500/20 text-blue-500 hover:bg-blue-500/30 border-transparent";
+      customClasses =
+        "bg-blue-500/20 text-blue-700 dark:text-blue-400 hover:bg-blue-500/30 border-transparent";
       break;
     case "Cancelled":
       customClasses =
@@ -95,7 +97,11 @@ export function CampaignStatusBadge({
     },
     {
       threshold: 100,
-      label: "🎉 Goal Reached",
+      label: (
+        <>
+          <span aria-hidden="true">🎉</span> Goal Reached
+        </>
+      ),
       tooltipText: "100% funded — Goal Reached!",
       className:
         "bg-gradient-to-r from-amber-500 via-emerald-500 to-teal-500 text-white font-extrabold border-transparent shadow-sm hover:brightness-110 animate-pulse motion-reduce:animate-none",
