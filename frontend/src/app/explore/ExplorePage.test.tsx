@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@/test/render";
+import { render, screen, fireEvent, waitFor, within } from "@/test/render";
 import React from "react";
 
 // Hoist mock state so it stays in sync across vi.mock closures
@@ -210,6 +210,11 @@ describe("ExplorePage - Category counts (#1090)", () => {
     renderPage();
 
     const select = (await screen.findByLabelText("Select Category")) as HTMLSelectElement;
+    const panel = screen.getByRole("tabpanel");
+    const status = within(panel).getByRole("status");
+    expect(panel).not.toHaveAttribute("aria-live");
+    expect(within(panel).getAllByRole("status")).toHaveLength(1);
+    expect(status).toHaveTextContent("Showing 4 of 4 campaigns");
     const option = (value: string) =>
       Array.from(select.options).find((o) => o.value === value)?.textContent;
     expect(option("uncategorized")).toBe("Uncategorized (3)");
@@ -219,6 +224,8 @@ describe("ExplorePage - Category counts (#1090)", () => {
     await waitFor(() => {
       expect(screen.getAllByTestId("campaign-card")).toHaveLength(3);
     });
+    expect(status).toHaveTextContent("Showing 3 of 4 campaigns");
+    expect(within(panel).getAllByRole("status")).toHaveLength(1);
     expect(screen.queryByText("Food One")).not.toBeInTheDocument();
   });
 });

@@ -236,13 +236,12 @@ function ExploreContent() {
           id={RESULTS_PANEL_ID}
           role="tabpanel"
           aria-labelledby={STATUS_TABS.find((t) => t.value === statusFilter)?.id}
-          aria-live="polite"
           className="space-y-6"
-          tabIndex={0}
         >
           {!isLoading && (
             <p className="text-sm text-muted-foreground" role="status">
               {countLabel}
+              {isRefreshing ? " — Updating campaigns" : ""}
             </p>
           )}
 
@@ -281,10 +280,6 @@ function ExploreContent() {
               )}
             </div>
           )}
-
-          <p className="sr-only" role="status" aria-live="polite">
-            {isRefreshing ? "Updating campaigns" : ""}
-          </p>
 
           {/* Skeletons are appended only while the list is growing, so a
               background refresh never makes the page jump. */}
