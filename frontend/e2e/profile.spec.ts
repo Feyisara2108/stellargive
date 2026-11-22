@@ -63,18 +63,23 @@ function campaignScVal(c: {
 }): xdr.ScVal {
   const entries: [string, xdr.ScVal][] = [
     ["accepted_token", new Address(TOKEN).toScVal()],
-    ["beneficiary", new Address(c.beneficiary).toScVal()],
-    ["category", nativeToScVal("relief", { type: "string" })],
+    [
+      "beneficiaries",
+      xdr.ScVal.scvVec([
+        xdr.ScVal.scvVec([
+          new Address(c.beneficiary).toScVal(),
+          nativeToScVal(10000, { type: "u32" }),
+        ]),
+      ]),
+    ],
+    ["category", sym("relief")],
     ["creator", new Address(c.creator).toScVal()],
     ["deadline", nativeToScVal(9_999_999_999n, { type: "u64" })],
     ["description", nativeToScVal("A campaign in the profile test", { type: "string" })],
     ["id", nativeToScVal(BigInt(c.id), { type: "u64" })],
     ["metadata_uri", nativeToScVal("", { type: "string" })],
     ["raised_amount", nativeToScVal(c.raised, { type: "i128" })],
-    [
-      "status",
-      xdr.ScVal.scvMap([new xdr.ScMapEntry({ key: sym(c.status), val: xdr.ScVal.scvVoid() })]),
-    ],
+    ["status", xdr.ScVal.scvVec([sym(c.status)])],
     ["target_amount", nativeToScVal(c.target, { type: "i128" })],
     ["title", nativeToScVal(c.title, { type: "string" })],
     ["twitter", nativeToScVal("", { type: "string" })],
@@ -250,12 +255,18 @@ test.describe("Profile dashboard (/profile)", () => {
 
     // Created vs. supported campaigns are split into their own sections.
     await expect(page.getByRole("heading", { name: "Campaigns I Created" })).toBeVisible();
-    await expect(page.getByRole("link", { name: MY_CAMPAIGN.title })).toBeVisible({
+    const campaignsPanel = page.getByRole("tabpanel", { name: "My Campaigns" });
+    await expect(campaignsPanel.getByRole("link", { name: MY_CAMPAIGN.title })).toBeVisible({
       timeout: 15_000,
     });
 
     await expect(page.getByRole("heading", { name: "Campaigns I Supported" })).toBeVisible();
-    await expect(page.getByRole("link", { name: SUPPORTED_CAMPAIGN.title })).toBeVisible();
+    await expect(
+      campaignsPanel
+        .getByRole("heading", { name: "Campaigns I Supported" })
+        .locator("..")
+        .getByRole("link", { name: SUPPORTED_CAMPAIGN.title }),
+    ).toBeVisible();
   });
 
   test("shows the donation history in the My Donations tab", async ({ page }) => {
@@ -264,7 +275,11 @@ test.describe("Profile dashboard (/profile)", () => {
     await page.getByRole("tab", { name: "My Donations" }).click();
 
     await expect(page.getByText("5 XLM Donated")).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByRole("link", { name: SUPPORTED_CAMPAIGN.title })).toBeVisible();
+    await expect(
+      page
+        .getByRole("tabpanel", { name: "My Donations" })
+        .getByRole("link", { name: SUPPORTED_CAMPAIGN.title }),
+    ).toBeVisible();
   });
 });
 

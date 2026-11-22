@@ -1,10 +1,11 @@
 import type { Campaign } from "@/lib/soroban";
 import { xdr, Address, nativeToScVal } from "@stellar/stellar-sdk";
+import { NATIVE_XLM_CONTRACT_ID } from "@/lib/tokens";
 
 export const WALLET_ADDRESS = "GA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVSGZ";
 
-/** Native XLM SAC on Testnet — matches `scValToNative` Address string form. */
-export const NATIVE_TOKEN_ADDRESS = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
+/** Native XLM SAC for the network configured by the test environment. */
+export const NATIVE_TOKEN_ADDRESS = NATIVE_XLM_CONTRACT_ID;
 
 export const makeCampaign = (overrides?: Partial<Campaign>): Campaign => ({
   id: 1n,
