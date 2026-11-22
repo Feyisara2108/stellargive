@@ -12,12 +12,17 @@ export { decodeInvocation };
  * metadata reads (`decimals`/`name`/`symbol`) against an in-memory seed list,
  * decoding the invoked contract function straight out of the transaction XDR
  * so no real RPC endpoint is needed.
+ *
+ * This file is the shared campaign encoder for e2e specs: `campaignScVal` and
+ * `campaignsPagedScVal` return the same `Campaign` struct shape the contract
+ * uses, so other specs should import and reuse them rather than hand-building
+ * ScVals.
  */
 
 export const DEFAULT_CREATOR = Keypair.fromRawEd25519Seed(Buffer.alloc(32, 1)).publicKey();
 export const DEFAULT_TOKEN = Keypair.fromRawEd25519Seed(Buffer.alloc(32, 2)).publicKey();
 
-export type CampaignStatus = "Active" | "Funded" | "Claimed" | "Refunded" | "Cancelled";
+export type CampaignStatus = "Active" | "Funded" | "Claimed" | "Refunded" | "Expired" | "Cancelled";
 
 export interface CampaignSeed {
   id: number;
@@ -26,11 +31,14 @@ export interface CampaignSeed {
   raised: bigint;
   target: bigint;
   creator?: string;
-  beneficiary?: string;
+  /** Split-payout recipients; defaults to the creator receiving 100% (10_000 bps). */
+  beneficiaries?: { address: string; share: number }[];
   acceptedToken?: string;
   category?: string;
   description?: string;
   deadline?: bigint;
+  /** Per-donor cap in token base units; omitted from the struct when absent. */
+  maxPerDonor?: bigint;
   metadataUri?: string;
   website?: string;
   twitter?: string;
@@ -43,26 +51,43 @@ function sym(s: string) {
 /** Build the raw ScVal (a map) representing one campaign. */
 function campaignToScVal(c: CampaignSeed): xdr.ScVal {
   const creator = c.creator ?? DEFAULT_CREATOR;
-  const beneficiary = c.beneficiary ?? creator;
   const acceptedToken = c.acceptedToken ?? DEFAULT_TOKEN;
+  const beneficiaries = c.beneficiaries ?? [{ address: creator, share: 10_000 }];
 
   const entries: [string, xdr.ScVal][] = [
     ["accepted_token", new Address(acceptedToken).toScVal()],
-    ["beneficiary", new Address(beneficiary).toScVal()],
-    ["category", nativeToScVal(c.category ?? "Disaster", { type: "string" })],
+    [
+      "beneficiaries",
+      // The contract stores each (address, share) pair as a two-item vec.
+      xdr.ScVal.scvVec(
+        beneficiaries.map((b) =>
+          xdr.ScVal.scvVec([
+            new Address(b.address).toScVal(),
+            nativeToScVal(b.share, { type: "u32" }),
+          ]),
+        ),
+      ),
+    ],
+    ["category", sym(c.category ?? "Disaster")],
     ["creator", new Address(creator).toScVal()],
     ["deadline", nativeToScVal(c.deadline ?? 9_999_999_999n, { type: "u64" })],
     ["description", nativeToScVal(c.description ?? "Seeded campaign", { type: "string" })],
     ["id", nativeToScVal(BigInt(c.id), { type: "u64" })],
+    ["is_private", nativeToScVal(false, { type: "bool" })],
+    [
+      "max_per_donor",
+      c.maxPerDonor === undefined
+        ? xdr.ScVal.scvVoid()
+        : nativeToScVal(c.maxPerDonor, { type: "i128" }),
+    ],
     ["metadata_uri", nativeToScVal(c.metadataUri ?? "", { type: "string" })],
     ["raised_amount", nativeToScVal(c.raised, { type: "i128" })],
-    [
-      "status",
-      xdr.ScVal.scvMap([new xdr.ScMapEntry({ key: sym(c.status), val: xdr.ScVal.scvVoid() })]),
-    ],
+    // A unit-variant contract enum decodes from a vec holding its symbol.
+    ["status", xdr.ScVal.scvVec([sym(c.status)])],
     ["target_amount", nativeToScVal(c.target, { type: "i128" })],
     ["title", nativeToScVal(c.title, { type: "string" })],
     ["twitter", nativeToScVal(c.twitter ?? "", { type: "string" })],
+    ["was_extended", nativeToScVal(false, { type: "bool" })],
     ["website", nativeToScVal(c.website ?? "", { type: "string" })],
   ];
   return xdr.ScVal.scvMap(entries.map(([k, v]) => new xdr.ScMapEntry({ key: sym(k), val: v })));

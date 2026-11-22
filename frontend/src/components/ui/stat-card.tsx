@@ -4,7 +4,7 @@ import * as React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { ArrowDownRight, ArrowUpRight } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface StatCardProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -31,6 +31,22 @@ const StatCard = React.forwardRef<HTMLDivElement, StatCardProps>(
           <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase font-bold tracking-wider">
             {icon}
             {title}
+            {tooltip && !loading && (
+              <Tooltip>
+                {/* A small icon button is the only tooltip trigger, so the card
+                    content is not wrapped in a control that does nothing. */}
+                <TooltipTrigger className="relative">
+                  <button
+                    type="button"
+                    aria-label={`More information about ${title}`}
+                    className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    <Info className="h-3.5 w-3.5" aria-hidden="true" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top">{tooltip}</TooltipContent>
+              </Tooltip>
+            )}
           </div>
           {loading ? (
             <Skeleton className="h-8 w-24" aria-hidden="true" />
@@ -62,14 +78,6 @@ const StatCard = React.forwardRef<HTMLDivElement, StatCardProps>(
       </Card>
     );
 
-    if (tooltip && !loading) {
-      return (
-        <Tooltip>
-          <TooltipTrigger className="relative">{card}</TooltipTrigger>
-          <TooltipContent side="top">{tooltip}</TooltipContent>
-        </Tooltip>
-      );
-    }
     return card;
   },
 );
