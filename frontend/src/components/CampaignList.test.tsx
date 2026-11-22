@@ -278,11 +278,7 @@ describe("CampaignList - Empty state", () => {
 });
 
 describe("CampaignList - Virtualisation with react-window v2", () => {
-  // Skipped: the list is sized to the height of all its rows, so react-window mounts every row and
-  // virtualisation never kicks in. Making it work needs a scroll-behaviour decision for the Explore
-  // page (an inner scroll area or a window scroller), so it is tracked as a follow-up. Re-enable this
-  // test with that change.
-  it.skip("mounts only a window of rows for a long list when container width is measured", async () => {
+  it("mounts only a window of rows for a long list when container width is measured", async () => {
     // Generate 60 campaigns
     const manyCampaigns = Array.from({ length: 60 }, (_, i) =>
       buildCampaign({ id: BigInt(i + 1), title: `Campaign ${i + 1}` }),
@@ -320,6 +316,11 @@ describe("CampaignList - Virtualisation with react-window v2", () => {
       const mountedCards = screen.queryAllByTestId("campaign-card");
       expect(mountedCards.length).toBeGreaterThan(0);
       expect(mountedCards.length).toBeLessThan(60);
+
+      // aria-rowcount still reflects every row, not just the mounted ones
+      const grid = screen.getByRole("grid", { name: /Campaign list/i });
+      const cols = Number(grid.getAttribute("aria-colcount"));
+      expect(Number(grid.getAttribute("aria-rowcount"))).toBe(Math.ceil(60 / cols));
     } finally {
       HTMLElement.prototype.getBoundingClientRect = originalGetBoundingClientRect;
     }
