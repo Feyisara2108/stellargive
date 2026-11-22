@@ -113,7 +113,6 @@ function useContainerWidth(ref: React.RefObject<HTMLDivElement>): number {
 interface CampaignRowProps {
   rows: Campaign[][];
   columnCount: number;
-  listWidth: number;
   /** Called when focus moves into a row so the list can scroll it into view. */
   onRowFocus: (index: number) => void;
 }
@@ -123,13 +122,10 @@ function CampaignRow({
   style,
   rows,
   columnCount,
-  listWidth,
   onRowFocus,
 }: RowComponentProps<CampaignRowProps>) {
   const row = rows[index];
   if (!row) return null;
-
-  const cellWidth = listWidth > 0 ? (listWidth - GRID_GAP * (columnCount - 1)) / columnCount : 0;
 
   return (
     <div
@@ -142,7 +138,7 @@ function CampaignRow({
         <div
           key={campaign.id.toString()}
           role="gridcell"
-          style={{ width: cellWidth, flexShrink: 0 }}
+          style={{ flex: "1 1 0", minWidth: 0 }}
         >
           <CampaignCard campaign={campaign} />
         </div>
@@ -153,7 +149,7 @@ function CampaignRow({
           key={`phantom-${i}`}
           role="presentation"
           aria-hidden="true"
-          style={{ width: cellWidth, flexShrink: 0 }}
+          style={{ flex: "1 1 0", minWidth: 0 }}
         />
       ))}
     </div>
@@ -256,7 +252,7 @@ function CampaignListContent() {
             Search by campaign name, category, creator, or beneficiary address.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           <div className="relative w-full sm:w-48">
             <label htmlFor="campaign-sort" className="sr-only">
               Sort by
@@ -376,7 +372,7 @@ function CampaignListContent() {
               rowCount={rows.length}
               rowHeight={rowHeight}
               rowComponent={CampaignRow}
-              rowProps={{ rows, columnCount, listWidth, onRowFocus: handleRowFocus }}
+              rowProps={{ rows, columnCount, onRowFocus: handleRowFocus }}
               listRef={listRef}
               overscanCount={2}
               defaultHeight={listHeight}

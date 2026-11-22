@@ -175,12 +175,12 @@ export function CampaignDetailsClient({
     campaign.status === "Active" && progressPercent >= 90 && progressPercent < 100 && gapXLM > 0;
 
   return (
-    <div className="p-8 max-w-4xl mx-auto space-y-6">
+    <div className="p-4 sm:p-8 max-w-4xl mx-auto space-y-6">
       <Breadcrumbs items={breadcrumbs} />
-      <div ref={headerDonateRef} className="flex justify-between items-start">
-        <div className="space-y-2">
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold">{campaign?.title || `Campaign #${params.id}`}</h1>
+      <div ref={headerDonateRef} className="flex flex-wrap justify-between items-start gap-4">
+        <div className="min-w-0 space-y-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-3xl font-bold break-words min-w-0">{campaign?.title || `Campaign #${params.id}`}</h1>
             {campaign && (
               <CampaignStatusBadge
                 status={campaign.status}
@@ -357,7 +357,7 @@ export function CampaignDetailsClient({
                 )}
 
                 <div className="prose prose-sm dark:prose-invert max-w-none">
-                  <p className="text-foreground leading-relaxed whitespace-pre-wrap">
+                  <p className="text-foreground leading-relaxed whitespace-pre-wrap break-words">
                     {campaign.description || "No description provided for this campaign."}
                   </p>
                 </div>

@@ -51,12 +51,12 @@ function ContractIdDisplay() {
   };
 
   return (
-    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
       <span className="font-medium">Contract ID:</span>
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="font-mono hover:text-foreground transition-colors"
+        className="min-w-0 break-all text-left font-mono hover:text-foreground transition-colors"
         title={expanded ? "Click to collapse" : "Click to expand"}
       >
         {expanded ? CONTRACT_ID : truncate(CONTRACT_ID)}
