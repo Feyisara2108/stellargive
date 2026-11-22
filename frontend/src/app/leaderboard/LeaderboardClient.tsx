@@ -52,8 +52,13 @@ function describePeriod(
   }
   return formatEventWindow(start, windowEnd);
 }
-/** How many on-chain events to aggregate the ranking from. */
-const EVENT_LIMIT = 200;
+
+const TIME_RANGES: readonly TimeRange[] = ["all", "weekly", "monthly"];
+
+/** Only the ranges the page understands are accepted; anything else means "all". */
+function parseTimeRange(value: string | null): TimeRange {
+  return TIME_RANGES.find((range) => range === value) ?? "all";
+}
 
 /** Medal colours for the podium; every other rank uses the muted badge. */
 const RANK_STYLES: Record<number, string> = {
@@ -126,7 +131,7 @@ function LeaderboardContent() {
   const { data: history, isLoading, isError } = useEventHistory();
   const events = history?.events;
 
-  const timeRange = (searchParams.get("range") as TimeRange) || "all";
+  const timeRange = parseTimeRange(searchParams.get("range"));
 
   const periodLabel = useMemo(
     () => (history ? describePeriod(history.windowStart, history.windowEnd, timeRange) : null),
@@ -171,7 +176,8 @@ function LeaderboardContent() {
     (range: TimeRange, token: string | null) => {
       const params = new URLSearchParams({ range });
       if (token) params.set("token", token);
-      router.push(`/leaderboard?${params.toString()}`);
+      // Filter changes replace the current entry so they don't pile up in history.
+      router.replace(`/leaderboard?${params.toString()}`);
     },
     [router],
   );
@@ -243,6 +249,7 @@ function LeaderboardContent() {
                 key={value}
                 variant={timeRange === value ? "default" : "outline"}
                 size="sm"
+                aria-pressed={timeRange === value}
                 onClick={() => handleRangeChange(value)}
               >
                 {label}
@@ -352,7 +359,6 @@ function LeaderboardContent() {
               Aggregated from every on-chain donation event the Soroban RPC still retains (a rolling
               window of about a week), so &ldquo;All Time&rdquo; means all retained history.
               {history?.truncated && " Only the oldest part of the window could be scanned."}
-              Aggregated from the most recent {EVENT_LIMIT} on-chain contract events.
               {tokenIds.length > 1 &&
                 ` Ranked by donations in ${tokenDisplay.symbol}; amounts in different tokens aren't added together.`}
             </p>
