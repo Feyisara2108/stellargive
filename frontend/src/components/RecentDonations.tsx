@@ -13,6 +13,7 @@ import { sanitizeMessage } from "@/lib/sanitize";
 import { parseDonationEvent } from "@/lib/eventData";
 import { NATIVE_XLM_CONTRACT_ID } from "@/lib/tokens";
 import { UNKNOWN_TOKEN, describeToken, tokensNeedingMetadata } from "@/lib/tokenTotals";
+import Link from "next/link";
 
 const INITIAL_BATCH_SIZE = 10;
 const BATCH_SIZE = 10;
@@ -147,12 +148,15 @@ export function RecentDonations({
         <CardTitle className="text-lg flex items-center gap-2">
           <Heart className="w-4 h-4 text-primary fill-primary/20" /> Recent Donations
         </CardTitle>
-        <span
-          onClick={() => setVisibleCount(donations?.length ?? INITIAL_BATCH_SIZE)}
-          className="text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer"
-        >
-          View All
-        </span>
+        {Boolean(donations?.length) && (
+          <Link
+            href={`/activity?search=${encodeURIComponent(campaignId.toString())}`}
+            aria-label={`View all activity for campaign ${campaignId}`}
+            className="text-xs text-muted-foreground hover:text-primary transition-colors"
+          >
+            View All
+          </Link>
+        )}
       </CardHeader>
       <CardContent className="space-y-4">
         {visibleDonations && visibleDonations.length > 0 ? (
