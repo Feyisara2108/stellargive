@@ -100,6 +100,9 @@ describe("PlatformStats — populated", () => {
     expect(within(statCard("Total Campaigns")).getByText("3")).toBeInTheDocument();
     expect(within(statCard("Total Raised")).getByText("1,250.5 XLM")).toBeInTheDocument();
     expect(within(statCard("Active Campaigns")).getByText("2")).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(within(statCard("Total Campaigns")).getByText("3").textContent).toMatch(/^\d+$/);
+    expect(within(statCard("Active Campaigns")).getByText("2").textContent).toMatch(/^\d+$/);
   });
 
   it("groups and rounds large raised totals", async () => {
