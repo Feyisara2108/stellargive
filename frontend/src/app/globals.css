@@ -63,6 +63,12 @@
   }
 }
 
+@layer components {
+  .dark .text-destructive {
+    color: hsl(0 84% 68%);
+  }
+}
+
 /* ── Focus-visible ring token (#832) ───────────────────────────────────────────
  * High-contrast focus ring for keyboard navigation, consistent across all
  * interactive elements. Uses the primary colour which passes WCAG AA contrast

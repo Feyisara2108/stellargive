@@ -114,4 +114,25 @@ describe("Theme Color Tokens Contrast", () => {
       );
     }
   });
+
+  it("keeps dark destructive text readable without changing the button token", () => {
+    const cssPath = path.resolve(__dirname, "../app/globals.css");
+    const cssContent = fs.readFileSync(cssPath, "utf8");
+    const darkTokens = extractTokens(cssContent, ".dark");
+    const override = cssContent.match(/\.dark\s+\.text-destructive\s*\{\s*color:\s*hsl\(([^)]+)\)/);
+
+    expect(override).not.toBeNull();
+    expect(darkTokens.destructive).toBe("0 62.8% 30.6%");
+
+    const [fgH, fgS, fgL] = parseHSL(override![1]);
+    const textRgb = hslToRgb(fgH, fgS, fgL);
+    const textLuminance = getLuminance(...textRgb);
+
+    for (const backgroundName of ["background", "card"]) {
+      const [bgH, bgS, bgL] = parseHSL(darkTokens[backgroundName]);
+      const backgroundRgb = hslToRgb(bgH, bgS, bgL);
+      const backgroundLuminance = getLuminance(...backgroundRgb);
+      expect(getContrastRatio(textLuminance, backgroundLuminance)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
 });
