@@ -6,11 +6,12 @@ import { getTokenMetadata, type TokenMetadata } from "@/lib/soroban";
 import { toast } from "sonner";
 import "@testing-library/jest-dom";
 
-// USDC is only listed when configured; give the picker a second token to select.
-vi.hoisted(() => {
-  process.env.NEXT_PUBLIC_USDC_CONTRACT_ID =
-    "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
-});
+// Give the picker a second, real token address. The test environment sets its
+// network before modules load, so an env override here would be too late.
+vi.mock("@/lib/tokens", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/tokens")>()),
+  USDC_CONTRACT_ID: "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+}));
 
 // Mock external dependencies
 vi.mock("lucide-react", () => ({
@@ -178,7 +179,8 @@ describe("TokenSelector — custom token", () => {
     return screen.getByPlaceholderText(/Contract ID/);
   };
 
-  const type = (input: HTMLElement, value: string) => fireEvent.change(input, { target: { value } });
+  const type = (input: HTMLElement, value: string) =>
+    fireEvent.change(input, { target: { value } });
 
   test("rejects a malformed id and clears the error when the input is emptied", () => {
     const input = openCustomForm();

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import ProfilePage from "./page";
+import { NATIVE_XLM_CONTRACT_ID } from "@/lib/tokens";
 
 // Valid 56-char G-address so the page's donor matching accepts it.
 const { TEST_ADDRESS } = vi.hoisted(() => ({ TEST_ADDRESS: "G" + "B".repeat(55) }));
@@ -147,7 +148,7 @@ describe("ProfilePage - donation rows", () => {
   it("links an unlisted campaign to its campaign page, not to an account explorer", () => {
     vi.mocked(useRecentCampaigns).mockReturnValue({ data: [], isLoading: false } as any);
     vi.mocked(useEvents).mockReturnValue({
-      data: [donationTo(7n, 50_000_000n, "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC")],
+      data: [donationTo(7n, 50_000_000n, NATIVE_XLM_CONTRACT_ID)],
       isLoading: false,
     } as any);
 
