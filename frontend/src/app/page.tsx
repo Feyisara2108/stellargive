@@ -50,6 +50,7 @@ const HOW_IT_WORKS: HowItWorksStep[] = [
 import { CampaignCard } from "@/components/CampaignCard";
 import { IconButton } from "@/components/ui/icon-button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { useRecentCampaigns } from "@/hooks/useSoroban";
 import type { Campaign } from "@/lib/soroban";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -61,18 +62,6 @@ const SWIPE_THRESHOLD_PX = 50;
 /** How many campaigns of each kind to pull into the highlight reel. */
 const HIGHLIGHTS_PER_CATEGORY = 4;
 const MAX_HIGHLIGHTS = 6;
-
-function usePrefersReducedMotion(): boolean {
-  const [prefers, setPrefers] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setPrefers(mq.matches);
-    const handler = (e: MediaQueryListEvent) => setPrefers(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
-  return prefers;
-}
 
 type HighlightLabel = "Near Goal" | "Trending";
 interface Highlight {

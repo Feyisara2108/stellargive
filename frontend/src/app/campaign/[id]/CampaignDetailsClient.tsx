@@ -23,6 +23,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { formatBasisPoints, formatTokenAmount } from "@/utils/format";
 import { parseCreatedEvent } from "@/lib/eventData";
 import { calculateProgress, getCampaignImageUrl, CAMPAIGN_IMAGE_BLUR_DATA_URL } from "@/lib/utils";
+import { isOptimizableImageUrl } from "../../../../image-hosts.mjs";
 import dynamic from "next/dynamic";
 const RecentDonations = dynamic(
   () => import("@/components/RecentDonations").then((mod) => mod.RecentDonations),
@@ -294,6 +295,7 @@ export function CampaignDetailsClient({
                 {getCampaignImageUrl(campaign.metadata_uri) && !imgError ? (
                   <Image
                     src={getCampaignImageUrl(campaign.metadata_uri)!}
+                    unoptimized={!isOptimizableImageUrl(getCampaignImageUrl(campaign.metadata_uri)!)}
                     alt={campaign.title}
                     fill
                     sizes="(max-width: 768px) 100vw, (max-width: 1024px) 66vw, 800px"

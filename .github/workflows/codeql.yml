@@ -52,3 +52,16 @@ jobs:
         uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4
         with:
           category: "/language:${{ matrix.language }}"
+
+      # Results are uploaded to the repository's Security → Code scanning
+      # dashboard by the step above (it waits for processing). This step then
+      # fails the job when the PR introduces a new high or critical alert for
+      # this language; alerts that already exist on the base branch don't block.
+      - name: Fail on new high-severity alerts
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          CATEGORY: "/language:${{ matrix.language }}"
+        run: scripts/codeql-new-alerts.sh

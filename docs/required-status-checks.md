@@ -45,6 +45,16 @@ these do not block unrelated PRs.
 `ci.yml`; `contract-checks / check` covers it), `Frontend (Node …)` (non-blocking
 forward-compat matrix), `Storybook build`, `CodeQL`, and the Docker image build.
 
+`CodeQL` (`codeql.yml`) analyzes both the frontend (`javascript-typescript`) and the
+Soroban contract (`rust`, `contracts/stellar-give`) with the `security-extended`
+queries and uploads the results to **Security → Code scanning**. On pull requests,
+each `Analyze (…)` job then runs `scripts/codeql-new-alerts.sh`, which fails the job
+when the PR introduces a new `high` or `critical` alert for that language (alerts
+already open on the base branch don't count). While `CodeQL` stays off the required
+list this shows as a failing check rather than a merge block; to make it blocking,
+add `Analyze (rust)` and `Analyze (javascript-typescript)` to `REQUIRED_CHECKS` in
+`scripts/apply-branch-protection.sh` and to the table above.
+
 ### Informational (not yet blocking)
 
 | Check | Source | Notes |

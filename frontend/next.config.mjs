@@ -3,6 +3,7 @@ import bundleAnalyzer from "@next/bundle-analyzer";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildSecurityHeaders } from "./security-headers.mjs";
+import { buildImageRemotePatterns } from "./image-hosts.mjs";
 
 // The repo root has its own package-lock.json, so Next would otherwise guess the
 // monorepo root as the workspace. Pin it so standalone output (`server.js`) lands
@@ -40,6 +41,9 @@ const nextConfig = {
   // Vercel manages its own output — using 'standalone' on Vercel causes a 404.
   // The Dockerfile sets NEXT_BUILD_TARGET=docker to enable this mode.
   ...(process.env.NEXT_BUILD_TARGET === "docker" ? { output: "standalone" } : {}),
+  // Campaign covers load from IPFS gateways. Only those are optimized; other
+  // https:// covers render unoptimized — see image-hosts.mjs (#1051).
+  images: { remotePatterns: buildImageRemotePatterns() },
   // CSP, clickjacking protection, HSTS etc. on every route — see security-headers.mjs.
   async headers() {
     return [{ source: "/:path*", headers: buildSecurityHeaders() }];
