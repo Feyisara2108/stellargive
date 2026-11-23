@@ -125,3 +125,25 @@ describe("useRpcHealth — status transitions", () => {
     expect(result.current.latencyMs).toBe(200);
   });
 });
+
+describe("useRpcHealth — online detection", () => {
+  it("treats an undefined navigator.onLine as online (loading, not down)", () => {
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(undefined as unknown as boolean);
+    getLatestLedger.mockImplementation(() => new Promise(() => {}));
+    const { Wrapper } = makeWrapper();
+
+    const { result } = renderHook(() => useRpcHealth(), { wrapper: Wrapper });
+
+    expect(result.current).toEqual({ status: "loading", latencyMs: null });
+  });
+
+  it("reports down with null latency when navigator.onLine is false", () => {
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    getLatestLedger.mockImplementation(() => new Promise(() => {}));
+    const { Wrapper } = makeWrapper();
+
+    const { result } = renderHook(() => useRpcHealth(), { wrapper: Wrapper });
+
+    expect(result.current).toEqual({ status: "down", latencyMs: null });
+  });
+});

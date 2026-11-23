@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import { useQuery, onlineManager } from "@tanstack/react-query";
 
 export type RpcStatus = "healthy" | "degraded" | "down" | "loading";
@@ -28,8 +28,42 @@ async function pingRpc(): Promise<RpcHealth> {
   }
 }
 
+// Only an explicit `false` means offline. Node 21+ defines a global `navigator`
+// whose `onLine` is undefined on the server, which must not read as offline.
+function isNavigatorOffline(): boolean {
+  return typeof navigator !== "undefined" && navigator.onLine === false;
+}
+
+function subscribeToBrowserOnline(callback: () => void): () => void {
+  window.addEventListener("online", callback);
+  window.addEventListener("offline", callback);
+  return () => {
+    window.removeEventListener("online", callback);
+    window.removeEventListener("offline", callback);
+  };
+}
+
+/**
+ * Online state that is `true` on the server and during hydration, so the first
+ * client render matches the server HTML; it re-syncs right after mount.
+ */
+function useIsOnline(): boolean {
+  const browserOnline = useSyncExternalStore(
+    subscribeToBrowserOnline,
+    () => !isNavigatorOffline(),
+    () => true,
+  );
+  const queryOnline = useSyncExternalStore(
+    (callback) => onlineManager.subscribe(callback),
+    () => onlineManager.isOnline(),
+    () => true,
+  );
+  return browserOnline && queryOnline;
+}
+
 export function useRpcHealth(): RpcHealth {
   const pausedRef = useRef(false);
+  const isOnline = useIsOnline();
 
   useEffect(() => {
     const handle = () => {
@@ -46,7 +80,7 @@ export function useRpcHealth(): RpcHealth {
       if (
         pausedRef.current ||
         (typeof document !== "undefined" && document.hidden) ||
-        (typeof navigator !== "undefined" && !navigator.onLine) ||
+        isNavigatorOffline() ||
         !onlineManager.isOnline()
       ) {
         return false;
@@ -60,7 +94,7 @@ export function useRpcHealth(): RpcHealth {
     retry: false,
   });
 
-  if ((typeof navigator !== "undefined" && !navigator.onLine) || !onlineManager.isOnline()) {
+  if (!isOnline) {
     return { status: "down", latencyMs: null };
   }
 
