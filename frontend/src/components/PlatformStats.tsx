@@ -9,7 +9,6 @@ import {
 } from "@/hooks/useSoroban";
 import { formatEventWindow } from "@/lib/eventData";
 import type { EventHistory } from "@/lib/soroban";
-import { fromStroops } from "@/lib/amounts";
 import { NATIVE_XLM_CONTRACT_ID } from "@/lib/tokens";
 import {
   describeToken,
@@ -107,7 +106,7 @@ const selectDonorWindow = (history: EventHistory) =>
   formatEventWindow(history.windowStart, history.windowEnd);
 
 export function PlatformStats() {
-  const { data: stats, isLoading, isError, refetch, isFetching } = usePlatformStats();
+  const { data: stats, isLoading, isError, refetch } = usePlatformStats();
   const { data: uniqueDonors, isLoading: donorsLoading, isError: donorsError } = useUniqueDonors();
   // Same cached history scan as the count; only the period it covers.
   const { data: donorWindow } = useEventHistory(selectDonorWindow);
@@ -205,12 +204,12 @@ export function PlatformStats() {
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 py-6" role="status">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 py-6">
       <StatCard
         ref={campaignsCount.cardRef}
         icon={<Users className="h-4 w-4 text-primary" />}
         title="Total Campaigns"
-        value={campaignsCount.display.toString()}
+        value={Math.round(campaignsCount.display).toString()}
       />
       <StatCard
         ref={raisedCount.cardRef}
@@ -231,7 +230,7 @@ export function PlatformStats() {
         ref={activeCount.cardRef}
         icon={<Flame className="h-4 w-4 text-primary" />}
         title="Active Campaigns"
-        value={activeCount.display.toString()}
+        value={Math.round(activeCount.display).toString()}
       />
       {/* The donor count reads a different RPC resource, so it fails on its own:
           a dead event feed costs this card its number instead of taking the

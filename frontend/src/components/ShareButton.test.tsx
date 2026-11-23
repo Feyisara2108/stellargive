@@ -54,16 +54,16 @@ describe("ShareButton — accessible labels", () => {
     expect(screen.getByRole("button", { name: /share campaign/i })).toBeInTheDocument();
   });
 
-  it("the copy button has an accessible 'Copy campaign link' label once the dialog is open", async () => {
+  it("the copy button has its visible accessible name once the dialog is open", async () => {
     render(<ShareButton campaign={CAMPAIGN} />);
     await openShareDialog();
-    expect(screen.getByRole("button", { name: /copy campaign link/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Copy Link" })).toBeInTheDocument();
   });
 
   it("the X/Twitter button has an accessible 'Share on X' label once the dialog is open", async () => {
     render(<ShareButton campaign={CAMPAIGN} />);
     await openShareDialog();
-    expect(screen.getByRole("button", { name: /share on x/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Share on X" })).toBeInTheDocument();
   });
 });
 
@@ -72,7 +72,7 @@ describe("ShareButton — copy to clipboard", () => {
     render(<ShareButton campaign={CAMPAIGN} />);
     await openShareDialog();
 
-    fireEvent.click(screen.getByRole("button", { name: /copy campaign link/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy Link" }));
 
     await waitFor(() => {
       expect(navigator.clipboard.writeText).toHaveBeenCalledTimes(1);
@@ -84,7 +84,7 @@ describe("ShareButton — copy to clipboard", () => {
     render(<ShareButton campaign={{ id: 999n, title: "Another Campaign" }} />);
     await openShareDialog();
 
-    fireEvent.click(screen.getByRole("button", { name: /copy campaign link/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy Link" }));
 
     await waitFor(() => {
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
@@ -97,10 +97,10 @@ describe("ShareButton — copy to clipboard", () => {
     render(<ShareButton campaign={CAMPAIGN} />);
     await openShareDialog();
 
-    fireEvent.click(screen.getByRole("button", { name: /copy campaign link/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy Link" }));
 
     await waitFor(() => {
-      expect(screen.getByText("Copied!")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Copied!" })).toBeInTheDocument();
     });
     expect(toast.success).toHaveBeenCalledWith("Link copied!");
   });
@@ -110,7 +110,7 @@ describe("ShareButton — copy to clipboard", () => {
     render(<ShareButton campaign={CAMPAIGN} />);
     await openShareDialog();
 
-    fireEvent.click(screen.getByRole("button", { name: /copy campaign link/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy Link" }));
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith("Unable to copy link");
@@ -124,7 +124,7 @@ describe("ShareButton — social intents", () => {
     render(<ShareButton campaign={CAMPAIGN} />);
     await openShareDialog();
 
-    fireEvent.click(screen.getByRole("button", { name: /share on x/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Share on X" }));
 
     const expectedText = `Check out "Clean Water Project" on StellarGive`;
     const expectedUrl = `https://x.com/intent/tweet?text=${encodeURIComponent(
@@ -139,7 +139,7 @@ describe("ShareButton — social intents", () => {
     render(<ShareButton campaign={tricky} />);
     await openShareDialog();
 
-    fireEvent.click(screen.getByRole("button", { name: /share on x/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Share on X" }));
 
     const [openedUrl] = vi.mocked(window.open).mock.calls[0];
     // The intent URL has the shape `...?text=<text>&url=<url>`; isolate the
@@ -159,7 +159,7 @@ describe("ShareButton — social intents", () => {
     render(<ShareButton campaign={CAMPAIGN} />);
     await openShareDialog();
 
-    fireEvent.click(screen.getByRole("button", { name: /share on x/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Share on X" }));
 
     const [openedUrl] = vi.mocked(window.open).mock.calls[0];
     const encodedText = (openedUrl as string).split("?text=")[1];
@@ -170,7 +170,7 @@ describe("ShareButton — social intents", () => {
     render(<ShareButton campaign={CAMPAIGN} />);
     await openShareDialog();
 
-    fireEvent.click(screen.getByRole("button", { name: /share on x/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Share on X" }));
 
     const [, target, features] = vi.mocked(window.open).mock.calls[0];
     expect(target).toBe("_blank");
@@ -184,7 +184,7 @@ describe("ShareButton — other networks", () => {
   it("opens the Telegram share URL", async () => {
     render(<ShareButton campaign={CAMPAIGN} />);
     await openShareDialog();
-    fireEvent.click(screen.getByRole("button", { name: /share on telegram/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Share on Telegram" }));
     expect(window.open).toHaveBeenCalledWith(
       `https://t.me/share/url?url=${encodeURIComponent(EXPECTED_URL)}&text=${encodeURIComponent(text)}`,
       "_blank",
@@ -195,7 +195,7 @@ describe("ShareButton — other networks", () => {
   it("opens the WhatsApp share URL with the link in the text", async () => {
     render(<ShareButton campaign={CAMPAIGN} />);
     await openShareDialog();
-    fireEvent.click(screen.getByRole("button", { name: /share on whatsapp/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Share on WhatsApp" }));
     expect(window.open).toHaveBeenCalledWith(
       `https://api.whatsapp.com/send?text=${encodeURIComponent(`${text}: ${EXPECTED_URL}`)}`,
       "_blank",
@@ -258,9 +258,9 @@ describe("ShareButton — copy feedback timing", () => {
     await openShareDialog();
     vi.useFakeTimers();
 
-    fireEvent.click(screen.getByRole("button", { name: /copy campaign link/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy Link" }));
     await act(async () => {});
-    expect(screen.getByText("Copied!")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Copied!" })).toBeInTheDocument();
 
     act(() => {
       vi.advanceTimersByTime(2000);
@@ -268,12 +268,29 @@ describe("ShareButton — copy feedback timing", () => {
     expect(screen.getByText("Copy Link")).toBeInTheDocument();
   });
 
+  it("clears the copy timer when the component unmounts", async () => {
+    const { unmount } = render(<ShareButton campaign={CAMPAIGN} />);
+    await openShareDialog();
+    vi.useFakeTimers();
+    const timeoutSpy = vi.spyOn(globalThis, "setTimeout");
+    const clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout");
+    fireEvent.click(screen.getByRole("button", { name: "Copy Link" }));
+    await act(async () => {});
+
+    const copyTimer = timeoutSpy.mock.results.find(
+      (_, index) => timeoutSpy.mock.calls[index][1] === 2000,
+    )?.value;
+    expect(copyTimer).toBeDefined();
+    unmount();
+    expect(clearTimeoutSpy).toHaveBeenCalledWith(copyTimer);
+  });
+
   it("logs a failed copy through the logger", async () => {
     vi.mocked(navigator.clipboard.writeText).mockRejectedValueOnce(new Error("denied"));
     render(<ShareButton campaign={CAMPAIGN} />);
     await openShareDialog();
 
-    fireEvent.click(screen.getByRole("button", { name: /copy campaign link/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy Link" }));
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Unable to copy link"));
     expect(logger.error).toHaveBeenCalledWith("Failed to copy link:", expect.any(Error));

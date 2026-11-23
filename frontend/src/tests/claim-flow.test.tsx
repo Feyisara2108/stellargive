@@ -224,7 +224,8 @@ describe("Integration: claim funds flow from goal funding to beneficiary claim",
     );
 
     // Celebratory badge "🎉 Goal Reached" is rendered
-    expect(screen.getByText("🎉 Goal Reached")).toBeInTheDocument();
+    const goalReachedBadge = screen.getByRole("img", { name: "Goal Reached" });
+    expect(goalReachedBadge).toHaveTextContent("🎉 Goal Reached");
 
     // Beneficiary Claim Funds button is now enabled
     await waitFor(() => {
