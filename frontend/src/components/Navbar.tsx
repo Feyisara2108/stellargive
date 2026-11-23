@@ -13,7 +13,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { Heart, Menu, X, Search } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
-import { CommandPalette } from "@/components/CommandPalette";
+import { openCommandPalette } from "@/components/CommandPalette";
 
 const NAV_LINKS = [
   { href: "/explore", label: "Explore" },
@@ -25,7 +25,6 @@ const NAV_LINKS = [
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [paletteOpen, setPaletteOpen] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const prefersReducedMotion = usePrefersReducedMotion();
@@ -125,7 +124,7 @@ export function Navbar() {
           {/* Command palette trigger */}
           <button
             type="button"
-            onClick={() => setPaletteOpen(true)}
+            onClick={openCommandPalette}
             aria-label={`Search campaigns (${shortcutLabel})`}
             aria-keyshortcuts={isMac ? "Meta+k" : "Control+k"}
             className="hidden 2xl:flex items-center gap-2 rounded-md border border-input bg-background px-3 h-9 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring whitespace-nowrap"
@@ -139,7 +138,7 @@ export function Navbar() {
           {/* Compact icon-only trigger for medium screens */}
           <IconButton
             className="2xl:hidden"
-            onClick={() => setPaletteOpen(true)}
+            onClick={openCommandPalette}
             aria-label={`Search campaigns (${shortcutLabel})`}
             aria-keyshortcuts={isMac ? "Meta+k" : "Control+k"}
           >
@@ -217,7 +216,7 @@ export function Navbar() {
             type="button"
             onClick={() => {
               closeMenu();
-              setPaletteOpen(true);
+              openCommandPalette();
             }}
             className="flex items-center gap-2 text-base font-medium text-muted-foreground hover:text-foreground transition-colors py-1"
             aria-label={`Search campaigns (${shortcutLabel})`}
@@ -233,9 +232,6 @@ export function Navbar() {
           </div>
         </nav>
       </div>
-
-      {/* Command palette — controlled from Navbar so the trigger button works */}
-      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
     </nav>
   );
 }

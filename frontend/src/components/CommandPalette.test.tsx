@@ -1,7 +1,7 @@
 import React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { CommandPalette } from "./CommandPalette";
+import { CommandPalette, openCommandPalette } from "./CommandPalette";
 
 const mockPush = vi.fn();
 
@@ -34,6 +34,15 @@ describe("CommandPalette", () => {
     // Trigger Cmd+K keydown on document
     fireEvent.keyDown(document, { key: "k", metaKey: true });
     expect(screen.getByPlaceholderText("Search navigation...")).toBeInTheDocument();
+  });
+
+  it("opens a single dialog when openCommandPalette() is called", () => {
+    render(<CommandPalette />);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    act(() => openCommandPalette());
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    expect(screen.getByRole("dialog", { name: "Command Palette" })).toBeInTheDocument();
   });
 
   it("filters navigation items based on search input", () => {

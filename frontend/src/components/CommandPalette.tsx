@@ -69,6 +69,13 @@ export function trackRecentCampaign(id: string, title: string) {
   } catch {}
 }
 
+/** Window event that opens the app-level palette mounted in Providers. */
+export const OPEN_COMMAND_PALETTE_EVENT = "stellargive:open-command-palette";
+
+export function openCommandPalette() {
+  window.dispatchEvent(new Event(OPEN_COMMAND_PALETTE_EVENT));
+}
+
 interface CommandPaletteProps {
   /** Allow a parent (e.g. Navbar) to control the open state externally. */
   open?: boolean;
@@ -136,6 +143,12 @@ export function CommandPalette({ open: openProp, onOpenChange }: CommandPaletteP
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
+
+  useEffect(() => {
+    const handleOpenEvent = () => setOpen(true);
+    window.addEventListener(OPEN_COMMAND_PALETTE_EVENT, handleOpenEvent);
+    return () => window.removeEventListener(OPEN_COMMAND_PALETTE_EVENT, handleOpenEvent);
+  }, [setOpen]);
 
   const sections = useMemo(() => {
     const searchLower = search.toLowerCase();

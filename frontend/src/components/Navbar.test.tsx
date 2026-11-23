@@ -135,6 +135,22 @@ describe("Navbar — primary nav links", () => {
   });
 });
 
+describe("Navbar — command palette triggers", () => {
+  it("opens the shared palette through a window event instead of mounting its own", async () => {
+    await renderNavbarConnected();
+    const onOpen = vi.fn();
+    window.addEventListener("stellargive:open-command-palette", onOpen);
+
+    const triggers = screen.getAllByRole("button", { name: /Search campaigns/ });
+    expect(triggers.length).toBeGreaterThan(0);
+    fireEvent.click(triggers[0]);
+
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog", { name: "Command Palette" })).not.toBeInTheDocument();
+    window.removeEventListener("stellargive:open-command-palette", onOpen);
+  });
+});
+
 describe("Navbar — wallet connect entry point", () => {
   it("shows the connected wallet address when the wallet is connected", async () => {
     await renderNavbarConnected();
