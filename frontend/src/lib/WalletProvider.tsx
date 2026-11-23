@@ -10,9 +10,9 @@ import {
   type WalletId,
 } from "@/lib/wallet";
 import { WalletPicker } from "@/components/WalletPicker";
-import * as Sentry from "@sentry/nextjs";
 import { notify } from "@/lib/toast";
 import { logger } from "@/lib/logger";
+import { setSentryUser } from "@/lib/sentry";
 import { NETWORK_PASSPHRASE } from "@/lib/network";
 
 export const WALLET_CONNECTED_KEY = "stellargive:wallet-previously-connected";
@@ -69,11 +69,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const isWrongNetwork = walletNetwork !== null && walletNetwork !== NETWORK_PASSPHRASE;
 
   useEffect(() => {
-    if (address) {
-      Sentry.setUser({ id: address });
-    } else {
-      Sentry.setUser(null);
-    }
+    setSentryUser(address ? { id: address } : null);
   }, [address]);
   const [isWalletConnected, setIsWalletConnected] = useState(false);
 
