@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useEvents } from "@/hooks/useSoroban";
-import type { SorobanEvent } from "@/lib/soroban";
 import {
   formatStroops,
   parseClaimEvent,
@@ -11,12 +10,10 @@ import {
 } from "@/lib/eventData";
 import { getStellarExpertTxUrl } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Activity, ArrowUpRight, ChevronDown, Megaphone, Trophy } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 
 // Throttle announcements to avoid overwhelming screen reader users
@@ -253,13 +250,14 @@ export function EventFeed() {
                   <td className="px-4 py-3 text-muted-foreground">{event.ledger}</td>
                   <td className="px-4 py-3 text-right">
                     <a
-                      href={`https://stellar.expert/explorer/testnet/tx/${event.txHash}`}
+                      href={getStellarExpertTxUrl(event.txHash)}
                       target="_blank"
-                      rel="noreferrer"
+                      rel="noopener noreferrer"
                       className="font-mono text-primary hover:underline"
                     >
                       {event.txHash.substring(0, 8)}...
                       {event.txHash.substring(event.txHash.length - 4)}
+                      <span className="sr-only"> (opens in a new tab)</span>
                     </a>
                   </td>
                 </tr>
@@ -312,12 +310,13 @@ export function EventFeed() {
               <div className="pt-3 border-t flex justify-between items-center text-xs">
                 <span className="text-muted-foreground">Tx Hash</span>
                 <a
-                  href={`https://stellar.expert/explorer/testnet/tx/${event.txHash}`}
+                  href={getStellarExpertTxUrl(event.txHash)}
                   target="_blank"
-                  rel="noreferrer"
+                  rel="noopener noreferrer"
                   className="font-mono text-primary hover:underline"
                 >
                   {event.txHash.substring(0, 8)}...{event.txHash.substring(event.txHash.length - 4)}
+                  <span className="sr-only"> (opens in a new tab)</span>
                 </a>
               </div>
             </div>

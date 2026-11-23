@@ -14,6 +14,11 @@ vi.mock("@/lib/soroban", () => ({
   },
 }));
 
+vi.mock("@/lib/utils", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/utils")>()),
+  getStellarExpertTxUrl: (txHash: string) => `https://explorer.example/tx/${txHash}`,
+}));
+
 vi.mock("sonner", () => ({
   toast: { info: vi.fn() },
 }));
@@ -196,6 +201,40 @@ describe("EventFeed — populated state", () => {
     } as any);
     render(<EventFeed />);
     expect(screen.queryByText(/No activity yet/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("EventFeed — transaction links", () => {
+  const TX_HASH = "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90";
+
+  function renderWithTx() {
+    const event = { ...makeDonationEvent("0-1", "GABC", 10_000_000n, 1n), txHash: TX_HASH };
+    vi.mocked(useEvents).mockReturnValue({ data: [event], isLoading: false } as any);
+    return render(<EventFeed />);
+  }
+
+  it("builds both the desktop and mobile links from getStellarExpertTxUrl", () => {
+    const { container } = renderWithTx();
+    const links = container.querySelectorAll(`a[href$="/tx/${TX_HASH}"]`);
+    expect(links).toHaveLength(2);
+    links.forEach((link) => {
+      expect(link).toHaveAttribute("href", `https://explorer.example/tx/${TX_HASH}`);
+    });
+  });
+
+  it("never hard-codes the testnet explorer", () => {
+    const { container } = renderWithTx();
+    expect(container.querySelector('a[href*="explorer/testnet"]')).not.toBeInTheDocument();
+  });
+
+  it("opens in a new tab safely and announces it to screen readers", () => {
+    const { container } = renderWithTx();
+    const links = container.querySelectorAll(`a[href$="/tx/${TX_HASH}"]`);
+    links.forEach((link) => {
+      expect(link).toHaveAttribute("target", "_blank");
+      expect(link).toHaveAttribute("rel", "noopener noreferrer");
+      expect(link).toHaveTextContent(/\(opens in a new tab\)/i);
+    });
   });
 });
 
