@@ -9,6 +9,7 @@ import type { Campaign, TokenMetadata } from "@/lib/soroban";
 import { formatTokenAmount, formatUSD } from "@/utils/format";
 import { useTokenMetadata, useXlmPrice } from "@/hooks/useSoroban";
 import { calculateProgress, getCampaignImageUrl, CAMPAIGN_IMAGE_BLUR_DATA_URL } from "@/lib/utils";
+import { isOptimizableImageUrl } from "../../image-hosts.mjs";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Progress,
@@ -180,6 +181,7 @@ function CampaignCardComponent({
         {getCampaignImageUrl(campaign.metadata_uri) && !imgError ? (
           <Image
             src={getCampaignImageUrl(campaign.metadata_uri)!}
+            unoptimized={!isOptimizableImageUrl(getCampaignImageUrl(campaign.metadata_uri)!)}
             alt={campaign.title}
             fill
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
