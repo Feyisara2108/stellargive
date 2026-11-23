@@ -241,16 +241,20 @@ export function CampaignDetailsClient({
                 <span
                   role="status"
                   aria-label={
-                    countdown.isEnded
-                      ? "Campaign has ended"
-                      : `Time remaining: ${countdown.days} days, ${countdown.hours} hours, ${countdown.minutes} minutes`
+                    !countdown.isReady
+                      ? "Calculating time remaining"
+                      : countdown.isEnded
+                        ? "Campaign has ended"
+                        : `Time remaining: ${countdown.days} days, ${countdown.hours} hours, ${countdown.minutes} minutes`
                   }
                   className="inline-flex items-center gap-1 font-medium text-orange-500"
                 >
                   <span aria-hidden="true">⏱️</span>{" "}
-                  {countdown.isEnded
-                    ? "Ended"
-                    : `${countdown.days}d ${countdown.hours}h ${countdown.minutes}m left`}
+                  {!countdown.isReady
+                    ? "--d --h --m left"
+                    : countdown.isEnded
+                      ? "Ended"
+                      : `${countdown.days}d ${countdown.hours}h ${countdown.minutes}m left`}
                 </span>
               )}
             </div>
