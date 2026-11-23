@@ -142,5 +142,40 @@ describe("Breadcrumbs", () => {
         1, 2, 3,
       ]);
     });
+
+    it("escapes a malicious title so it cannot close the script element", () => {
+      const title = "</script><img src=x onerror=alert(1)>";
+      const { container } = render(
+        <Breadcrumbs
+          items={[
+            { label: "Home", href: "/" },
+            { label: title, href: "/campaign/1" },
+          ]}
+        />,
+      );
+
+      const script = container.querySelector('script[type="application/ld+json"]');
+      expect(script).not.toBeNull();
+
+      const raw = script!.innerHTML;
+      expect(raw).not.toContain("</script");
+      expect(raw).not.toContain("<img");
+      expect(raw).not.toMatch(/[<>&]/);
+      expect(container.querySelector("img")).toBeNull();
+
+      const data = JSON.parse(raw);
+      expect(data.itemListElement[1].name).toBe(title);
+    });
+
+    it("escapes ampersands and line separators while preserving parsed JSON", () => {
+      const title = "Tom & Jerry  ";
+      const { container } = render(
+        <Breadcrumbs items={[{ label: title, href: "/campaign/2" }]} />,
+      );
+
+      const raw = container.querySelector('script[type="application/ld+json"]')!.innerHTML;
+      expect(raw).not.toMatch(/[&  ]/);
+      expect(JSON.parse(raw).itemListElement[0].name).toBe(title);
+    });
   });
 });
