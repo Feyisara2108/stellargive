@@ -25,10 +25,13 @@ export function StickyDonateBar({
   if (hidden) return null;
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 animate-in slide-in-from-bottom duration-200">
+    <div
+      className="md:hidden fixed left-0 right-0 z-50 animate-in slide-in-from-bottom duration-200"
+      style={{ bottom: "var(--consent-banner-height, 0px)" }}
+    >
       <div
-        className="max-w-4xl mx-auto p-3 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shadow-md"
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        className="max-w-4xl mx-auto p-3 bg-background border-t border-border shadow-md"
+        style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
       >
         <div className="flex items-center gap-3">
           {title && (

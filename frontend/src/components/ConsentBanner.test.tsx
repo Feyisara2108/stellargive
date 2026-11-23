@@ -35,8 +35,15 @@ describe("ConsentBanner", () => {
   });
 
   it("renders consent banner when consent is not yet set in localStorage", () => {
+    const heightMeasure = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockReturnValue(new DOMRect(0, 0, 320, 120));
     render(<ConsentBanner />);
+    heightMeasure.mockRestore();
 
+    expect(document.documentElement.style.getPropertyValue("--consent-banner-height")).toBe(
+      "120px",
+    );
     expect(screen.getByText("Cookie & Analytics Consent")).toBeInTheDocument();
     expect(
       screen.getByText(/We use cookies and analytics to improve your experience/i),
@@ -63,6 +70,7 @@ describe("ConsentBanner", () => {
     expect(window.location.reload).not.toHaveBeenCalled();
     expect(initSpy).toHaveBeenCalledTimes(1);
     expect(screen.queryByText("Cookie & Analytics Consent")).not.toBeInTheDocument();
+    expect(document.documentElement.style.getPropertyValue("--consent-banner-height")).toBe("");
   });
 
   it("initializes analytics on mount if consent was already accepted", () => {
@@ -83,6 +91,7 @@ describe("ConsentBanner", () => {
     expect(localStorage.getItem(CONSENT_KEY)).toBe("declined");
     expect(window.location.reload).not.toHaveBeenCalled();
     expect(screen.queryByText("Cookie & Analytics Consent")).not.toBeInTheDocument();
+    expect(document.documentElement.style.getPropertyValue("--consent-banner-height")).toBe("");
   });
 
   it("handles Close icon button click by treating it as decline", () => {
