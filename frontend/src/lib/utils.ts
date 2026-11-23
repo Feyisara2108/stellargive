@@ -21,6 +21,20 @@ export function calculateProgress(raised: bigint, target: bigint): number {
 }
 
 /**
+ * Precision-preserving funding percentage, computed entirely from bigints
+ * (no float division) so a campaign at 99.9% doesn't round down to "99%" the
+ * way the integer-percent `calculateProgress` does. Resolves to tenths of a
+ * percent; 100 is returned only once `raised` reaches or exceeds `target`.
+ * Use this for display labels; callers that need a plain integer (color
+ * thresholds, progress bar fill) should keep using `calculateProgress`.
+ */
+export function calculateProgressPercent(raised: bigint, target: bigint): number {
+  if (target <= 0n) return 0;
+  if (raised >= target) return 100;
+  return Number((raised * 1000n) / target) / 10;
+}
+
+/**
  * Stored as `metadata_uri` when a campaign is created without an image (#1075).
  * The contract only accepts `https://` or `ipfs://` URIs, so this uses the
  * reserved `.invalid` TLD (RFC 2606): it passes validation, is unmistakable on
