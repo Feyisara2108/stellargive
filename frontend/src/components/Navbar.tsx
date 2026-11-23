@@ -89,37 +89,43 @@ export function Navbar() {
   const backdropMotionClass = prefersReducedMotion ? "" : "transition-opacity duration-300";
 
   return (
-    <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40">
+    <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40">
       <div className="container flex h-16 items-center justify-between">
         {/* Brand */}
-        <div className="flex items-center gap-2 shrink-0">
+        <Link
+          href="/"
+          aria-label="StellarGive home"
+          className="flex items-center gap-2 shrink-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        >
           <div className="bg-primary p-1.5 rounded-lg">
-            <Heart className="w-5 h-5 text-primary-foreground fill-current" />
+            <Heart className="w-5 h-5 text-primary-foreground fill-current" aria-hidden="true" />
           </div>
           <span className="text-xl font-bold tracking-tight">
             stellar<span className="text-primary">Give</span>
           </span>
-        </div>
+        </Link>
 
         {/* Desktop navigation */}
         <div className="hidden xl:flex items-center gap-4">
-          {NAV_LINKS.map((link) => {
-            const isActive = pathname
-              ? pathname === link.href || pathname.startsWith(`${link.href}/`)
-              : false;
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                aria-current={isActive ? "page" : undefined}
-                className={`whitespace-nowrap text-sm font-medium transition-colors ${
-                  isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {link.label}
-              </Link>
-            );
-          })}
+          <nav aria-label="Main" className="flex items-center gap-4">
+            {NAV_LINKS.map((link) => {
+              const isActive = pathname
+                ? pathname === link.href || pathname.startsWith(`${link.href}/`)
+                : false;
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  aria-current={isActive ? "page" : undefined}
+                  className={`whitespace-nowrap text-sm font-medium transition-colors ${
+                    isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
+          </nav>
           <CreateCampaignForm />
           <div className="h-6 w-px bg-border mx-2" />
           {/* Command palette trigger */}
@@ -236,6 +242,6 @@ export function Navbar() {
 
       {/* Command palette — controlled from Navbar so the trigger button works */}
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
-    </nav>
+    </header>
   );
 }
