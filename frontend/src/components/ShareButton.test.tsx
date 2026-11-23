@@ -272,12 +272,17 @@ describe("ShareButton — copy feedback timing", () => {
     const { unmount } = render(<ShareButton campaign={CAMPAIGN} />);
     await openShareDialog();
     vi.useFakeTimers();
+    const timeoutSpy = vi.spyOn(globalThis, "setTimeout");
+    const clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout");
     fireEvent.click(screen.getByRole("button", { name: "Copy Link" }));
     await act(async () => {});
 
-    expect(vi.getTimerCount()).toBe(1);
+    const copyTimer = timeoutSpy.mock.results.find(
+      (_, index) => timeoutSpy.mock.calls[index][1] === 2000,
+    )?.value;
+    expect(copyTimer).toBeDefined();
     unmount();
-    expect(vi.getTimerCount()).toBe(0);
+    expect(clearTimeoutSpy).toHaveBeenCalledWith(copyTimer);
   });
 
   it("logs a failed copy through the logger", async () => {

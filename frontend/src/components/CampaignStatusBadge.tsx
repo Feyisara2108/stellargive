@@ -140,6 +140,9 @@ export function CampaignStatusBadge({
             <Badge
               variant="outline"
               className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${m.className}`}
+              {...(m.threshold === 100
+                ? { role: "img", "aria-label": "Goal Reached" }
+                : {})}
             >
               {m.label}
             </Badge>

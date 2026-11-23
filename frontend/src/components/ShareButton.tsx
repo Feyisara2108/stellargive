@@ -71,13 +71,15 @@ export function ShareButton({ campaign }: { campaign: ShareableCampaign }) {
   const handleTwitterShare = () =>
     openShare(
       (url, text) =>
-        `https://x.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`,
+        `https://x.com/intent/tweet?text=${encodeURIComponent(text)}` +
+        `&url=${encodeURIComponent(url)}`,
     );
 
   const handleTelegramShare = () =>
     openShare(
       (url, text) =>
-        `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`,
+        `https://t.me/share/url?url=${encodeURIComponent(url)}` +
+        `&text=${encodeURIComponent(text)}`,
     );
 
   const handleWhatsAppShare = () =>
@@ -105,7 +107,10 @@ export function ShareButton({ campaign }: { campaign: ShareableCampaign }) {
         // If user cancelled the share sheet, AbortError is thrown. We ignore it.
         // For other errors, we fallback to our manual dialog.
         const isAbort =
-          typeof err === "object" && err !== null && "name" in err && err.name === "AbortError";
+          typeof err === "object" &&
+          err !== null &&
+          "name" in err &&
+          err.name === "AbortError";
         if (!isAbort) {
           setOpen(true);
         }
@@ -142,7 +147,11 @@ export function ShareButton({ campaign }: { campaign: ShareableCampaign }) {
               className="flex items-center justify-start gap-2 w-full"
               onClick={handleCopy}
             >
-              {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+              {copied ? (
+                <Check className="w-4 h-4 text-green-500" />
+              ) : (
+                <Copy className="w-4 h-4" />
+              )}
               {copied ? "Copied!" : "Copy Link"}
             </Button>
 

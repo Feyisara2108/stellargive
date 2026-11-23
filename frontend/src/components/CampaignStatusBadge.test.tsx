@@ -121,6 +121,7 @@ describe("CampaignStatusBadge — Refunding", () => {
 describe("CampaignStatusBadge — goal milestone", () => {
   it("marks the party-popper decorative in the accessible name", () => {
     render(<CampaignStatusBadge status="Funded" progress={100} />);
-    expect(screen.getByRole("button", { name: "Goal Reached" })).toBeInTheDocument();
+    const milestone = screen.getByRole("img", { name: "Goal Reached" });
+    expect(milestone).toHaveTextContent("🎉 Goal Reached");
   });
 });
