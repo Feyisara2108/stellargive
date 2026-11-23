@@ -40,8 +40,6 @@ export function initAnalytics(options?: Sentry.BrowserOptions): void {
   });
 }
 
-export const initializeAnalytics = initAnalytics;
-
 /**
  * Updates analytics consent in localStorage and immediately initializes analytics
  * if accepted.

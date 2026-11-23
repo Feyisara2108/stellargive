@@ -13,9 +13,9 @@ import {
 } from "@/lib/soroban";
 import { notify } from "@/lib/toast";
 import { mapTransactionError } from "./campaignMutations";
+import { ZERO_ADDRESS } from "@/utils/format";
 
 export const DONOR_SCAN_EVENT_LIMIT = 200;
-const ZERO_ADDRESS = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
 export function countUniqueDonors(events: SorobanEvent[] | undefined): number {
   const donors = new Set<string>();
   for (const event of events ?? []) {

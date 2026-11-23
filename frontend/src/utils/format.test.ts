@@ -1,39 +1,18 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
-  formatStroop,
   formatAddress,
-  formatXLM,
   formatTokenAmount,
   formatBasisPoints,
   toRawAmount,
   parseTokenAmount,
   minBigInt,
-  normalizeAddress,
   formatUSD,
   escapeCSVField,
   toCSV,
   downloadTextFile,
-  ZERO_ADDRESS,
 } from "./format";
 
 describe("format utils", () => {
-  describe("formatStroop", () => {
-    it("delegates to formatTokenAmount and trims trailing zeros", () => {
-      expect(formatStroop(0n)).toBe("0");
-      expect(formatStroop(1n)).toBe("0.0000001"); // dust
-      expect(formatStroop(10_000_000n)).toBe("1"); // 1 XLM
-      expect(formatStroop(15_000_000n)).toBe("1.5");
-      expect(formatStroop(100_000_000_000_000n)).toBe("10000000"); // large amount
-    });
-
-    it("produces the same output as formatTokenAmount(n, 7)", () => {
-      const cases = [0n, 1n, 10_000_000n, 15_500_000n, 100_000_000_000_000n];
-      for (const n of cases) {
-        expect(formatStroop(n)).toBe(formatTokenAmount(n, 7));
-      }
-    });
-  });
-
   describe("formatAddress", () => {
     it("should format addresses", () => {
       expect(formatAddress("GABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")).toBe("GABC...7890");
@@ -46,15 +25,6 @@ describe("format utils", () => {
       expect(formatAddress("123456789")).toBe("123456789");
       // 10 chars: at the threshold, gets truncated.
       expect(formatAddress("1234567890")).toBe("1234...7890");
-    });
-  });
-
-  describe("formatXLM", () => {
-    it("should trim zeros and format XLM", () => {
-      expect(formatXLM(1.5)).toBe("1.5");
-      expect(formatXLM(1.0)).toBe("1");
-      expect(formatXLM(0.0000001)).toBe("0.0000001");
-      expect(formatXLM(0)).toBe("0");
     });
   });
 
@@ -84,23 +54,11 @@ describe("format utils", () => {
       expect(formatTokenAmount(10000000, 7)).toBe("1");
     });
 
-    it("is consistent with formatStroop for 7-decimal values", () => {
-      // The canonical formatter and the stroop convenience wrapper must
-      // always agree — this is the key cross-formatter consistency check.
-      const stroopValues = [0n, 1n, 10_000_000n, 15_500_000n, 999_999_999n];
-      for (const v of stroopValues) {
-        expect(formatTokenAmount(v, 7)).toBe(formatStroop(v));
-      }
-    });
-
     it("handles large stroop values without float precision drift", () => {
       // Number(9_007_199_254_740_993n) loses precision in JS float arithmetic.
       // formatTokenAmount uses pure bigint so the result is exact.
       const large = 9_007_199_254_740_993n; // > Number.MAX_SAFE_INTEGER
       expect(formatTokenAmount(large, 7)).toBe("900719925.4740993");
-      // The old Number()-based formatStroop would have returned "900719925.4740992"
-      // (the nearest float). Verify the new delegation path is exact:
-      expect(formatStroop(large)).toBe("900719925.4740993");
     });
 
     it("formats a 0-decimal token cleanly (no fractional part is ever produced)", () => {
@@ -208,53 +166,6 @@ describe("format utils", () => {
       expect(formatBasisPoints(33)).toBe("0.33%");
       expect(formatBasisPoints(67)).toBe("0.67%");
       expect(formatBasisPoints(1234)).toBe("12.34%");
-    });
-  });
-
-  describe("normalizeAddress", () => {
-    it("returns null for the zero-address placeholder", () => {
-      expect(normalizeAddress(ZERO_ADDRESS)).toBeNull();
-    });
-
-    it("returns null for falsy values", () => {
-      expect(normalizeAddress(null)).toBeNull();
-      expect(normalizeAddress(undefined)).toBeNull();
-      expect(normalizeAddress("")).toBeNull();
-      expect(normalizeAddress(0)).toBeNull();
-    });
-
-    it("returns null for strings that are not valid G-addresses", () => {
-      // Too short
-      expect(normalizeAddress("GABC")).toBeNull();
-      // Wrong prefix
-      expect(
-        normalizeAddress("XAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF"),
-      ).toBeNull();
-      // Correct length but wrong prefix
-      expect(
-        normalizeAddress("BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF"),
-      ).toBeNull();
-    });
-
-    it("returns the address string for a valid 56-char G-address", () => {
-      const valid = "GBWMCCC3NHSKLAOJDBKKYW7SSH2PFTTNVFKWKPKQZT4QDKXV4STPEQAA";
-      expect(normalizeAddress(valid)).toBe(valid);
-    });
-
-    it("coerces non-string inputs via toString before validating", () => {
-      const valid = "GBWMCCC3NHSKLAOJDBKKYW7SSH2PFTTNVFKWKPKQZT4QDKXV4STPEQAA";
-      const wrapper = { toString: () => valid };
-      expect(normalizeAddress(wrapper)).toBe(valid);
-    });
-
-    it("returns null when toString produces the zero-address", () => {
-      const wrapper = { toString: () => ZERO_ADDRESS };
-      expect(normalizeAddress(wrapper)).toBeNull();
-    });
-
-    it("returns null for a non-zero numeric value coerced to a non-G string", () => {
-      // Truthy, non-zero-address, but toString() won't be a valid G-address.
-      expect(normalizeAddress(12345)).toBeNull();
     });
   });
 
