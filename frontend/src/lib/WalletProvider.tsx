@@ -13,8 +13,8 @@ import { WalletPicker } from "@/components/WalletPicker";
 import * as Sentry from "@sentry/nextjs";
 import { notify } from "@/lib/toast";
 import { logger } from "@/lib/logger";
+import { NETWORK_PASSPHRASE } from "@/lib/network";
 
-const APP_NETWORK_PASSPHRASE = process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE!;
 export const WALLET_CONNECTED_KEY = "stellargive:wallet-previously-connected";
 /** Set when the user explicitly disconnects, so a reload doesn't silently reconnect. */
 export const WALLET_DISCONNECTED_KEY = "stellargive:wallet-disconnected";
@@ -66,7 +66,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const walletNetworkRef = useRef(walletNetwork);
   walletNetworkRef.current = walletNetwork;
 
-  const isWrongNetwork = walletNetwork !== null && walletNetwork !== APP_NETWORK_PASSPHRASE;
+  const isWrongNetwork = walletNetwork !== null && walletNetwork !== NETWORK_PASSPHRASE;
 
   useEffect(() => {
     if (address) {

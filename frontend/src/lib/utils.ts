@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { NETWORK_PASSPHRASE, Networks } from "@/lib/network";
 
 /**
  * Shared blur placeholder for campaign images.
@@ -79,8 +80,7 @@ export function getCampaignImageUrl(uri?: string) {
 }
 
 export function getStellarExpertTxUrl(txHash: string): string {
-  const passphrase = process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ?? "";
-  const network = passphrase.startsWith("Public Global") ? "mainnet" : "testnet";
+  const network = NETWORK_PASSPHRASE === Networks.PUBLIC ? "mainnet" : "testnet";
   return `https://stellar.expert/explorer/${network}/tx/${txHash}`;
 }
 
