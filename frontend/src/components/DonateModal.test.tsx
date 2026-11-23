@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { axe, toHaveNoViolations } from "jest-axe";
 import { DonateModal } from "./DonateModal";
 import type { Campaign } from "@/lib/soroban";
+import { useWallet } from "@/lib/WalletProvider";
 
 expect.extend(toHaveNoViolations);
 
@@ -817,5 +818,49 @@ describe("DonateModal", () => {
         await screen.findByText("Insufficient balance — you have 1000000000000 TKN"),
       ).toBeInTheDocument();
     });
+  });
+});
+
+describe("DonateModal — disabled trigger reason", () => {
+  afterEach(() => {
+    vi.mocked(useWallet).mockReturnValue({ address: "GABC...", isConnected: true } as any);
+  });
+
+  it("describes the disabled Donate button with an always-present hidden reason", () => {
+    vi.mocked(useWallet).mockReturnValue({ address: null, isConnected: false } as any);
+    render(<DonateModal campaign={baseCampaign} />);
+
+    const button = screen.getByRole("button", { name: /Donate Now/i });
+    expect(button).toBeDisabled();
+
+    // The focusable wrapper (not the disabled button) carries the description.
+    const anchor = button.closest("[tabindex]") as HTMLElement;
+    expect(anchor).not.toBeNull();
+    const reasonId = anchor.getAttribute("aria-describedby");
+    expect(reasonId).toBeTruthy();
+    const reason = document.getElementById(reasonId!);
+    expect(reason).toHaveTextContent("Connect your wallet to donate");
+    expect(reason).toHaveClass("sr-only");
+    // No tooltip is open, yet the reference resolves.
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  });
+
+  it("opens the visible tooltip when the disabled trigger wrapper receives focus", async () => {
+    vi.mocked(useWallet).mockReturnValue({ address: null, isConnected: false } as any);
+    render(<DonateModal campaign={baseCampaign} />);
+
+    const anchor = screen
+      .getByRole("button", { name: /Donate Now/i })
+      .closest("[tabindex]") as HTMLElement;
+    fireEvent.focus(anchor);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Connect your wallet to donate");
+  });
+
+  it("does not make the wrapper focusable or described when the button is enabled", () => {
+    render(<DonateModal campaign={baseCampaign} />);
+    const button = screen.getByRole("button", { name: /Donate Now/i });
+    expect(button).toBeEnabled();
+    expect(button.closest("[tabindex]")).toBeNull();
+    expect(button.closest("[aria-describedby]")).toBeNull();
   });
 });

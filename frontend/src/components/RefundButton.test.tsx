@@ -75,6 +75,58 @@ describe("RefundButton — visibility", () => {
     expect(await screen.findByRole("tooltip")).toHaveTextContent(/cancelled or expired unfunded/i);
   });
 
+  it("does not nest a button inside a button when not eligible", () => {
+    vi.mocked(useRefundEligibility).mockReturnValue(mockEligibility({ data: false }) as any);
+    render(<RefundButton campaignId={CAMPAIGN_ID} isCancelled />);
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+    expect(document.querySelector("button button")).toBeNull();
+  });
+
+  it("describes the focusable wrapper with an always-present hidden reason when not eligible", () => {
+    vi.mocked(useRefundEligibility).mockReturnValue(mockEligibility({ data: false }) as any);
+    render(<RefundButton campaignId={CAMPAIGN_ID} isCancelled />);
+    const anchor = screen
+      .getByRole("button", { name: /Refund unavailable/i })
+      .closest("[tabindex]") as HTMLElement;
+    expect(anchor).toHaveAttribute("tabindex", "0");
+    const reason = document.getElementById(anchor.getAttribute("aria-describedby")!);
+    expect(reason).toHaveTextContent(/cancelled or expired unfunded/i);
+    expect(reason).toHaveClass("sr-only");
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  });
+
+  it("opens the tooltip when the focusable wrapper receives keyboard focus", async () => {
+    vi.mocked(useRefundEligibility).mockReturnValue(mockEligibility({ data: false }) as any);
+    render(<RefundButton campaignId={CAMPAIGN_ID} isCancelled />);
+    const anchor = screen
+      .getByRole("button", { name: /Refund unavailable/i })
+      .closest("[tabindex]") as HTMLElement;
+    fireEvent.focus(anchor);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(/cancelled or expired unfunded/i);
+  });
+
+  it("describes the disabled Claim refund button on the wrong network", () => {
+    vi.mocked(useWallet).mockReturnValue({ address: "GTESTADDRESS", isWrongNetwork: true } as any);
+    vi.mocked(useRefundEligibility).mockReturnValue(mockEligibility({ data: true }) as any);
+    render(<RefundButton campaignId={CAMPAIGN_ID} isCancelled />);
+
+    const button = screen.getByRole("button", { name: /Claim refund/i });
+    expect(button).toBeDisabled();
+    expect(document.querySelector("button button")).toBeNull();
+    const anchor = button.closest("[tabindex]") as HTMLElement;
+    expect(anchor).toHaveAttribute("tabindex", "0");
+    const reason = document.getElementById(anchor.getAttribute("aria-describedby")!);
+    expect(reason).not.toBeEmptyDOMElement();
+  });
+
+  it("leaves the enabled Claim refund wrapper unfocusable and undescribed", () => {
+    vi.mocked(useRefundEligibility).mockReturnValue(mockEligibility({ data: true }) as any);
+    render(<RefundButton campaignId={CAMPAIGN_ID} isCancelled />);
+    const button = screen.getByRole("button", { name: /Claim refund/i });
+    expect(button.closest("[tabindex]")).toBeNull();
+    expect(button.closest("[aria-describedby]")).toBeNull();
+  });
+
   it("shows the eligibility explainer inline", () => {
     vi.mocked(useRefundEligibility).mockReturnValue(mockEligibility({ data: true }) as any);
     render(<RefundButton campaignId={CAMPAIGN_ID} isCancelled />);
