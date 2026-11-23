@@ -140,6 +140,29 @@ describe("CampaignCard", () => {
     expect(screen.getByText("35.0%")).toBeInTheDocument();
   });
 
+  it("shows 99.9% rather than rounding down to 99.0% when nearly funded", () => {
+    const nearlyFunded: Campaign = {
+      ...baseCampaign,
+      id: 99n,
+      raised_amount: stroops(999_000),
+      target_amount: stroops(1_000_000),
+    };
+    render(<CampaignCard campaign={nearlyFunded} />);
+    expect(screen.getByText("99.9%")).toBeInTheDocument();
+    expect(screen.queryByText("99.0%")).not.toBeInTheDocument();
+  });
+
+  it("never shows 100% while raised is still below target", () => {
+    const almostFunded: Campaign = {
+      ...baseCampaign,
+      id: 98n,
+      raised_amount: stroops(999_999),
+      target_amount: stroops(1_000_000),
+    };
+    render(<CampaignCard campaign={almostFunded} />);
+    expect(screen.queryByText("100.0%")).not.toBeInTheDocument();
+  });
+
   // ------------------------------------------------------------------
   // Status badges
   // ------------------------------------------------------------------
@@ -503,6 +526,32 @@ describe("CampaignCard", () => {
       const modal = screen.getByTestId("donate-modal");
       expect(modal).toHaveAttribute("data-open", "true");
       expect(modal).toHaveAttribute("data-suggested-amount", "100000");
+    });
+  });
+
+  describe("memoization", () => {
+    it("updates the rendered title when campaign.title changes on a mounted card", () => {
+      const { rerender } = render(<CampaignCard campaign={baseCampaign} />);
+      expect(screen.getByText("Flood Relief — Lagos")).toBeInTheDocument();
+
+      rerender(<CampaignCard campaign={{ ...baseCampaign, title: "Updated Title" }} />);
+
+      expect(screen.queryByText("Flood Relief — Lagos")).not.toBeInTheDocument();
+      expect(screen.getByText("Updated Title")).toBeInTheDocument();
+    });
+
+    it("updates the rendered deadline when campaign.deadline changes on a mounted card", () => {
+      const { rerender } = render(<CampaignCard campaign={baseCampaign} />);
+      const before = screen.getByText(/Ends/i).textContent;
+
+      rerender(
+        <CampaignCard
+          campaign={{ ...baseCampaign, deadline: BigInt(nowSec() + 60 * ONE_DAY) }}
+        />,
+      );
+
+      const after = screen.getByText(/Ends/i).textContent;
+      expect(after).not.toBe(before);
     });
   });
 });

@@ -7,7 +7,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { Campaign, TokenMetadata } from "@/lib/soroban";
 import { formatTokenAmount, formatUSD } from "@/utils/format";
 import { useTokenMetadata, useXlmPrice } from "@/hooks/useSoroban";
-import { calculateProgress, getCampaignImageUrl, CAMPAIGN_IMAGE_BLUR_DATA_URL } from "@/lib/utils";
+import {
+  calculateProgress,
+  calculateProgressPercent,
+  getCampaignImageUrl,
+  CAMPAIGN_IMAGE_BLUR_DATA_URL,
+} from "@/lib/utils";
 import { isOptimizableImageUrl } from "../../image-hosts.mjs";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -72,8 +77,6 @@ const URGENCY_TEXT_CLASS: Record<DeadlineUrgency, string> = {
   critical: "text-red-700 dark:text-red-400 font-semibold",
 };
 
-// Prefetch debounce timer map (shared across all card instances)
-const prefetchTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const PREFETCH_DEBOUNCE_MS = 150;
 
 export type CampaignHighlightLabel = "Near Goal" | "Trending";
@@ -141,12 +144,11 @@ function CampaignCardComponent({
   const raised = isMetaPending ? null : formatTokenAmount(campaign.raised_amount, decimals);
   const target = isMetaPending ? null : formatTokenAmount(campaign.target_amount, decimals);
   const progress = calculateProgress(campaign.raised_amount, campaign.target_amount);
+  const progressPercent = calculateProgressPercent(campaign.raised_amount, campaign.target_amount);
   const progressVariant: ProgressVariant =
     progress >= 100 ? "success" : progress >= 50 ? "warning" : "default";
 
   const isExpired = campaign.status === "Expired";
-  const isFunded = campaign.status === "Funded";
-  const isClaimed = campaign.status === "Claimed";
   const deadlineDate = new Date(Number(campaign.deadline) * 1000);
   const { urgency, endingSoon } =
     campaign.status === "Active"
@@ -281,7 +283,7 @@ function CampaignCardComponent({
             aria-label={`Fundraising progress for ${campaign.title}`}
           />
           <div className="flex justify-between text-xs text-muted-foreground">
-            <span>{progress.toFixed(1)}%</span>
+            <span>{progressPercent.toFixed(1)}%</span>
             <div className="flex items-center gap-1">
               <Target className="w-3 h-3" /> Target:{" "}
               {target === null ? (
@@ -373,14 +375,33 @@ function CampaignCardComponent({
   );
 }
 
+function tagsEqual(a: string[] | undefined, b: string[] | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
+  return a.every((tag, i) => tag === b[i]);
+}
+
+function tokenMetaEqual(a: TokenMetadata | undefined, b: TokenMetadata | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return a.symbol === b.symbol && a.decimals === b.decimals && a.name === b.name;
+}
+
 export const CampaignCard = React.memo(CampaignCardComponent, (prevProps, nextProps) => {
   return (
     prevProps.campaign.id === nextProps.campaign.id &&
     prevProps.campaign.status === nextProps.campaign.status &&
     prevProps.campaign.raised_amount === nextProps.campaign.raised_amount &&
+    prevProps.campaign.target_amount === nextProps.campaign.target_amount &&
+    prevProps.campaign.deadline === nextProps.campaign.deadline &&
+    prevProps.campaign.title === nextProps.campaign.title &&
+    prevProps.campaign.metadata_uri === nextProps.campaign.metadata_uri &&
+    prevProps.campaign.category === nextProps.campaign.category &&
     prevProps.detailHrefSearch === nextProps.detailHrefSearch &&
     prevProps.highlightLabel === nextProps.highlightLabel &&
     prevProps.isPreview === nextProps.isPreview &&
-    JSON.stringify(prevProps.campaign.tags) === JSON.stringify(nextProps.campaign.tags)
+    tokenMetaEqual(prevProps.preloadedTokenMeta, nextProps.preloadedTokenMeta) &&
+    tagsEqual(prevProps.campaign.tags, nextProps.campaign.tags)
   );
 });
