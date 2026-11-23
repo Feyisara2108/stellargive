@@ -49,6 +49,29 @@ import { logger } from "@/lib/logger";
 const FIRED_MILESTONES = new Set<string>();
 const milestoneKey = (campaignId: bigint, m: MilestonePercent) => `${campaignId.toString()}:${m}`;
 
+// Namespaced per accepted token so an amount typed for one (donor cap,
+// decimals) never pre-fills a donation to a different token.
+const LAST_DONATED_AMOUNT_KEY_PREFIX = "stellargive_last_donated_amount";
+
+function readLastDonatedAmount(acceptedToken: string): string | null {
+  try {
+    if (typeof window === "undefined") return null;
+    return localStorage.getItem(`${LAST_DONATED_AMOUNT_KEY_PREFIX}:${acceptedToken}`);
+  } catch (e) {
+    logger.error("Failed to read last donated amount from localStorage", e);
+    return null;
+  }
+}
+
+function writeLastDonatedAmount(acceptedToken: string, amount: string): void {
+  try {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(`${LAST_DONATED_AMOUNT_KEY_PREFIX}:${acceptedToken}`, amount);
+  } catch (e) {
+    logger.error("Failed to save last donated amount to localStorage", e);
+  }
+}
+
 const MILESTONE_COPY: Record<MilestonePercent, { title: string; description: string }> = {
   25: { title: "25% funded!", description: "First quarter milestone reached." },
   50: { title: "Halfway there!", description: "50% of the goal funded." },
@@ -193,17 +216,22 @@ export function DonateModal({
   const prevOpenRef = React.useRef(false);
   useEffect(() => {
     if (isOpen && !prevOpenRef.current) {
-      const initialAmount =
-        suggestedAmount ||
-        (typeof window !== "undefined"
-          ? localStorage.getItem("stellargive_last_donated_amount") || ""
-          : "");
+      let initialAmount = suggestedAmount || "";
+      if (!initialAmount) {
+        const stored = readLastDonatedAmount(campaign.accepted_token);
+        // Only pre-fill a stored amount that's still valid for this token —
+        // one typed for a different token's decimals (or donor cap) could
+        // otherwise exceed what the current token allows.
+        if (stored && parseTokenAmount(stored, decimals) !== null) {
+          initialAmount = stored;
+        }
+      }
       if (initialAmount) {
         setValue("amount", initialAmount, { shouldValidate: true });
       }
     }
     prevOpenRef.current = isOpen;
-  }, [isOpen, suggestedAmount, setValue]);
+  }, [isOpen, suggestedAmount, setValue, campaign.accepted_token, decimals]);
 
   useEffect(() => {
     if (donate.isSuccess && !prefersReducedMotion) {
@@ -255,13 +283,7 @@ export function DonateModal({
       setSuccessAmount(data.amount);
       setSuccessTxHash((result as { hash?: string })?.hash || "");
       setSuccessAnnouncement(`Donation of ${data.amount} ${symbol} confirmed`);
-      try {
-        if (typeof window !== "undefined") {
-          localStorage.setItem("stellargive_last_donated_amount", data.amount);
-        }
-      } catch (storageErr) {
-        logger.error("Failed to save last donated amount to localStorage", storageErr);
-      }
+      writeLastDonatedAmount(campaign.accepted_token, data.amount);
       setShowSuccess(true);
       setIsOpen(false);
       setValue("amount", "");
