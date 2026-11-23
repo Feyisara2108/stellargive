@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import * as React from "react";
+import { useId, useState } from "react";
 import { useClaimRefund, useRefund, useRefundEligibility } from "@/hooks/useSoroban";
 import { useWallet } from "@/lib/WalletProvider";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,20 @@ const INELIGIBLE_REASON =
   "Not refundable: the campaign must be cancelled or expired unfunded, and this wallet must have a refundable donation.";
 const WRONG_NETWORK_REASON = WRONG_NETWORK_MESSAGE;
 
+/**
+ * Focusable wrapper for a possibly-disabled button. A disabled <button> receives no focus or
+ * pointer events, so the wrapper takes focus instead. `aria-describedby` is applied last so it
+ * wins over the tooltip-content id that TooltipTrigger injects into its child (that element only
+ * exists while the tooltip is open).
+ */
+const TooltipAnchor = React.forwardRef<
+  HTMLSpanElement,
+  React.HTMLAttributes<HTMLSpanElement> & { focusable: boolean; describedBy?: string }
+>(({ focusable, describedBy, ...props }, ref) => (
+  <span ref={ref} tabIndex={focusable ? 0 : undefined} {...props} aria-describedby={describedBy} />
+));
+TooltipAnchor.displayName = "TooltipAnchor";
+
 export function RefundButton({
   campaignId,
   isCancelled,
@@ -38,6 +53,7 @@ export function RefundButton({
   refundAmount?: string;
 }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const reasonId = useId();
   const { isWrongNetwork } = useWallet();
   const { data: isEligible, isLoading: isCheckingEligibility } = useRefundEligibility(
     campaignId,
@@ -63,14 +79,19 @@ export function RefundButton({
     return (
       <div className="space-y-1">
         <Tooltip>
-          <TooltipTrigger>
-            <Button variant="outline" className="gap-2" disabled>
-              <RefreshCcw className="h-4 w-4" />
-              Refund unavailable
-            </Button>
+          <TooltipTrigger asChild>
+            <TooltipAnchor focusable describedBy={reasonId} className="relative">
+              <Button variant="outline" className="gap-2" disabled>
+                <RefreshCcw className="h-4 w-4" />
+                Refund unavailable
+              </Button>
+            </TooltipAnchor>
           </TooltipTrigger>
           <TooltipContent side="top">{INELIGIBLE_REASON}</TooltipContent>
         </Tooltip>
+        <span id={reasonId} className="sr-only">
+          {INELIGIBLE_REASON}
+        </span>
         <p className="text-xs text-muted-foreground">{ELIGIBILITY_EXPLAINER}</p>
       </div>
     );
@@ -88,13 +109,16 @@ export function RefundButton({
   return (
     <div className="space-y-1">
       <Tooltip>
-        <TooltipTrigger>
-          <span className="relative">
+        <TooltipTrigger asChild>
+          <TooltipAnchor
+            focusable={isWrongNetwork}
+            describedBy={isWrongNetwork ? reasonId : undefined}
+            className="relative"
+          >
             <Button
               variant="outline"
               className="border-primary text-primary hover:bg-primary/10 gap-2"
               disabled={refundMutation.isPending || isWrongNetwork}
-              aria-describedby={isWrongNetwork ? "refund-disabled-reason" : undefined}
               onClick={() => setConfirmOpen(true)}
             >
               {refundMutation.isPending ? (
@@ -109,14 +133,13 @@ export function RefundButton({
                 </>
               )}
             </Button>
-          </span>
+          </TooltipAnchor>
         </TooltipTrigger>
-        {isWrongNetwork && (
-          <TooltipContent side="top" id="refund-disabled-reason">
-            {WRONG_NETWORK_REASON}
-          </TooltipContent>
-        )}
+        {isWrongNetwork && <TooltipContent side="top">{WRONG_NETWORK_REASON}</TooltipContent>}
       </Tooltip>
+      <span id={reasonId} className="sr-only">
+        {isWrongNetwork ? WRONG_NETWORK_REASON : null}
+      </span>
       <p className="text-xs text-muted-foreground">{ELIGIBILITY_EXPLAINER}</p>
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>

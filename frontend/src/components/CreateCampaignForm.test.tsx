@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@/test/render";
 import { axe, toHaveNoViolations } from "jest-axe";
 import { CreateCampaignForm } from "./CreateCampaignForm";
@@ -508,5 +508,76 @@ describe("CreateCampaignForm", () => {
 
       await expectStuckOnStep(1);
     });
+  });
+});
+
+describe("CreateCampaignForm — cover image upload accessibility", () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    createCampaignState.mutateAsync = vi.fn().mockResolvedValue({ campaignId: "1" });
+    createCampaignState.isPending = false;
+    resolvedNameState.data = null;
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("announces an oversize-image error with role=alert and links it to the file input", async () => {
+    renderForm();
+    await openForm();
+
+    const input = screen.getByLabelText(/Campaign Cover Image/i) as HTMLInputElement;
+    const big = new File([new Uint8Array(5 * 1024 * 1024 + 1)], "big.png", { type: "image/png" });
+    fireEvent.change(input, { target: { files: [big] } });
+
+    const error = await screen.findByText("Image must be 5MB or less.");
+    expect(error).toHaveAttribute("role", "alert");
+    const errorId = error.id;
+    expect(errorId).toBeTruthy();
+    expect(input.getAttribute("aria-describedby")?.split(" ")).toContain(errorId);
+  });
+
+  it("announces upload start and completion through one polite live region and labels the URI", async () => {
+    let xhr!: {
+      onload: () => void;
+      status: number;
+      responseText: string;
+      upload: { onprogress: (e: unknown) => void };
+    };
+    class FakeXHR {
+      status = 200;
+      responseText = JSON.stringify({ metadata_uri: "ipfs://bafyexample" });
+      upload = { onprogress: (_e: unknown) => {} };
+      onload = () => {};
+      onerror = () => {};
+      open() {}
+      send() {
+        xhr = this as unknown as typeof xhr;
+      }
+    }
+    vi.stubGlobal("XMLHttpRequest", FakeXHR);
+
+    renderForm();
+    await openForm();
+
+    const input = screen.getByLabelText(/Campaign Cover Image/i) as HTMLInputElement;
+    const file = new File(["x"], "cover.png", { type: "image/png" });
+    fireEvent.change(input, { target: { files: [file] } });
+
+    const liveRegion = await screen.findByText("Uploading image");
+    expect(liveRegion).toHaveAttribute("aria-live", "polite");
+
+    // Progress ticks must not touch the live region text.
+    xhr.upload.onprogress({ lengthComputable: true, loaded: 50, total: 100 });
+    expect(liveRegion).toHaveTextContent("Uploading image");
+
+    xhr.onload();
+    await waitFor(() => expect(liveRegion).toHaveTextContent("Image uploaded"));
+    expect(screen.getByText(/Uploaded to: ipfs:\/\/bafyexample/)).toBeInTheDocument();
+    expect(screen.queryByText(/^CID:/)).not.toBeInTheDocument();
+    // The character counter no longer announces on every change.
+    const counter = screen.getByText(/^\d+\/\d+$/);
+    expect(counter).not.toHaveAttribute("aria-live");
   });
 });

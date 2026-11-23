@@ -110,9 +110,9 @@ describe("ClaimButton — tooltip rendering", () => {
     const button = screen.getByRole("button", { name: /Claim Funds/i });
     fireEvent.mouseEnter(button.parentElement as HTMLElement);
 
-    expect(
-      await screen.findByText(/Campaign must be fully funded or expired before claiming/i),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      /Campaign must be fully funded or expired before claiming/i,
+    );
   });
 
   it("shows the 'nothing to claim' tooltip when raised_amount is 0", async () => {
@@ -121,9 +121,9 @@ describe("ClaimButton — tooltip rendering", () => {
     const button = screen.getByRole("button", { name: /Claim Funds/i });
     fireEvent.mouseEnter(button.parentElement as HTMLElement);
 
-    expect(
-      await screen.findByText(/Nothing to claim — no funds have been raised/i),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      /Nothing to claim — no funds have been raised/i,
+    );
   });
 
   it("shows the 'already claimed' tooltip for a Claimed campaign", async () => {
@@ -132,7 +132,62 @@ describe("ClaimButton — tooltip rendering", () => {
     const button = screen.getByRole("button", { name: /Claimed/i });
     fireEvent.mouseEnter(button.parentElement as HTMLElement);
 
-    expect(await screen.findByText(/Funds have already been claimed/i)).toBeInTheDocument();
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      /Funds have already been claimed/i,
+    );
+  });
+
+  it("opens the tooltip when the focusable wrapper receives keyboard focus", async () => {
+    render(<ClaimButton campaign={{ ...baseCampaign, status: "Active" }} />);
+    const anchor = screen
+      .getByRole("button", { name: /Claim Funds/i })
+      .closest("[tabindex]") as HTMLElement;
+    expect(anchor).toHaveAttribute("tabindex", "0");
+    fireEvent.focus(anchor);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(/must be fully funded/i);
+  });
+
+  it("describes the wrapper with an always-present hidden reason (no tooltip open)", () => {
+    render(<ClaimButton campaign={{ ...baseCampaign, status: "Active" }} />);
+    const anchor = screen
+      .getByRole("button", { name: /Claim Funds/i })
+      .closest("[tabindex]") as HTMLElement;
+    const reason = document.getElementById(anchor.getAttribute("aria-describedby")!);
+    expect(reason).toHaveTextContent(/must be fully funded or expired/i);
+    expect(reason).toHaveClass("sr-only");
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  });
+
+  it("does not nest buttons in the Claimed and creator-only branches", () => {
+    const { unmount } = render(<ClaimButton campaign={{ ...baseCampaign, status: "Claimed" }} />);
+    expect(document.querySelector("button button")).toBeNull();
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+    unmount();
+
+    vi.mocked(useWallet).mockReturnValue({ address: CREATOR } as any);
+    render(<ClaimButton campaign={baseCampaign} />);
+    expect(document.querySelector("button button")).toBeNull();
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+  });
+
+  it("uses an accessible green pair for the Claimed label", () => {
+    render(<ClaimButton campaign={{ ...baseCampaign, status: "Claimed" }} />);
+    const button = screen.getByRole("button", { name: /Claimed/i });
+    expect(button.className).toContain("text-green-700");
+    expect(button.className).toContain("dark:text-green-400");
+  });
+
+  it("gives each card its own reason id", () => {
+    render(
+      <>
+        <ClaimButton campaign={{ ...baseCampaign, id: 1n, status: "Active" }} />
+        <ClaimButton campaign={{ ...baseCampaign, id: 2n, status: "Active" }} />
+      </>,
+    );
+    const ids = screen
+      .getAllByRole("button", { name: /Claim Funds/i })
+      .map((b) => (b.closest("[tabindex]") as HTMLElement).getAttribute("aria-describedby"));
+    expect(new Set(ids).size).toBe(2);
   });
 
   it("renders no tooltip content when the button is enabled", () => {

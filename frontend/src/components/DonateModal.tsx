@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useId } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
@@ -56,6 +56,20 @@ const MILESTONE_COPY: Record<MilestonePercent, { title: string; description: str
   100: { title: "Fully funded!", description: "100% of the goal raised." },
 };
 
+/**
+ * Focusable wrapper for the possibly-disabled Donate trigger. A disabled <button> receives no
+ * focus or pointer events, so the wrapper takes focus instead. `aria-describedby` is applied last
+ * so it wins over the tooltip-content id that TooltipTrigger injects into its child (that element
+ * only exists while the tooltip is open).
+ */
+const TooltipAnchor = React.forwardRef<
+  HTMLSpanElement,
+  React.HTMLAttributes<HTMLSpanElement> & { focusable: boolean; describedBy?: string }
+>(({ focusable, describedBy, ...props }, ref) => (
+  <span ref={ref} tabIndex={focusable ? 0 : undefined} {...props} aria-describedby={describedBy} />
+));
+TooltipAnchor.displayName = "TooltipAnchor";
+
 export function DonateModal({
   campaign,
   open: openProp,
@@ -69,6 +83,7 @@ export function DonateModal({
   suggestedAmount?: string;
 }) {
   const router = useRouter();
+  const donateReasonId = useId();
   const { address, isWrongNetwork } = useWallet();
   const prefersReducedMotion = usePrefersReducedMotion();
   const {
@@ -261,6 +276,11 @@ export function DonateModal({
   // Only Active campaigns take donations, but the success dialog below must outlive
   // the status flip when this donation is the one that reaches the goal.
   const acceptingDonations = campaign.status === "Active";
+  const donateDisabledReason = !address
+    ? "Connect your wallet to donate"
+    : isWrongNetwork
+      ? WRONG_NETWORK_MESSAGE
+      : null;
 
   return (
     <>
@@ -279,26 +299,25 @@ export function DonateModal({
         >
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="relative flex-1 block">
+              <TooltipAnchor
+                focusable={donateDisabledReason !== null}
+                describedBy={donateDisabledReason ? donateReasonId : undefined}
+                className="relative flex-1 block"
+              >
                 <DialogTrigger asChild>
-                  <Button
-                    className="w-full"
-                    disabled={!address || isWrongNetwork}
-                    aria-describedby={
-                      !address || isWrongNetwork ? "donate-disabled-reason" : undefined
-                    }
-                  >
+                  <Button className="w-full" disabled={!address || isWrongNetwork}>
                     Donate Now
                   </Button>
                 </DialogTrigger>
-              </span>
+              </TooltipAnchor>
             </TooltipTrigger>
-            {(!address || isWrongNetwork) && (
-              <TooltipContent side="top" id="donate-disabled-reason">
-                {!address ? "Connect your wallet to donate" : WRONG_NETWORK_MESSAGE}
-              </TooltipContent>
+            {donateDisabledReason && (
+              <TooltipContent side="top">{donateDisabledReason}</TooltipContent>
             )}
           </Tooltip>
+          <span id={donateReasonId} className="sr-only">
+            {donateDisabledReason}
+          </span>
           <DialogContent
             aria-labelledby="donate-dialog-title"
             onPointerDownOutside={(e) => {

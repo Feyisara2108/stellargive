@@ -78,6 +78,17 @@ describe("GasWarning", () => {
     expect(screen.queryByRole("button", { name: /dismiss gas warning/i })).not.toBeInTheDocument();
   });
 
+  it("uses dark-mode classes and hides decorative icons from screen readers", () => {
+    render(<GasWarning feeStroops={ABOVE_THRESHOLD} onDismiss={vi.fn()} />);
+    const alert = screen.getByRole("alert");
+    expect(alert.className).toContain("dark:bg-yellow-950/30");
+    expect(alert.className).toContain("dark:text-yellow-300");
+    const svgs = alert.querySelectorAll("svg");
+    expect(svgs.length).toBe(2);
+    svgs.forEach((svg) => expect(svg).toHaveAttribute("aria-hidden", "true"));
+    expect(alert.textContent).not.toMatch(/[⚠✕]/);
+  });
+
   // --- Graceful behavior when fee data is unavailable (0) ---
 
   it("renders without crashing when feeStroops is 0", () => {
