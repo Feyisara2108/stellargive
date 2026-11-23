@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useCampaign, useCancelCampaign, useEvents } from "@/hooks/useSoroban";
+import { useCampaign, useCancelCampaign, useEvents, useTokenMetadata } from "@/hooks/useSoroban";
 import { useWallet } from "@/lib/WalletProvider";
 import { ShareButton } from "@/components/ShareButton";
 import { BookmarkButton } from "@/components/BookmarkButton";
@@ -121,6 +121,10 @@ export function CampaignDetailsClient({
     isError,
     refetch,
   } = useCampaign(BigInt(params.id), { initialData: initialCampaign });
+  const { data: tokenMeta } = useTokenMetadata(campaign?.accepted_token);
+  // Native XLM values until the token's own metadata has loaded.
+  const decimals = tokenMeta?.decimals ?? 7;
+  const symbol = tokenMeta?.symbol ?? "XLM";
   const cancelCampaign = useCancelCampaign();
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
   const [donateOpen, setDonateOpen] = useState(false);
@@ -191,9 +195,9 @@ export function CampaignDetailsClient({
     campaign.target_amount > campaign.raised_amount
       ? campaign.target_amount - campaign.raised_amount
       : 0n;
-  const gapXLM = Number(gapRaw) / 10 ** 7;
+  const gapAmount = formatTokenAmount(gapRaw, decimals);
   const showFundTheGap =
-    campaign.status === "Active" && progressPercent >= 90 && progressPercent < 100 && gapXLM > 0;
+    campaign.status === "Active" && progressPercent >= 90 && progressPercent < 100 && gapRaw > 0n;
 
   return (
     <div className="p-4 sm:p-8 max-w-4xl mx-auto space-y-6">
@@ -201,7 +205,9 @@ export function CampaignDetailsClient({
       <div ref={headerDonateRef} className="flex flex-wrap justify-between items-start gap-4">
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-3xl font-bold break-words min-w-0">{campaign?.title || `Campaign #${params.id}`}</h1>
+            <h1 className="text-3xl font-bold break-words min-w-0">
+              {campaign?.title || `Campaign #${params.id}`}
+            </h1>
             {campaign && (
               <CampaignStatusBadge
                 status={campaign.status}
@@ -295,7 +301,9 @@ export function CampaignDetailsClient({
                 {getCampaignImageUrl(campaign.metadata_uri) && !imgError ? (
                   <Image
                     src={getCampaignImageUrl(campaign.metadata_uri)!}
-                    unoptimized={!isOptimizableImageUrl(getCampaignImageUrl(campaign.metadata_uri)!)}
+                    unoptimized={
+                      !isOptimizableImageUrl(getCampaignImageUrl(campaign.metadata_uri)!)
+                    }
                     alt={campaign.title}
                     fill
                     sizes="(max-width: 768px) 100vw, (max-width: 1024px) 66vw, 800px"
@@ -328,13 +336,13 @@ export function CampaignDetailsClient({
                     <div className="space-y-1">
                       <p className="text-sm text-muted-foreground">Raised</p>
                       <p className="text-2xl font-bold">
-                        {formatTokenAmount(campaign.raised_amount, 7)} XLM
+                        {formatTokenAmount(campaign.raised_amount, decimals)} {symbol}
                       </p>
                     </div>
                     <div className="text-right space-y-1">
                       <p className="text-sm text-muted-foreground">Target</p>
                       <p className="text-lg font-medium">
-                        {formatTokenAmount(campaign.target_amount, 7)} XLM
+                        {formatTokenAmount(campaign.target_amount, decimals)} {symbol}
                       </p>
                     </div>
                   </div>
@@ -357,7 +365,7 @@ export function CampaignDetailsClient({
                   <p className="text-sm text-muted-foreground">
                     Maximum per donor:{" "}
                     <span className="font-medium text-foreground">
-                      {formatTokenAmount(campaign.max_per_donor, 7)} XLM
+                      {formatTokenAmount(campaign.max_per_donor, decimals)} {symbol}
                     </span>
                   </p>
                 )}
@@ -366,16 +374,18 @@ export function CampaignDetailsClient({
                   <div className="flex items-center justify-between gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
                     <div className="flex items-center gap-2 text-sm font-medium text-emerald-700 dark:text-emerald-400">
                       <Zap className="h-4 w-4 shrink-0" />
-                      <span>Only {gapXLM.toFixed(2)} XLM left — fund the gap!</span>
+                      <span>
+                        Only {gapAmount} {symbol} left — fund the gap!
+                      </span>
                     </div>
                     <button
                       onClick={() => {
-                        setDonateAmount(gapXLM.toFixed(7).replace(/\.?0+$/, ""));
+                        setDonateAmount(gapAmount);
                         setDonateOpen(true);
                       }}
                       disabled={!address || isWrongNetwork}
                       className="shrink-0 rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 dark:bg-emerald-500 dark:hover:bg-emerald-600 dark:focus-visible:ring-emerald-400 dark:focus-visible:ring-offset-emerald-900 disabled:opacity-50 disabled:cursor-not-allowed"
-                      aria-label={`Quick donate to fund the remaining ${gapXLM.toFixed(2)} XLM`}
+                      aria-label={`Quick donate to fund the remaining ${gapAmount} ${symbol}`}
                     >
                       Donate
                     </button>
@@ -388,7 +398,7 @@ export function CampaignDetailsClient({
                   </p>
                 </div>
 
-                <TopDonors campaignId={BigInt(params.id)} />
+                <TopDonors campaignId={BigInt(params.id)} decimals={decimals} symbol={symbol} />
                 <CampaignTimeline campaign={campaign} />
               </div>
             </div>
