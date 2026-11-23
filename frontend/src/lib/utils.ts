@@ -79,9 +79,16 @@ export function getCampaignImageUrl(uri?: string) {
   return resolveIpfsUrl(uri);
 }
 
+function getStellarExpertNetwork(): string {
+  return NETWORK_PASSPHRASE === Networks.PUBLIC ? "mainnet" : "testnet";
+}
+
 export function getStellarExpertTxUrl(txHash: string): string {
-  const network = NETWORK_PASSPHRASE === Networks.PUBLIC ? "mainnet" : "testnet";
-  return `https://stellar.expert/explorer/${network}/tx/${txHash}`;
+  return `https://stellar.expert/explorer/${getStellarExpertNetwork()}/tx/${txHash}`;
+}
+
+export function getStellarExpertAccountUrl(address: string, network?: string): string {
+  return `https://stellar.expert/explorer/${network ?? getStellarExpertNetwork()}/account/${address}`;
 }
 
 export function absoluteUrl(path: string) {

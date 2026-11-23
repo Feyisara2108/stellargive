@@ -5,6 +5,7 @@ import { ExternalLink, Copy, Check } from "lucide-react";
 import { formatAddress } from "@/utils/format";
 import { useResolvedName } from "@/hooks/useSoroban";
 import { toast } from "sonner";
+import { getStellarExpertAccountUrl } from "@/lib/utils";
 
 type AddressLinkProps = {
   address: string;
@@ -12,10 +13,10 @@ type AddressLinkProps = {
   className?: string;
 };
 
-export function AddressLink({ address, network = "testnet", className }: AddressLinkProps) {
+export function AddressLink({ address, network, className }: AddressLinkProps) {
   const [copied, setCopied] = useState(false);
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const href = `https://stellar.expert/explorer/${network}/account/${address}`;
+  const href = getStellarExpertAccountUrl(address, network);
   const { data: resolvedName } = useResolvedName(address);
 
   const displayText = resolvedName || formatAddress(address);
@@ -29,7 +30,7 @@ export function AddressLink({ address, network = "testnet", className }: Address
   }, []);
 
   const handleCopy = useCallback(
-    async (e: React.MouseEvent | React.KeyboardEvent) => {
+    async (e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
       try {
@@ -47,12 +48,6 @@ export function AddressLink({ address, network = "testnet", className }: Address
     [address],
   );
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" || e.key === " ") {
-      handleCopy(e);
-    }
-  };
-
   return (
     <span className={`inline-flex items-center gap-1 ${className ?? ""}`.trim()}>
       <a
@@ -68,7 +63,6 @@ export function AddressLink({ address, network = "testnet", className }: Address
       <button
         type="button"
         onClick={handleCopy}
-        onKeyDown={handleKeyDown}
         className="inline-flex items-center justify-center rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-label={copied ? "Address copied" : "Copy address"}
         title={copied ? "Copied" : "Copy address"}

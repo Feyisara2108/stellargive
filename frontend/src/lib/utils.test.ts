@@ -19,6 +19,7 @@ import {
   calculateProgress,
   DEFAULT_IPFS_GATEWAY,
   getCampaignImageUrl,
+  getStellarExpertAccountUrl,
   getStellarExpertTxUrl,
   isPlaceholderMetadataUri,
   NO_IMAGE_METADATA_URI,
@@ -149,6 +150,31 @@ describe("utils", () => {
       // create_campaign accepts `https://` or `ipfs://` prefixes, max 256 bytes.
       expect(NO_IMAGE_METADATA_URI.startsWith("https://")).toBe(true);
       expect(NO_IMAGE_METADATA_URI.length).toBeLessThanOrEqual(256);
+    });
+  });
+
+  describe("getStellarExpertAccountUrl", () => {
+    const ADDRESS = "GA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVSGZ";
+
+    afterEach(() => {
+      network.passphrase = "Standalone Network ; February 2017";
+    });
+
+    it("uses the same network segment as getStellarExpertTxUrl", () => {
+      network.passphrase = "Public Global Stellar Network ; September 2015";
+      expect(getStellarExpertAccountUrl(ADDRESS)).toBe(
+        `https://stellar.expert/explorer/mainnet/account/${ADDRESS}`,
+      );
+      network.passphrase = "Test SDF Network ; September 2015";
+      expect(getStellarExpertAccountUrl(ADDRESS)).toBe(
+        `https://stellar.expert/explorer/testnet/account/${ADDRESS}`,
+      );
+    });
+
+    it("lets an explicit network override the configured one", () => {
+      expect(getStellarExpertAccountUrl(ADDRESS, "public")).toBe(
+        `https://stellar.expert/explorer/public/account/${ADDRESS}`,
+      );
     });
   });
 
