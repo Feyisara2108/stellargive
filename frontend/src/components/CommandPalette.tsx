@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useTheme } from "next-themes";
+import { useWallet } from "@/lib/WalletProvider";
 import {
   Dialog,
   DialogContent,
@@ -15,7 +17,10 @@ import { Command, Search, Home, PlusCircle, User, Compass, Wallet, Sun } from "l
 interface CommandItem {
   id: string;
   label: string;
-  href: string;
+  /** Route to open when selected. Ignored when `onSelect` is set. */
+  href?: string;
+  /** Runs instead of navigating when the item is selected. */
+  onSelect?: () => void;
   icon: React.ReactNode;
   keywords: string[];
 }
@@ -109,25 +114,31 @@ export function CommandPalette({ open: openProp, onOpenChange }: CommandPaletteP
     if (open) setRecentCampaigns(getRecentCampaigns());
   }, [open]);
 
-  const quickActions: CommandItem[] = useMemo(
-    () => [
-      {
+  const { resolvedTheme, setTheme } = useTheme();
+  const { connect, isConnected } = useWallet();
+
+  const quickActions: CommandItem[] = useMemo(() => {
+    const actions: CommandItem[] = [];
+    if (!isConnected) {
+      actions.push({
         id: "connect-wallet",
         label: "Connect Wallet",
-        href: "#connect-wallet",
+        onSelect: () => {
+          void connect();
+        },
         icon: <Wallet className="w-4 h-4" />,
         keywords: ["connect", "wallet", "stellar"],
-      },
-      {
-        id: "toggle-theme",
-        label: "Toggle Theme",
-        href: "#toggle-theme",
-        icon: <Sun className="w-4 h-4" />,
-        keywords: ["toggle", "theme", "dark", "light", "mode"],
-      },
-    ],
-    [],
-  );
+      });
+    }
+    actions.push({
+      id: "toggle-theme",
+      label: "Toggle Theme",
+      onSelect: () => setTheme(resolvedTheme === "dark" ? "light" : "dark"),
+      icon: <Sun className="w-4 h-4" />,
+      keywords: ["toggle", "theme", "dark", "light", "mode"],
+    });
+    return actions;
+  }, [isConnected, connect, resolvedTheme, setTheme]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -200,11 +211,9 @@ export function CommandPalette({ open: openProp, onOpenChange }: CommandPaletteP
   const handleSelect = (item: CommandItem) => {
     setOpen(false);
     setSearch("");
-    if (item.href === "#toggle-theme") {
-      document.documentElement.classList.toggle("dark");
-    } else if (item.href === "#connect-wallet") {
-      document.querySelector<HTMLElement>("[data-connect-wallet]")?.click();
-    } else {
+    if (item.onSelect) {
+      item.onSelect();
+    } else if (item.href) {
       router.push(item.href);
     }
   };

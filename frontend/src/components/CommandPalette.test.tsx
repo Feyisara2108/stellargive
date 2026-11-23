@@ -4,6 +4,18 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { CommandPalette, openCommandPalette } from "./CommandPalette";
 
 const mockPush = vi.fn();
+const mockSetTheme = vi.fn();
+const mockConnect = vi.fn().mockResolvedValue(true);
+let mockResolvedTheme = "light";
+let mockIsConnected = false;
+
+vi.mock("next-themes", () => ({
+  useTheme: () => ({ resolvedTheme: mockResolvedTheme, setTheme: mockSetTheme }),
+}));
+
+vi.mock("@/lib/WalletProvider", () => ({
+  useWallet: () => ({ connect: mockConnect, isConnected: mockIsConnected }),
+}));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
@@ -14,6 +26,8 @@ vi.mock("next/navigation", () => ({
 describe("CommandPalette", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockResolvedTheme = "light";
+    mockIsConnected = false;
     Element.prototype.scrollIntoView = vi.fn();
   });
 
@@ -43,6 +57,30 @@ describe("CommandPalette", () => {
     act(() => openCommandPalette());
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
     expect(screen.getByRole("dialog", { name: "Command Palette" })).toBeInTheDocument();
+  });
+
+  it("toggles the theme through next-themes when Toggle Theme is selected", () => {
+    mockResolvedTheme = "dark";
+    render(<CommandPalette />);
+    fireEvent.keyDown(document, { key: "k", ctrlKey: true });
+
+    fireEvent.click(screen.getByText("Toggle Theme"));
+    expect(mockSetTheme).toHaveBeenCalledWith("light");
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(screen.queryByPlaceholderText("Search navigation...")).not.toBeInTheDocument();
+  });
+
+  it("connects the wallet through useWallet and hides the action once connected", () => {
+    const { unmount } = render(<CommandPalette />);
+    fireEvent.keyDown(document, { key: "k", ctrlKey: true });
+    fireEvent.click(screen.getByText("Connect Wallet"));
+    expect(mockConnect).toHaveBeenCalledTimes(1);
+    unmount();
+
+    mockIsConnected = true;
+    render(<CommandPalette />);
+    fireEvent.keyDown(document, { key: "k", ctrlKey: true });
+    expect(screen.queryByText("Connect Wallet")).not.toBeInTheDocument();
   });
 
   it("filters navigation items based on search input", () => {
