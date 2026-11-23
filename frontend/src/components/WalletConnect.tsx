@@ -1,14 +1,14 @@
 "use client";
 
 import { NATIVE_XLM_CONTRACT_ID } from "@/lib/tokens";
-import { FREIGHTER_INSTALL_URL, useWallet } from "@/lib/WalletProvider";
+import { useWallet } from "@/lib/WalletProvider";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Loader2, Wallet, LogOut, RefreshCw, ChevronDown } from "lucide-react";
 import { useState, useEffect, useRef, useId, type FocusEvent } from "react";
 import { toast } from "sonner";
 import { formatAddress } from "@/utils/format";
-import { getSACBalance, fromStroops } from "@/lib/soroban";
+import { fromStroops } from "@/lib/amounts";
 
 export function WalletConnect() {
   const { address, isConnected, connect, disconnect, walletNetwork, isWrongNetwork } = useWallet();
@@ -87,7 +87,7 @@ export function WalletConnect() {
       if (await connect()) {
         toast.success("Wallet connected!");
       }
-    } catch (e) {
+    } catch {
       toast.error("Failed to connect wallet");
     } finally {
       setIsConnecting(false);

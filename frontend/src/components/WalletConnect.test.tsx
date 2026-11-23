@@ -18,7 +18,6 @@ vi.mock("sonner", () => ({
 
 vi.mock("@/lib/soroban", () => ({
   getSACBalance: vi.fn().mockResolvedValue(BigInt(1000000000)), // 100 XLM
-  fromStroops: vi.fn((value: bigint) => (Number(value) / 10000000).toFixed(7)),
 }));
 
 vi.mock("@/lib/wallet", () => ({
