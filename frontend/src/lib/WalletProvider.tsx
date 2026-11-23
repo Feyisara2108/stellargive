@@ -7,6 +7,7 @@ import {
   disconnectWallet,
   getWalletNetwork,
   getNetworkSwitcher,
+  watchWallet,
   type WalletId,
 } from "@/lib/wallet";
 import { WalletPicker } from "@/components/WalletPicker";
@@ -161,14 +162,39 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     [fetchWalletNetwork, settlePicker],
   );
 
-  const disconnect = () => {
+  const disconnect = useCallback(() => {
     void disconnectWallet();
     setAddress(null);
     setIsWalletConnected(false);
     setWalletNetwork(null);
     writeFlag(WALLET_DISCONNECTED_KEY, true);
     writeFlag(WALLET_CONNECTED_KEY, false);
-  };
+  }, []);
+
+  // Follow the wallet while it is connected, so switching accounts in the
+  // extension updates `address` without a reload. The watcher is stopped on
+  // disconnect and on unmount.
+  const addressRef = useRef(address);
+  useEffect(() => {
+    addressRef.current = address;
+  }, [address]);
+
+  useEffect(() => {
+    if (!isWalletConnected) return;
+
+    return watchWallet(({ address: next, network }) => {
+      if (!next) {
+        // The wallet no longer reports an account (access revoked or locked).
+        disconnect();
+        return;
+      }
+      if (network) setWalletNetwork(network);
+      if (next !== addressRef.current) {
+        setAddress(next);
+        notify.info("Wallet account changed");
+      }
+    });
+  }, [isWalletConnected, disconnect]);
 
   // Freighter (and most wallets) can't change the active network on the user's
   // behalf, but some may. The wallet layer feature-detects that capability on the

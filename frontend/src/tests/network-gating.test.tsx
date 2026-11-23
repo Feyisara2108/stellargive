@@ -21,6 +21,7 @@ vi.mock("@/lib/wallet", () => ({
   disconnectWallet: vi.fn(),
   getWalletNetwork: vi.fn(),
   getNetworkSwitcher: vi.fn().mockResolvedValue(null),
+  watchWallet: vi.fn().mockReturnValue(() => {}),
 }));
 
 // Mock sentry

@@ -7,7 +7,40 @@ const freighterApi = vi.hoisted(() => ({
   getNetwork: vi.fn(),
   signTransaction: vi.fn(),
 }));
-vi.mock("@stellar/freighter-api", () => freighterApi);
+
+// Stand-in for Freighter's WatchWalletChanges: records each watcher so a test can
+// push changes through it and check it was stopped.
+type WatchCallback = (change: {
+  address: string;
+  network: string;
+  networkPassphrase: string;
+  error?: { code: number; message: string };
+}) => void;
+const freighterWatch = vi.hoisted(() => {
+  const instances: {
+    timeout: number;
+    callback?: WatchCallback;
+    stop: ReturnType<typeof vi.fn>;
+  }[] = [];
+  class WatchWalletChanges {
+    timeout: number;
+    callback?: WatchCallback;
+    stop = vi.fn();
+    constructor(timeout: number) {
+      this.timeout = timeout;
+      instances.push(this);
+    }
+    watch(callback: WatchCallback) {
+      this.callback = callback;
+      return {};
+    }
+  }
+  return { instances, WatchWalletChanges };
+});
+vi.mock("@stellar/freighter-api", () => ({
+  ...freighterApi,
+  WatchWalletChanges: freighterWatch.WatchWalletChanges,
+}));
 
 const albedoIntent = vi.hoisted(() => ({
   publicKey: vi.fn(),
@@ -26,6 +59,8 @@ import {
   getNetworkSwitcher,
   signTransaction,
   disconnectWallet,
+  watchWallet,
+  watchByPolling,
 } from "./wallet";
 
 const APP_NETWORK = process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE!;
@@ -37,6 +72,7 @@ describe("wallet abstraction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
+    freighterWatch.instances.length = 0;
     freighterApi.isConnected.mockResolvedValue({ isConnected: true });
   });
 
@@ -227,6 +263,192 @@ describe("wallet abstraction", () => {
       await expect(signTransaction("UNSIGNED", SIGN_OPTS)).rejects.toThrow(
         "Wallet error: No wallet connected",
       );
+    });
+  });
+
+  describe("watching for account changes", () => {
+    async function connectFreighter() {
+      freighterApi.requestAccess.mockResolvedValue({ address: "GFIRST" });
+      await connectWallet("freighter");
+    }
+
+    it("does nothing when no wallet is connected", async () => {
+      const onChange = vi.fn();
+
+      const stop = watchWallet(onChange);
+      await Promise.resolve();
+
+      expect(freighterWatch.instances).toHaveLength(0);
+      expect(onChange).not.toHaveBeenCalled();
+      expect(() => stop()).not.toThrow();
+    });
+
+    it("uses Freighter's own watcher and reports the account and network", async () => {
+      await connectFreighter();
+      const onChange = vi.fn();
+
+      watchWallet(onChange);
+      await vi.waitFor(() => expect(freighterWatch.instances).toHaveLength(1));
+      const [watcher] = freighterWatch.instances;
+      expect(watcher.timeout).toBeGreaterThan(0);
+
+      watcher.callback?.({
+        address: "GSECOND",
+        network: "TESTNET",
+        networkPassphrase: APP_NETWORK,
+      });
+
+      expect(onChange).toHaveBeenCalledWith({ address: "GSECOND", network: APP_NETWORK });
+    });
+
+    it("reports no address when Freighter returns an empty one", async () => {
+      await connectFreighter();
+      const onChange = vi.fn();
+      watchWallet(onChange);
+      await vi.waitFor(() => expect(freighterWatch.instances).toHaveLength(1));
+
+      freighterWatch.instances[0].callback?.({
+        address: "",
+        network: "",
+        networkPassphrase: "",
+      });
+
+      expect(onChange).toHaveBeenCalledWith({ address: null, network: null });
+    });
+
+    it("ignores a failed Freighter poll instead of treating it as a lost account", async () => {
+      await connectFreighter();
+      const onChange = vi.fn();
+      watchWallet(onChange);
+      await vi.waitFor(() => expect(freighterWatch.instances).toHaveLength(1));
+
+      freighterWatch.instances[0].callback?.({
+        address: "",
+        network: "",
+        networkPassphrase: "",
+        error: { code: -1, message: "locked" },
+      });
+
+      expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it("stops Freighter's watcher and ignores late changes once unsubscribed", async () => {
+      await connectFreighter();
+      const onChange = vi.fn();
+      const stop = watchWallet(onChange);
+      await vi.waitFor(() => expect(freighterWatch.instances).toHaveLength(1));
+      const [watcher] = freighterWatch.instances;
+
+      stop();
+
+      expect(watcher.stop).toHaveBeenCalledTimes(1);
+      watcher.callback?.({
+        address: "GLATE",
+        network: "TESTNET",
+        networkPassphrase: APP_NETWORK,
+      });
+      expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it("never starts a watcher if it is stopped before Freighter has loaded", async () => {
+      await connectFreighter();
+
+      const stop = watchWallet(vi.fn());
+      stop();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(freighterWatch.instances).toHaveLength(0);
+    });
+
+    it("is a no-op under the mock wallet", async () => {
+      vi.stubEnv("NEXT_PUBLIC_USE_MOCK_WALLET", "true");
+      vi.resetModules();
+      const mocked = await import("./wallet");
+      localStorage.setItem(mocked.SELECTED_WALLET_KEY, "freighter");
+
+      const stop = mocked.watchWallet(vi.fn());
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(freighterWatch.instances).toHaveLength(0);
+      expect(() => stop()).not.toThrow();
+      vi.unstubAllEnvs();
+    });
+  });
+
+  describe("polling fallback for wallets without a watcher", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("reports the first reading and then only real changes", async () => {
+      const restore = vi.fn().mockResolvedValue("GONE");
+      const getNetwork = vi.fn().mockResolvedValue(APP_NETWORK);
+      const onChange = vi.fn();
+
+      const stop = watchByPolling({ restore, getNetwork }, onChange);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(onChange).toHaveBeenLastCalledWith({ address: "GONE", network: APP_NETWORK });
+
+      await vi.advanceTimersByTimeAsync(3_000);
+      expect(onChange).toHaveBeenCalledTimes(1);
+
+      restore.mockResolvedValue("GTWO");
+      await vi.advanceTimersByTimeAsync(3_000);
+      expect(onChange).toHaveBeenCalledTimes(2);
+      expect(onChange).toHaveBeenLastCalledWith({ address: "GTWO", network: APP_NETWORK });
+
+      restore.mockResolvedValue(null);
+      await vi.advanceTimersByTimeAsync(3_000);
+      expect(onChange).toHaveBeenLastCalledWith({ address: null, network: APP_NETWORK });
+      stop();
+    });
+
+    it("keeps polling after a failed read", async () => {
+      const restore = vi.fn().mockRejectedValueOnce(new Error("busy")).mockResolvedValue("GONE");
+      const onChange = vi.fn();
+
+      const stop = watchByPolling(
+        { restore, getNetwork: vi.fn().mockResolvedValue(null) },
+        onChange,
+      );
+      await vi.advanceTimersByTimeAsync(0);
+      expect(onChange).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(3_000);
+      expect(onChange).toHaveBeenCalledWith({ address: "GONE", network: null });
+      stop();
+    });
+
+    it("stops polling once unsubscribed", async () => {
+      const restore = vi.fn().mockResolvedValue("GONE");
+      const stop = watchByPolling(
+        { restore, getNetwork: vi.fn().mockResolvedValue(null) },
+        vi.fn(),
+      );
+      await vi.advanceTimersByTimeAsync(0);
+      const callsWhenStopped = restore.mock.calls.length;
+
+      stop();
+      await vi.advanceTimersByTimeAsync(10_000);
+
+      expect(restore).toHaveBeenCalledTimes(callsWhenStopped);
+    });
+
+    it("does nothing for a wallet that can't be queried silently", async () => {
+      const getNetwork = vi.fn();
+      const onChange = vi.fn();
+
+      const stop = watchByPolling({ getNetwork }, onChange);
+      await vi.advanceTimersByTimeAsync(10_000);
+
+      expect(getNetwork).not.toHaveBeenCalled();
+      expect(onChange).not.toHaveBeenCalled();
+      expect(() => stop()).not.toThrow();
     });
   });
 });
