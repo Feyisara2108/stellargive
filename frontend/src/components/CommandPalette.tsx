@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useWallet } from "@/lib/WalletProvider";
+import { getRecentCampaigns } from "@/lib/recentCampaigns";
 import {
   Dialog,
   DialogContent,
@@ -55,24 +56,6 @@ const navigationItems: CommandItem[] = [
     keywords: ["profile", "account", "user", "my campaigns"],
   },
 ];
-
-const RECENT_CAMPAIGNS_KEY = "stellargive_recent_campaigns";
-
-function getRecentCampaigns(): { id: string; title: string }[] {
-  try {
-    return JSON.parse(localStorage.getItem(RECENT_CAMPAIGNS_KEY) || "[]");
-  } catch {
-    return [];
-  }
-}
-
-export function trackRecentCampaign(id: string, title: string) {
-  try {
-    const recent = getRecentCampaigns().filter((c) => c.id !== id);
-    recent.unshift({ id, title });
-    localStorage.setItem(RECENT_CAMPAIGNS_KEY, JSON.stringify(recent.slice(0, 5)));
-  } catch {}
-}
 
 /** Window event that opens the app-level palette mounted in Providers. */
 export const OPEN_COMMAND_PALETTE_EVENT = "stellargive:open-command-palette";
@@ -230,6 +213,10 @@ export function CommandPalette({ open: openProp, onOpenChange }: CommandPaletteP
   }, [activeIndex]);
 
   const handleDialogKeyDown = (e: React.KeyboardEvent) => {
+    if ((e.key === "ArrowDown" || e.key === "ArrowUp") && filteredItems.length === 0) {
+      e.preventDefault();
+      return;
+    }
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setActiveIndex((prev) => (prev + 1) % filteredItems.length);
@@ -258,7 +245,7 @@ export function CommandPalette({ open: openProp, onOpenChange }: CommandPaletteP
         <div className="flex items-center border-b px-3">
           <Search className="w-4 h-4 text-muted-foreground mr-2" aria-hidden="true" />
           <Input
-            placeholder="Search navigation..."
+            placeholder="Search campaigns..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 h-12"

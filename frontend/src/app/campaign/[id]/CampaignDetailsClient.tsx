@@ -48,6 +48,7 @@ import { Badge } from "@/components/ui/badge";
 import { useCountdown } from "@/hooks/useCountdown";
 import { Breadcrumbs, type BreadcrumbItem } from "@/components/Breadcrumbs";
 import { CampaignDetailSkeleton } from "@/components/CampaignSkeleton";
+import { trackRecentCampaign } from "@/lib/recentCampaigns";
 
 /** A valid Date for the given input, or null when it is missing or unparseable. */
 function toValidDate(value: string | number | null | undefined): Date | null {
@@ -126,6 +127,14 @@ export function CampaignDetailsClient({
   const [donateOpen, setDonateOpen] = useState(false);
   const [donateAmount, setDonateAmount] = useState<string | undefined>(undefined);
   const countdown = useCountdown(campaign?.deadline || 0n);
+
+  const loadedCampaignId = campaign?.id.toString();
+  const loadedCampaignTitle = campaign?.title;
+  useEffect(() => {
+    if (loadedCampaignId && loadedCampaignTitle) {
+      trackRecentCampaign(loadedCampaignId, loadedCampaignTitle);
+    }
+  }, [loadedCampaignId, loadedCampaignTitle]);
 
   const isCreator = !!address && !!campaign && campaign.creator === address;
   const progressPercent = campaign
