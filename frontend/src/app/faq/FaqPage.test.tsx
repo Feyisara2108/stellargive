@@ -98,3 +98,10 @@ describe("FaqPage - external links", () => {
     expect(activityLink).not.toHaveAttribute("target");
   });
 });
+
+describe("FaqPage - landmark structure", () => {
+  it("renders no main landmark of its own, leaving layout.tsx as the only one", () => {
+    render(<FaqPage />);
+    expect(screen.queryAllByRole("main")).toHaveLength(0);
+  });
+});

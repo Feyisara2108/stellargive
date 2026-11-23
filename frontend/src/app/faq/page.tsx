@@ -12,7 +12,7 @@ export default function FaqPage() {
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
-      <main className="flex-1 container py-12">
+      <div className="flex-1 container py-12">
         <div className="mx-auto max-w-2xl space-y-8">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
@@ -138,7 +138,7 @@ export default function FaqPage() {
             </AccordionItem>
           </Accordion>
         </div>
-      </main>
+      </div>
     </div>
   );
 }
