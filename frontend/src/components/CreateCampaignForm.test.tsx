@@ -581,3 +581,25 @@ describe("CreateCampaignForm — cover image upload accessibility", () => {
     expect(counter).not.toHaveAttribute("aria-live");
   });
 });
+
+describe("CreateCampaignForm — live preview accessibility", () => {
+  it("resolves getByLabelText(/Campaign Title/i) to a single element while the dialog is open", async () => {
+    renderForm();
+    await openForm();
+
+    // With an empty title, buildPreviewCampaign falls back to "Campaign Title",
+    // which the live preview's Progress bar would also expose via
+    // aria-label="Fundraising progress for Campaign Title" if it weren't hidden
+    // from assistive technology. Only the real title input should match.
+    expect(screen.getAllByLabelText(/Campaign Title/i)).toHaveLength(1);
+  });
+
+  it("hides the live preview card from assistive technology with inert and aria-hidden", async () => {
+    const { container } = renderForm();
+    await openForm();
+
+    const hiddenPreview = container.querySelector('[inert][aria-hidden="true"]');
+    expect(hiddenPreview).toBeInTheDocument();
+    expect(hiddenPreview?.querySelector('[role="progressbar"]')).not.toBeNull();
+  });
+});
