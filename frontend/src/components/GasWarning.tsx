@@ -6,6 +6,8 @@ import { MAX_SIMULATION_FEE_STROOPS } from "@/lib/amounts";
 import { useWalletBalance } from "@/hooks/useSoroban";
 import { useWallet } from "@/lib/WalletProvider";
 import { Skeleton } from "@/components/ui/skeleton";
+import { IconButton } from "@/components/ui/icon-button";
+import { AlertTriangle, X } from "lucide-react";
 
 // Inclusion (base) fee for a Soroban transaction, in stroops.
 export const BASE_FEE_STROOPS = 100;
@@ -235,10 +237,10 @@ export function GasWarning({
   return (
     <div
       role="alert"
-      className="rounded-lg border border-yellow-400 bg-yellow-50 p-4 text-sm text-yellow-800"
+      className="rounded-lg border border-yellow-400 bg-yellow-50 p-4 text-sm text-yellow-800 dark:border-yellow-800 dark:bg-yellow-950/30 dark:text-yellow-300"
     >
       <div className="flex items-start gap-3">
-        <span className="text-lg leading-none">⚠️</span>
+        <AlertTriangle className="h-5 w-5 shrink-0" aria-hidden="true" />
         <div className="flex-1">
           <p className="font-semibold">High transaction cost detected</p>
           <p className="mt-1">
@@ -247,18 +249,18 @@ export function GasWarning({
             stroops — {ratio}× the expected maximum. Unusually high fees may indicate a
             misconfigured transaction or an attempt to exhaust resources.
           </p>
-          <p className="mt-2 text-xs text-yellow-700">
+          <p className="mt-2 text-xs text-yellow-700 dark:text-yellow-400">
             You can still proceed, but review the transaction details carefully before signing.
           </p>
         </div>
         {onDismiss && (
-          <button
+          <IconButton
             onClick={onDismiss}
             aria-label="Dismiss gas warning"
-            className="ml-auto text-yellow-600 hover:text-yellow-900"
+            className="ml-auto h-6 w-6 text-yellow-600 hover:text-yellow-900 dark:text-yellow-400 dark:hover:text-yellow-200 focus-visible:ring-2 focus-visible:ring-yellow-600"
           >
-            ✕
-          </button>
+            <X className="h-4 w-4" aria-hidden="true" />
+          </IconButton>
         )}
       </div>
     </div>
