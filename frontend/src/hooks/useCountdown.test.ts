@@ -1,5 +1,7 @@
 // frontend/src/hooks/useCountdown.test.ts
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { createElement } from "react";
+import { renderToString } from "react-dom/server";
 import { renderHook, act } from "@testing-library/react";
 import { useCountdown } from "./useCountdown";
 
@@ -71,6 +73,36 @@ describe("useCountdown", () => {
       expect(result.current.timeLeft).toBe(2 * ONE_DAY_MS - ONE_HOUR_MS);
       expect(result.current.days).toBe(1);
       expect(result.current.hours).toBe(23);
+    });
+  });
+
+  describe("Server rendering / hydration safety", () => {
+    function Probe({ deadline }: { deadline: number }) {
+      const c = useCountdown(deadline);
+      return createElement(
+        "span",
+        null,
+        c.isReady ? `${c.days}d ${c.hours}h ${c.minutes}m` : "pending",
+      );
+    }
+
+    it("renders a deterministic placeholder on the server, regardless of the clock", () => {
+      const deadlineMs = MOCK_NOW + 5 * ONE_DAY_MS + 3 * ONE_HOUR_MS + 30 * ONE_MINUTE_MS;
+
+      const first = renderToString(createElement(Probe, { deadline: deadlineMs }));
+      vi.setSystemTime(MOCK_NOW + 7 * ONE_MINUTE_MS);
+      const second = renderToString(createElement(Probe, { deadline: deadlineMs }));
+
+      expect(first).toBe(second);
+      expect(first).toContain("pending");
+    });
+
+    it("is ready with a real value on the client", () => {
+      const deadlineMs = MOCK_NOW + 2 * ONE_DAY_MS;
+      const { result } = renderHook(() => useCountdown(deadlineMs));
+
+      expect(result.current.isReady).toBe(true);
+      expect(result.current.timeLeft).toBe(2 * ONE_DAY_MS);
     });
   });
 

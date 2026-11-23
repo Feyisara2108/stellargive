@@ -48,6 +48,13 @@ import { useCountdown } from "@/hooks/useCountdown";
 import { Breadcrumbs, type BreadcrumbItem } from "@/components/Breadcrumbs";
 import { CampaignDetailSkeleton } from "@/components/CampaignSkeleton";
 
+/** A valid Date for the given input, or null when it is missing or unparseable. */
+function toValidDate(value: string | number | null | undefined): Date | null {
+  if (value === null || value === undefined || value === "") return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 function CampaignTimeline({ campaign }: { campaign: Campaign }) {
   const { data: allEvents, isLoading } = useEvents();
 
@@ -57,23 +64,36 @@ function CampaignTimeline({ campaign }: { campaign: Campaign }) {
     (e) => parseCreatedEvent(e)?.campaignId === campaign.id.toString(),
   );
 
+  const createdDate = toValidDate(createdEvent?.createdAt);
+  const deadlineDate = toValidDate(Number(campaign.deadline) * 1000);
+
   return (
     <div className="space-y-4 pt-6 border-t mt-6">
       <h3 className="text-lg font-bold">Timeline</h3>
       <ol className="relative border-s border-muted ml-3 space-y-6">
-        <li className="ms-4">
-          <div className="absolute w-3 h-3 bg-primary rounded-full mt-1.5 -start-1.5 border border-background"></div>
-          <time className="mb-1 text-xs font-normal leading-none text-muted-foreground">
-            {createdEvent?.createdAt
-              ? new Date(createdEvent.createdAt).toLocaleDateString()
-              : "Unknown"}
+        <li className="relative ms-4">
+          <div
+            aria-hidden="true"
+            className="absolute w-3 h-3 bg-primary rounded-full mt-1.5 -start-[1.375rem] border border-background"
+          ></div>
+          <time
+            dateTime={createdDate?.toISOString()}
+            className="mb-1 text-xs font-normal leading-none text-muted-foreground"
+          >
+            {createdDate ? createdDate.toLocaleDateString() : "Unknown"}
           </time>
           <h4 className="text-sm font-semibold">Campaign Created</h4>
         </li>
-        <li className="ms-4">
-          <div className="absolute w-3 h-3 bg-muted rounded-full mt-1.5 -start-1.5 border border-background"></div>
-          <time className="mb-1 text-xs font-normal leading-none text-muted-foreground">
-            {new Date(Number(campaign.deadline) * 1000).toLocaleDateString()}
+        <li className="relative ms-4">
+          <div
+            aria-hidden="true"
+            className="absolute w-3 h-3 bg-muted rounded-full mt-1.5 -start-[1.375rem] border border-background"
+          ></div>
+          <time
+            dateTime={deadlineDate?.toISOString()}
+            className="mb-1 text-xs font-normal leading-none text-muted-foreground"
+          >
+            {deadlineDate ? deadlineDate.toLocaleDateString() : "Unknown"}
           </time>
           <h4 className="text-sm font-semibold">Deadline</h4>
         </li>
@@ -241,16 +261,20 @@ export function CampaignDetailsClient({
                 <span
                   role="status"
                   aria-label={
-                    countdown.isEnded
-                      ? "Campaign has ended"
-                      : `Time remaining: ${countdown.days} days, ${countdown.hours} hours, ${countdown.minutes} minutes`
+                    !countdown.isReady
+                      ? "Calculating time remaining"
+                      : countdown.isEnded
+                        ? "Campaign has ended"
+                        : `Time remaining: ${countdown.days} days, ${countdown.hours} hours, ${countdown.minutes} minutes`
                   }
                   className="inline-flex items-center gap-1 font-medium text-orange-500"
                 >
                   <span aria-hidden="true">⏱️</span>{" "}
-                  {countdown.isEnded
-                    ? "Ended"
-                    : `${countdown.days}d ${countdown.hours}h ${countdown.minutes}m left`}
+                  {!countdown.isReady
+                    ? "--d --h --m left"
+                    : countdown.isEnded
+                      ? "Ended"
+                      : `${countdown.days}d ${countdown.hours}h ${countdown.minutes}m left`}
                 </span>
               )}
             </div>

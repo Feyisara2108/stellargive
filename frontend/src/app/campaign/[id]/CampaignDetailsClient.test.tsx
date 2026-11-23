@@ -5,7 +5,7 @@
  * Funded. DonateModal hides its form unless the campaign is Active, but the
  * success dialog has to stay on screen at that point.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom";
@@ -20,6 +20,7 @@ const walletState = vi.hoisted(() => ({
 
 const campaignState = vi.hoisted(() => ({ campaign: null as unknown }));
 const donateMutation = vi.hoisted(() => ({ mutateAsync: undefined as unknown }));
+const eventsState = vi.hoisted(() => ({ events: [] as unknown[] }));
 
 vi.mock("@/lib/WalletProvider", () => ({
   useWallet: () => walletState,
@@ -34,7 +35,7 @@ vi.mock("@/hooks/useSoroban", async () =>
       refetch: vi.fn(),
     }),
     useCancelCampaign: () => ({ mutateAsync: vi.fn(), isPending: false }),
-    useEvents: () => ({ data: [], isLoading: false }),
+    useEvents: () => ({ data: eventsState.events, isLoading: false }),
     useDonate: () => ({
       mutateAsync: donateMutation.mutateAsync,
       isPending: false,
@@ -133,4 +134,74 @@ describe("CampaignDetailsClient donation success dialog", () => {
     },
     TEST_TIMEOUT,
   );
+});
+
+describe("CampaignDetailsClient timeline", () => {
+  const DEADLINE_SECONDS = 1_700_000_000n;
+  const DEADLINE_ISO = "2023-11-14T22:13:20.000Z";
+  const CREATED_ISO = "2024-03-05T10:00:00.000Z";
+
+  beforeEach(() => {
+    walletState.address = WALLET;
+    walletState.isWrongNetwork = false;
+    campaignState.campaign = makeCampaign({ deadline: DEADLINE_SECONDS });
+    eventsState.events = [];
+  });
+
+  afterEach(() => {
+    eventsState.events = [];
+  });
+
+  async function timelineItem(title: "Campaign Created" | "Deadline") {
+    renderPage();
+    const heading = await screen.findByRole("heading", { name: title }, SLOW_LOAD);
+    return heading.closest("li") as HTMLLIElement;
+  }
+
+  it("positions each marker against its own entry", async () => {
+    const created = await timelineItem("Campaign Created");
+    const deadline = screen.getByRole("heading", { name: "Deadline" }).closest("li")!;
+
+    expect(created).toHaveClass("relative");
+    expect(deadline).toHaveClass("relative");
+  });
+
+  it("hides the decorative dots from assistive technology", async () => {
+    const created = await timelineItem("Campaign Created");
+    const deadline = screen.getByRole("heading", { name: "Deadline" }).closest("li")!;
+
+    for (const item of [created, deadline]) {
+      const dot = item.querySelector("div.absolute");
+      expect(dot).not.toBeNull();
+      expect(dot).toHaveAttribute("aria-hidden", "true");
+    }
+  });
+
+  it("gives each <time> a machine-readable ISO dateTime", async () => {
+    eventsState.events = [
+      { topic: "created", data: { id: "1" }, createdAt: CREATED_ISO },
+    ];
+    const created = await timelineItem("Campaign Created");
+    const deadline = screen.getByRole("heading", { name: "Deadline" }).closest("li")!;
+
+    expect(created.querySelector("time")).toHaveAttribute("datetime", CREATED_ISO);
+    expect(deadline.querySelector("time")).toHaveAttribute("datetime", DEADLINE_ISO);
+  });
+
+  it("renders 'Unknown' without an empty dateTime when the creation date is missing", async () => {
+    const created = await timelineItem("Campaign Created");
+    const time = created.querySelector("time")!;
+
+    expect(time).toHaveTextContent("Unknown");
+    expect(time).not.toHaveAttribute("datetime");
+  });
+
+  it("renders 'Unknown' without a dateTime when the creation date is unparseable", async () => {
+    eventsState.events = [{ topic: "created", data: { id: "1" }, createdAt: "not-a-date" }];
+    const created = await timelineItem("Campaign Created");
+    const time = created.querySelector("time")!;
+
+    expect(time).toHaveTextContent("Unknown");
+    expect(time).not.toHaveAttribute("datetime");
+  });
 });
