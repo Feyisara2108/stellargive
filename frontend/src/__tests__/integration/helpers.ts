@@ -158,4 +158,19 @@ export async function claimFunds(beneficiary: Keypair, campaignId: bigint): Prom
   return BigInt(scValToNative((result as any).returnValue));
 }
 
+export async function refundExpired(donor: Keypair, campaignId: bigint): Promise<void> {
+  await submitTransactionWithKeypair(donor, "refund", [
+    nativeToScVal(campaignId, { type: "u64" }),
+    new Address(donor.publicKey()).toScVal(),
+  ]);
+}
+
+export async function pauseContract(admin: Keypair): Promise<void> {
+  await submitTransactionWithKeypair(admin, "pause", []);
+}
+
+export async function unpauseContract(admin: Keypair): Promise<void> {
+  await submitTransactionWithKeypair(admin, "unpause", []);
+}
+
 export { CONTRACT_ID, getCampaign, getEvents, Keypair, Operation, TransactionBuilder };
