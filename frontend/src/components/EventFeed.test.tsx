@@ -78,6 +78,58 @@ describe("EventFeed — empty state", () => {
   });
 });
 
+describe("EventFeed — error state", () => {
+  it("shows an alert with a Retry button instead of the empty state when the request fails", () => {
+    vi.mocked(useEvents).mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      refetch: vi.fn(),
+    } as any);
+    render(<EventFeed />);
+    expect(screen.getByRole("alert")).toHaveTextContent(/Unable to load recent activity/i);
+    expect(screen.getByRole("button", { name: /Retry/i })).toBeInTheDocument();
+    expect(screen.getByText(/Recent Activity/i)).toBeInTheDocument();
+    expect(screen.queryByText(/No activity yet/i)).not.toBeInTheDocument();
+  });
+
+  it("calls refetch when Retry is clicked", () => {
+    const refetch = vi.fn();
+    vi.mocked(useEvents).mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      refetch,
+    } as any);
+    render(<EventFeed />);
+    fireEvent.click(screen.getByRole("button", { name: /Retry/i }));
+    expect(refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps showing stale events with an inline notice when a refetch fails", () => {
+    vi.mocked(useEvents).mockReturnValue({
+      data: [makeDonationEvent("0-1", "GABC", 10_000_000n, 1n)],
+      isLoading: false,
+      isError: true,
+      refetch: vi.fn(),
+    } as any);
+    render(<EventFeed />);
+    expect(screen.getByRole("alert")).toHaveTextContent(/Couldn.t refresh activity/i);
+    expect(screen.getAllByText(/donated to/i)[0]).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Retry/i })).not.toBeInTheDocument();
+  });
+
+  it("does not render an alert when the request succeeds", () => {
+    vi.mocked(useEvents).mockReturnValue({
+      data: [makeDonationEvent("0-1", "GABC", 10_000_000n, 1n)],
+      isLoading: false,
+      isError: false,
+    } as any);
+    render(<EventFeed />);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
+
 describe("EventFeed — populated state", () => {
   it("renders a 'received' donation event with amount and campaign id", () => {
     vi.mocked(useEvents).mockReturnValue({
