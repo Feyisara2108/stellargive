@@ -1,9 +1,7 @@
 import type { SorobanEvent } from "@/lib/soroban";
 import { getAmountStroops, getCampaignId, getEventField } from "@/lib/eventData";
 import { UNKNOWN_TOKEN } from "@/lib/tokenTotals";
-
-/** Anonymous donations are recorded against the contract's zero placeholder. */
-const ZERO_ADDRESS = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
+import { ZERO_ADDRESS } from "@/utils/format";
 
 export type TimeRange = "all" | "monthly" | "weekly";
 

@@ -100,7 +100,12 @@ describe("StickyDonateBar", () => {
 
     const button = screen.getByRole("button", { name: "Donate" });
     expect(button).toBeEnabled();
-    expect(button.closest(".fixed")).toHaveClass("bottom-0", "md:hidden");
+    const bar = button.closest(".fixed") as HTMLElement;
+    expect(bar).toHaveClass("md:hidden");
+    expect(bar.style.bottom).toBe("var(--consent-banner-height, 0px)");
+    const content = bar.firstElementChild as HTMLElement;
+    expect(content).toHaveClass("bg-background", "border-border");
+    expect(content.style.paddingBottom).toBe("calc(0.75rem + env(safe-area-inset-bottom))");
   });
 
   it("calls onOpen when Donate is clicked", async () => {

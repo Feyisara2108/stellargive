@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
 import { initAnalytics } from "@/lib/sentry";
@@ -10,6 +10,7 @@ const LEGACY_CONSENT_KEY = "stellargive_analytics_consent";
 
 export function ConsentBanner() {
   const [isVisible, setIsVisible] = useState(false);
+  const bannerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const consent = getAnalyticsConsent();
@@ -36,6 +37,33 @@ export function ConsentBanner() {
     return () => window.removeEventListener("storage", handleStorageChange);
   }, []);
 
+  useEffect(() => {
+    if (!isVisible) return;
+
+    const banner = bannerRef.current;
+    if (!banner) return;
+
+    const root = document.documentElement;
+    const updateHeight = () => {
+      root.style.setProperty(
+        "--consent-banner-height",
+        `${banner.getBoundingClientRect().height}px`,
+      );
+    };
+
+    updateHeight();
+    const observer =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateHeight);
+    observer?.observe(banner);
+    window.addEventListener("resize", updateHeight);
+
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", updateHeight);
+      root.style.removeProperty("--consent-banner-height");
+    };
+  }, [isVisible]);
+
   const handleAccept = () => {
     localStorage.setItem(CONSENT_KEY, "accepted");
     localStorage.setItem(LEGACY_CONSENT_KEY, "accepted");
@@ -53,6 +81,7 @@ export function ConsentBanner() {
 
   return (
     <div
+      ref={bannerRef}
       className="fixed bottom-0 left-0 right-0 z-50 bg-background border-t shadow-lg"
       role="dialog"
       aria-labelledby="consent-title"
