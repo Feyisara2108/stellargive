@@ -17,6 +17,7 @@ vi.mock("@/lib/network", async (importOriginal) => {
 import {
   cn,
   calculateProgress,
+  calculateProgressPercent,
   DEFAULT_IPFS_GATEWAY,
   getCampaignImageUrl,
   getStellarExpertAccountUrl,
@@ -67,6 +68,33 @@ describe("utils", () => {
 
     it("should return 0 when raised is 0", () => {
       expect(calculateProgress(0n, 100n)).toBe(0);
+    });
+  });
+
+  describe("calculateProgressPercent", () => {
+    it("returns 0 when raised is 0", () => {
+      expect(calculateProgressPercent(0n, 100n)).toBe(0);
+    });
+
+    it("preserves tenths of a percent instead of truncating to an integer", () => {
+      expect(calculateProgressPercent(999n, 1000n)).toBe(99.9);
+    });
+
+    it("returns exactly 100 once raised reaches target", () => {
+      expect(calculateProgressPercent(100n, 100n)).toBe(100);
+    });
+
+    it("returns exactly 100 when raised exceeds target", () => {
+      expect(calculateProgressPercent(150n, 100n)).toBe(100);
+    });
+
+    it("never returns 100 while raised is still below target", () => {
+      expect(calculateProgressPercent(9999n, 10000n)).toBe(99.9);
+      expect(calculateProgressPercent(9999n, 10000n)).not.toBe(100);
+    });
+
+    it("returns 0 when target is 0 to avoid division by zero", () => {
+      expect(calculateProgressPercent(100n, 0n)).toBe(0);
     });
   });
 

@@ -26,6 +26,14 @@ export interface WalletInfo {
   kind: "extension" | "web";
 }
 
+/** The wallet's active account and network, as last reported by the wallet. */
+export interface WalletChange {
+  /** Null when the wallet reports no address (access revoked or wallet locked). */
+  address: string | null;
+  /** Network passphrase, or null when the wallet doesn't report one. */
+  network: string | null;
+}
+
 interface WalletAdapter extends WalletInfo {
   isAvailable(): Promise<boolean>;
   /** Prompts the user for access and returns their address. */
@@ -38,6 +46,12 @@ interface WalletAdapter extends WalletInfo {
   restore?(): Promise<string | null>;
   /** Network passphrase the wallet is on, or null if unknown. */
   getNetwork(): Promise<string | null>;
+  /**
+   * Native change notifications, for wallets that have them. Calls `onChange`
+   * with the current state and then whenever the account or network changes,
+   * and returns a function that stops watching.
+   */
+  watch?(onChange: (change: WalletChange) => void): () => void;
   signTransaction(
     xdr: string,
     opts: { networkPassphrase: string; address: string },
@@ -60,6 +74,9 @@ function toError(e: unknown): Error {
 }
 
 const isBrowser = () => typeof window !== "undefined";
+
+/** How often a wallet is polled for account or network changes. */
+const WATCH_INTERVAL_MS = 3_000;
 
 // ─── Freighter ────────────────────────────────────────────────────────────────
 
@@ -92,6 +109,28 @@ const freighter: WalletAdapter = {
     const { getNetwork } = await import("@stellar/freighter-api");
     const result = await getNetwork();
     return result && !result.error ? result.networkPassphrase || null : null;
+  },
+  watch(onChange) {
+    let stopped = false;
+    let watcher: { stop(): void } | null = null;
+    import("@stellar/freighter-api")
+      .then(({ WatchWalletChanges }) => {
+        if (stopped) return;
+        const changes = new WatchWalletChanges(WATCH_INTERVAL_MS);
+        changes.watch(({ address, networkPassphrase, error }) => {
+          // A failed poll says nothing about the account; wait for the next one.
+          if (stopped || error) return;
+          onChange({ address: address || null, network: networkPassphrase || null });
+        });
+        watcher = changes;
+      })
+      .catch(() => {
+        // Freighter can't be loaded; the app keeps the last known account.
+      });
+    return () => {
+      stopped = true;
+      watcher?.stop();
+    };
   },
   async signTransaction(xdr, opts) {
     const { signTransaction } = await import("@stellar/freighter-api");
@@ -332,6 +371,61 @@ export async function getWalletNetwork(): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * Polling stand-in for a wallet's own watcher: reads `restore()` and
+ * `getNetwork()` every few seconds and calls `onChange` with the first reading
+ * and then whenever either value changes. Does nothing for a wallet that can't
+ * be queried silently (no `restore`). Exported for tests.
+ */
+export function watchByPolling(
+  adapter: Pick<WalletAdapter, "restore" | "getNetwork">,
+  onChange: (change: WalletChange) => void,
+): () => void {
+  const restore = adapter.restore?.bind(adapter);
+  if (!restore) return () => {};
+
+  let stopped = false;
+  let polling = false;
+  let last: WalletChange | null = null;
+  const poll = async () => {
+    if (polling) return;
+    polling = true;
+    try {
+      const [address, network] = await Promise.all([restore(), adapter.getNetwork()]);
+      if (stopped) return;
+      if (!last || last.address !== address || last.network !== network) {
+        last = { address, network };
+        onChange(last);
+      }
+    } catch {
+      // A failed poll says nothing about the account; try again next tick.
+    } finally {
+      polling = false;
+    }
+  };
+  void poll();
+  const timer = setInterval(() => void poll(), WATCH_INTERVAL_MS);
+  return () => {
+    stopped = true;
+    clearInterval(timer);
+  };
+}
+
+/**
+ * Watches the connected wallet for account or network changes, such as the user
+ * switching accounts in the extension. `onChange` is called with the wallet's
+ * current state first and then on every change. Uses the wallet's own watcher
+ * where it has one (Freighter) and otherwise polls `restore()`. Returns a
+ * function that stops watching; it is a no-op when no wallet is selected and
+ * under NEXT_PUBLIC_USE_MOCK_WALLET.
+ */
+export function watchWallet(onChange: (change: WalletChange) => void): () => void {
+  if (USE_MOCK_WALLET || !isBrowser()) return () => {};
+  const adapter = selectedAdapter();
+  if (!adapter) return () => {};
+  return adapter.watch ? adapter.watch(onChange) : watchByPolling(adapter, onChange);
 }
 
 /**

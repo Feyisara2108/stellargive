@@ -25,8 +25,10 @@ vi.mock("@/hooks/useSoroban", async () => {
   });
 });
 
+const pushMock = vi.fn();
+
 vi.mock("next/navigation", () => ({
-  useRouter: vi.fn().mockReturnValue({ push: vi.fn() }),
+  useRouter: () => ({ push: pushMock }),
   useSearchParams: vi.fn().mockReturnValue({ get: vi.fn() }),
 }));
 
@@ -105,7 +107,8 @@ async function expectStuckOnStep(n: number) {
 describe("CreateCampaignForm", () => {
   beforeEach(() => {
     sessionStorage.clear();
-    createCampaignState.mutateAsync = vi.fn().mockResolvedValue({ campaignId: "1" });
+    pushMock.mockClear();
+    createCampaignState.mutateAsync = vi.fn().mockResolvedValue({ hash: "abcd", campaignId: 1n });
     createCampaignState.isPending = false;
     resolvedNameState.data = null;
     resolvedNameState.isFetching = false;
@@ -477,6 +480,41 @@ describe("CreateCampaignForm", () => {
       });
     });
 
+    it("redirects to the created campaign when the mutation returns a campaignId", async () => {
+      createCampaignState.mutateAsync = vi.fn().mockResolvedValue({ hash: "abcd", campaignId: 42n });
+
+      renderForm();
+      await openForm();
+      fillValidForm();
+      await goToReviewStep();
+
+      const submitBtn = await screen.findByRole("button", { name: /Launch Campaign/i });
+      await waitFor(() => expect(submitBtn).toBeEnabled());
+      fireEvent.click(submitBtn);
+
+      await waitFor(() => {
+        expect(pushMock).toHaveBeenCalledWith("/campaign/42");
+      });
+    });
+
+    it("routes to /profile instead of campaign 1 when the mutation returns no campaignId", async () => {
+      createCampaignState.mutateAsync = vi.fn().mockResolvedValue({ hash: "abcd" });
+
+      renderForm();
+      await openForm();
+      fillValidForm();
+      await goToReviewStep();
+
+      const submitBtn = await screen.findByRole("button", { name: /Launch Campaign/i });
+      await waitFor(() => expect(submitBtn).toBeEnabled());
+      fireEvent.click(submitBtn);
+
+      await waitFor(() => {
+        expect(pushMock).toHaveBeenCalledWith("/profile");
+      });
+      expect(pushMock).not.toHaveBeenCalledWith("/campaign/1");
+    });
+
     it("shows the loading state on the submit button while the mutation is pending", async () => {
       createCampaignState.isPending = true;
 
@@ -579,5 +617,56 @@ describe("CreateCampaignForm — cover image upload accessibility", () => {
     // The character counter no longer announces on every change.
     const counter = screen.getByText(/^\d+\/\d+$/);
     expect(counter).not.toHaveAttribute("aria-live");
+  });
+});
+
+describe("CreateCampaignForm — sessionStorage guard", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("opens the dialog and accepts input when sessionStorage.getItem is blocked", async () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("Storage is blocked");
+    });
+
+    renderForm();
+    await openForm();
+
+    const title = screen.getByPlaceholderText(/Flood Relief 2024/i);
+    fireEvent.change(title, { target: { value: "Flood Relief 2024" } });
+    expect(title).toHaveValue("Flood Relief 2024");
+  });
+
+  it("keeps accepting input when sessionStorage.setItem is blocked", async () => {
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("Storage is blocked");
+    });
+
+    renderForm();
+    await openForm();
+
+    const title = screen.getByPlaceholderText(/Flood Relief 2024/i);
+    fireEvent.change(title, { target: { value: "Flood Relief 2024" } });
+    expect(title).toHaveValue("Flood Relief 2024");
+describe("CreateCampaignForm — live preview accessibility", () => {
+  it("resolves getByLabelText(/Campaign Title/i) to a single element while the dialog is open", async () => {
+    renderForm();
+    await openForm();
+
+    // With an empty title, buildPreviewCampaign falls back to "Campaign Title",
+    // which the live preview's Progress bar would also expose via
+    // aria-label="Fundraising progress for Campaign Title" if it weren't hidden
+    // from assistive technology. Only the real title input should match.
+    expect(screen.getAllByLabelText(/Campaign Title/i)).toHaveLength(1);
+  });
+
+  it("hides the live preview card from assistive technology with inert and aria-hidden", async () => {
+    const { container } = renderForm();
+    await openForm();
+
+    const hiddenPreview = container.querySelector('[inert][aria-hidden="true"]');
+    expect(hiddenPreview).toBeInTheDocument();
+    expect(hiddenPreview?.querySelector('[role="progressbar"]')).not.toBeNull();
   });
 });

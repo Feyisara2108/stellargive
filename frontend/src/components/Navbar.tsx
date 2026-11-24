@@ -14,6 +14,7 @@ import { Heart, Menu, X, Search } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { openCommandPalette } from "@/components/CommandPalette";
+import { CommandPalette } from "@/components/CommandPalette";
 
 const NAV_LINKS = [
   { href: "/explore", label: "Explore" },
@@ -27,7 +28,6 @@ export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
-  const prefersReducedMotion = usePrefersReducedMotion();
   const hadOpen = useRef(false);
   const pathname = usePathname();
 
@@ -84,41 +84,45 @@ export function Navbar() {
   }, [mobileMenuOpen]);
 
   const closeMenu = () => setMobileMenuOpen(false);
-  const motionClass = prefersReducedMotion ? "" : "transition-transform duration-300 ease-in-out";
-  const backdropMotionClass = prefersReducedMotion ? "" : "transition-opacity duration-300";
 
   return (
-    <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40">
+    <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40">
       <div className="container flex h-16 items-center justify-between">
         {/* Brand */}
-        <div className="flex items-center gap-2 shrink-0">
+        <Link
+          href="/"
+          aria-label="StellarGive home"
+          className="flex items-center gap-2 shrink-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        >
           <div className="bg-primary p-1.5 rounded-lg">
-            <Heart className="w-5 h-5 text-primary-foreground fill-current" />
+            <Heart className="w-5 h-5 text-primary-foreground fill-current" aria-hidden="true" />
           </div>
           <span className="text-xl font-bold tracking-tight">
             stellar<span className="text-primary">Give</span>
           </span>
-        </div>
+        </Link>
 
         {/* Desktop navigation */}
         <div className="hidden xl:flex items-center gap-4">
-          {NAV_LINKS.map((link) => {
-            const isActive = pathname
-              ? pathname === link.href || pathname.startsWith(`${link.href}/`)
-              : false;
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                aria-current={isActive ? "page" : undefined}
-                className={`whitespace-nowrap text-sm font-medium transition-colors ${
-                  isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {link.label}
-              </Link>
-            );
-          })}
+          <nav aria-label="Main" className="flex items-center gap-4">
+            {NAV_LINKS.map((link) => {
+              const isActive = pathname
+                ? pathname === link.href || pathname.startsWith(`${link.href}/`)
+                : false;
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  aria-current={isActive ? "page" : undefined}
+                  className={`whitespace-nowrap text-sm font-medium transition-colors ${
+                    isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
+          </nav>
           <CreateCampaignForm />
           <div className="h-6 w-px bg-border mx-2" />
           {/* Command palette trigger */}
@@ -220,18 +224,80 @@ export function Navbar() {
             }}
             className="flex items-center gap-2 text-base font-medium text-muted-foreground hover:text-foreground transition-colors py-1"
             aria-label={`Search campaigns (${shortcutLabel})`}
+      {/* The backdrop and drawer are only mounted while the menu is open, so
+          the controls they repeat (theme picker, create-campaign dialog,
+          wallet button) exist once in the DOM and the accessibility tree. */}
+      {mobileMenuOpen && (
+        <>
+          {/* Backdrop */}
+          <div className="fixed inset-0 z-40 bg-black/40" aria-hidden="true" onClick={closeMenu} />
+
+          {/* Mobile drawer */}
+          <div
+            id="mobile-drawer"
+            ref={drawerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Navigation menu"
+            className="fixed inset-y-0 left-0 z-50 w-72 bg-background shadow-xl"
           >
-            <Search className="w-4 h-4" aria-hidden="true" />
-            Search campaigns
-          </button>
-          <div className="flex items-center gap-3">
-            <ThemeToggle />
-          </div>
-          <div>
-            <WalletConnect />
+            <div className="flex items-center justify-between p-4 border-b">
+              <span className="text-lg font-semibold">Menu</span>
+              <IconButton onClick={closeMenu} aria-label="Close menu">
+                <X size={20} />
+              </IconButton>
+            </div>
+            <nav className="flex flex-col p-4 space-y-4" aria-label="Mobile navigation">
+              {NAV_LINKS.map((link) => {
+                const isActive = pathname
+                  ? pathname === link.href || pathname.startsWith(`${link.href}/`)
+                  : false;
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    aria-current={isActive ? "page" : undefined}
+                    className={`text-base font-medium transition-colors py-1 ${
+                      isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                    }`}
+                    onClick={closeMenu}
+                  >
+                    {link.label}
+                  </Link>
+                );
+              })}
+              <div className="pt-2 border-t">
+                <CreateCampaignForm />
+              </div>
+              {/* Search trigger in mobile drawer */}
+              <button
+                type="button"
+                onClick={() => {
+                  closeMenu();
+                  setPaletteOpen(true);
+                }}
+                className="flex items-center gap-2 text-base font-medium text-muted-foreground hover:text-foreground transition-colors py-1"
+                aria-label={`Search campaigns (${shortcutLabel})`}
+              >
+                <Search className="w-4 h-4" aria-hidden="true" />
+                Search campaigns
+              </button>
+              <div className="flex items-center gap-3">
+                <ThemeToggle />
+              </div>
+              <div>
+                <WalletConnect />
+              </div>
+            </nav>
           </div>
         </nav>
       </div>
     </nav>
+        </>
+      )}
+
+      {/* Command palette — controlled from Navbar so the trigger button works */}
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+    </header>
   );
 }

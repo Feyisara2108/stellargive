@@ -307,3 +307,10 @@ describe("ActivityPage - search filtering", () => {
     });
   });
 });
+
+describe("ActivityPage - landmark structure", () => {
+  it("renders no main landmark of its own, leaving layout.tsx as the only one", () => {
+    render(<ActivityPage />);
+    expect(screen.queryAllByRole("main")).toHaveLength(0);
+  });
+});

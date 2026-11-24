@@ -13,7 +13,7 @@ export default function NotFound() {
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
-      <main className="flex-1 container py-12">
+      <div className="flex-1 container py-12">
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 text-center px-4">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
             <SearchX className="h-8 w-8 text-muted-foreground" />
@@ -41,7 +41,7 @@ export default function NotFound() {
             </Button>
           </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }
