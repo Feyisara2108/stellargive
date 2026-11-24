@@ -21,6 +21,10 @@ const walletState = vi.hoisted(() => ({
 const campaignState = vi.hoisted(() => ({ campaign: null as unknown }));
 const donateMutation = vi.hoisted(() => ({ mutateAsync: undefined as unknown }));
 const eventsState = vi.hoisted(() => ({ events: [] as unknown[] }));
+const tokenMetaState = vi.hoisted(() => ({
+  meta: undefined as { decimals: number; symbol: string } | undefined,
+  requestedTokens: [] as unknown[],
+}));
 
 vi.mock("@/lib/WalletProvider", () => ({
   useWallet: () => walletState,
@@ -36,6 +40,10 @@ vi.mock("@/hooks/useSoroban", async () =>
     }),
     useCancelCampaign: () => ({ mutateAsync: vi.fn(), isPending: false }),
     useEvents: () => ({ data: eventsState.events, isLoading: false }),
+    useTokenMetadata: (token: unknown) => {
+      tokenMetaState.requestedTokens.push(token);
+      return { data: tokenMetaState.meta, isLoading: false };
+    },
     useDonate: () => ({
       mutateAsync: donateMutation.mutateAsync,
       isPending: false,
@@ -51,7 +59,13 @@ vi.mock("next/navigation", () => ({
 // Side panels that fetch their own data and have nothing to do with the donate flow.
 vi.mock("@/components/RecentDonations", () => ({ RecentDonations: () => null }));
 vi.mock("@/components/ProjectUpdates", () => ({ ProjectUpdates: () => null }));
-vi.mock("@/components/TopDonors", () => ({ TopDonors: () => null }));
+vi.mock("@/components/TopDonors", () => ({
+  TopDonors: ({ decimals, symbol }: { decimals?: number; symbol?: string }) => (
+    <div data-testid="top-donors" data-decimals={decimals} data-symbol={symbol} />
+  ),
+}));
+// The breadcrumb trail is not under test here.
+vi.mock("@/components/Breadcrumbs", () => ({ Breadcrumbs: () => null }));
 
 import { CampaignDetailsClient } from "./CampaignDetailsClient";
 
@@ -178,9 +192,7 @@ describe("CampaignDetailsClient timeline", () => {
   });
 
   it("gives each <time> a machine-readable ISO dateTime", async () => {
-    eventsState.events = [
-      { topic: "created", data: { id: "1" }, createdAt: CREATED_ISO },
-    ];
+    eventsState.events = [{ topic: "created", data: { id: "1" }, createdAt: CREATED_ISO }];
     const created = await timelineItem("Campaign Created");
     const deadline = screen.getByRole("heading", { name: "Deadline" }).closest("li")!;
 
@@ -203,5 +215,105 @@ describe("CampaignDetailsClient timeline", () => {
 
     expect(time).toHaveTextContent("Unknown");
     expect(time).not.toHaveAttribute("datetime");
+  });
+});
+
+describe("CampaignDetailsClient token amounts", () => {
+  const SIX_DECIMAL_TOKEN = { decimals: 6, symbol: "USDC" };
+  const USDC_TOKEN_ADDRESS = "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA";
+
+  beforeEach(() => {
+    walletState.address = WALLET;
+    walletState.isWrongNetwork = false;
+    eventsState.events = [];
+    tokenMetaState.meta = undefined;
+    tokenMetaState.requestedTokens = [];
+  });
+
+  afterEach(() => {
+    tokenMetaState.meta = undefined;
+  });
+
+  it("looks up the metadata of the campaign's accepted token", async () => {
+    campaignState.campaign = makeCampaign({ accepted_token: USDC_TOKEN_ADDRESS });
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Clean Water Initiative" });
+
+    expect(tokenMetaState.requestedTokens).toContain(USDC_TOKEN_ADDRESS);
+  });
+
+  it("scales raised, target and max-per-donor by the token's decimals and shows its symbol", async () => {
+    tokenMetaState.meta = SIX_DECIMAL_TOKEN;
+    campaignState.campaign = makeCampaign({
+      accepted_token: USDC_TOKEN_ADDRESS,
+      target_amount: 100_000_000n, // 100 USDC
+      raised_amount: 58_000_000n, // 58 USDC
+      max_per_donor: 25_000_000n, // 25 USDC
+    });
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Clean Water Initiative" });
+
+    expect(screen.getByText("58 USDC")).toBeInTheDocument();
+    expect(screen.getByText("100 USDC")).toBeInTheDocument();
+    expect(screen.getByText("25 USDC")).toBeInTheDocument();
+    expect(screen.queryByText(/XLM/)).not.toBeInTheDocument();
+  });
+
+  it("computes the fund-the-gap amount from the bigint remainder in the token's units", async () => {
+    tokenMetaState.meta = SIX_DECIMAL_TOKEN;
+    campaignState.campaign = makeCampaign({
+      accepted_token: USDC_TOKEN_ADDRESS,
+      target_amount: 100_000_000n,
+      raised_amount: 98_765_433n, // 1.234567 USDC left, which a 2-decimal float would round
+    });
+    renderPage();
+
+    expect(await screen.findByText("Only 1.234567 USDC left — fund the gap!")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Quick donate to fund the remaining 1.234567 USDC" }),
+    ).toBeInTheDocument();
+  });
+
+  it("passes the token's decimals and symbol to the top donors list", async () => {
+    tokenMetaState.meta = SIX_DECIMAL_TOKEN;
+    campaignState.campaign = makeCampaign({ accepted_token: USDC_TOKEN_ADDRESS });
+    renderPage();
+
+    const topDonors = await screen.findByTestId("top-donors");
+
+    expect(topDonors).toHaveAttribute("data-decimals", "6");
+    expect(topDonors).toHaveAttribute("data-symbol", "USDC");
+  });
+
+  it("renders XLM campaigns with 7 decimals and the XLM symbol", async () => {
+    tokenMetaState.meta = { decimals: 7, symbol: "XLM" };
+    campaignState.campaign = makeCampaign({
+      max_per_donor: 250_000_000n, // 25 XLM
+      raised_amount: 950_000_000n, // 5 XLM left
+    });
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Clean Water Initiative" });
+
+    expect(screen.getByText("95 XLM")).toBeInTheDocument();
+    expect(screen.getByText("100 XLM")).toBeInTheDocument();
+    expect(screen.getByText("25 XLM")).toBeInTheDocument();
+    expect(screen.getByText("Only 5 XLM left — fund the gap!")).toBeInTheDocument();
+    expect(screen.getByTestId("top-donors")).toHaveAttribute("data-decimals", "7");
+    expect(screen.getByTestId("top-donors")).toHaveAttribute("data-symbol", "XLM");
+  });
+
+  it("falls back to 7 decimals and XLM while the token metadata is loading", async () => {
+    tokenMetaState.meta = undefined;
+    campaignState.campaign = makeCampaign();
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Clean Water Initiative" });
+
+    expect(screen.getByText("58 XLM")).toBeInTheDocument();
+    expect(screen.getByTestId("top-donors")).toHaveAttribute("data-decimals", "7");
+    expect(screen.getByTestId("top-donors")).toHaveAttribute("data-symbol", "XLM");
   });
 });
