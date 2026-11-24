@@ -1,8 +1,10 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen } from "@/test/render";
 import userEvent from "@testing-library/user-event";
 import { axe, toHaveNoViolations } from "jest-axe";
 import { CampaignCard, getDeadlineUrgency } from "./CampaignCard";
+import { useXlmPrice } from "@/hooks/useSoroban";
+import { NATIVE_XLM_CONTRACT_ID } from "@/lib/tokens";
 import type { Campaign } from "@/lib/soroban";
 
 expect.extend(toHaveNoViolations);
@@ -504,6 +506,55 @@ describe("CampaignCard", () => {
       expect(modal).toHaveAttribute("data-open", "true");
       expect(modal).toHaveAttribute("data-suggested-amount", "100000");
     });
+  });
+});
+
+describe("CampaignCard — USD toggle", () => {
+  afterEach(() => {
+    vi.mocked(useXlmPrice).mockReturnValue({ data: undefined, isLoading: false } as any);
+  });
+
+  it("never renders a USD toggle for a non-XLM token, even when a price is available", () => {
+    vi.mocked(useXlmPrice).mockReturnValue({ data: 0.12, isLoading: false } as any);
+    render(<CampaignCard campaign={baseCampaign} />);
+
+    expect(
+      screen.queryByRole("button", { name: /Switch display to/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("350000 XLM")).toBeInTheDocument();
+  });
+
+  it("toggles a native XLM campaign between XLM and USD without changing the underlying values", async () => {
+    vi.mocked(useXlmPrice).mockReturnValue({ data: 0.12, isLoading: false } as any);
+    const nativeCampaign = { ...baseCampaign, accepted_token: NATIVE_XLM_CONTRACT_ID };
+    const user = userEvent.setup();
+    render(<CampaignCard campaign={nativeCampaign} />);
+
+    expect(screen.getByText("350000 XLM")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Switch display to USD/i }));
+    expect(screen.getByText("$42,000.00")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Switch display to XLM/i }));
+    expect(screen.getByText("350000 XLM")).toBeInTheDocument();
+  });
+
+  it("resets to the native unit when the campaign's accepted token changes", async () => {
+    vi.mocked(useXlmPrice).mockReturnValue({ data: 0.12, isLoading: false } as any);
+    const nativeCampaign = { ...baseCampaign, accepted_token: NATIVE_XLM_CONTRACT_ID };
+    const user = userEvent.setup();
+    const { rerender } = render(<CampaignCard campaign={nativeCampaign} />);
+
+    await user.click(screen.getByRole("button", { name: /Switch display to USD/i }));
+    expect(screen.getByText("$42,000.00")).toBeInTheDocument();
+
+    const otherTokenCampaign = { ...nativeCampaign, accepted_token: baseCampaign.accepted_token };
+    rerender(<CampaignCard campaign={otherTokenCampaign} />);
+
+    expect(
+      screen.queryByRole("button", { name: /Switch display to/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("350000 XLM")).toBeInTheDocument();
   });
 });
 

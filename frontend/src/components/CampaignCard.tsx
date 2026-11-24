@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Campaign, TokenMetadata } from "@/lib/soroban";
 import { formatTokenAmount, formatUSD } from "@/utils/format";
 import { useTokenMetadata, useXlmPrice } from "@/hooks/useSoroban";
+import { NATIVE_XLM_CONTRACT_ID } from "@/lib/tokens";
 import { calculateProgress, getCampaignImageUrl, CAMPAIGN_IMAGE_BLUR_DATA_URL } from "@/lib/utils";
 import { isOptimizableImageUrl } from "../../image-hosts.mjs";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -137,9 +138,26 @@ function CampaignCardComponent({
   const isMetaPending = tokenMeta == null && isMetaLoading;
   const decimals = tokenMeta?.decimals ?? 7;
   const symbol = tokenMeta?.symbol ?? "XLM";
+  const isNativeXlm = campaign.accepted_token === NATIVE_XLM_CONTRACT_ID;
+
+  // Reset to the token's native unit whenever the card switches to a
+  // different accepted token, so a stale USD view never carries over.
+  useEffect(() => {
+    setShowUSD(false);
+  }, [campaign.accepted_token]);
 
   const raised = isMetaPending ? null : formatTokenAmount(campaign.raised_amount, decimals);
   const target = isMetaPending ? null : formatTokenAmount(campaign.target_amount, decimals);
+  const canToggleUsd =
+    isNativeXlm && !isMetaPending && !isPreview && xlmPrice !== null && xlmPrice !== undefined;
+  const raisedUsd =
+    canToggleUsd && xlmPrice !== null && xlmPrice !== undefined
+      ? (Number(campaign.raised_amount) / 10 ** decimals) * xlmPrice
+      : null;
+  const targetUsd =
+    canToggleUsd && xlmPrice !== null && xlmPrice !== undefined
+      ? (Number(campaign.target_amount) / 10 ** decimals) * xlmPrice
+      : null;
   const progress = calculateProgress(campaign.raised_amount, campaign.target_amount);
   const progressVariant: ProgressVariant =
     progress >= 100 ? "success" : progress >= 50 ? "warning" : "default";
@@ -256,12 +274,12 @@ function CampaignCardComponent({
                 <Skeleton className="h-4 w-24" />
               ) : (
                 <span className="font-bold">
-                  {showUSD && xlmPrice !== null && xlmPrice !== undefined
-                    ? formatUSD(Number(raised) * xlmPrice)
+                  {canToggleUsd && showUSD && raisedUsd !== null
+                    ? formatUSD(raisedUsd)
                     : `${raised} ${symbol}`}
                 </span>
               )}
-              {!isMetaPending && !isPreview && xlmPrice !== null && xlmPrice !== undefined && (
+              {canToggleUsd && (
                 <button
                   type="button"
                   onClick={() => setShowUSD(!showUSD)}
@@ -286,8 +304,8 @@ function CampaignCardComponent({
               <Target className="w-3 h-3" /> Target:{" "}
               {target === null ? (
                 <Skeleton className="h-3 w-16" />
-              ) : showUSD && xlmPrice !== null && xlmPrice !== undefined ? (
-                formatUSD(Number(target) * xlmPrice)
+              ) : canToggleUsd && showUSD && targetUsd !== null ? (
+                formatUSD(targetUsd)
               ) : (
                 `${target} ${symbol}`
               )}
