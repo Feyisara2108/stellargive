@@ -28,7 +28,6 @@ import {
   Target,
   TrendingUp,
   Image as ImageIcon,
-  Zap,
   Ban,
   Flame,
   Tag,
@@ -40,6 +39,7 @@ import { RelativeTime } from "@/components/RelativeTime";
 import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { FundTheGap } from "@/components/FundTheGap";
 
 const HOUR_SECONDS = 60 * 60;
 
@@ -175,14 +175,13 @@ function CampaignCardComponent({
     campaign.target_amount > campaign.raised_amount
       ? campaign.target_amount - campaign.raised_amount
       : 0n;
-  const gap = Number(gapRaw) / 10 ** decimals;
   const showFundTheGap =
     !isPreview &&
     !isMetaPending &&
     campaign.status === "Active" &&
     progress >= 90 &&
     progress < 100 &&
-    gap > 0;
+    gapRaw > 0n;
 
   return (
     <Card
@@ -352,24 +351,16 @@ function CampaignCardComponent({
         )}
       </CardContent>
       {showFundTheGap && (
-        <div className="mx-4 mb-3 flex items-center justify-between gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2">
-          <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
-            <Zap className="h-3 w-3 shrink-0" />
-            <span>
-              Only {gap.toFixed(2)} {symbol} left — fund the gap!
-            </span>
-          </div>
-          <button
-            onClick={() => {
-              setDonateAmount(gap.toFixed(decimals).replace(/\.?0+$/, ""));
-              setDonateOpen(true);
-            }}
-            className="shrink-0 rounded-md bg-emerald-600 px-3 py-2 min-h-[44px] text-xs font-semibold text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 dark:bg-emerald-500 dark:hover:bg-emerald-600 dark:focus-visible:ring-emerald-400 dark:focus-visible:ring-offset-emerald-900"
-            aria-label={`Quick donate to fund the remaining ${gap.toFixed(2)} ${symbol}`}
-          >
-            Donate
-          </button>
-        </div>
+        <FundTheGap
+          remaining={gapRaw}
+          decimals={decimals}
+          symbol={symbol}
+          className="mx-4 mb-3"
+          onDonate={(amount) => {
+            setDonateAmount(amount);
+            setDonateOpen(true);
+          }}
+        />
       )}
       {!isPreview && (
         <CardFooter className="gap-2">
