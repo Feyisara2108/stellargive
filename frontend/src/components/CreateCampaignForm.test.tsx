@@ -620,6 +620,35 @@ describe("CreateCampaignForm — cover image upload accessibility", () => {
   });
 });
 
+describe("CreateCampaignForm — sessionStorage guard", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("opens the dialog and accepts input when sessionStorage.getItem is blocked", async () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("Storage is blocked");
+    });
+
+    renderForm();
+    await openForm();
+
+    const title = screen.getByPlaceholderText(/Flood Relief 2024/i);
+    fireEvent.change(title, { target: { value: "Flood Relief 2024" } });
+    expect(title).toHaveValue("Flood Relief 2024");
+  });
+
+  it("keeps accepting input when sessionStorage.setItem is blocked", async () => {
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("Storage is blocked");
+    });
+
+    renderForm();
+    await openForm();
+
+    const title = screen.getByPlaceholderText(/Flood Relief 2024/i);
+    fireEvent.change(title, { target: { value: "Flood Relief 2024" } });
+    expect(title).toHaveValue("Flood Relief 2024");
 describe("CreateCampaignForm — live preview accessibility", () => {
   it("resolves getByLabelText(/Campaign Title/i) to a single element while the dialog is open", async () => {
     renderForm();

@@ -5,6 +5,7 @@ import { axe, toHaveNoViolations } from "jest-axe";
 import { DonateModal } from "./DonateModal";
 import type { Campaign } from "@/lib/soroban";
 import { useWallet } from "@/lib/WalletProvider";
+import { NATIVE_XLM_CONTRACT_ID } from "@/lib/tokens";
 
 expect.extend(toHaveNoViolations);
 
@@ -79,6 +80,9 @@ const baseCampaign = makeCampaign({
   title: "Flood Relief — Lagos",
 });
 
+// The last-donated-amount key is namespaced per accepted token.
+const LAST_DONATED_KEY = `stellargive_last_donated_amount:${NATIVE_XLM_CONTRACT_ID}`;
+
 describe("DonateModal", () => {
   beforeEach(() => {
     donateState.mutateAsync = vi.fn().mockResolvedValue({ hash: "abc123" });
@@ -93,7 +97,7 @@ describe("DonateModal", () => {
     feeEstimateState.data = null;
     toastSuccess.mockClear();
     // Successful donations persist the last amount, which pre-fills later renders.
-    localStorage.removeItem("stellargive_last_donated_amount");
+    localStorage.removeItem(LAST_DONATED_KEY);
   });
 
   it("should have no accessibility violations in trigger state", async () => {
@@ -401,7 +405,7 @@ describe("DonateModal", () => {
     });
 
     it("remembers user's last donated amount in localStorage and pre-fills on return visits", async () => {
-      localStorage.setItem("stellargive_last_donated_amount", "50");
+      localStorage.setItem(LAST_DONATED_KEY, "50");
 
       render(<DonateModal campaign={baseCampaign} open onOpenChange={() => {}} />);
 
@@ -410,7 +414,36 @@ describe("DonateModal", () => {
         expect(input).toHaveValue("50");
       });
 
-      localStorage.removeItem("stellargive_last_donated_amount");
+      localStorage.removeItem(LAST_DONATED_KEY);
+    });
+
+    it("does not pre-fill a stored amount with more decimals than the current token", async () => {
+      tokenMetaState.data = { decimals: 2, symbol: "USDC" };
+      localStorage.setItem(LAST_DONATED_KEY, "1.234567");
+
+      render(<DonateModal campaign={baseCampaign} open onOpenChange={() => {}} />);
+
+      const input = await screen.findByLabelText(/Amount/i);
+      await waitFor(() => {
+        expect(input).toHaveValue("");
+      });
+
+      localStorage.removeItem(LAST_DONATED_KEY);
+    });
+
+    it("does not throw when localStorage.getItem is blocked", async () => {
+      const getItemSpy = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+        throw new Error("Storage is blocked");
+      });
+
+      expect(() => {
+        render(<DonateModal campaign={baseCampaign} open onOpenChange={() => {}} />);
+      }).not.toThrow();
+
+      const input = await screen.findByLabelText(/Amount/i);
+      expect(input).toHaveValue("");
+
+      getItemSpy.mockRestore();
     });
   });
 
