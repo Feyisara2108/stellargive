@@ -1426,25 +1426,6 @@ impl StellarGiveContract {
     /// start beyond the last campaign ID, an empty `Vec` is returned without panic.
     pub fn get_campaigns_paged(env: Env, offset: u64, limit: u32) -> Vec<Campaign> {
         let clamped_limit = limit.min(20);
-    /// Retrieves a paginated slice of campaigns.
-    ///
-    /// Results are returned in order of campaign ID starting from `offset + 1`.
-    /// The page size is clamped to a maximum of 20 campaigns.
-    ///
-    /// # Arguments
-    /// * `offset` - Number of campaigns to skip (0-indexed offset).
-    /// * `limit` - Maximum number of campaigns to return (clamped to a maximum of 20).
-    ///
-    /// # Returns
-    /// `Vec<Campaign>` containing the requested page of campaigns with derived status.
-    ///
-    /// # Errors
-    /// This function is infallible and returns an empty vector if no campaigns match the range.
-    #[allow(unused_mut)]
-    pub fn get_campaigns_paged(env: Env, offset: u64, mut limit: u32) -> Vec<Campaign> {
-        if limit > 20 {
-            limit = 20;
-        }
         let mut result = Vec::new(&env);
         let next_id = read_next_id(&env);
         let last_id = if next_id > 0 { next_id - 1 } else { 0 };

@@ -4,6 +4,8 @@ import userEvent from "@testing-library/user-event";
 import { axe, toHaveNoViolations } from "jest-axe";
 import { DonateModal } from "./DonateModal";
 import type { Campaign } from "@/lib/soroban";
+import { useWallet } from "@/lib/WalletProvider";
+import { NATIVE_XLM_CONTRACT_ID } from "@/lib/tokens";
 
 expect.extend(toHaveNoViolations);
 
@@ -78,6 +80,9 @@ const baseCampaign = makeCampaign({
   title: "Flood Relief — Lagos",
 });
 
+// The last-donated-amount key is namespaced per accepted token.
+const LAST_DONATED_KEY = `stellargive_last_donated_amount:${NATIVE_XLM_CONTRACT_ID}`;
+
 describe("DonateModal", () => {
   beforeEach(() => {
     donateState.mutateAsync = vi.fn().mockResolvedValue({ hash: "abc123" });
@@ -92,7 +97,7 @@ describe("DonateModal", () => {
     feeEstimateState.data = null;
     toastSuccess.mockClear();
     // Successful donations persist the last amount, which pre-fills later renders.
-    localStorage.removeItem("stellargive_last_donated_amount");
+    localStorage.removeItem(LAST_DONATED_KEY);
   });
 
   it("should have no accessibility violations in trigger state", async () => {
@@ -400,7 +405,7 @@ describe("DonateModal", () => {
     });
 
     it("remembers user's last donated amount in localStorage and pre-fills on return visits", async () => {
-      localStorage.setItem("stellargive_last_donated_amount", "50");
+      localStorage.setItem(LAST_DONATED_KEY, "50");
 
       render(<DonateModal campaign={baseCampaign} open onOpenChange={() => {}} />);
 
@@ -409,7 +414,36 @@ describe("DonateModal", () => {
         expect(input).toHaveValue("50");
       });
 
-      localStorage.removeItem("stellargive_last_donated_amount");
+      localStorage.removeItem(LAST_DONATED_KEY);
+    });
+
+    it("does not pre-fill a stored amount with more decimals than the current token", async () => {
+      tokenMetaState.data = { decimals: 2, symbol: "USDC" };
+      localStorage.setItem(LAST_DONATED_KEY, "1.234567");
+
+      render(<DonateModal campaign={baseCampaign} open onOpenChange={() => {}} />);
+
+      const input = await screen.findByLabelText(/Amount/i);
+      await waitFor(() => {
+        expect(input).toHaveValue("");
+      });
+
+      localStorage.removeItem(LAST_DONATED_KEY);
+    });
+
+    it("does not throw when localStorage.getItem is blocked", async () => {
+      const getItemSpy = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+        throw new Error("Storage is blocked");
+      });
+
+      expect(() => {
+        render(<DonateModal campaign={baseCampaign} open onOpenChange={() => {}} />);
+      }).not.toThrow();
+
+      const input = await screen.findByLabelText(/Amount/i);
+      expect(input).toHaveValue("");
+
+      getItemSpy.mockRestore();
     });
   });
 
@@ -817,5 +851,49 @@ describe("DonateModal", () => {
         await screen.findByText("Insufficient balance — you have 1000000000000 TKN"),
       ).toBeInTheDocument();
     });
+  });
+});
+
+describe("DonateModal — disabled trigger reason", () => {
+  afterEach(() => {
+    vi.mocked(useWallet).mockReturnValue({ address: "GABC...", isConnected: true } as any);
+  });
+
+  it("describes the disabled Donate button with an always-present hidden reason", () => {
+    vi.mocked(useWallet).mockReturnValue({ address: null, isConnected: false } as any);
+    render(<DonateModal campaign={baseCampaign} />);
+
+    const button = screen.getByRole("button", { name: /Donate Now/i });
+    expect(button).toBeDisabled();
+
+    // The focusable wrapper (not the disabled button) carries the description.
+    const anchor = button.closest("[tabindex]") as HTMLElement;
+    expect(anchor).not.toBeNull();
+    const reasonId = anchor.getAttribute("aria-describedby");
+    expect(reasonId).toBeTruthy();
+    const reason = document.getElementById(reasonId!);
+    expect(reason).toHaveTextContent("Connect your wallet to donate");
+    expect(reason).toHaveClass("sr-only");
+    // No tooltip is open, yet the reference resolves.
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  });
+
+  it("opens the visible tooltip when the disabled trigger wrapper receives focus", async () => {
+    vi.mocked(useWallet).mockReturnValue({ address: null, isConnected: false } as any);
+    render(<DonateModal campaign={baseCampaign} />);
+
+    const anchor = screen
+      .getByRole("button", { name: /Donate Now/i })
+      .closest("[tabindex]") as HTMLElement;
+    fireEvent.focus(anchor);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Connect your wallet to donate");
+  });
+
+  it("does not make the wrapper focusable or described when the button is enabled", () => {
+    render(<DonateModal campaign={baseCampaign} />);
+    const button = screen.getByRole("button", { name: /Donate Now/i });
+    expect(button).toBeEnabled();
+    expect(button.closest("[tabindex]")).toBeNull();
+    expect(button.closest("[aria-describedby]")).toBeNull();
   });
 });

@@ -21,7 +21,7 @@ type FormFieldContextValue<
   name: TName;
 };
 
-const FormFieldContext = React.createContext<FormFieldContextValue>({} as FormFieldContextValue);
+const FormFieldContext = React.createContext<FormFieldContextValue | null>(null);
 
 const FormField = <
   TFieldValues extends FieldValues = FieldValues,
@@ -41,13 +41,17 @@ const useFormField = () => {
   const itemContext = React.useContext(FormItemContext);
   const { getFieldState, formState } = useFormContext();
 
-  const fieldState = getFieldState(fieldContext.name, formState);
-
   if (!fieldContext) {
     throw new Error("useFormField should be used within <FormField>");
   }
 
-  const { id } = itemContext;
+  if (!itemContext) {
+    throw new Error("useFormField should be used within <FormItem>");
+  }
+
+  const fieldState = getFieldState(fieldContext.name, formState);
+
+  const { id, hasDescription, hasMessage, setHasDescription, setHasMessage } = itemContext;
 
   return {
     id,
@@ -55,22 +59,39 @@ const useFormField = () => {
     formItemId: `${id}-form-item`,
     formDescriptionId: `${id}-form-item-description`,
     formMessageId: `${id}-form-item-message`,
+    hasDescription,
+    hasMessage,
+    setHasDescription,
+    setHasMessage,
     ...fieldState,
   };
 };
 
 type FormItemContextValue = {
   id: string;
+  /** True while a FormDescription is mounted inside this item. */
+  hasDescription: boolean;
+  /** True while a FormMessage with content is mounted inside this item. */
+  hasMessage: boolean;
+  setHasDescription: (mounted: boolean) => void;
+  setHasMessage: (mounted: boolean) => void;
 };
 
-const FormItemContext = React.createContext<FormItemContextValue>({} as FormItemContextValue);
+const FormItemContext = React.createContext<FormItemContextValue | null>(null);
 
 const FormItem = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
     const id = React.useId();
+    const [hasDescription, setHasDescription] = React.useState(false);
+    const [hasMessage, setHasMessage] = React.useState(false);
+
+    const value = React.useMemo(
+      () => ({ id, hasDescription, hasMessage, setHasDescription, setHasMessage }),
+      [id, hasDescription, hasMessage],
+    );
 
     return (
-      <FormItemContext.Provider value={{ id }}>
+      <FormItemContext.Provider value={value}>
         <div ref={ref} className={cn("space-y-2", className)} {...props} />
       </FormItemContext.Provider>
     );
@@ -99,13 +120,20 @@ const FormControl = React.forwardRef<
   React.ElementRef<typeof SlotPrimitive.Slot>,
   React.ComponentPropsWithoutRef<typeof SlotPrimitive.Slot>
 >(({ ...props }, ref) => {
-  const { error, formItemId, formDescriptionId, formMessageId } = useFormField();
+  const { error, formItemId, formDescriptionId, formMessageId, hasDescription, hasMessage } =
+    useFormField();
+
+  // Only reference ids that exist in the DOM, otherwise aria-describedby dangles.
+  const describedBy =
+    [hasDescription && formDescriptionId, hasMessage && formMessageId]
+      .filter(Boolean)
+      .join(" ") || undefined;
 
   return (
     <SlotPrimitive.Slot
       ref={ref}
       id={formItemId}
-      aria-describedby={!error ? `${formDescriptionId}` : `${formDescriptionId} ${formMessageId}`}
+      aria-describedby={describedBy}
       aria-invalid={!!error}
       {...props}
     />
@@ -117,7 +145,12 @@ const FormDescription = React.forwardRef<
   HTMLParagraphElement,
   React.HTMLAttributes<HTMLParagraphElement>
 >(({ className, ...props }, ref) => {
-  const { formDescriptionId } = useFormField();
+  const { formDescriptionId, setHasDescription } = useFormField();
+
+  React.useEffect(() => {
+    setHasDescription(true);
+    return () => setHasDescription(false);
+  }, [setHasDescription]);
 
   return (
     <p
@@ -134,10 +167,17 @@ const FormMessage = React.forwardRef<
   HTMLParagraphElement,
   React.HTMLAttributes<HTMLParagraphElement>
 >(({ className, children, ...props }, ref) => {
-  const { error, formMessageId } = useFormField();
+  const { error, formMessageId, setHasMessage } = useFormField();
   const body = error ? String(error?.message) : children;
+  const hasBody = !!body;
 
-  if (!body) {
+  React.useEffect(() => {
+    if (!hasBody) return;
+    setHasMessage(true);
+    return () => setHasMessage(false);
+  }, [hasBody, setHasMessage]);
+
+  if (!hasBody) {
     return null;
   }
 
@@ -145,6 +185,7 @@ const FormMessage = React.forwardRef<
     <p
       ref={ref}
       id={formMessageId}
+      role="alert"
       className={cn("text-sm font-medium text-destructive", className)}
       {...props}
     >

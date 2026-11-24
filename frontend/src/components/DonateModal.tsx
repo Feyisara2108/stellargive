@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useId } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
@@ -49,12 +49,49 @@ import { logger } from "@/lib/logger";
 const FIRED_MILESTONES = new Set<string>();
 const milestoneKey = (campaignId: bigint, m: MilestonePercent) => `${campaignId.toString()}:${m}`;
 
+// Namespaced per accepted token so an amount typed for one (donor cap,
+// decimals) never pre-fills a donation to a different token.
+const LAST_DONATED_AMOUNT_KEY_PREFIX = "stellargive_last_donated_amount";
+
+function readLastDonatedAmount(acceptedToken: string): string | null {
+  try {
+    if (typeof window === "undefined") return null;
+    return localStorage.getItem(`${LAST_DONATED_AMOUNT_KEY_PREFIX}:${acceptedToken}`);
+  } catch (e) {
+    logger.error("Failed to read last donated amount from localStorage", e);
+    return null;
+  }
+}
+
+function writeLastDonatedAmount(acceptedToken: string, amount: string): void {
+  try {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(`${LAST_DONATED_AMOUNT_KEY_PREFIX}:${acceptedToken}`, amount);
+  } catch (e) {
+    logger.error("Failed to save last donated amount to localStorage", e);
+  }
+}
+
 const MILESTONE_COPY: Record<MilestonePercent, { title: string; description: string }> = {
   25: { title: "25% funded!", description: "First quarter milestone reached." },
   50: { title: "Halfway there!", description: "50% of the goal funded." },
   75: { title: "75% funded!", description: "Almost at the finish line." },
   100: { title: "Fully funded!", description: "100% of the goal raised." },
 };
+
+/**
+ * Focusable wrapper for the possibly-disabled Donate trigger. A disabled <button> receives no
+ * focus or pointer events, so the wrapper takes focus instead. `aria-describedby` is applied last
+ * so it wins over the tooltip-content id that TooltipTrigger injects into its child (that element
+ * only exists while the tooltip is open).
+ */
+const TooltipAnchor = React.forwardRef<
+  HTMLSpanElement,
+  React.HTMLAttributes<HTMLSpanElement> & { focusable: boolean; describedBy?: string }
+>(({ focusable, describedBy, ...props }, ref) => (
+  <span ref={ref} tabIndex={focusable ? 0 : undefined} {...props} aria-describedby={describedBy} />
+));
+TooltipAnchor.displayName = "TooltipAnchor";
 
 export function DonateModal({
   campaign,
@@ -69,6 +106,7 @@ export function DonateModal({
   suggestedAmount?: string;
 }) {
   const router = useRouter();
+  const donateReasonId = useId();
   const { address, isWrongNetwork } = useWallet();
   const prefersReducedMotion = usePrefersReducedMotion();
   const {
@@ -178,17 +216,22 @@ export function DonateModal({
   const prevOpenRef = React.useRef(false);
   useEffect(() => {
     if (isOpen && !prevOpenRef.current) {
-      const initialAmount =
-        suggestedAmount ||
-        (typeof window !== "undefined"
-          ? localStorage.getItem("stellargive_last_donated_amount") || ""
-          : "");
+      let initialAmount = suggestedAmount || "";
+      if (!initialAmount) {
+        const stored = readLastDonatedAmount(campaign.accepted_token);
+        // Only pre-fill a stored amount that's still valid for this token —
+        // one typed for a different token's decimals (or donor cap) could
+        // otherwise exceed what the current token allows.
+        if (stored && parseTokenAmount(stored, decimals) !== null) {
+          initialAmount = stored;
+        }
+      }
       if (initialAmount) {
         setValue("amount", initialAmount, { shouldValidate: true });
       }
     }
     prevOpenRef.current = isOpen;
-  }, [isOpen, suggestedAmount, setValue]);
+  }, [isOpen, suggestedAmount, setValue, campaign.accepted_token, decimals]);
 
   useEffect(() => {
     if (donate.isSuccess && !prefersReducedMotion) {
@@ -240,13 +283,7 @@ export function DonateModal({
       setSuccessAmount(data.amount);
       setSuccessTxHash((result as { hash?: string })?.hash || "");
       setSuccessAnnouncement(`Donation of ${data.amount} ${symbol} confirmed`);
-      try {
-        if (typeof window !== "undefined") {
-          localStorage.setItem("stellargive_last_donated_amount", data.amount);
-        }
-      } catch (storageErr) {
-        logger.error("Failed to save last donated amount to localStorage", storageErr);
-      }
+      writeLastDonatedAmount(campaign.accepted_token, data.amount);
       setShowSuccess(true);
       setIsOpen(false);
       setValue("amount", "");
@@ -261,6 +298,11 @@ export function DonateModal({
   // Only Active campaigns take donations, but the success dialog below must outlive
   // the status flip when this donation is the one that reaches the goal.
   const acceptingDonations = campaign.status === "Active";
+  const donateDisabledReason = !address
+    ? "Connect your wallet to donate"
+    : isWrongNetwork
+      ? WRONG_NETWORK_MESSAGE
+      : null;
 
   return (
     <>
@@ -279,26 +321,25 @@ export function DonateModal({
         >
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="relative flex-1 block">
+              <TooltipAnchor
+                focusable={donateDisabledReason !== null}
+                describedBy={donateDisabledReason ? donateReasonId : undefined}
+                className="relative flex-1 block"
+              >
                 <DialogTrigger asChild>
-                  <Button
-                    className="w-full"
-                    disabled={!address || isWrongNetwork}
-                    aria-describedby={
-                      !address || isWrongNetwork ? "donate-disabled-reason" : undefined
-                    }
-                  >
+                  <Button className="w-full" disabled={!address || isWrongNetwork}>
                     Donate Now
                   </Button>
                 </DialogTrigger>
-              </span>
+              </TooltipAnchor>
             </TooltipTrigger>
-            {(!address || isWrongNetwork) && (
-              <TooltipContent side="top" id="donate-disabled-reason">
-                {!address ? "Connect your wallet to donate" : WRONG_NETWORK_MESSAGE}
-              </TooltipContent>
+            {donateDisabledReason && (
+              <TooltipContent side="top">{donateDisabledReason}</TooltipContent>
             )}
           </Tooltip>
+          <span id={donateReasonId} className="sr-only">
+            {donateDisabledReason}
+          </span>
           <DialogContent
             aria-labelledby="donate-dialog-title"
             onPointerDownOutside={(e) => {

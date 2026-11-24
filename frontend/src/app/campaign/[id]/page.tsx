@@ -2,9 +2,9 @@
 import { cache } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getCampaign, fromStroops, isCampaignNotFoundError } from "@/lib/soroban";
+import { getCampaign, getTokenMetadata, isCampaignNotFoundError } from "@/lib/soroban";
 import type { Campaign } from "@/lib/soroban";
-import { formatBasisPoints } from "@/utils/format";
+import { formatBasisPoints, formatTokenAmount } from "@/utils/format";
 import { getCampaignImageUrl } from "@/lib/utils";
 import { CampaignDetailsClient } from "./CampaignDetailsClient";
 import type { BreadcrumbItem } from "@/components/Breadcrumbs";
@@ -45,6 +45,15 @@ function parseCampaignId(id: string): bigint | null {
  */
 const loadCampaign = cache((id: bigint) => getCampaign(id));
 
+/** Token symbol and decimals for the SEO description; null if the lookup fails. */
+const loadTokenMetadata = cache(async (token: string) => {
+  try {
+    return await getTokenMetadata(token);
+  } catch {
+    return null;
+  }
+});
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const resolvedParams = await params;
   const defaultDescription = "A decentralized donation platform built on Stellar.";
@@ -83,9 +92,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
             .join(", ")}. `
         : "";
     const title = campaign.title;
-    const description = `${campaign.title} — ${fromStroops(
+    // Native XLM values when the token's metadata can't be read.
+    const tokenMeta = await loadTokenMetadata(campaign.accepted_token);
+    const decimals = tokenMeta?.decimals ?? 7;
+    const symbol = tokenMeta?.symbol ?? "XLM";
+    const description = `${campaign.title} — ${formatTokenAmount(
       campaign.raised_amount,
-    )} of ${fromStroops(campaign.target_amount)} XLM raised. ${benDesc}Support this campaign on StellarGive.`;
+      decimals,
+    )} of ${formatTokenAmount(campaign.target_amount, decimals)} ${symbol} raised. ${benDesc}Support this campaign on StellarGive.`;
 
     const imageUrl = getCampaignImageUrl(campaign.metadata_uri);
 

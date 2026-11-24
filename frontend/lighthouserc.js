@@ -4,7 +4,7 @@ module.exports = {
     collect: {
       // Start the Next.js standalone server before auditing
       startServerCommand: "node .next/standalone/server.js",
-      startServerReadyPattern: "started server on",
+      startServerReadyPattern: "Ready in",
       startServerReadyTimeout: 30000,
       url: [
         "http://localhost:3000",

@@ -26,6 +26,26 @@ export function generateBreadcrumbJsonLd(items: BreadcrumbItem[]) {
   };
 }
 
+const JSON_LD_ESCAPES: Record<string, string> = {
+  "<": "\\u003c",
+  ">": "\\u003e",
+  "&": "\\u0026",
+  " ": "\\u2028",
+  " ": "\\u2029",
+};
+
+/**
+ * Serialises JSON-LD for embedding in a <script> element. Characters that could
+ * terminate the script or be parsed as HTML are replaced by unicode escapes, which
+ * JSON.parse decodes back to the original string.
+ */
+export function serializeJsonLd(data: unknown): string {
+  return JSON.stringify(data).replace(
+    /[<>&  ]/g,
+    (char) => JSON_LD_ESCAPES[char],
+  );
+}
+
 export function Breadcrumbs({ items }: BreadcrumbsProps) {
   const jsonLd = generateBreadcrumbJsonLd(items);
 
@@ -33,7 +53,7 @@ export function Breadcrumbs({ items }: BreadcrumbsProps) {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
       />
       <nav aria-label="Breadcrumb" className="mb-4 max-w-full">
         <ol className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">

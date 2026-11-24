@@ -12,6 +12,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  useFormField,
 } from "./form";
 
 // Minimal schema that exercises string validation and a numeric coercion step,
@@ -243,5 +244,137 @@ describe("Form (react-hook-form + zod)", () => {
 
     expect(usernameInput.getAttribute("aria-describedby")).toContain(description.id);
     expect(usernameInput).not.toHaveAttribute("aria-invalid", "true");
+  });
+
+  // ── a11y: no dangling aria-describedby ─────────────────────────────────
+
+  it("omits aria-describedby when there is no description and no error", () => {
+    render(<TestForm />);
+
+    // "Amount" field has no FormDescription and no error yet.
+    expect(screen.getByLabelText("Amount")).not.toHaveAttribute("aria-describedby");
+  });
+
+  it("only references ids that exist in the DOM", async () => {
+    render(<TestForm />);
+
+    await fillAndSubmit({ username: "ab", amount: "bad" });
+    await screen.findByText("Must be a positive number");
+
+    for (const label of ["Username", "Amount"]) {
+      const ids = (screen.getByLabelText(label).getAttribute("aria-describedby") ?? "")
+        .split(" ")
+        .filter(Boolean);
+      expect(ids.length).toBeGreaterThan(0);
+      for (const id of ids) {
+        expect(document.getElementById(id)).not.toBeNull();
+      }
+    }
+  });
+
+  it("references only the message id when an error appears and no description exists", async () => {
+    render(<TestForm />);
+
+    await fillAndSubmit({ username: "alice", amount: "bad" });
+    const amountError = await screen.findByText("Must be a positive number");
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Amount").getAttribute("aria-describedby")).toBe(
+        amountError.id,
+      ),
+    );
+  });
+
+  it("references both description and message ids when both are mounted", async () => {
+    render(<TestForm />);
+
+    await fillAndSubmit({ username: "ab", amount: "10" });
+    const error = await screen.findByText("Username must be at least 3 characters");
+    const description = screen.getByText("At least 3 characters.");
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Username").getAttribute("aria-describedby")).toBe(
+        `${description.id} ${error.id}`,
+      ),
+    );
+  });
+
+  it("drops the message id once the error is cleared", async () => {
+    const user = userEvent.setup();
+    render(<TestForm />);
+
+    await fillAndSubmit({ username: "ab", amount: "10" });
+    await screen.findByText("Username must be at least 3 characters");
+
+    const usernameInput = screen.getByLabelText("Username");
+    await user.clear(usernameInput);
+    await user.type(usernameInput, "alice");
+    await user.click(screen.getByRole("button", { name: /submit/i }));
+
+    const description = screen.getByText("At least 3 characters.");
+    await waitFor(() =>
+      expect(usernameInput.getAttribute("aria-describedby")).toBe(description.id),
+    );
+  });
+
+  it("does not leave a stale description id when FormDescription unmounts", () => {
+    function ToggleDescription({ show }: { show: boolean }) {
+      const form = useForm<{ name: string }>({ defaultValues: { name: "" } });
+      return (
+        <Form {...form}>
+          <FormField
+            control={form.control}
+            name="name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Name</FormLabel>
+                {show && <FormDescription>Helper text</FormDescription>}
+                <FormControl>
+                  <input {...field} />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+        </Form>
+      );
+    }
+
+    const { rerender } = render(<ToggleDescription show />);
+    expect(screen.getByLabelText("Name")).toHaveAttribute("aria-describedby");
+
+    rerender(<ToggleDescription show={false} />);
+    expect(screen.getByLabelText("Name")).not.toHaveAttribute("aria-describedby");
+  });
+
+  // ── a11y: live region for validation errors ────────────────────────────
+
+  it("renders validation errors with role=alert so they are announced", async () => {
+    render(<TestForm />);
+
+    await fillAndSubmit({ username: "ab", amount: "10" });
+
+    const error = await screen.findByText("Username must be at least 3 characters");
+    expect(error).toHaveAttribute("role", "alert");
+  });
+
+  // ── context guard ──────────────────────────────────────────────────────
+
+  it("throws when useFormField is used outside a FormField", () => {
+    function Orphan() {
+      useFormField();
+      return null;
+    }
+    function Wrapper() {
+      const form = useForm();
+      return (
+        <Form {...form}>
+          <Orphan />
+        </Form>
+      );
+    }
+
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(() => render(<Wrapper />)).toThrow("useFormField should be used within <FormField>");
+    spy.mockRestore();
   });
 });

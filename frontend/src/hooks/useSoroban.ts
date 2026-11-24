@@ -404,6 +404,11 @@ export function getCrossedMilestones(
   return MILESTONE_PERCENTS.filter((m) => pctBefore < m && pctAfter >= m);
 }
 
+export interface CreateCampaignResult extends SubmitTransactionResult {
+  /** The new campaign's id, decoded from the contract's `u64` return value. */
+  campaignId?: bigint;
+}
+
 export function useCreateCampaign() {
   const { address } = useWallet();
   const queryClient = useQueryClient();
@@ -426,9 +431,9 @@ export function useCreateCampaign() {
       website?: string;
       twitter?: string;
       maxPerDonor?: string | null;
-    }) => {
+    }): Promise<CreateCampaignResult> => {
       if (!address) throw new Error("Wallet not connected");
-      const { Address, nativeToScVal, xdr } = await loadSdk();
+      const { Address, nativeToScVal, scValToNative, xdr } = await loadSdk();
       const { submitTransaction } = await loadSoroban();
       if (params.beneficiary === CONTRACT_ID) {
         throw new Error("Beneficiary cannot be the campaign contract address.");
@@ -467,13 +472,24 @@ export function useCreateCampaign() {
           : nativeToScVal(null, { type: "i128" }), // 10. max_per_donor: Option<i128>
       ];
 
-      return submitTransaction(address, "create_campaign", args);
+      const txResult = await submitTransaction(address, "create_campaign", args);
+
+      let campaignId: bigint | undefined;
+      try {
+        if (txResult.returnValue) {
+          campaignId = scValToNative(txResult.returnValue) as bigint;
+        }
+      } catch (e) {
+        console.error("Failed to decode campaign id from create_campaign result", e);
+      }
+
+      return { ...txResult, campaignId };
     },
     onMutate: () => {
       const toastId = notify.loading();
       return { toastId };
     },
-    onSuccess: (data: SubmitTransactionResult, _variables, context) => {
+    onSuccess: (data: CreateCampaignResult, _variables, context) => {
       notify.success("Transaction confirmed", {
         id: context?.toastId,
         hash: data?.hash,

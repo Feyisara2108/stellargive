@@ -1,14 +1,14 @@
 "use client";
 
 import { NATIVE_XLM_CONTRACT_ID } from "@/lib/tokens";
-import { FREIGHTER_INSTALL_URL, useWallet } from "@/lib/WalletProvider";
+import { useWallet } from "@/lib/WalletProvider";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Loader2, Wallet, LogOut, RefreshCw, ChevronDown } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useId, type FocusEvent } from "react";
 import { toast } from "sonner";
 import { formatAddress } from "@/utils/format";
-import { getSACBalance, fromStroops } from "@/lib/soroban";
+import { fromStroops } from "@/lib/amounts";
 
 export function WalletConnect() {
   const { address, isConnected, connect, disconnect, walletNetwork, isWrongNetwork } = useWallet();
@@ -18,6 +18,8 @@ export function WalletConnect() {
   const [balanceError, setBalanceError] = useState<string | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const panelId = useId();
 
   const fetchBalance = async () => {
     if (!address) return;
@@ -56,6 +58,28 @@ export function WalletConnect() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    if (!isDropdownOpen) return;
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsDropdownOpen(false);
+        toggleRef.current?.focus();
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isDropdownOpen]);
+
+  // Close when keyboard focus moves to an element outside the dropdown. A null
+  // relatedTarget (e.g. a click on non-focusable content) is left to the
+  // outside-mousedown handler so clicks inside the panel don't close it.
+  const handleBlur = (event: FocusEvent<HTMLDivElement>) => {
+    const next = event.relatedTarget as Node | null;
+    if (next && !event.currentTarget.contains(next)) {
+      setIsDropdownOpen(false);
+    }
+  };
+
   const handleConnect = async () => {
     setIsConnecting(true);
     try {
@@ -63,7 +87,7 @@ export function WalletConnect() {
       if (await connect()) {
         toast.success("Wallet connected!");
       }
-    } catch (e) {
+    } catch {
       toast.error("Failed to connect wallet");
     } finally {
       setIsConnecting(false);
@@ -80,10 +104,14 @@ export function WalletConnect() {
 
   if (isConnected && address) {
     return (
-      <div className="relative" ref={dropdownRef}>
+      <div className="relative" ref={dropdownRef} onBlur={handleBlur}>
         <Button
+          ref={toggleRef}
           type="button"
           variant="outline"
+          aria-expanded={isDropdownOpen}
+          aria-haspopup="true"
+          aria-controls={panelId}
           className="flex items-center gap-2 bg-secondary/50 border-border hover:bg-secondary transition-all"
           onClick={() => setIsDropdownOpen(!isDropdownOpen)}
         >
@@ -109,11 +137,14 @@ export function WalletConnect() {
         </Button>
 
         {isDropdownOpen && (
-          <div className="absolute right-0 mt-2 w-64 rounded-xl border border-border bg-popover p-4 shadow-xl z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div
+            id={panelId}
+            className="absolute right-0 mt-2 w-64 rounded-xl border border-border bg-popover p-4 shadow-xl z-50 animate-in fade-in slide-in-from-top-2 duration-200"
+          >
             <div className="flex flex-col gap-3">
               <div className="border-b border-border pb-3">
                 <span className="text-xs text-muted-foreground font-semibold block mb-1">
-                  STRENGTH OF WALLET
+                  Wallet address
                 </span>
                 <span className="text-sm font-mono text-foreground break-all bg-muted/30 p-2 rounded block">
                   {address}
@@ -122,7 +153,7 @@ export function WalletConnect() {
 
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground font-semibold">BALANCE (XLM)</span>
+                  <span className="text-xs text-muted-foreground font-semibold">Balance (XLM)</span>
                   {balanceError && (
                     <Button
                       variant="ghost"
@@ -130,6 +161,7 @@ export function WalletConnect() {
                       className="h-6 w-6 text-destructive hover:text-destructive/80"
                       onClick={fetchBalance}
                       title="Retry fetching balance"
+                      aria-label="Retry fetching balance"
                     >
                       <RefreshCw className="h-3 w-3" />
                     </Button>

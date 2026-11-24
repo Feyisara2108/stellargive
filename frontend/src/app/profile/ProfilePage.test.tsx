@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import ProfilePage from "./page";
+import { NATIVE_XLM_CONTRACT_ID } from "@/lib/tokens";
 
 // Valid 56-char G-address so the page's donor matching accepts it.
 const { TEST_ADDRESS } = vi.hoisted(() => ({ TEST_ADDRESS: "G" + "B".repeat(55) }));
@@ -147,7 +148,7 @@ describe("ProfilePage - donation rows", () => {
   it("links an unlisted campaign to its campaign page, not to an account explorer", () => {
     vi.mocked(useRecentCampaigns).mockReturnValue({ data: [], isLoading: false } as any);
     vi.mocked(useEvents).mockReturnValue({
-      data: [donationTo(7n, 50_000_000n, "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC")],
+      data: [donationTo(7n, 50_000_000n, NATIVE_XLM_CONTRACT_ID)],
       isLoading: false,
     } as any);
 
@@ -234,5 +235,27 @@ describe("ProfilePage - My Campaigns status filter", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Show all campaigns" }));
     expect(screen.getByText("Active campaign 1")).toBeInTheDocument();
+  });
+});
+
+describe("ProfilePage - landmark structure", () => {
+  it("renders no main landmark of its own when connected, leaving layout.tsx as the only one", () => {
+    render(<ProfilePage />);
+    expect(screen.queryAllByRole("main")).toHaveLength(0);
+  });
+
+  it("renders no main landmark of its own when disconnected, leaving layout.tsx as the only one", async () => {
+    vi.resetModules();
+    vi.doMock("@/lib/WalletProvider", () => ({
+      useWallet: () => ({ address: null, isConnected: false }),
+    }));
+    vi.doMock("@/components/Navbar", () => ({ Navbar: () => <div /> }));
+    vi.doMock("@/components/WalletConnect", () => ({ WalletConnect: () => <div /> }));
+
+    const { default: DynamicProfilePage } = await import("./page");
+    render(<DynamicProfilePage />);
+
+    expect(screen.getByText(/Connect your wallet/i)).toBeInTheDocument();
+    expect(screen.queryAllByRole("main")).toHaveLength(0);
   });
 });

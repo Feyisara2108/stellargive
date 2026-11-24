@@ -19,9 +19,10 @@ import {
   FREIGHTER_NETWORK_GUIDE_URL,
   dismissKey,
 } from "./NetworkMismatchBanner";
+import { NETWORK_PASSPHRASE } from "@/lib/network";
 
-// Set by src/test/setup.ts.
-const APP_NETWORK = process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE!;
+// The shared default the banner and WalletProvider both use.
+const APP_NETWORK = NETWORK_PASSPHRASE;
 const TESTNET = "Test SDF Network ; September 2015";
 const PUBLIC = "Public Global Stellar Network ; September 2015";
 
@@ -98,7 +99,18 @@ describe("NetworkMismatchBanner — switch network", () => {
 
     await user.click(screen.getByRole("button", { name: "Switch Network" }));
 
-    expect(wallet.switchNetwork).toHaveBeenCalledWith(APP_NETWORK);
+    expect(wallet.switchNetwork).toHaveBeenCalledWith(NETWORK_PASSPHRASE);
+  });
+
+  it("always requests the shared network constant and never skips the switch attempt", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, "open").mockReturnValue({ opener: window } as unknown as Window);
+    render(<NetworkMismatchBanner />);
+
+    await user.click(screen.getByRole("button", { name: "Switch Network" }));
+
+    expect(wallet.switchNetwork).toHaveBeenCalledTimes(1);
+    expect(wallet.switchNetwork.mock.calls[0]).toEqual([NETWORK_PASSPHRASE]);
   });
 
   it("opens Freighter's network guide in a new tab and severs the opener when switching is unsupported", async () => {

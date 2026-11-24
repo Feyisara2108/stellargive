@@ -33,24 +33,20 @@ function simOk(id: number, retvalXdr: string) {
 function campaignScVal(raised: bigint): string {
   const entries: [string, xdr.ScVal][] = [
     ["accepted_token", new Address(TOKEN).toScVal()],
-    ["beneficiary", new Address(CREATOR).toScVal()],
     [
       "beneficiaries",
       xdr.ScVal.scvVec([
         xdr.ScVal.scvVec([new Address(CREATOR).toScVal(), nativeToScVal(10000, { type: "u32" })]),
       ]),
     ],
-    ["category", nativeToScVal("relief", { type: "string" })],
+    ["category", sym("relief")],
     ["creator", new Address(CREATOR).toScVal()],
-    ["deadline", nativeToScVal(BigInt(Math.floor(Date.now() / 1000) + 86_400), { type: "u64" })],
+    ["deadline", nativeToScVal(9_999_999_999n, { type: "u64" })],
     ["description", nativeToScVal("Help the victims of the recent floods.", { type: "string" })],
     ["id", nativeToScVal(1n, { type: "u64" })],
     ["metadata_uri", nativeToScVal("", { type: "string" })],
     ["raised_amount", nativeToScVal(raised, { type: "i128" })],
-    [
-      "status",
-      xdr.ScVal.scvMap([new xdr.ScMapEntry({ key: sym("Active"), val: xdr.ScVal.scvVoid() })]),
-    ],
+    ["status", xdr.ScVal.scvVec([sym("Active")])],
     ["target_amount", nativeToScVal(100_000_000n, { type: "i128" })],
     ["title", nativeToScVal("Flood Relief 2024", { type: "string" })],
     ["twitter", nativeToScVal("", { type: "string" })],
@@ -178,10 +174,12 @@ test.describe("Donation Happy Path (Mock Wallet & RPC)", () => {
 
     // Verify campaign details are loaded correctly from mock RPC
     await expect(page.getByRole("heading", { name: "Flood Relief 2024" })).toBeVisible();
-    await expect(page.getByText("2 XLM", { exact: true })).toBeVisible();
+    const raisedStat = page.getByText("Raised", { exact: true }).locator("..");
+    await expect(raisedStat.getByText("2 XLM", { exact: true })).toBeVisible();
     await expect(page.getByText("10 XLM", { exact: true })).toBeVisible();
 
-    const progressBar = page.getByRole("progressbar");
+    // The sticky mobile donate bar also renders a progressbar in the DOM.
+    const progressBar = page.getByRole("main").getByRole("progressbar").first();
     await expect(progressBar).toBeVisible();
     await expect(progressBar).toHaveAttribute("aria-valuenow", "20");
 
@@ -211,8 +209,9 @@ test.describe("Donation Happy Path (Mock Wallet & RPC)", () => {
     await expect(successTitle).toBeVisible({ timeout: 10_000 });
 
     // Verify correct amount and transaction hash in the success dialog
-    await expect(page.getByText("5.0 XLM")).toBeVisible();
-    await expect(page.getByText(MOCK_TX_HASH)).toBeVisible();
+    const successDialog = page.getByRole("dialog", { name: "Donation Successful!" });
+    await expect(successDialog.getByText("5.0 XLM", { exact: true })).toBeVisible();
+    await expect(successDialog.getByText(MOCK_TX_HASH)).toBeVisible();
 
     // 6. Close the success dialog
     const closeButton = page.getByRole("button", { name: "Close" });
@@ -224,7 +223,7 @@ test.describe("Donation Happy Path (Mock Wallet & RPC)", () => {
 
     // 7. Verify updated progress on the campaign page
     // Raised amount should now be 7 XLM (2 XLM + 5.0 XLM)
-    await expect(page.getByText("7 XLM", { exact: true })).toBeVisible({ timeout: 5_000 });
+    await expect(raisedStat.getByText("7 XLM", { exact: true })).toBeVisible({ timeout: 5_000 });
     // Progress bar should now be 70%
     await expect(progressBar).toHaveAttribute("aria-valuenow", "70");
   });

@@ -25,6 +25,8 @@ interface CategorySelectorProps {
 }
 
 export function CategorySelector({ value, onChange, label, counts }: CategorySelectorProps) {
+  const labelId = React.useId();
+
   const getCategoryLabel = (cat: CategoryKey) => {
     if (cat === "all") return "All Categories";
     if (cat === "uncategorized") return "Uncategorized";
@@ -40,7 +42,7 @@ export function CategorySelector({ value, onChange, label, counts }: CategorySel
 
   return (
     <div className="space-y-2">
-      <Label>{label ?? "Category"}</Label>
+      <Label id={labelId}>{label ?? "Category"}</Label>
 
       {/* Mobile compact select dropdown (< md viewports) */}
       <div className="block md:hidden relative">
@@ -63,11 +65,13 @@ export function CategorySelector({ value, onChange, label, counts }: CategorySel
         </select>
       </div>
 
-      {/* Desktop horizontal tab list (md+ viewports) */}
+      {/* Desktop category buttons (md+ viewports). The select below is
+          display:none at these widths and this group is display:none below
+          md, so only one of the two controls is in the accessibility tree. */}
       <div
         className="hidden md:flex flex-wrap gap-2 items-center"
-        role="tablist"
-        aria-label="Category tabs"
+        role="group"
+        aria-labelledby={labelId}
       >
         {CATEGORIES.map((cat) => {
           const isSelected = value === cat;
@@ -75,8 +79,7 @@ export function CategorySelector({ value, onChange, label, counts }: CategorySel
             <button
               key={cat}
               type="button"
-              role="tab"
-              aria-selected={isSelected}
+              aria-pressed={isSelected}
               onClick={() => onChange(cat)}
               className={`px-3 py-1.5 text-xs font-semibold rounded-full transition-colors capitalize ${
                 isSelected

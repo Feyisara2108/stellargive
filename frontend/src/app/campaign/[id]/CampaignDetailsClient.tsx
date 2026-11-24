@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useCampaign, useCancelCampaign, useEvents } from "@/hooks/useSoroban";
+import { useCampaign, useCancelCampaign, useEvents, useTokenMetadata } from "@/hooks/useSoroban";
 import { useWallet } from "@/lib/WalletProvider";
 import { ShareButton } from "@/components/ShareButton";
 import { BookmarkButton } from "@/components/BookmarkButton";
@@ -16,13 +16,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, ImageIcon, Zap, AlertTriangle, RotateCw } from "lucide-react";
+import { Loader2, ImageIcon, AlertTriangle, RotateCw } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { formatBasisPoints, formatTokenAmount } from "@/utils/format";
 import { parseCreatedEvent } from "@/lib/eventData";
 import { calculateProgress, getCampaignImageUrl, CAMPAIGN_IMAGE_BLUR_DATA_URL } from "@/lib/utils";
+import { isOptimizableImageUrl } from "../../../../image-hosts.mjs";
 import dynamic from "next/dynamic";
 const RecentDonations = dynamic(
   () => import("@/components/RecentDonations").then((mod) => mod.RecentDonations),
@@ -47,6 +48,15 @@ import { Badge } from "@/components/ui/badge";
 import { useCountdown } from "@/hooks/useCountdown";
 import { Breadcrumbs, type BreadcrumbItem } from "@/components/Breadcrumbs";
 import { CampaignDetailSkeleton } from "@/components/CampaignSkeleton";
+import { trackRecentCampaign } from "@/lib/recentCampaigns";
+import { FundTheGap } from "@/components/FundTheGap";
+
+/** A valid Date for the given input, or null when it is missing or unparseable. */
+function toValidDate(value: string | number | null | undefined): Date | null {
+  if (value === null || value === undefined || value === "") return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
 
 function CampaignTimeline({ campaign }: { campaign: Campaign }) {
   const { data: allEvents, isLoading } = useEvents();
@@ -57,23 +67,36 @@ function CampaignTimeline({ campaign }: { campaign: Campaign }) {
     (e) => parseCreatedEvent(e)?.campaignId === campaign.id.toString(),
   );
 
+  const createdDate = toValidDate(createdEvent?.createdAt);
+  const deadlineDate = toValidDate(Number(campaign.deadline) * 1000);
+
   return (
     <div className="space-y-4 pt-6 border-t mt-6">
       <h3 className="text-lg font-bold">Timeline</h3>
       <ol className="relative border-s border-muted ml-3 space-y-6">
-        <li className="ms-4">
-          <div className="absolute w-3 h-3 bg-primary rounded-full mt-1.5 -start-1.5 border border-background"></div>
-          <time className="mb-1 text-xs font-normal leading-none text-muted-foreground">
-            {createdEvent?.createdAt
-              ? new Date(createdEvent.createdAt).toLocaleDateString()
-              : "Unknown"}
+        <li className="relative ms-4">
+          <div
+            aria-hidden="true"
+            className="absolute w-3 h-3 bg-primary rounded-full mt-1.5 -start-[1.375rem] border border-background"
+          ></div>
+          <time
+            dateTime={createdDate?.toISOString()}
+            className="mb-1 text-xs font-normal leading-none text-muted-foreground"
+          >
+            {createdDate ? createdDate.toLocaleDateString() : "Unknown"}
           </time>
           <h4 className="text-sm font-semibold">Campaign Created</h4>
         </li>
-        <li className="ms-4">
-          <div className="absolute w-3 h-3 bg-muted rounded-full mt-1.5 -start-1.5 border border-background"></div>
-          <time className="mb-1 text-xs font-normal leading-none text-muted-foreground">
-            {new Date(Number(campaign.deadline) * 1000).toLocaleDateString()}
+        <li className="relative ms-4">
+          <div
+            aria-hidden="true"
+            className="absolute w-3 h-3 bg-muted rounded-full mt-1.5 -start-[1.375rem] border border-background"
+          ></div>
+          <time
+            dateTime={deadlineDate?.toISOString()}
+            className="mb-1 text-xs font-normal leading-none text-muted-foreground"
+          >
+            {deadlineDate ? deadlineDate.toLocaleDateString() : "Unknown"}
           </time>
           <h4 className="text-sm font-semibold">Deadline</h4>
         </li>
@@ -100,11 +123,23 @@ export function CampaignDetailsClient({
     isError,
     refetch,
   } = useCampaign(BigInt(params.id), { initialData: initialCampaign });
+  const { data: tokenMeta } = useTokenMetadata(campaign?.accepted_token);
+  // Native XLM values until the token's own metadata has loaded.
+  const decimals = tokenMeta?.decimals ?? 7;
+  const symbol = tokenMeta?.symbol ?? "XLM";
   const cancelCampaign = useCancelCampaign();
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
   const [donateOpen, setDonateOpen] = useState(false);
   const [donateAmount, setDonateAmount] = useState<string | undefined>(undefined);
   const countdown = useCountdown(campaign?.deadline || 0n);
+
+  const loadedCampaignId = campaign?.id.toString();
+  const loadedCampaignTitle = campaign?.title;
+  useEffect(() => {
+    if (loadedCampaignId && loadedCampaignTitle) {
+      trackRecentCampaign(loadedCampaignId, loadedCampaignTitle);
+    }
+  }, [loadedCampaignId, loadedCampaignTitle]);
 
   const isCreator = !!address && !!campaign && campaign.creator === address;
   const progressPercent = campaign
@@ -170,17 +205,19 @@ export function CampaignDetailsClient({
     campaign.target_amount > campaign.raised_amount
       ? campaign.target_amount - campaign.raised_amount
       : 0n;
-  const gapXLM = Number(gapRaw) / 10 ** 7;
+  const gapAmount = formatTokenAmount(gapRaw, decimals);
   const showFundTheGap =
-    campaign.status === "Active" && progressPercent >= 90 && progressPercent < 100 && gapXLM > 0;
+    campaign.status === "Active" && progressPercent >= 90 && progressPercent < 100 && gapRaw > 0n;
 
   return (
-    <div className="p-8 max-w-4xl mx-auto space-y-6">
+    <div className="p-4 sm:p-8 max-w-4xl mx-auto space-y-6">
       <Breadcrumbs items={breadcrumbs} />
-      <div ref={headerDonateRef} className="flex justify-between items-start">
-        <div className="space-y-2">
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold">{campaign?.title || `Campaign #${params.id}`}</h1>
+      <div ref={headerDonateRef} className="flex flex-wrap justify-between items-start gap-4">
+        <div className="min-w-0 space-y-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-3xl font-bold break-words min-w-0">
+              {campaign?.title || `Campaign #${params.id}`}
+            </h1>
             {campaign && (
               <CampaignStatusBadge
                 status={campaign.status}
@@ -241,16 +278,20 @@ export function CampaignDetailsClient({
                 <span
                   role="status"
                   aria-label={
-                    countdown.isEnded
-                      ? "Campaign has ended"
-                      : `Time remaining: ${countdown.days} days, ${countdown.hours} hours, ${countdown.minutes} minutes`
+                    !countdown.isReady
+                      ? "Calculating time remaining"
+                      : countdown.isEnded
+                        ? "Campaign has ended"
+                        : `Time remaining: ${countdown.days} days, ${countdown.hours} hours, ${countdown.minutes} minutes`
                   }
                   className="inline-flex items-center gap-1 font-medium text-orange-500"
                 >
                   <span aria-hidden="true">⏱️</span>{" "}
-                  {countdown.isEnded
-                    ? "Ended"
-                    : `${countdown.days}d ${countdown.hours}h ${countdown.minutes}m left`}
+                  {!countdown.isReady
+                    ? "--d --h --m left"
+                    : countdown.isEnded
+                      ? "Ended"
+                      : `${countdown.days}d ${countdown.hours}h ${countdown.minutes}m left`}
                 </span>
               )}
             </div>
@@ -270,6 +311,9 @@ export function CampaignDetailsClient({
                 {getCampaignImageUrl(campaign.metadata_uri) && !imgError ? (
                   <Image
                     src={getCampaignImageUrl(campaign.metadata_uri)!}
+                    unoptimized={
+                      !isOptimizableImageUrl(getCampaignImageUrl(campaign.metadata_uri)!)
+                    }
                     alt={campaign.title}
                     fill
                     sizes="(max-width: 768px) 100vw, (max-width: 1024px) 66vw, 800px"
@@ -302,13 +346,13 @@ export function CampaignDetailsClient({
                     <div className="space-y-1">
                       <p className="text-sm text-muted-foreground">Raised</p>
                       <p className="text-2xl font-bold">
-                        {formatTokenAmount(campaign.raised_amount, 7)} XLM
+                        {formatTokenAmount(campaign.raised_amount, decimals)} {symbol}
                       </p>
                     </div>
                     <div className="text-right space-y-1">
                       <p className="text-sm text-muted-foreground">Target</p>
                       <p className="text-lg font-medium">
-                        {formatTokenAmount(campaign.target_amount, 7)} XLM
+                        {formatTokenAmount(campaign.target_amount, decimals)} {symbol}
                       </p>
                     </div>
                   </div>
@@ -331,7 +375,7 @@ export function CampaignDetailsClient({
                   <p className="text-sm text-muted-foreground">
                     Maximum per donor:{" "}
                     <span className="font-medium text-foreground">
-                      {formatTokenAmount(campaign.max_per_donor, 7)} XLM
+                      {formatTokenAmount(campaign.max_per_donor, decimals)} {symbol}
                     </span>
                   </p>
                 )}
@@ -340,29 +384,41 @@ export function CampaignDetailsClient({
                   <div className="flex items-center justify-between gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
                     <div className="flex items-center gap-2 text-sm font-medium text-emerald-700 dark:text-emerald-400">
                       <Zap className="h-4 w-4 shrink-0" />
-                      <span>Only {gapXLM.toFixed(2)} XLM left — fund the gap!</span>
+                      <span>
+                        Only {gapAmount} {symbol} left — fund the gap!
+                      </span>
                     </div>
                     <button
                       onClick={() => {
-                        setDonateAmount(gapXLM.toFixed(7).replace(/\.?0+$/, ""));
+                        setDonateAmount(gapAmount);
                         setDonateOpen(true);
                       }}
                       disabled={!address || isWrongNetwork}
                       className="shrink-0 rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 dark:bg-emerald-500 dark:hover:bg-emerald-600 dark:focus-visible:ring-emerald-400 dark:focus-visible:ring-offset-emerald-900 disabled:opacity-50 disabled:cursor-not-allowed"
-                      aria-label={`Quick donate to fund the remaining ${gapXLM.toFixed(2)} XLM`}
+                      aria-label={`Quick donate to fund the remaining ${gapAmount} ${symbol}`}
                     >
                       Donate
                     </button>
                   </div>
+                  <FundTheGap
+                    remaining={gapRaw}
+                    decimals={7}
+                    symbol="XLM"
+                    disabled={!address || isWrongNetwork}
+                    onDonate={(amount) => {
+                      setDonateAmount(amount);
+                      setDonateOpen(true);
+                    }}
+                  />
                 )}
 
                 <div className="prose prose-sm dark:prose-invert max-w-none">
-                  <p className="text-foreground leading-relaxed whitespace-pre-wrap">
+                  <p className="text-foreground leading-relaxed whitespace-pre-wrap break-words">
                     {campaign.description || "No description provided for this campaign."}
                   </p>
                 </div>
 
-                <TopDonors campaignId={BigInt(params.id)} />
+                <TopDonors campaignId={BigInt(params.id)} decimals={decimals} symbol={symbol} />
                 <CampaignTimeline campaign={campaign} />
               </div>
             </div>

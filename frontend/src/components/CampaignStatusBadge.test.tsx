@@ -34,7 +34,8 @@ describe("CampaignStatusBadge — style classes", () => {
     const { container } = render(<CampaignStatusBadge status="Active" />);
     const badge = container.firstChild as HTMLElement;
     expect(badge.className).toContain("bg-green-500/20");
-    expect(badge.className).toContain("text-green-500");
+    expect(badge.className).toContain("text-green-700");
+    expect(badge.className).toContain("dark:text-green-400");
   });
 
   it("applies blue classes for Funded", () => {
@@ -43,14 +44,16 @@ describe("CampaignStatusBadge — style classes", () => {
     render(<CampaignStatusBadge status="Funded" />);
     const badge = screen.getByText("Funded");
     expect(badge.className).toContain("bg-blue-500/20");
-    expect(badge.className).toContain("text-blue-500");
+    expect(badge.className).toContain("text-blue-700");
+    expect(badge.className).toContain("dark:text-blue-400");
   });
 
   it("applies blue classes for Claimed", () => {
     render(<CampaignStatusBadge status="Claimed" />);
     const badge = screen.getByText("Claimed");
     expect(badge.className).toContain("bg-blue-500/20");
-    expect(badge.className).toContain("text-blue-500");
+    expect(badge.className).toContain("text-blue-700");
+    expect(badge.className).toContain("dark:text-blue-400");
   });
 
   it("applies destructive classes for Cancelled", () => {
@@ -112,5 +115,13 @@ describe("CampaignStatusBadge — Refunding", () => {
   it("leaves other statuses without a status role", () => {
     render(<CampaignStatusBadge status="Active" />);
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+});
+
+describe("CampaignStatusBadge — goal milestone", () => {
+  it("marks the party-popper decorative in the accessible name", () => {
+    render(<CampaignStatusBadge status="Funded" progress={100} />);
+    const milestone = screen.getByRole("img", { name: "Goal Reached" });
+    expect(milestone).toHaveTextContent("🎉 Goal Reached");
   });
 });

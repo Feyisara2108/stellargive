@@ -111,7 +111,7 @@ export default function ProfilePage() {
     return (
       <div className="flex flex-col min-h-screen">
         <Navbar />
-        <main className="flex-1 container py-12">
+        <div className="flex-1 container py-12">
           <div className="mx-auto max-w-md text-center space-y-6 py-20">
             <Wallet className="mx-auto h-12 w-12 text-muted-foreground" />
             <div className="space-y-1">
@@ -124,7 +124,7 @@ export default function ProfilePage() {
               <WalletConnect />
             </div>
           </div>
-        </main>
+        </div>
       </div>
     );
   }
@@ -141,7 +141,7 @@ export default function ProfilePage() {
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
-      <main className="flex-1 container py-12 space-y-8">
+      <div className="flex-1 container py-12 space-y-8">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <UserCircle className="w-6 h-6 text-primary" />
@@ -346,7 +346,7 @@ export default function ProfilePage() {
             </Tabs>
           </>
         )}
-      </main>
+      </div>
     </div>
   );
 }

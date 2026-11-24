@@ -6,8 +6,37 @@ import type { FormValues } from "./schema";
 
 export const DRAFT_STORAGE_KEY = "create_campaign_draft";
 
+// sessionStorage access itself (not just the restored JSON) can throw —
+// private browsing, blocked site data, or a full quota. These helpers keep
+// the form working by skipping persistence on failure instead of throwing
+// out of a mount effect or a debounced save.
+function safeGetItem(key: string): string | null {
+  try {
+    return sessionStorage.getItem(key);
+  } catch (e) {
+    logger.error("Failed to read campaign draft from sessionStorage", e);
+    return null;
+  }
+}
+
+function safeSetItem(key: string, value: string): void {
+  try {
+    sessionStorage.setItem(key, value);
+  } catch (e) {
+    logger.error("Failed to save campaign draft to sessionStorage", e);
+  }
+}
+
+function safeRemoveItem(key: string): void {
+  try {
+    sessionStorage.removeItem(key);
+  } catch (e) {
+    logger.error("Failed to clear campaign draft from sessionStorage", e);
+  }
+}
+
 export function clearCampaignDraft() {
-  sessionStorage.removeItem(DRAFT_STORAGE_KEY);
+  safeRemoveItem(DRAFT_STORAGE_KEY);
 }
 
 /**
@@ -21,7 +50,7 @@ export function useCampaignDraft(
 ) {
   // Restore draft from sessionStorage and trigger validation once on mount
   useEffect(() => {
-    const saved = sessionStorage.getItem(DRAFT_STORAGE_KEY);
+    const saved = safeGetItem(DRAFT_STORAGE_KEY);
     if (saved) {
       try {
         const draft = JSON.parse(saved);
@@ -56,7 +85,7 @@ export function useCampaignDraft(
     // Payout addresses are never persisted, so a stale draft can't silently
     // route funds to the wrong account.
     const { beneficiary, beneficiaryShare, extraBeneficiaries, ...draftToSave } = debouncedValues;
-    sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify({ ...draftToSave, tags }));
+    safeSetItem(DRAFT_STORAGE_KEY, JSON.stringify({ ...draftToSave, tags }));
   }, [debouncedValues, tags, isDirty]);
 
   return formValues;

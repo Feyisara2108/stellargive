@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useWallet } from "@/lib/WalletProvider";
+import { NETWORK_PASSPHRASE } from "@/lib/network";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, X } from "lucide-react";
 
@@ -53,14 +54,8 @@ export function NetworkMismatchBanner() {
   };
 
   const handleSwitch = async () => {
-    const expectedNetwork = process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE;
-    if (!expectedNetwork) {
-      openManualGuide();
-      return;
-    }
-
     setIsSwitching(true);
-    const result = await switchNetwork(expectedNetwork);
+    const result = await switchNetwork(NETWORK_PASSPHRASE);
     setIsSwitching(false);
 
     // A successful switch updates walletNetwork via the provider, which hides this
@@ -80,8 +75,6 @@ export function NetworkMismatchBanner() {
     return null;
   }
 
-  const expectedNetwork = process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE;
-
   return (
     <div className="fixed top-16 left-0 right-0 z-50 p-4 pointer-events-none">
       <div className="max-w-4xl mx-auto pointer-events-auto">
@@ -91,7 +84,7 @@ export function NetworkMismatchBanner() {
             <p className="text-sm font-semibold">Network Mismatch Detected</p>
             <p className="text-xs opacity-90">
               Your wallet is on <span className="font-mono font-bold">{walletNetwork}</span>.{" "}
-              StellarGive needs <span className="font-mono font-bold">{expectedNetwork}</span>.{" "}
+              StellarGive needs <span className="font-mono font-bold">{NETWORK_PASSPHRASE}</span>.{" "}
               Please switch networks in your Freighter wallet.
             </p>
             {showManualSteps && (

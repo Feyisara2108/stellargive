@@ -54,20 +54,20 @@ describe("Footer Component", () => {
     it("renders external navigation links and social links", () => {
       render(<Footer />);
 
-      const explorerLink = screen.getByRole("link", { name: /^explorer$/i });
+      const explorerLink = screen.getByRole("link", { name: /^explorer /i });
       expect(explorerLink).toHaveAttribute("href", "https://stellar.expert/explorer/testnet");
       expect(explorerLink).toHaveAttribute("target", "_blank");
 
-      const docLink = screen.getByRole("link", { name: /^documentation$/i });
+      const docLink = screen.getByRole("link", { name: /^documentation /i });
       expect(docLink).toHaveAttribute("href", "https://github.com/Feyisara2108/stellargive#readme");
 
-      const contractLink = screen.getByRole("link", { name: /^contracts$/i });
+      const contractLink = screen.getByRole("link", { name: /^contracts /i });
       expect(contractLink).toHaveAttribute(
         "href",
         "https://github.com/Feyisara2108/stellargive#contracts",
       );
 
-      const githubLink = screen.getByRole("link", { name: /^github$/i });
+      const githubLink = screen.getByRole("link", { name: /^github /i });
       expect(githubLink).toHaveAttribute("href", "https://github.com/Feyisara2108/stellargive");
 
       const securityLink = screen.getByRole("link", { name: /security policy/i });
@@ -81,6 +81,20 @@ describe("Footer Component", () => {
 
       const xLink = screen.getByRole("link", { name: /stellargive on x/i });
       expect(xLink).toHaveAttribute("href", "https://twitter.com/stellargive");
+    });
+
+    it("gives every link that opens in a new tab an accessible name ending in '(opens in a new tab)'", () => {
+      render(<Footer />);
+
+      const newTabLinks = screen
+        .getAllByRole("link")
+        .filter((link) => link.getAttribute("target") === "_blank");
+      expect(newTabLinks.length).toBeGreaterThan(0);
+
+      newTabLinks.forEach((link) => {
+        const accessibleName = (link.getAttribute("aria-label") ?? link.textContent ?? "").trim();
+        expect(accessibleName.endsWith("(opens in a new tab)")).toBe(true);
+      });
     });
   });
 
@@ -136,14 +150,17 @@ describe("Footer Component", () => {
       const toggleButton = screen.getByTitle("Click to expand");
       const truncated = `${CONTRACT_ID.slice(0, 6)}…${CONTRACT_ID.slice(-6)}`;
       expect(toggleButton).toHaveTextContent(truncated);
+      expect(toggleButton).toHaveAttribute("aria-expanded", "false");
 
       fireEvent.click(toggleButton);
       expect(toggleButton).toHaveTextContent(CONTRACT_ID);
       expect(toggleButton).toHaveAttribute("title", "Click to collapse");
+      expect(toggleButton).toHaveAttribute("aria-expanded", "true");
 
       fireEvent.click(toggleButton);
       expect(toggleButton).toHaveTextContent(truncated);
       expect(toggleButton).toHaveAttribute("title", "Click to expand");
+      expect(toggleButton).toHaveAttribute("aria-expanded", "false");
     });
 
     it("copies contract ID to clipboard on copy button click and reverts after 2 seconds", async () => {
@@ -227,9 +244,10 @@ describe("Footer Component", () => {
     testCases.forEach(({ passphrase, expected }) => {
       it(`resolves network label as '${expected}' for passphrase '${passphrase}'`, async () => {
         vi.resetModules();
-        vi.doMock("@/lib/network", () => ({
-          NETWORK_PASSPHRASE: passphrase,
-        }));
+        vi.doMock("@/lib/network", async () => {
+          const actual = await vi.importActual<typeof import("@/lib/network")>("@/lib/network");
+          return { ...actual, NETWORK_PASSPHRASE: passphrase };
+        });
         vi.doMock("@/hooks/useRpcHealth", () => ({
           useRpcHealth: () => ({ status: "healthy", latencyMs: 50 }),
         }));
@@ -240,6 +258,31 @@ describe("Footer Component", () => {
         const status = screen.getByRole("status");
         expect(status).toHaveAttribute("aria-label", `RPC healthy · 50ms · ${expected}`);
       });
+    });
+  });
+
+  describe("Explorer link network derivation", () => {
+    it("points at /explorer/testnet by default", () => {
+      render(<Footer />);
+      const explorerLink = screen.getByRole("link", { name: /^explorer /i });
+      expect(explorerLink).toHaveAttribute("href", "https://stellar.expert/explorer/testnet");
+    });
+
+    it("points at /explorer/public for a public-network passphrase, matching AddressLink", async () => {
+      vi.resetModules();
+      vi.doMock("@/lib/network", async () => {
+        const actual = await vi.importActual<typeof import("@/lib/network")>("@/lib/network");
+        return { ...actual, NETWORK_PASSPHRASE: actual.Networks.PUBLIC };
+      });
+      vi.doMock("@/hooks/useRpcHealth", () => ({
+        useRpcHealth: () => ({ status: "healthy", latencyMs: 30 }),
+      }));
+
+      const { Footer: DynamicFooter } = await import("./Footer");
+      render(<DynamicFooter />);
+
+      const explorerLink = screen.getByRole("link", { name: /^explorer /i });
+      expect(explorerLink).toHaveAttribute("href", "https://stellar.expert/explorer/public");
     });
   });
 });

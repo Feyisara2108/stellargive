@@ -29,4 +29,9 @@ describe("NotFound (app/not-found.tsx)", () => {
     render(<NotFound />);
     expect(screen.getByTestId("navbar")).toBeInTheDocument();
   });
+
+  it("renders no main landmark of its own, leaving layout.tsx as the only one", () => {
+    render(<NotFound />);
+    expect(screen.queryAllByRole("main")).toHaveLength(0);
+  });
 });

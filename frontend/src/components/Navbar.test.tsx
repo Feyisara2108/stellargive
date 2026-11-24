@@ -1,6 +1,6 @@
 import React, { ReactNode } from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Navbar } from "./Navbar";
 import { MockWalletProvider, useMockWallet } from "./MockWalletProvider";
@@ -41,15 +41,12 @@ vi.mock("@/lib/wallet", () => ({
   getNetworkSwitcher: vi.fn().mockResolvedValue(null),
 }));
 
-// CreateCampaignForm and ThemeToggle are unrelated to nav links / wallet
-// connect / the mobile menu toggle - stub them out so this test isn't
-// coupled to their internals (form validation, next-themes context, etc.).
+// CreateCampaignForm is unrelated to nav links / wallet connect / the mobile
+// menu toggle - stub it out so this test isn't coupled to its internals (form
+// validation, draft storage, etc.). The real ThemeToggle is used so the tests
+// can check how many theme radiogroups end up in the DOM.
 vi.mock("@/components/CreateCampaignForm", () => ({
   CreateCampaignForm: () => <button data-testid="create-campaign-form">Start a Campaign</button>,
-}));
-
-vi.mock("@/components/ThemeToggle", () => ({
-  ThemeToggle: () => <button data-testid="theme-toggle">Toggle theme</button>,
 }));
 
 /** Same test-wrapper pattern as WalletConnect.test.tsx, so we can drive the
@@ -89,9 +86,15 @@ async function renderNavbarConnected() {
     </MockWalletProvider>,
   );
   await waitFor(() => {
-    // Navbar.tsx renders two <nav> elements: the outer bar and the mobile
-    // drawer's own <nav>. Asserting the count is a stable, unambiguous way
-    // to confirm the component (and its async children) finished rendering.
+    // With the mobile drawer closed, Navbar renders a single <nav>. Asserting
+    // it is a stable, unambiguous way to confirm the component (and its async
+    // children) finished rendering.
+    expect(screen.getAllByRole("navigation").length).toBe(1);
+    // Navbar.tsx renders two <nav> elements: the desktop link group
+    // (aria-label="Main") and the mobile drawer's own <nav>. The outer
+    // wrapper is a <header>, not a <nav>. Asserting the count is a stable,
+    // unambiguous way to confirm the component (and its async children)
+    // finished rendering.
     expect(screen.getAllByRole("navigation").length).toBe(2);
   });
   return result;
@@ -117,13 +120,11 @@ describe("Navbar — primary nav links", () => {
     "renders an '$name' link pointing to $href",
     async ({ name, href }) => {
       await renderNavbarConnected();
-      // The same link appears twice: once in the desktop nav, once in the
-      // mobile drawer (always present in the DOM, just translated off-screen).
+      // The mobile drawer is only mounted while open, so with it closed the
+      // link exists once, in the desktop nav.
       const links = screen.getAllByRole("link", { name });
-      expect(links.length).toBe(2);
-      for (const link of links) {
-        expect(link).toHaveAttribute("href", href);
-      }
+      expect(links.length).toBe(1);
+      expect(links[0]).toHaveAttribute("href", href);
     },
   );
 
@@ -135,16 +136,32 @@ describe("Navbar — primary nav links", () => {
   });
 });
 
+describe("Navbar — command palette triggers", () => {
+  it("opens the shared palette through a window event instead of mounting its own", async () => {
+    await renderNavbarConnected();
+    const onOpen = vi.fn();
+    window.addEventListener("stellargive:open-command-palette", onOpen);
+
+    const triggers = screen.getAllByRole("button", { name: /Search campaigns/ });
+    expect(triggers.length).toBeGreaterThan(0);
+    fireEvent.click(triggers[0]);
+
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog", { name: "Command Palette" })).not.toBeInTheDocument();
+    window.removeEventListener("stellargive:open-command-palette", onOpen);
+  });
+});
+
 describe("Navbar — wallet connect entry point", () => {
   it("shows the connected wallet address when the wallet is connected", async () => {
     await renderNavbarConnected();
     const addressButtons = screen.getAllByRole("button", { name: /GTES.*SERV/i });
-    expect(addressButtons.length).toBe(2); // desktop + mobile drawer
+    expect(addressButtons.length).toBe(1);
   });
 
   it("does not show a 'Connect Wallet' button while connected", async () => {
     await renderNavbarConnected();
-    expect(screen.getAllByRole("button", { name: /GTES/i }).length).toBe(2);
+    expect(screen.getAllByRole("button", { name: /GTES/i }).length).toBe(1);
     expect(screen.queryByRole("button", { name: /connect wallet/i })).not.toBeInTheDocument();
   });
 
@@ -169,7 +186,7 @@ describe("Navbar — wallet connect entry point", () => {
 
     await waitFor(() => {
       const connectButtons = screen.getAllByRole("button", { name: /connect wallet/i });
-      expect(connectButtons.length).toBe(2); // desktop + mobile drawer
+      expect(connectButtons.length).toBe(1);
     });
   });
 
@@ -198,31 +215,128 @@ describe("Navbar — wallet connect entry point", () => {
   });
 });
 
-describe("Navbar — mobile menu toggle", () => {
-  function getDrawer(container: HTMLElement): HTMLElement {
-    const drawer = container.querySelector(".fixed.inset-y-0.left-0");
-    if (!drawer) throw new Error("Mobile drawer element not found");
-    return drawer as HTMLElement;
-  }
+describe("Navbar — controls render once", () => {
+  it("has a single Theme radiogroup and a single System theme radio while the drawer is closed", async () => {
+    await renderNavbarConnected();
+    expect(screen.getAllByRole("radiogroup", { name: "Theme" })).toHaveLength(1);
+    expect(screen.getAllByRole("radio", { name: "System theme" })).toHaveLength(1);
+    expect(screen.getAllByRole("radio", { name: "Light theme" })).toHaveLength(1);
+    expect(screen.getAllByRole("radio", { name: "Dark theme" })).toHaveLength(1);
+  });
 
-  it("renders the mobile drawer off-screen by default", async () => {
-    const { container } = await renderNavbarConnected();
-    expect(getDrawer(container).className).toContain("-translate-x-full");
+  it("has a single Start a Campaign button while the drawer is closed", async () => {
+    await renderNavbarConnected();
+    expect(screen.getAllByRole("button", { name: "Start a Campaign" })).toHaveLength(1);
+  });
+
+  it("has a single wallet button while the drawer is closed", async () => {
+    await renderNavbarConnected();
+    expect(screen.getAllByRole("button", { name: /GTES.*SERV/i })).toHaveLength(1);
+  });
+
+  it("only adds the drawer's own copies once the menu is opened", async () => {
+    await renderNavbarConnected();
+    fireEvent.click(screen.getByLabelText(/open menu/i));
+    const drawer = screen.getByRole("dialog", { name: "Navigation menu" });
+    expect(within(drawer).getAllByRole("radiogroup", { name: "Theme" })).toHaveLength(1);
+
+    fireEvent.click(screen.getByLabelText(/close menu/i));
+    expect(screen.getAllByRole("radiogroup", { name: "Theme" })).toHaveLength(1);
+  });
+});
+
+describe("Navbar — mobile menu toggle", () => {
+  it("does not render the mobile drawer by default", async () => {
+    await renderNavbarConnected();
+    expect(screen.queryByRole("dialog", { name: "Navigation menu" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/open menu/i)).toHaveAttribute("aria-expanded", "false");
   });
 
   it("opens the mobile drawer when the menu button is clicked", async () => {
-    const { container } = await renderNavbarConnected();
+    await renderNavbarConnected();
     fireEvent.click(screen.getByLabelText(/open menu/i));
-    expect(getDrawer(container).className).toContain("translate-x-0");
-    expect(getDrawer(container).className).not.toContain("-translate-x-full");
+    const drawer = screen.getByRole("dialog", { name: "Navigation menu" });
+    expect(
+      within(drawer).getByRole("navigation", { name: "Mobile navigation" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/open menu/i)).toHaveAttribute("aria-expanded", "true");
   });
 
   it("closes the mobile drawer when the close button is clicked", async () => {
-    const { container } = await renderNavbarConnected();
+    await renderNavbarConnected();
     fireEvent.click(screen.getByLabelText(/open menu/i));
-    expect(getDrawer(container).className).toContain("translate-x-0");
+    expect(screen.getByRole("dialog", { name: "Navigation menu" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText(/close menu/i));
-    expect(getDrawer(container).className).toContain("-translate-x-full");
+    expect(screen.queryByRole("dialog", { name: "Navigation menu" })).not.toBeInTheDocument();
+  });
+
+  it("closes the drawer on Escape and returns focus to the menu button", async () => {
+    await renderNavbarConnected();
+    const menuButton = screen.getByLabelText(/open menu/i);
+    fireEvent.click(menuButton);
+    expect(screen.getByRole("dialog", { name: "Navigation menu" })).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.queryByRole("dialog", { name: "Navigation menu" })).not.toBeInTheDocument();
+    expect(menuButton).toHaveFocus();
+  });
+
+  it("moves focus into the drawer and traps Tab inside it", async () => {
+    await renderNavbarConnected();
+    fireEvent.click(screen.getByLabelText(/open menu/i));
+    const drawer = screen.getByRole("dialog", { name: "Navigation menu" });
+    const focusable = Array.from(
+      drawer.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
+    );
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    expect(first).toHaveFocus();
+
+    last.focus();
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(first).toHaveFocus();
+
+    fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+    expect(last).toHaveFocus();
+  });
+
+  it("closes the drawer when the backdrop is clicked", async () => {
+    const { container } = await renderNavbarConnected();
+    fireEvent.click(screen.getByLabelText(/open menu/i));
+
+    const backdrop = container.querySelector<HTMLElement>(".fixed.inset-0");
+    expect(backdrop).not.toBeNull();
+    fireEvent.click(backdrop!);
+
+    expect(screen.queryByRole("dialog", { name: "Navigation menu" })).not.toBeInTheDocument();
+  });
+});
+
+describe("Navbar — brand link and landmark structure", () => {
+  it("renders a 'StellarGive' accessible link pointing to '/'", async () => {
+    await renderNavbarConnected();
+    const brandLink = screen.getByRole("link", { name: /stellargive/i });
+    expect(brandLink).toHaveAttribute("href", "/");
+  });
+
+  it("has no nav element nested inside another nav", async () => {
+    const { container } = await renderNavbarConnected();
+    const navs = Array.from(container.querySelectorAll("nav"));
+    expect(navs.length).toBeGreaterThan(0);
+    for (const nav of navs) {
+      // Walk up from the *parent* (not the nav itself, which always matches
+      // its own selector) looking for an ancestor nav.
+      expect(nav.parentElement?.closest("nav") ?? null).toBeNull();
+    }
+  });
+
+  it("renders the outer wrapper as a header, not a nav", async () => {
+    const { container } = await renderNavbarConnected();
+    expect(container.querySelector("header")).toBeInTheDocument();
   });
 });

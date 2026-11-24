@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { NETWORK_PASSPHRASE, Networks } from "@/lib/network";
 
 /**
  * Shared blur placeholder for campaign images.
@@ -17,6 +18,20 @@ export function calculateProgress(raised: bigint, target: bigint): number {
   if (target === 0n) return 0;
   const progress = Number((raised * 100n) / target);
   return Math.min(progress, 100);
+}
+
+/**
+ * Precision-preserving funding percentage, computed entirely from bigints
+ * (no float division) so a campaign at 99.9% doesn't round down to "99%" the
+ * way the integer-percent `calculateProgress` does. Resolves to tenths of a
+ * percent; 100 is returned only once `raised` reaches or exceeds `target`.
+ * Use this for display labels; callers that need a plain integer (color
+ * thresholds, progress bar fill) should keep using `calculateProgress`.
+ */
+export function calculateProgressPercent(raised: bigint, target: bigint): number {
+  if (target <= 0n) return 0;
+  if (raised >= target) return 100;
+  return Number((raised * 1000n) / target) / 10;
 }
 
 /**
@@ -78,10 +93,16 @@ export function getCampaignImageUrl(uri?: string) {
   return resolveIpfsUrl(uri);
 }
 
+function getStellarExpertNetwork(): string {
+  return NETWORK_PASSPHRASE === Networks.PUBLIC ? "mainnet" : "testnet";
+}
+
 export function getStellarExpertTxUrl(txHash: string): string {
-  const passphrase = process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ?? "";
-  const network = passphrase.startsWith("Public Global") ? "mainnet" : "testnet";
-  return `https://stellar.expert/explorer/${network}/tx/${txHash}`;
+  return `https://stellar.expert/explorer/${getStellarExpertNetwork()}/tx/${txHash}`;
+}
+
+export function getStellarExpertAccountUrl(address: string, network?: string): string {
+  return `https://stellar.expert/explorer/${network ?? getStellarExpertNetwork()}/account/${address}`;
 }
 
 export function absoluteUrl(path: string) {

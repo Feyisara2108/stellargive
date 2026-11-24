@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { List, type RowComponentProps } from "react-window";
+import { List, useListRef, type RowComponentProps } from "react-window";
 import { useRecentCampaigns } from "@/hooks/useSoroban";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { CampaignCard } from "@/components/CampaignCard";
@@ -29,6 +29,11 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
 const CARD_HEIGHT = 340;
 /** gap-6 = 1.5rem = 24px */
 const GRID_GAP = 24;
+/**
+ * Maximum height of the virtualised viewport in px. Taller lists scroll inside
+ * this box, so only the visible rows (plus overscan) are mounted.
+ */
+const MAX_LIST_HEIGHT = 720;
 
 function sortCampaigns(campaigns: Campaign[], sortBy: SortKey): Campaign[] {
   const sorted = [...campaigns];
@@ -108,7 +113,8 @@ function useContainerWidth(ref: React.RefObject<HTMLDivElement>): number {
 interface CampaignRowProps {
   rows: Campaign[][];
   columnCount: number;
-  listWidth: number;
+  /** Called when focus moves into a row so the list can scroll it into view. */
+  onRowFocus: (index: number) => void;
 }
 
 function CampaignRow({
@@ -116,20 +122,23 @@ function CampaignRow({
   style,
   rows,
   columnCount,
-  listWidth,
+  onRowFocus,
 }: RowComponentProps<CampaignRowProps>) {
   const row = rows[index];
   if (!row) return null;
 
-  const cellWidth = listWidth > 0 ? (listWidth - GRID_GAP * (columnCount - 1)) / columnCount : 0;
-
   return (
-    <div role="row" style={{ ...style, display: "flex", gap: GRID_GAP, paddingBottom: GRID_GAP }}>
+    <div
+      role="row"
+      aria-rowindex={index + 1}
+      onFocus={() => onRowFocus(index)}
+      style={{ ...style, display: "flex", gap: GRID_GAP, paddingBottom: GRID_GAP }}
+    >
       {row.map((campaign) => (
         <div
           key={campaign.id.toString()}
           role="gridcell"
-          style={{ width: cellWidth, flexShrink: 0 }}
+          style={{ flex: "1 1 0", minWidth: 0 }}
         >
           <CampaignCard campaign={campaign} />
         </div>
@@ -140,7 +149,7 @@ function CampaignRow({
           key={`phantom-${i}`}
           role="presentation"
           aria-hidden="true"
-          style={{ width: cellWidth, flexShrink: 0 }}
+          style={{ flex: "1 1 0", minWidth: 0 }}
         />
       ))}
     </div>
@@ -163,6 +172,16 @@ function CampaignListContent() {
   const columnCount = useColumnCount();
   const containerRef = useRef<HTMLDivElement>(null);
   const listWidth = useContainerWidth(containerRef);
+  const listRef = useListRef(null);
+
+  // Keyboard users tabbing through cards: keep the focused row inside the
+  // scrolling viewport ("smart" only scrolls when the row is out of view).
+  const handleRowFocus = useCallback(
+    (index: number) => {
+      listRef.current?.scrollToRow({ index, align: "smart" });
+    },
+    [listRef],
+  );
 
   // Sync debounced search term to the URL ?q= param.
   useEffect(() => {
@@ -203,7 +222,8 @@ function CampaignListContent() {
   }, [displayedCampaigns, columnCount]);
 
   const rowHeight = CARD_HEIGHT + GRID_GAP;
-  const listHeight = rows.length * rowHeight;
+  // Bounded viewport: short lists shrink to fit, long lists scroll internally.
+  const listHeight = Math.min(rows.length * rowHeight, MAX_LIST_HEIGHT);
 
   if (isLoading && !campaigns) {
     return <CampaignSkeletonGrid count={6} />;
@@ -232,7 +252,7 @@ function CampaignListContent() {
             Search by campaign name, category, creator, or beneficiary address.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           <div className="relative w-full sm:w-48">
             <label htmlFor="campaign-sort" className="sr-only">
               Sort by
@@ -352,9 +372,11 @@ function CampaignListContent() {
               rowCount={rows.length}
               rowHeight={rowHeight}
               rowComponent={CampaignRow}
-              rowProps={{ rows, columnCount, listWidth }}
+              rowProps={{ rows, columnCount, onRowFocus: handleRowFocus }}
+              listRef={listRef}
               overscanCount={2}
-              style={{ height: listHeight, width: listWidth, outline: "none", overflow: "visible" }}
+              defaultHeight={listHeight}
+              style={{ height: listHeight, width: listWidth, outline: "none", overflowY: "auto" }}
             />
           )}
         </div>

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@/test/render";
 import { axe, toHaveNoViolations } from "jest-axe";
 import { CreateCampaignForm } from "./CreateCampaignForm";
@@ -25,8 +25,10 @@ vi.mock("@/hooks/useSoroban", async () => {
   });
 });
 
+const pushMock = vi.fn();
+
 vi.mock("next/navigation", () => ({
-  useRouter: vi.fn().mockReturnValue({ push: vi.fn() }),
+  useRouter: () => ({ push: pushMock }),
   useSearchParams: vi.fn().mockReturnValue({ get: vi.fn() }),
 }));
 
@@ -105,7 +107,8 @@ async function expectStuckOnStep(n: number) {
 describe("CreateCampaignForm", () => {
   beforeEach(() => {
     sessionStorage.clear();
-    createCampaignState.mutateAsync = vi.fn().mockResolvedValue({ campaignId: "1" });
+    pushMock.mockClear();
+    createCampaignState.mutateAsync = vi.fn().mockResolvedValue({ hash: "abcd", campaignId: 1n });
     createCampaignState.isPending = false;
     resolvedNameState.data = null;
     resolvedNameState.isFetching = false;
@@ -477,6 +480,41 @@ describe("CreateCampaignForm", () => {
       });
     });
 
+    it("redirects to the created campaign when the mutation returns a campaignId", async () => {
+      createCampaignState.mutateAsync = vi.fn().mockResolvedValue({ hash: "abcd", campaignId: 42n });
+
+      renderForm();
+      await openForm();
+      fillValidForm();
+      await goToReviewStep();
+
+      const submitBtn = await screen.findByRole("button", { name: /Launch Campaign/i });
+      await waitFor(() => expect(submitBtn).toBeEnabled());
+      fireEvent.click(submitBtn);
+
+      await waitFor(() => {
+        expect(pushMock).toHaveBeenCalledWith("/campaign/42");
+      });
+    });
+
+    it("routes to /profile instead of campaign 1 when the mutation returns no campaignId", async () => {
+      createCampaignState.mutateAsync = vi.fn().mockResolvedValue({ hash: "abcd" });
+
+      renderForm();
+      await openForm();
+      fillValidForm();
+      await goToReviewStep();
+
+      const submitBtn = await screen.findByRole("button", { name: /Launch Campaign/i });
+      await waitFor(() => expect(submitBtn).toBeEnabled());
+      fireEvent.click(submitBtn);
+
+      await waitFor(() => {
+        expect(pushMock).toHaveBeenCalledWith("/profile");
+      });
+      expect(pushMock).not.toHaveBeenCalledWith("/campaign/1");
+    });
+
     it("shows the loading state on the submit button while the mutation is pending", async () => {
       createCampaignState.isPending = true;
 
@@ -508,5 +546,127 @@ describe("CreateCampaignForm", () => {
 
       await expectStuckOnStep(1);
     });
+  });
+});
+
+describe("CreateCampaignForm — cover image upload accessibility", () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    createCampaignState.mutateAsync = vi.fn().mockResolvedValue({ campaignId: "1" });
+    createCampaignState.isPending = false;
+    resolvedNameState.data = null;
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("announces an oversize-image error with role=alert and links it to the file input", async () => {
+    renderForm();
+    await openForm();
+
+    const input = screen.getByLabelText(/Campaign Cover Image/i) as HTMLInputElement;
+    const big = new File([new Uint8Array(5 * 1024 * 1024 + 1)], "big.png", { type: "image/png" });
+    fireEvent.change(input, { target: { files: [big] } });
+
+    const error = await screen.findByText("Image must be 5MB or less.");
+    expect(error).toHaveAttribute("role", "alert");
+    const errorId = error.id;
+    expect(errorId).toBeTruthy();
+    expect(input.getAttribute("aria-describedby")?.split(" ")).toContain(errorId);
+  });
+
+  it("announces upload start and completion through one polite live region and labels the URI", async () => {
+    let xhr!: {
+      onload: () => void;
+      status: number;
+      responseText: string;
+      upload: { onprogress: (e: unknown) => void };
+    };
+    class FakeXHR {
+      status = 200;
+      responseText = JSON.stringify({ metadata_uri: "ipfs://bafyexample" });
+      upload = { onprogress: (_e: unknown) => {} };
+      onload = () => {};
+      onerror = () => {};
+      open() {}
+      send() {
+        xhr = this as unknown as typeof xhr;
+      }
+    }
+    vi.stubGlobal("XMLHttpRequest", FakeXHR);
+
+    renderForm();
+    await openForm();
+
+    const input = screen.getByLabelText(/Campaign Cover Image/i) as HTMLInputElement;
+    const file = new File(["x"], "cover.png", { type: "image/png" });
+    fireEvent.change(input, { target: { files: [file] } });
+
+    const liveRegion = await screen.findByText("Uploading image");
+    expect(liveRegion).toHaveAttribute("aria-live", "polite");
+
+    // Progress ticks must not touch the live region text.
+    xhr.upload.onprogress({ lengthComputable: true, loaded: 50, total: 100 });
+    expect(liveRegion).toHaveTextContent("Uploading image");
+
+    xhr.onload();
+    await waitFor(() => expect(liveRegion).toHaveTextContent("Image uploaded"));
+    expect(screen.getByText(/Uploaded to: ipfs:\/\/bafyexample/)).toBeInTheDocument();
+    expect(screen.queryByText(/^CID:/)).not.toBeInTheDocument();
+    // The character counter no longer announces on every change.
+    const counter = screen.getByText(/^\d+\/\d+$/);
+    expect(counter).not.toHaveAttribute("aria-live");
+  });
+});
+
+describe("CreateCampaignForm — sessionStorage guard", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("opens the dialog and accepts input when sessionStorage.getItem is blocked", async () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("Storage is blocked");
+    });
+
+    renderForm();
+    await openForm();
+
+    const title = screen.getByPlaceholderText(/Flood Relief 2024/i);
+    fireEvent.change(title, { target: { value: "Flood Relief 2024" } });
+    expect(title).toHaveValue("Flood Relief 2024");
+  });
+
+  it("keeps accepting input when sessionStorage.setItem is blocked", async () => {
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("Storage is blocked");
+    });
+
+    renderForm();
+    await openForm();
+
+    const title = screen.getByPlaceholderText(/Flood Relief 2024/i);
+    fireEvent.change(title, { target: { value: "Flood Relief 2024" } });
+    expect(title).toHaveValue("Flood Relief 2024");
+describe("CreateCampaignForm — live preview accessibility", () => {
+  it("resolves getByLabelText(/Campaign Title/i) to a single element while the dialog is open", async () => {
+    renderForm();
+    await openForm();
+
+    // With an empty title, buildPreviewCampaign falls back to "Campaign Title",
+    // which the live preview's Progress bar would also expose via
+    // aria-label="Fundraising progress for Campaign Title" if it weren't hidden
+    // from assistive technology. Only the real title input should match.
+    expect(screen.getAllByLabelText(/Campaign Title/i)).toHaveLength(1);
+  });
+
+  it("hides the live preview card from assistive technology with inert and aria-hidden", async () => {
+    const { container } = renderForm();
+    await openForm();
+
+    const hiddenPreview = container.querySelector('[inert][aria-hidden="true"]');
+    expect(hiddenPreview).toBeInTheDocument();
+    expect(hiddenPreview?.querySelector('[role="progressbar"]')).not.toBeNull();
   });
 });

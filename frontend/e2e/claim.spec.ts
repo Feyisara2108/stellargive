@@ -38,24 +38,20 @@ function campaignScVal(): xdr.ScVal {
   const c = FUNDED_CAMPAIGN;
   const entries: [string, xdr.ScVal][] = [
     ["accepted_token", new Address(TOKEN).toScVal()],
-    ["beneficiary", new Address(WALLET).toScVal()],
     [
       "beneficiaries",
       xdr.ScVal.scvVec([
         xdr.ScVal.scvVec([new Address(WALLET).toScVal(), nativeToScVal(10000, { type: "u32" })]),
       ]),
     ],
-    ["category", nativeToScVal("Disaster", { type: "string" })],
+    ["category", sym("Disaster")],
     ["creator", new Address(WALLET).toScVal()],
     ["deadline", nativeToScVal(c.deadline, { type: "u64" })],
     ["description", nativeToScVal("A fully funded campaign past its deadline", { type: "string" })],
     ["id", nativeToScVal(BigInt(c.id), { type: "u64" })],
     ["metadata_uri", nativeToScVal("", { type: "string" })],
     ["raised_amount", nativeToScVal(c.raised, { type: "i128" })],
-    [
-      "status",
-      xdr.ScVal.scvMap([new xdr.ScMapEntry({ key: sym(c.status), val: xdr.ScVal.scvVoid() })]),
-    ],
+    ["status", xdr.ScVal.scvVec([sym(c.status)])],
     ["target_amount", nativeToScVal(c.target, { type: "i128" })],
     ["title", nativeToScVal(c.title, { type: "string" })],
     ["twitter", nativeToScVal("", { type: "string" })],
@@ -238,7 +234,9 @@ test.describe("Claim funds on a funded campaign", () => {
       .getByRole("tablist", { name: "Campaign status filters" })
       .getByRole("tab", { name: /^All/i })
       .click();
-    await expect(page.getByText(FUNDED_CAMPAIGN.title)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("heading", { name: FUNDED_CAMPAIGN.title })).toBeVisible({
+      timeout: 15_000,
+    });
 
     await expect(claimControl(page)).toBeVisible();
     await expect(claimControl(page)).toBeEnabled();

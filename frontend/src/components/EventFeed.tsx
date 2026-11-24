@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useEvents } from "@/hooks/useSoroban";
-import type { SorobanEvent } from "@/lib/soroban";
 import {
   formatStroops,
   parseClaimEvent,
@@ -11,11 +10,10 @@ import {
 } from "@/lib/eventData";
 import { getStellarExpertTxUrl } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Activity, ArrowUpRight, ChevronDown, Megaphone, Trophy } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 
 // Throttle announcements to avoid overwhelming screen reader users
@@ -97,8 +95,18 @@ function EventLegend() {
   );
 }
 
+function ActivityHeader() {
+  return (
+    <CardHeader>
+      <CardTitle className="text-lg flex items-center gap-2">
+        <Activity className="w-4 h-4 text-primary" /> Recent Activity
+      </CardTitle>
+    </CardHeader>
+  );
+}
+
 export function EventFeed() {
-  const { data: events, isLoading } = useEvents();
+  const { data: events, isLoading, isError, refetch } = useEvents();
   const prevIdsRef = useRef<Set<string>>(new Set());
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [announcement, setAnnouncement] = useState<string>("");
@@ -142,11 +150,7 @@ export function EventFeed() {
   if (isLoading) {
     return (
       <Card className="h-full">
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Activity className="w-4 h-4 text-primary" /> Recent Activity
-          </CardTitle>
-        </CardHeader>
+        <ActivityHeader />
         <CardContent className="space-y-6" aria-busy="true" aria-label="Loading recent activity">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="flex gap-4 items-start">
@@ -162,18 +166,39 @@ export function EventFeed() {
     );
   }
 
+  // A failed request with nothing to show: say so instead of "No activity yet".
+  if (isError && !events?.length) {
+    return (
+      <Card className="h-full">
+        <ActivityHeader />
+        <CardContent>
+          <div className="text-center py-8 space-y-3">
+            <p role="alert" className="text-sm text-destructive">
+              Unable to load recent activity. Please try again.
+            </p>
+            <Button type="button" variant="outline" size="sm" onClick={() => refetch()}>
+              Retry
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className="h-full">
       {/* ARIA live region for announcing new events to screen readers (#833) */}
       <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
         {announcement}
       </div>
-      <CardHeader>
-        <CardTitle className="text-lg flex items-center gap-2">
-          <Activity className="w-4 h-4 text-primary" /> Recent Activity
-        </CardTitle>
-      </CardHeader>
+      <ActivityHeader />
       <CardContent className="space-y-6">
+        {/* Background refetch failed but we still have events: keep them, flag staleness. */}
+        {isError && (
+          <p role="alert" className="text-xs text-destructive">
+            Couldn&apos;t refresh activity. Showing the last loaded events.
+          </p>
+        )}
         <EventLegend />
         <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm text-left">
@@ -225,13 +250,14 @@ export function EventFeed() {
                   <td className="px-4 py-3 text-muted-foreground">{event.ledger}</td>
                   <td className="px-4 py-3 text-right">
                     <a
-                      href={`https://stellar.expert/explorer/testnet/tx/${event.txHash}`}
+                      href={getStellarExpertTxUrl(event.txHash)}
                       target="_blank"
-                      rel="noreferrer"
+                      rel="noopener noreferrer"
                       className="font-mono text-primary hover:underline"
                     >
                       {event.txHash.substring(0, 8)}...
                       {event.txHash.substring(event.txHash.length - 4)}
+                      <span className="sr-only"> (opens in a new tab)</span>
                     </a>
                   </td>
                 </tr>
@@ -284,12 +310,13 @@ export function EventFeed() {
               <div className="pt-3 border-t flex justify-between items-center text-xs">
                 <span className="text-muted-foreground">Tx Hash</span>
                 <a
-                  href={`https://stellar.expert/explorer/testnet/tx/${event.txHash}`}
+                  href={getStellarExpertTxUrl(event.txHash)}
                   target="_blank"
-                  rel="noreferrer"
+                  rel="noopener noreferrer"
                   className="font-mono text-primary hover:underline"
                 >
                   {event.txHash.substring(0, 8)}...{event.txHash.substring(event.txHash.length - 4)}
+                  <span className="sr-only"> (opens in a new tab)</span>
                 </a>
               </div>
             </div>

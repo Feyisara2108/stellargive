@@ -59,7 +59,7 @@ export default function AdminPage() {
     <div className="flex flex-col min-h-screen bg-background">
       <Navbar />
 
-      <main className="flex-1 container max-w-4xl py-12 space-y-8">
+      <div className="flex-1 container max-w-4xl py-12 space-y-8">
         <div className="space-y-2 text-center md:text-left">
           <div className="flex items-center justify-center md:justify-start gap-2">
             <Shield className="w-8 h-8 text-primary" />
@@ -108,7 +108,7 @@ export default function AdminPage() {
         ) : (
           <AdminPanel ownedCampaigns={ownedCampaigns} />
         )}
-      </main>
+      </div>
     </div>
   );
 }

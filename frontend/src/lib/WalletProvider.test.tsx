@@ -32,6 +32,7 @@ vi.mock("@/lib/wallet", () => ({
   disconnectWallet: vi.fn(),
   getWalletNetwork: vi.fn(),
   getNetworkSwitcher: vi.fn(),
+  watchWallet: vi.fn(),
 }));
 
 vi.mock("@sentry/nextjs", () => ({
@@ -100,6 +101,7 @@ describe("WalletProvider", () => {
     );
     // No wallet in these tests supports a programmatic switch unless a test opts in.
     vi.mocked(wallet.getNetworkSwitcher).mockResolvedValue(null);
+    vi.mocked(wallet.watchWallet).mockReturnValue(() => {});
   });
 
   it("initializes with default disconnected state", async () => {
@@ -655,6 +657,120 @@ describe("WalletProvider", () => {
         );
       });
       consoleSpy.mockRestore();
+    });
+  });
+
+  describe("account change watcher", () => {
+    type OnChange = Parameters<typeof wallet.watchWallet>[0];
+    const APP_NETWORK = process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE!;
+
+    /** Renders with a restored wallet and returns the watcher's change callback and stop function. */
+    async function renderConnected() {
+      const stop = vi.fn();
+      vi.mocked(wallet.watchWallet).mockReturnValue(stop);
+      vi.mocked(wallet.restoreWallet).mockResolvedValue("GFIRST");
+      const view = render(
+        <WalletProvider>
+          <TestComponent />
+        </WalletProvider>,
+      );
+      await waitFor(() => expect(wallet.watchWallet).toHaveBeenCalled());
+      const onChange = vi.mocked(wallet.watchWallet).mock.calls[0][0] as OnChange;
+      return { onChange, stop, ...view };
+    }
+
+    it("does not start watching while no wallet is connected", async () => {
+      render(
+        <WalletProvider>
+          <TestComponent />
+        </WalletProvider>,
+      );
+
+      await waitFor(() => expect(wallet.restoreWallet).toHaveBeenCalled());
+      expect(wallet.watchWallet).not.toHaveBeenCalled();
+    });
+
+    it("starts watching once a wallet is connected", async () => {
+      await renderConnected();
+
+      expect(wallet.watchWallet).toHaveBeenCalledTimes(1);
+    });
+
+    it("updates the address without a reload when the account switches, and says so", async () => {
+      const { onChange } = await renderConnected();
+      await waitFor(() => expect(screen.getByTestId("address")).toHaveTextContent("GFIRST"));
+
+      act(() => onChange({ address: "GSECOND", network: APP_NETWORK }));
+
+      expect(screen.getByTestId("address")).toHaveTextContent("GSECOND");
+      expect(screen.getByTestId("is-connected")).toHaveTextContent("true");
+      expect(notifyMock.info).toHaveBeenCalledWith("Wallet account changed");
+    });
+
+    it("stays quiet when the watcher reports the account that is already connected", async () => {
+      const { onChange } = await renderConnected();
+      await waitFor(() => expect(screen.getByTestId("address")).toHaveTextContent("GFIRST"));
+      notifyMock.info.mockClear();
+
+      act(() => onChange({ address: "GFIRST", network: APP_NETWORK }));
+
+      expect(screen.getByTestId("address")).toHaveTextContent("GFIRST");
+      expect(notifyMock.info).not.toHaveBeenCalled();
+    });
+
+    it("updates the wallet network when it changes", async () => {
+      const { onChange } = await renderConnected();
+      await waitFor(() =>
+        expect(screen.getByTestId("is-wrong-network")).toHaveTextContent("false"),
+      );
+
+      act(() => onChange({ address: "GFIRST", network: "Another Network" }));
+
+      expect(screen.getByTestId("network")).toHaveTextContent("Another Network");
+      expect(screen.getByTestId("is-wrong-network")).toHaveTextContent("true");
+    });
+
+    it("keeps the known network when the watcher doesn't report one", async () => {
+      const { onChange } = await renderConnected();
+      await waitFor(() => expect(screen.getByTestId("network")).toHaveTextContent(APP_NETWORK));
+
+      act(() => onChange({ address: "GSECOND", network: null }));
+
+      expect(screen.getByTestId("address")).toHaveTextContent("GSECOND");
+      expect(screen.getByTestId("network")).toHaveTextContent(APP_NETWORK);
+    });
+
+    it("clears the connection and stops watching when the wallet reports no address", async () => {
+      const { onChange, stop } = await renderConnected();
+      await waitFor(() => expect(screen.getByTestId("is-connected")).toHaveTextContent("true"));
+
+      act(() => onChange({ address: null, network: null }));
+
+      expect(screen.getByTestId("address")).toHaveTextContent("none");
+      expect(screen.getByTestId("is-connected")).toHaveTextContent("false");
+      expect(wallet.disconnectWallet).toHaveBeenCalled();
+      expect(stop).toHaveBeenCalledTimes(1);
+    });
+
+    it("stops watching when the user disconnects", async () => {
+      const user = userEvent.setup();
+      const { stop } = await renderConnected();
+      await waitFor(() => expect(screen.getByTestId("is-connected")).toHaveTextContent("true"));
+      expect(stop).not.toHaveBeenCalled();
+
+      await user.click(screen.getByTestId("btn-disconnect"));
+
+      expect(stop).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId("is-connected")).toHaveTextContent("false");
+    });
+
+    it("stops watching when the provider unmounts", async () => {
+      const { stop, unmount } = await renderConnected();
+      expect(stop).not.toHaveBeenCalled();
+
+      unmount();
+
+      expect(stop).toHaveBeenCalledTimes(1);
     });
   });
 });

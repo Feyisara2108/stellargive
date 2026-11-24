@@ -26,9 +26,10 @@ vi.mock("@/components/AddressLink", () => ({
 }));
 
 const pushMock = vi.fn();
+const replaceMock = vi.fn();
 let currentParams = new URLSearchParams();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: pushMock }),
+  useRouter: () => ({ push: pushMock, replace: replaceMock }),
   useSearchParams: () => currentParams,
 }));
 
@@ -86,6 +87,7 @@ function historyResult(events: unknown[], extra: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   pushMock.mockReset();
+  replaceMock.mockReset();
   downloadTextFile.mockReset();
   currentParams = new URLSearchParams();
 });
@@ -164,6 +166,67 @@ describe("LeaderboardPage - coverage", () => {
       screen.getByText(/Only the oldest part of the window could be scanned/),
     ).toBeInTheDocument();
   });
+
+  it("describes the retained window without naming an event cap", () => {
+    vi.mocked(useEventHistory).mockReturnValue(
+      historyResult([receivedEvent(1, DONOR_A, 300, "e1")]),
+    );
+
+    render(<LeaderboardPage />);
+
+    const note = screen.getByText(/Aggregated from every on-chain donation event/);
+    expect(note).toHaveTextContent(/all retained history\./);
+    expect(note.textContent).not.toMatch(/\b200\b/);
+    expect(note.textContent).not.toMatch(/most recent \d+ on-chain contract events/);
+  });
+});
+
+describe("LeaderboardPage - time range filter", () => {
+  beforeEach(() => {
+    vi.mocked(useEventHistory).mockReturnValue(
+      historyResult([receivedEvent(1, DONOR_A, 300, "e1")]),
+    );
+  });
+
+  it("marks the active range with aria-pressed", () => {
+    currentParams = new URLSearchParams("range=weekly");
+
+    render(<LeaderboardPage />);
+
+    expect(screen.getByRole("button", { name: "Weekly" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "All Time" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    expect(screen.getByRole("button", { name: "Monthly" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+  });
+
+  it("falls back to All Time for an unknown range", () => {
+    currentParams = new URLSearchParams("range=foo");
+
+    render(<LeaderboardPage />);
+
+    expect(screen.getByRole("button", { name: "All Time" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    // The full retained window is shown, as for "all", not a narrowed range.
+    expect(screen.getByTestId("leaderboard-period")).toHaveTextContent(
+      "Showing donations from Oct 12, 2026 – Oct 19, 2026.",
+    );
+  });
+
+  it("replaces the history entry when the range changes", () => {
+    render(<LeaderboardPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Weekly" }));
+
+    expect(replaceMock).toHaveBeenCalledWith("/leaderboard?range=weekly");
+    expect(pushMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("LeaderboardPage - mixed tokens", () => {
@@ -199,7 +262,8 @@ describe("LeaderboardPage - mixed tokens", () => {
     expect(rows[1]).toHaveTextContent("3 XLM");
 
     fireEvent.click(screen.getByRole("button", { name: "USDC" }));
-    expect(pushMock).toHaveBeenCalledWith(`/leaderboard?range=all&token=${USDC}`);
+    expect(replaceMock).toHaveBeenCalledWith(`/leaderboard?range=all&token=${USDC}`);
+    expect(pushMock).not.toHaveBeenCalled();
   });
 
   it("labels the USDC ranking and its CSV in USDC", () => {
@@ -219,5 +283,12 @@ describe("LeaderboardPage - mixed tokens", () => {
     const lines = csv.split("\r\n");
     expect(lines[0]).toBe("Rank,Donor Address,Total Donated (USDC),Donations,Campaigns");
     expect(lines[1]).toBe(`1,${DONOR_B},50,1,1`);
+  });
+});
+
+describe("LeaderboardPage - landmark structure", () => {
+  it("renders no main landmark of its own, leaving layout.tsx as the only one", () => {
+    render(<LeaderboardPage />);
+    expect(screen.queryAllByRole("main")).toHaveLength(0);
   });
 });

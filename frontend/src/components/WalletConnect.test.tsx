@@ -18,7 +18,6 @@ vi.mock("sonner", () => ({
 
 vi.mock("@/lib/soroban", () => ({
   getSACBalance: vi.fn().mockResolvedValue(BigInt(1000000000)), // 100 XLM
-  fromStroops: vi.fn((value: bigint) => (Number(value) / 10000000).toFixed(7)),
 }));
 
 vi.mock("@/lib/wallet", () => ({
@@ -183,7 +182,7 @@ describe("WalletConnect Component", () => {
 
       // Verify dropdown menu does not exist
       await waitFor(() => {
-        const dropdownMenu = screen.queryByText(/STRENGTH OF WALLET/i);
+        const dropdownMenu = screen.queryByText(/^Wallet address$/i);
         expect(dropdownMenu).not.toBeInTheDocument();
       });
     });
@@ -405,7 +404,7 @@ describe("WalletConnect Component", () => {
       const addressButton = screen.getByRole("button", { name: /GTES/i });
 
       // Dropdown should be closed initially
-      let dropdown = screen.queryByText(/STRENGTH OF WALLET/i);
+      let dropdown = screen.queryByText(/^Wallet address$/i);
       expect(dropdown).not.toBeInTheDocument();
 
       // First click - open dropdown
@@ -413,7 +412,7 @@ describe("WalletConnect Component", () => {
 
       // Dropdown should now be visible
       await waitFor(() => {
-        dropdown = screen.getByText(/STRENGTH OF WALLET/i);
+        dropdown = screen.getByText(/^Wallet address$/i);
         expect(dropdown).toBeInTheDocument();
       });
 
@@ -422,7 +421,7 @@ describe("WalletConnect Component", () => {
 
       // Dropdown should be hidden
       await waitFor(() => {
-        dropdown = screen.queryByText(/STRENGTH OF WALLET/i);
+        dropdown = screen.queryByText(/^Wallet address$/i);
         expect(dropdown).not.toBeInTheDocument();
       });
     });
@@ -498,7 +497,7 @@ describe("WalletConnect Component", () => {
 
       // Verify dropdown is open
       await waitFor(() => {
-        const dropdown = screen.getByText(/STRENGTH OF WALLET/i);
+        const dropdown = screen.getByText(/^Wallet address$/i);
         expect(dropdown).toBeInTheDocument();
       });
 
@@ -508,7 +507,7 @@ describe("WalletConnect Component", () => {
 
       // Verify dropdown is closed
       await waitFor(() => {
-        const dropdown = screen.queryByText(/STRENGTH OF WALLET/i);
+        const dropdown = screen.queryByText(/^Wallet address$/i);
         expect(dropdown).not.toBeInTheDocument();
       });
     });
@@ -534,7 +533,7 @@ describe("WalletConnect Component", () => {
 
       // Wait for dropdown to appear
       await waitFor(() => {
-        const dropdown = screen.getByText(/STRENGTH OF WALLET/i);
+        const dropdown = screen.getByText(/^Wallet address$/i);
         expect(dropdown).toBeInTheDocument();
       });
 
@@ -643,7 +642,7 @@ describe("WalletConnect Component", () => {
 
       // Verify dropdown is open
       await waitFor(() => {
-        const dropdown = screen.getByText(/STRENGTH OF WALLET/i);
+        const dropdown = screen.getByText(/^Wallet address$/i);
         expect(dropdown).toBeInTheDocument();
       });
 
@@ -653,7 +652,7 @@ describe("WalletConnect Component", () => {
 
       // Verify dropdown is closed
       await waitFor(() => {
-        const dropdown = screen.queryByText(/STRENGTH OF WALLET/i);
+        const dropdown = screen.queryByText(/^Wallet address$/i);
         expect(dropdown).not.toBeInTheDocument();
       });
     });
@@ -866,7 +865,7 @@ describe("WalletConnect Component", () => {
 
       // Verify dropdown structure
       await waitFor(() => {
-        const dropdown = screen.getByText(/STRENGTH OF WALLET/i);
+        const dropdown = screen.getByText(/^Wallet address$/i);
         expect(dropdown).toBeInTheDocument();
 
         // Verify sections are present
@@ -877,6 +876,72 @@ describe("WalletConnect Component", () => {
         const disconnectButton = screen.getByRole("button", { name: /disconnect/i });
         expect(disconnectButton).toBeInTheDocument();
       });
+    });
+  });
+
+  describe("Dropdown keyboard and ARIA behaviour", () => {
+    it("exposes expanded state and popup relationship on the toggle", async () => {
+      const user = userEvent.setup();
+
+      render(
+        <MockWalletProvider>
+          <WalletConnect />
+        </MockWalletProvider>,
+      );
+
+      const toggle = await screen.findByRole("button", { name: /GTES/i });
+      expect(toggle).toHaveAttribute("aria-haspopup", "true");
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+      await user.click(toggle);
+
+      expect(toggle).toHaveAttribute("aria-expanded", "true");
+      const panelId = toggle.getAttribute("aria-controls");
+      expect(panelId).toBeTruthy();
+      expect(document.getElementById(panelId as string)).toBeInTheDocument();
+    });
+
+    it("closes on Escape and returns focus to the toggle", async () => {
+      const user = userEvent.setup();
+
+      render(
+        <MockWalletProvider>
+          <WalletConnect />
+        </MockWalletProvider>,
+      );
+
+      const toggle = await screen.findByRole("button", { name: /GTES/i });
+      await user.click(toggle);
+      await user.tab(); // move focus into the panel
+      expect(screen.getByText(/^Wallet address$/i)).toBeInTheDocument();
+
+      await user.keyboard("{Escape}");
+
+      expect(screen.queryByText(/^Wallet address$/i)).not.toBeInTheDocument();
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      expect(toggle).toHaveFocus();
+    });
+
+    it("closes when focus moves outside the dropdown", async () => {
+      const user = userEvent.setup();
+
+      render(
+        <MockWalletProvider>
+          <WalletConnect />
+          <button type="button">Outside</button>
+        </MockWalletProvider>,
+      );
+
+      const toggle = await screen.findByRole("button", { name: /GTES/i });
+      await user.click(toggle);
+      expect(screen.getByText(/^Wallet address$/i)).toBeInTheDocument();
+
+      // toggle -> Disconnect -> Outside
+      await user.tab();
+      await user.tab();
+
+      expect(screen.getByRole("button", { name: "Outside" })).toHaveFocus();
+      expect(screen.queryByText(/^Wallet address$/i)).not.toBeInTheDocument();
     });
   });
 

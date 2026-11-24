@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,6 +23,14 @@ interface ShareableCampaign {
 export function ShareButton({ campaign }: { campaign: ShareableCampaign }) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (copyTimerRef.current !== null) clearTimeout(copyTimerRef.current);
+    },
+    [],
+  );
 
   const getShareUrl = () => {
     if (typeof window !== "undefined") {
@@ -42,39 +50,43 @@ export function ShareButton({ campaign }: { campaign: ShareableCampaign }) {
       await navigator.clipboard.writeText(url);
       setCopied(true);
       toast.success("Link copied!");
-      setTimeout(() => setCopied(false), 2000);
+      if (copyTimerRef.current !== null) clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => {
+        copyTimerRef.current = null;
+        setCopied(false);
+      }, 2000);
     } catch (err) {
       logger.error("Failed to copy link:", err);
       toast.error("Unable to copy link");
     }
   };
 
-  const handleTwitterShare = () => {
+  const openShare = (buildUrl: (url: string, text: string) => string) => {
     const url = getShareUrl();
     if (!url) return;
-
     const text = `Check out "${campaign.title}" on StellarGive`;
-    const twitterUrl = `https://x.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
-    window.open(twitterUrl, "_blank", "noopener,noreferrer");
+    window.open(buildUrl(url, text), "_blank", "noopener,noreferrer");
   };
 
-  const handleTelegramShare = () => {
-    const url = getShareUrl();
-    if (!url) return;
+  const handleTwitterShare = () =>
+    openShare(
+      (url, text) =>
+        `https://x.com/intent/tweet?text=${encodeURIComponent(text)}` +
+        `&url=${encodeURIComponent(url)}`,
+    );
 
-    const text = `Check out "${campaign.title}" on StellarGive`;
-    const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
-    window.open(telegramUrl, "_blank", "noopener,noreferrer");
-  };
+  const handleTelegramShare = () =>
+    openShare(
+      (url, text) =>
+        `https://t.me/share/url?url=${encodeURIComponent(url)}` +
+        `&text=${encodeURIComponent(text)}`,
+    );
 
-  const handleWhatsAppShare = () => {
-    const url = getShareUrl();
-    if (!url) return;
-
-    const text = `Check out "${campaign.title}" on StellarGive: ${url}`;
-    const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
-    window.open(whatsappUrl, "_blank", "noopener,noreferrer");
-  };
+  const handleWhatsAppShare = () =>
+    openShare(
+      (url, text) =>
+        `https://api.whatsapp.com/send?text=${encodeURIComponent(`${text}: ${url}`)}`,
+    );
 
   const handleShareClick = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -95,7 +107,10 @@ export function ShareButton({ campaign }: { campaign: ShareableCampaign }) {
         // If user cancelled the share sheet, AbortError is thrown. We ignore it.
         // For other errors, we fallback to our manual dialog.
         const isAbort =
-          typeof err === "object" && err !== null && "name" in err && err.name === "AbortError";
+          typeof err === "object" &&
+          err !== null &&
+          "name" in err &&
+          err.name === "AbortError";
         if (!isAbort) {
           setOpen(true);
         }
@@ -131,9 +146,12 @@ export function ShareButton({ campaign }: { campaign: ShareableCampaign }) {
               variant="outline"
               className="flex items-center justify-start gap-2 w-full"
               onClick={handleCopy}
-              aria-label="Copy campaign link"
             >
-              {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+              {copied ? (
+                <Check className="w-4 h-4 text-green-500" />
+              ) : (
+                <Copy className="w-4 h-4" />
+              )}
               {copied ? "Copied!" : "Copy Link"}
             </Button>
 
@@ -141,7 +159,6 @@ export function ShareButton({ campaign }: { campaign: ShareableCampaign }) {
               variant="outline"
               className="flex items-center justify-start gap-2 w-full"
               onClick={handleTwitterShare}
-              aria-label="Share on X"
             >
               <Twitter className="w-4 h-4" />
               Share on X
@@ -151,7 +168,6 @@ export function ShareButton({ campaign }: { campaign: ShareableCampaign }) {
               variant="outline"
               className="flex items-center justify-start gap-2 w-full"
               onClick={handleTelegramShare}
-              aria-label="Share on Telegram"
             >
               <Send className="w-4 h-4" />
               Share on Telegram
@@ -161,7 +177,6 @@ export function ShareButton({ campaign }: { campaign: ShareableCampaign }) {
               variant="outline"
               className="flex items-center justify-start gap-2 w-full"
               onClick={handleWhatsAppShare}
-              aria-label="Share on WhatsApp"
             >
               <MessageCircle className="w-4 h-4" />
               Share on WhatsApp

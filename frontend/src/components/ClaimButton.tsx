@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import * as React from "react";
+import { useId, useState } from "react";
 import { useClaimFunds } from "@/hooks/useSoroban";
 import { useWallet } from "@/lib/WalletProvider";
 import { logger } from "@/lib/logger";
@@ -13,9 +14,27 @@ import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { getStellarExpertTxUrl } from "@/lib/utils";
 import { WRONG_NETWORK_MESSAGE } from "@/lib/network";
 
+/**
+ * Focusable wrapper for a disabled button. A disabled <button> receives no focus or pointer
+ * events, so the wrapper takes focus instead. `aria-describedby` is applied last so it wins over
+ * the tooltip-content id that TooltipTrigger injects into its child (that element only exists
+ * while the tooltip is open).
+ */
+const TooltipAnchor = React.forwardRef<
+  HTMLSpanElement,
+  React.HTMLAttributes<HTMLSpanElement> & { focusable: boolean; describedBy?: string }
+>(({ focusable, describedBy, ...props }, ref) => (
+  <span ref={ref} tabIndex={focusable ? 0 : undefined} {...props} aria-describedby={describedBy} />
+));
+TooltipAnchor.displayName = "TooltipAnchor";
+
+const BENEFICIARY_ONLY_REASON =
+  "Only the designated beneficiary can claim campaign funds. Contact the beneficiary to initiate the claim.";
+
 export function ClaimButton({ campaign }: { campaign: Campaign }) {
   const { address, isWrongNetwork } = useWallet();
   const claim = useClaimFunds();
+  const reasonId = useId();
   const prefersReducedMotion = usePrefersReducedMotion();
   const [claimedNow, setClaimedNow] = useState(false);
   const [txHash, setTxHash] = useState<string | null>(null);
@@ -52,30 +71,45 @@ export function ClaimButton({ campaign }: { campaign: Campaign }) {
 
   if (campaign.status === "Claimed") {
     return (
-      <Tooltip>
-        <TooltipTrigger className="relative">
-          <Button variant="ghost" disabled className="text-green-500 gap-2">
-            <CheckCircle2 className="w-4 h-4" /> Claimed
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="top">Funds have already been claimed</TooltipContent>
-      </Tooltip>
+      <>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <TooltipAnchor focusable describedBy={reasonId} className="relative">
+              <Button variant="ghost" disabled className="gap-2 text-green-700 dark:text-green-400">
+                <CheckCircle2 className="w-4 h-4" aria-hidden="true" /> Claimed
+              </Button>
+            </TooltipAnchor>
+          </TooltipTrigger>
+          <TooltipContent side="top">Funds have already been claimed</TooltipContent>
+        </Tooltip>
+        <span id={reasonId} className="sr-only">
+          Funds have already been claimed
+        </span>
+      </>
     );
   }
 
   if (isCreator && !isBeneficiary) {
     return (
-      <Tooltip>
-        <TooltipTrigger className="relative">
-          <Button variant="outline" disabled className="gap-2 text-muted-foreground border-muted">
-            <Info className="h-4 w-4" /> Claim Funds
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="top">
-          Only the designated beneficiary can claim campaign funds. Contact the beneficiary to
-          initiate the claim.
-        </TooltipContent>
-      </Tooltip>
+      <>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <TooltipAnchor focusable describedBy={reasonId} className="relative">
+              <Button
+                variant="outline"
+                disabled
+                className="gap-2 text-muted-foreground border-muted"
+              >
+                <Info className="h-4 w-4" aria-hidden="true" /> Claim Funds
+              </Button>
+            </TooltipAnchor>
+          </TooltipTrigger>
+          <TooltipContent side="top">{BENEFICIARY_ONLY_REASON}</TooltipContent>
+        </Tooltip>
+        <span id={reasonId} className="sr-only">
+          {BENEFICIARY_ONLY_REASON}
+        </span>
+      </>
     );
   }
 
@@ -108,26 +142,30 @@ export function ClaimButton({ campaign }: { campaign: Campaign }) {
       : null;
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="relative">
-          <Button
-            variant="outline"
-            onClick={handleClaim}
-            disabled={claim.isPending || !canClaim || isWrongNetwork}
-            className="border-primary text-primary hover:bg-primary/10"
-            aria-describedby={disabledReason ? "claim-disabled-reason" : undefined}
+    <>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <TooltipAnchor
+            focusable={!!disabledReason}
+            describedBy={disabledReason ? reasonId : undefined}
+            className="relative"
           >
-            {claim.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Claim Funds
-          </Button>
-        </span>
-      </TooltipTrigger>
-      {disabledReason && (
-        <TooltipContent side="top" id="claim-disabled-reason">
-          {disabledReason}
-        </TooltipContent>
-      )}
-    </Tooltip>
+            <Button
+              variant="outline"
+              onClick={handleClaim}
+              disabled={claim.isPending || !canClaim || isWrongNetwork}
+              className="border-primary text-primary hover:bg-primary/10"
+            >
+              {claim.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Claim Funds
+            </Button>
+          </TooltipAnchor>
+        </TooltipTrigger>
+        {disabledReason && <TooltipContent side="top">{disabledReason}</TooltipContent>}
+      </Tooltip>
+      <span id={reasonId} className="sr-only">
+        {disabledReason}
+      </span>
+    </>
   );
 }

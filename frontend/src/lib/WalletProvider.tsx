@@ -7,14 +7,15 @@ import {
   disconnectWallet,
   getWalletNetwork,
   getNetworkSwitcher,
+  watchWallet,
   type WalletId,
 } from "@/lib/wallet";
 import { WalletPicker } from "@/components/WalletPicker";
-import * as Sentry from "@sentry/nextjs";
 import { notify } from "@/lib/toast";
 import { logger } from "@/lib/logger";
+import { setSentryUser } from "@/lib/sentry";
+import { NETWORK_PASSPHRASE } from "@/lib/network";
 
-const APP_NETWORK_PASSPHRASE = process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE!;
 export const WALLET_CONNECTED_KEY = "stellargive:wallet-previously-connected";
 /** Set when the user explicitly disconnects, so a reload doesn't silently reconnect. */
 export const WALLET_DISCONNECTED_KEY = "stellargive:wallet-disconnected";
@@ -66,14 +67,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const walletNetworkRef = useRef(walletNetwork);
   walletNetworkRef.current = walletNetwork;
 
-  const isWrongNetwork = walletNetwork !== null && walletNetwork !== APP_NETWORK_PASSPHRASE;
+  const isWrongNetwork = walletNetwork !== null && walletNetwork !== NETWORK_PASSPHRASE;
 
   useEffect(() => {
-    if (address) {
-      Sentry.setUser({ id: address });
-    } else {
-      Sentry.setUser(null);
-    }
+    setSentryUser(address ? { id: address } : null);
   }, [address]);
   const [isWalletConnected, setIsWalletConnected] = useState(false);
 
@@ -165,14 +162,39 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     [fetchWalletNetwork, settlePicker],
   );
 
-  const disconnect = () => {
+  const disconnect = useCallback(() => {
     void disconnectWallet();
     setAddress(null);
     setIsWalletConnected(false);
     setWalletNetwork(null);
     writeFlag(WALLET_DISCONNECTED_KEY, true);
     writeFlag(WALLET_CONNECTED_KEY, false);
-  };
+  }, []);
+
+  // Follow the wallet while it is connected, so switching accounts in the
+  // extension updates `address` without a reload. The watcher is stopped on
+  // disconnect and on unmount.
+  const addressRef = useRef(address);
+  useEffect(() => {
+    addressRef.current = address;
+  }, [address]);
+
+  useEffect(() => {
+    if (!isWalletConnected) return;
+
+    return watchWallet(({ address: next, network }) => {
+      if (!next) {
+        // The wallet no longer reports an account (access revoked or locked).
+        disconnect();
+        return;
+      }
+      if (network) setWalletNetwork(network);
+      if (next !== addressRef.current) {
+        setAddress(next);
+        notify.info("Wallet account changed");
+      }
+    });
+  }, [isWalletConnected, disconnect]);
 
   // Freighter (and most wallets) can't change the active network on the user's
   // behalf, but some may. The wallet layer feature-detects that capability on the

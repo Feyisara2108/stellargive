@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { AddressLink } from "./AddressLink";
 import * as useSorobanModule from "@/hooks/useSoroban";
+import { getStellarExpertAccountUrl } from "@/lib/utils";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -85,6 +87,21 @@ describe("AddressLink — href / explorer URL", () => {
     );
   });
 
+  it("follows the configured network when no network prop is passed", () => {
+    vi.spyOn(useSorobanModule, "useResolvedName").mockReturnValue({
+      data: null,
+      isLoading: false,
+      isError: false,
+      error: null,
+      status: "success",
+    } as any);
+    render(<AddressLink address={FULL_ADDRESS} />);
+    expect(screen.getByRole("link")).toHaveAttribute(
+      "href",
+      getStellarExpertAccountUrl(FULL_ADDRESS),
+    );
+  });
+
   it("uses the public network explorer URL when network='public'", () => {
     render(<AddressLink address={FULL_ADDRESS} network="public" />);
     const link = screen.getByRole("link");
@@ -163,24 +180,28 @@ describe("AddressLink — copy interaction", () => {
     expect(toast.error).toHaveBeenCalledWith("Failed to copy address");
   });
 
-  it("copies when Enter is pressed on the copy button", async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.assign(navigator, { clipboard: { writeText } });
+  it("copies exactly once when Enter is pressed on the copy button", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
     render(<AddressLink address={FULL_ADDRESS} />);
 
-    fireEvent.keyDown(screen.getByRole("button", { name: /copy address/i }), { key: "Enter" });
+    screen.getByRole("button", { name: /copy address/i }).focus();
+    await user.keyboard("{Enter}");
 
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(FULL_ADDRESS));
+    expect(writeText).toHaveBeenCalledTimes(1);
   });
 
-  it("copies when Space is pressed on the copy button", async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.assign(navigator, { clipboard: { writeText } });
+  it("copies exactly once when Space is pressed on the copy button", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
     render(<AddressLink address={FULL_ADDRESS} />);
 
-    fireEvent.keyDown(screen.getByRole("button", { name: /copy address/i }), { key: " " });
+    screen.getByRole("button", { name: /copy address/i }).focus();
+    await user.keyboard(" ");
 
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(FULL_ADDRESS));
+    expect(writeText).toHaveBeenCalledTimes(1);
   });
 
   it("ignores unrelated keys on the copy button", () => {
