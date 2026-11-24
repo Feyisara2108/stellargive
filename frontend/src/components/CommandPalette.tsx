@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useTheme } from "next-themes";
+import { useWallet } from "@/lib/WalletProvider";
+import { getRecentCampaigns } from "@/lib/recentCampaigns";
 import {
   Dialog,
   DialogContent,
@@ -15,7 +18,10 @@ import { Command, Search, Home, PlusCircle, User, Compass, Wallet, Sun } from "l
 interface CommandItem {
   id: string;
   label: string;
-  href: string;
+  /** Route to open when selected. Ignored when `onSelect` is set. */
+  href?: string;
+  /** Runs instead of navigating when the item is selected. */
+  onSelect?: () => void;
   icon: React.ReactNode;
   keywords: string[];
 }
@@ -51,22 +57,11 @@ const navigationItems: CommandItem[] = [
   },
 ];
 
-const RECENT_CAMPAIGNS_KEY = "stellargive_recent_campaigns";
+/** Window event that opens the app-level palette mounted in Providers. */
+export const OPEN_COMMAND_PALETTE_EVENT = "stellargive:open-command-palette";
 
-function getRecentCampaigns(): { id: string; title: string }[] {
-  try {
-    return JSON.parse(localStorage.getItem(RECENT_CAMPAIGNS_KEY) || "[]");
-  } catch {
-    return [];
-  }
-}
-
-export function trackRecentCampaign(id: string, title: string) {
-  try {
-    const recent = getRecentCampaigns().filter((c) => c.id !== id);
-    recent.unshift({ id, title });
-    localStorage.setItem(RECENT_CAMPAIGNS_KEY, JSON.stringify(recent.slice(0, 5)));
-  } catch {}
+export function openCommandPalette() {
+  window.dispatchEvent(new Event(OPEN_COMMAND_PALETTE_EVENT));
 }
 
 interface CommandPaletteProps {
@@ -102,25 +97,31 @@ export function CommandPalette({ open: openProp, onOpenChange }: CommandPaletteP
     if (open) setRecentCampaigns(getRecentCampaigns());
   }, [open]);
 
-  const quickActions: CommandItem[] = useMemo(
-    () => [
-      {
+  const { resolvedTheme, setTheme } = useTheme();
+  const { connect, isConnected } = useWallet();
+
+  const quickActions: CommandItem[] = useMemo(() => {
+    const actions: CommandItem[] = [];
+    if (!isConnected) {
+      actions.push({
         id: "connect-wallet",
         label: "Connect Wallet",
-        href: "#connect-wallet",
+        onSelect: () => {
+          void connect();
+        },
         icon: <Wallet className="w-4 h-4" />,
         keywords: ["connect", "wallet", "stellar"],
-      },
-      {
-        id: "toggle-theme",
-        label: "Toggle Theme",
-        href: "#toggle-theme",
-        icon: <Sun className="w-4 h-4" />,
-        keywords: ["toggle", "theme", "dark", "light", "mode"],
-      },
-    ],
-    [],
-  );
+      });
+    }
+    actions.push({
+      id: "toggle-theme",
+      label: "Toggle Theme",
+      onSelect: () => setTheme(resolvedTheme === "dark" ? "light" : "dark"),
+      icon: <Sun className="w-4 h-4" />,
+      keywords: ["toggle", "theme", "dark", "light", "mode"],
+    });
+    return actions;
+  }, [isConnected, connect, resolvedTheme, setTheme]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -136,6 +137,12 @@ export function CommandPalette({ open: openProp, onOpenChange }: CommandPaletteP
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
+
+  useEffect(() => {
+    const handleOpenEvent = () => setOpen(true);
+    window.addEventListener(OPEN_COMMAND_PALETTE_EVENT, handleOpenEvent);
+    return () => window.removeEventListener(OPEN_COMMAND_PALETTE_EVENT, handleOpenEvent);
+  }, [setOpen]);
 
   const sections = useMemo(() => {
     const searchLower = search.toLowerCase();
@@ -187,11 +194,9 @@ export function CommandPalette({ open: openProp, onOpenChange }: CommandPaletteP
   const handleSelect = (item: CommandItem) => {
     setOpen(false);
     setSearch("");
-    if (item.href === "#toggle-theme") {
-      document.documentElement.classList.toggle("dark");
-    } else if (item.href === "#connect-wallet") {
-      document.querySelector<HTMLElement>("[data-connect-wallet]")?.click();
-    } else {
+    if (item.onSelect) {
+      item.onSelect();
+    } else if (item.href) {
       router.push(item.href);
     }
   };
@@ -208,6 +213,10 @@ export function CommandPalette({ open: openProp, onOpenChange }: CommandPaletteP
   }, [activeIndex]);
 
   const handleDialogKeyDown = (e: React.KeyboardEvent) => {
+    if ((e.key === "ArrowDown" || e.key === "ArrowUp") && filteredItems.length === 0) {
+      e.preventDefault();
+      return;
+    }
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setActiveIndex((prev) => (prev + 1) % filteredItems.length);
@@ -236,7 +245,7 @@ export function CommandPalette({ open: openProp, onOpenChange }: CommandPaletteP
         <div className="flex items-center border-b px-3">
           <Search className="w-4 h-4 text-muted-foreground mr-2" aria-hidden="true" />
           <Input
-            placeholder="Search navigation..."
+            placeholder="Search campaigns..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 h-12"
