@@ -285,3 +285,10 @@ describe("LeaderboardPage - mixed tokens", () => {
     expect(lines[1]).toBe(`1,${DONOR_B},50,1,1`);
   });
 });
+
+describe("LeaderboardPage - landmark structure", () => {
+  it("renders no main landmark of its own, leaving layout.tsx as the only one", () => {
+    render(<LeaderboardPage />);
+    expect(screen.queryAllByRole("main")).toHaveLength(0);
+  });
+});

@@ -237,3 +237,25 @@ describe("ProfilePage - My Campaigns status filter", () => {
     expect(screen.getByText("Active campaign 1")).toBeInTheDocument();
   });
 });
+
+describe("ProfilePage - landmark structure", () => {
+  it("renders no main landmark of its own when connected, leaving layout.tsx as the only one", () => {
+    render(<ProfilePage />);
+    expect(screen.queryAllByRole("main")).toHaveLength(0);
+  });
+
+  it("renders no main landmark of its own when disconnected, leaving layout.tsx as the only one", async () => {
+    vi.resetModules();
+    vi.doMock("@/lib/WalletProvider", () => ({
+      useWallet: () => ({ address: null, isConnected: false }),
+    }));
+    vi.doMock("@/components/Navbar", () => ({ Navbar: () => <div /> }));
+    vi.doMock("@/components/WalletConnect", () => ({ WalletConnect: () => <div /> }));
+
+    const { default: DynamicProfilePage } = await import("./page");
+    render(<DynamicProfilePage />);
+
+    expect(screen.getByText(/Connect your wallet/i)).toBeInTheDocument();
+    expect(screen.queryAllByRole("main")).toHaveLength(0);
+  });
+});

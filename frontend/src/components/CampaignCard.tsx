@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -13,6 +13,8 @@ import {
   getCampaignImageUrl,
   CAMPAIGN_IMAGE_BLUR_DATA_URL,
 } from "@/lib/utils";
+import { NATIVE_XLM_CONTRACT_ID } from "@/lib/tokens";
+import { calculateProgress, getCampaignImageUrl, CAMPAIGN_IMAGE_BLUR_DATA_URL } from "@/lib/utils";
 import { isOptimizableImageUrl } from "../../image-hosts.mjs";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -32,7 +34,6 @@ import {
   Target,
   TrendingUp,
   Image as ImageIcon,
-  Zap,
   Ban,
   Flame,
   Tag,
@@ -44,6 +45,7 @@ import { RelativeTime } from "@/components/RelativeTime";
 import { CampaignStatusBadge } from "@/components/CampaignStatusBadge";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { FundTheGap } from "@/components/FundTheGap";
 
 const HOUR_SECONDS = 60 * 60;
 
@@ -140,9 +142,26 @@ function CampaignCardComponent({
   const isMetaPending = tokenMeta == null && isMetaLoading;
   const decimals = tokenMeta?.decimals ?? 7;
   const symbol = tokenMeta?.symbol ?? "XLM";
+  const isNativeXlm = campaign.accepted_token === NATIVE_XLM_CONTRACT_ID;
+
+  // Reset to the token's native unit whenever the card switches to a
+  // different accepted token, so a stale USD view never carries over.
+  useEffect(() => {
+    setShowUSD(false);
+  }, [campaign.accepted_token]);
 
   const raised = isMetaPending ? null : formatTokenAmount(campaign.raised_amount, decimals);
   const target = isMetaPending ? null : formatTokenAmount(campaign.target_amount, decimals);
+  const canToggleUsd =
+    isNativeXlm && !isMetaPending && !isPreview && xlmPrice !== null && xlmPrice !== undefined;
+  const raisedUsd =
+    canToggleUsd && xlmPrice !== null && xlmPrice !== undefined
+      ? (Number(campaign.raised_amount) / 10 ** decimals) * xlmPrice
+      : null;
+  const targetUsd =
+    canToggleUsd && xlmPrice !== null && xlmPrice !== undefined
+      ? (Number(campaign.target_amount) / 10 ** decimals) * xlmPrice
+      : null;
   const progress = calculateProgress(campaign.raised_amount, campaign.target_amount);
   const progressPercent = calculateProgressPercent(campaign.raised_amount, campaign.target_amount);
   const progressVariant: ProgressVariant =
@@ -159,14 +178,13 @@ function CampaignCardComponent({
     campaign.target_amount > campaign.raised_amount
       ? campaign.target_amount - campaign.raised_amount
       : 0n;
-  const gap = Number(gapRaw) / 10 ** decimals;
   const showFundTheGap =
     !isPreview &&
     !isMetaPending &&
     campaign.status === "Active" &&
     progress >= 90 &&
     progress < 100 &&
-    gap > 0;
+    gapRaw > 0n;
 
   return (
     <Card
@@ -258,12 +276,12 @@ function CampaignCardComponent({
                 <Skeleton className="h-4 w-24" />
               ) : (
                 <span className="font-bold">
-                  {showUSD && xlmPrice !== null && xlmPrice !== undefined
-                    ? formatUSD(Number(raised) * xlmPrice)
+                  {canToggleUsd && showUSD && raisedUsd !== null
+                    ? formatUSD(raisedUsd)
                     : `${raised} ${symbol}`}
                 </span>
               )}
-              {!isMetaPending && !isPreview && xlmPrice !== null && xlmPrice !== undefined && (
+              {canToggleUsd && (
                 <button
                   type="button"
                   onClick={() => setShowUSD(!showUSD)}
@@ -288,8 +306,8 @@ function CampaignCardComponent({
               <Target className="w-3 h-3" /> Target:{" "}
               {target === null ? (
                 <Skeleton className="h-3 w-16" />
-              ) : showUSD && xlmPrice !== null && xlmPrice !== undefined ? (
-                formatUSD(Number(target) * xlmPrice)
+              ) : canToggleUsd && showUSD && targetUsd !== null ? (
+                formatUSD(targetUsd)
               ) : (
                 `${target} ${symbol}`
               )}
@@ -336,24 +354,16 @@ function CampaignCardComponent({
         )}
       </CardContent>
       {showFundTheGap && (
-        <div className="mx-4 mb-3 flex items-center justify-between gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2">
-          <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
-            <Zap className="h-3 w-3 shrink-0" />
-            <span>
-              Only {gap.toFixed(2)} {symbol} left — fund the gap!
-            </span>
-          </div>
-          <button
-            onClick={() => {
-              setDonateAmount(gap.toFixed(decimals).replace(/\.?0+$/, ""));
-              setDonateOpen(true);
-            }}
-            className="shrink-0 rounded-md bg-emerald-600 px-3 py-2 min-h-[44px] text-xs font-semibold text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 dark:bg-emerald-500 dark:hover:bg-emerald-600 dark:focus-visible:ring-emerald-400 dark:focus-visible:ring-offset-emerald-900"
-            aria-label={`Quick donate to fund the remaining ${gap.toFixed(2)} ${symbol}`}
-          >
-            Donate
-          </button>
-        </div>
+        <FundTheGap
+          remaining={gapRaw}
+          decimals={decimals}
+          symbol={symbol}
+          className="mx-4 mb-3"
+          onDonate={(amount) => {
+            setDonateAmount(amount);
+            setDonateOpen(true);
+          }}
+        />
       )}
       {!isPreview && (
         <CardFooter className="gap-2">

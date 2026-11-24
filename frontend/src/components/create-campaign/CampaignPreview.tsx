@@ -33,7 +33,9 @@ export function ReviewPreviewToggle({ campaign, open, onToggle }: PreviewToggleP
           <p className="text-xs text-muted-foreground mb-2">
             This is how your campaign card will look to donors.
           </p>
-          <CampaignCard campaign={campaign} isPreview />
+          <div inert aria-hidden="true">
+            <CampaignCard campaign={campaign} isPreview />
+          </div>
         </div>
       )}
     </div>
@@ -63,7 +65,9 @@ export function MobileLivePreview({ campaign, open, onToggle }: PreviewTogglePro
           <p className="text-[11px] text-muted-foreground mb-2">
             Live preview reflects current form input in real time.
           </p>
-          <CampaignCard campaign={campaign} isPreview />
+          <div inert aria-hidden="true">
+            <CampaignCard campaign={campaign} isPreview />
+          </div>
         </div>
       )}
     </div>
@@ -75,15 +79,22 @@ export function DesktopLivePreview({ campaign }: { campaign: Campaign }) {
   return (
     <aside
       className="hidden lg:flex flex-col space-y-2 sticky top-0"
-      aria-label="Live campaign card preview"
+      aria-labelledby="desktop-live-preview-heading"
     >
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+        <h2
+          id="desktop-live-preview-heading"
+          className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"
+        >
           <Eye className="w-3.5 h-3.5 text-primary" aria-hidden="true" /> Live Card Preview
-        </span>
+        </h2>
         <span className="text-[10px] text-muted-foreground">Updates live</span>
       </div>
-      <div className="w-full max-w-[340px] border rounded-xl p-3 bg-muted/20 shadow-sm">
+      <div
+        className="w-full max-w-[340px] border rounded-xl p-3 bg-muted/20 shadow-sm"
+        inert
+        aria-hidden="true"
+      >
         <CampaignCard campaign={campaign} isPreview />
       </div>
     </aside>
