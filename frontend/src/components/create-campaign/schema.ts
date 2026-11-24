@@ -4,6 +4,7 @@ import { NATIVE_XLM_CONTRACT_ID } from "@/lib/tokens";
 import { CONTRACT_ID, isValidStellarAddress, type Campaign } from "@/lib/soroban";
 import { TOTAL_SHARE_BPS, percentToBps } from "@/lib/beneficiaries";
 import { INVALID_SHARES_MESSAGE } from "@/lib/contractErrors";
+import { ZERO_ADDRESS, parseTokenAmount } from "@/utils/format";
 
 // Contract-enforced bounds — keep in sync with
 // contracts/stellar-give/src/lib.rs constants. Surfacing them at the form
@@ -214,19 +215,15 @@ export function buildPreviewCampaign(
   values: Partial<FormValues>,
   tags: string[],
   walletAddress: string,
+  tokenDecimals: number = 7,
 ): Campaign {
   const days = parseInt(values.deadlineDays ?? "30") || 30;
   const deadline = BigInt(Math.floor(Date.now() / 1000) + days * 24 * 60 * 60);
-  const targetRaw = parseFloat(values.targetAmount ?? "0") || 0;
-  // Convert to stroops (7 decimal places)
-  const targetAmount = BigInt(Math.round(targetRaw * 10_000_000));
+  const targetAmount = parseTokenAmount(values.targetAmount ?? "", tokenDecimals) ?? 0n;
   return {
     id: 0n,
-    creator: walletAddress || "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
-    beneficiary:
-      values.beneficiary ||
-      walletAddress ||
-      "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+    creator: walletAddress || ZERO_ADDRESS,
+    beneficiary: values.beneficiary || walletAddress || ZERO_ADDRESS,
     beneficiaries: [],
     title: values.title || "Campaign Title",
     description: values.description || "",

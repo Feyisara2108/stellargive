@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Check, Copy, Globe, Twitter } from "lucide-react";
 import { toast } from "sonner";
 import { CONTRACT_ID } from "@/lib/config";
 import { cn } from "@/lib/utils";
-import { NETWORK_PASSPHRASE } from "@/lib/network";
+import { Networks, NETWORK_PASSPHRASE } from "@/lib/network";
 import { useRpcHealth, type RpcStatus } from "@/hooks/useRpcHealth";
 
 // GitHub is deliberately absent: the quick links beside these icons already
@@ -18,6 +18,47 @@ const SOCIAL_LINKS = [
 
 /** GitHub renders the repo's SECURITY.md at this path, so it stays the one link. */
 const SECURITY_POLICY_URL = "https://github.com/Feyisara2108/stellargive/blob/main/SECURITY.md";
+
+// stellar.expert's explorer only serves "testnet" and "public" — the same two
+// values AddressLink's `network` prop accepts. Any other configured network
+// falls back to testnet, matching AddressLink's own default.
+const EXPLORER_NETWORK: "testnet" | "public" =
+  NETWORK_PASSPHRASE === Networks.PUBLIC ? "public" : "testnet";
+const EXPLORER_URL = `https://stellar.expert/explorer/${EXPLORER_NETWORK}`;
+
+/**
+ * External link that always announces it opens in a new tab. When `label` is
+ * given (icon-only links with no visible text) the hint is folded into the
+ * accessible name; otherwise it's appended as a visually-hidden suffix after
+ * the visible text.
+ */
+function ExternalLink({
+  href,
+  label,
+  title,
+  className,
+  children,
+}: {
+  href: string;
+  label?: string;
+  title?: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={title}
+      className={className}
+      aria-label={label ? `${label} (opens in a new tab)` : undefined}
+    >
+      {children}
+      {!label && <span className="sr-only"> (opens in a new tab)</span>}
+    </a>
+  );
+}
 
 function networkLabel(): string {
   if (!NETWORK_PASSPHRASE) return "unknown";
@@ -58,6 +99,7 @@ function ContractIdDisplay() {
         onClick={() => setExpanded((v) => !v)}
         className="min-w-0 break-all text-left font-mono hover:text-foreground transition-colors"
         title={expanded ? "Click to collapse" : "Click to expand"}
+        aria-expanded={expanded}
       >
         {expanded ? CONTRACT_ID : truncate(CONTRACT_ID)}
       </button>
@@ -133,17 +175,15 @@ export function Footer() {
               them onto their own lines on narrow viewports. */}
           <nav aria-label="Social media" className="flex flex-wrap items-center gap-3 mt-1">
             {SOCIAL_LINKS.map(({ href, label, Icon }) => (
-              <a
+              <ExternalLink
                 key={href}
                 href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label={`${label} (opens in a new tab)`}
+                label={label}
                 title={label}
                 className="text-muted-foreground transition-colors hover:text-foreground"
               >
                 <Icon className="h-4 w-4" aria-hidden="true" />
-              </a>
+              </ExternalLink>
             ))}
           </nav>
         </div>
@@ -157,47 +197,33 @@ export function Footer() {
           <Link href="/faq" className="hover:text-foreground transition-colors">
             FAQ
           </Link>
-          <a
-            href="https://stellar.expert/explorer/testnet"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-foreground transition-colors"
-          >
+          <ExternalLink href={EXPLORER_URL} className="hover:text-foreground transition-colors">
             Explorer
-          </a>
-          <a
+          </ExternalLink>
+          <ExternalLink
             href="https://github.com/Feyisara2108/stellargive#readme"
-            target="_blank"
-            rel="noopener noreferrer"
             className="hover:text-foreground transition-colors"
           >
             Documentation
-          </a>
-          <a
+          </ExternalLink>
+          <ExternalLink
             href="https://github.com/Feyisara2108/stellargive#contracts"
-            target="_blank"
-            rel="noopener noreferrer"
             className="hover:text-foreground transition-colors"
           >
             Contracts
-          </a>
-          <a
+          </ExternalLink>
+          <ExternalLink
             href="https://github.com/Feyisara2108/stellargive"
-            target="_blank"
-            rel="noopener noreferrer"
             className="hover:text-foreground transition-colors"
           >
             GitHub
-          </a>
-          <a
+          </ExternalLink>
+          <ExternalLink
             href={SECURITY_POLICY_URL}
-            target="_blank"
-            rel="noopener noreferrer"
             className="hover:text-foreground transition-colors"
           >
             Security Policy
-            <span className="sr-only"> (opens in a new tab)</span>
-          </a>
+          </ExternalLink>
         </nav>
       </div>
     </footer>

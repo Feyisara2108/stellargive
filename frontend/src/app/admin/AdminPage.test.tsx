@@ -185,4 +185,9 @@ describe("AdminPage", () => {
 
     expect(screen.getByText("Post Update for Flood Relief")).toBeInTheDocument();
   });
+
+  it("renders no main landmark of its own, leaving layout.tsx as the only one", () => {
+    render(<AdminPage />);
+    expect(screen.queryAllByRole("main")).toHaveLength(0);
+  });
 });

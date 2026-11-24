@@ -90,6 +90,12 @@ async function renderNavbarConnected() {
     // it is a stable, unambiguous way to confirm the component (and its async
     // children) finished rendering.
     expect(screen.getAllByRole("navigation").length).toBe(1);
+    // Navbar.tsx renders two <nav> elements: the desktop link group
+    // (aria-label="Main") and the mobile drawer's own <nav>. The outer
+    // wrapper is a <header>, not a <nav>. Asserting the count is a stable,
+    // unambiguous way to confirm the component (and its async children)
+    // finished rendering.
+    expect(screen.getAllByRole("navigation").length).toBe(2);
   });
   return result;
 }
@@ -292,5 +298,29 @@ describe("Navbar — mobile menu toggle", () => {
     fireEvent.click(backdrop!);
 
     expect(screen.queryByRole("dialog", { name: "Navigation menu" })).not.toBeInTheDocument();
+  });
+});
+
+describe("Navbar — brand link and landmark structure", () => {
+  it("renders a 'StellarGive' accessible link pointing to '/'", async () => {
+    await renderNavbarConnected();
+    const brandLink = screen.getByRole("link", { name: /stellargive/i });
+    expect(brandLink).toHaveAttribute("href", "/");
+  });
+
+  it("has no nav element nested inside another nav", async () => {
+    const { container } = await renderNavbarConnected();
+    const navs = Array.from(container.querySelectorAll("nav"));
+    expect(navs.length).toBeGreaterThan(0);
+    for (const nav of navs) {
+      // Walk up from the *parent* (not the nav itself, which always matches
+      // its own selector) looking for an ancestor nav.
+      expect(nav.parentElement?.closest("nav") ?? null).toBeNull();
+    }
+  });
+
+  it("renders the outer wrapper as a header, not a nav", async () => {
+    const { container } = await renderNavbarConnected();
+    expect(container.querySelector("header")).toBeInTheDocument();
   });
 });

@@ -48,6 +48,7 @@ import { useCampaignTags } from "@/components/create-campaign/useCampaignTags";
 import { useImageUpload } from "@/components/create-campaign/useImageUpload";
 import { useBeneficiaryName } from "@/components/create-campaign/useBeneficiaryName";
 import { logger } from "@/lib/logger";
+import { toast } from "sonner";
 
 export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
   const { isWrongNetwork, address: walletAddress } = useWallet();
@@ -149,9 +150,12 @@ export function CreateCampaignForm({ inline = false }: { inline?: boolean }) {
       setStep(1);
       tags.reset();
       upload.reset();
-      const campaignId =
-        (result as { campaignId?: string | number } | undefined)?.campaignId ?? "1";
-      router.push(`/campaign/${campaignId}`);
+      if (result.campaignId !== undefined) {
+        router.push(`/campaign/${result.campaignId}`);
+      } else {
+        toast.success("Campaign created successfully.");
+        router.push("/profile");
+      }
     } catch (e: unknown) {
       // Errors are already handled/displayed by the sonner toast inside the useCreateCampaign hook mutation wrapper,
       // but we catch it here to prevent uncaught promise rejections.

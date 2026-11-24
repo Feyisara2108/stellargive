@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, ImageIcon, Zap, AlertTriangle, RotateCw } from "lucide-react";
+import { Loader2, ImageIcon, AlertTriangle, RotateCw } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -48,6 +48,7 @@ import { Badge } from "@/components/ui/badge";
 import { useCountdown } from "@/hooks/useCountdown";
 import { Breadcrumbs, type BreadcrumbItem } from "@/components/Breadcrumbs";
 import { CampaignDetailSkeleton } from "@/components/CampaignSkeleton";
+import { FundTheGap } from "@/components/FundTheGap";
 
 /** A valid Date for the given input, or null when it is missing or unparseable. */
 function toValidDate(value: string | number | null | undefined): Date | null {
@@ -390,6 +391,16 @@ export function CampaignDetailsClient({
                       Donate
                     </button>
                   </div>
+                  <FundTheGap
+                    remaining={gapRaw}
+                    decimals={7}
+                    symbol="XLM"
+                    disabled={!address || isWrongNetwork}
+                    onDonate={(amount) => {
+                      setDonateAmount(amount);
+                      setDonateOpen(true);
+                    }}
+                  />
                 )}
 
                 <div className="prose prose-sm dark:prose-invert max-w-none">
