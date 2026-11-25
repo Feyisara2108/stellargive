@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
-import { Address, Keypair, nativeToScVal, xdr } from "@stellar/stellar-sdk";
+import { Keypair, nativeToScVal, xdr } from "@stellar/stellar-sdk";
 import { type RpcRequestBody, decodeInvocation } from "./support/xdr";
+import { campaignScVal, ok, simError, type CampaignSeed } from "./support/rpc-mock";
 
 /**
  * E2E: action gating while no wallet is connected.
@@ -12,72 +13,17 @@ import { type RpcRequestBody, decodeInvocation } from "./support/xdr";
  *   - connecting through the real UI unblocks the donate flow.
  */
 
-const CREATOR = Keypair.fromRawEd25519Seed(Buffer.alloc(32, 1)).publicKey();
-const TOKEN = Keypair.fromRawEd25519Seed(Buffer.alloc(32, 2)).publicKey();
 // The account the mock wallet connects as once the user clicks "Connect Wallet".
 const WALLET = Keypair.fromRawEd25519Seed(Buffer.alloc(32, 6)).publicKey();
 
-const ACTIVE_CAMPAIGN = {
+const ACTIVE_CAMPAIGN: CampaignSeed = {
   id: 1,
   title: "Open Relief Drive",
-  status: "Active" as const,
+  status: "Active",
   raised: 20_000_000n,
   target: 100_000_000n,
+  description: "An open campaign accepting donations",
 };
-
-function sym(s: string) {
-  return nativeToScVal(s, { type: "symbol" });
-}
-
-function campaignScVal(): string {
-  const c = ACTIVE_CAMPAIGN;
-  const entries: [string, xdr.ScVal][] = [
-    ["accepted_token", new Address(TOKEN).toScVal()],
-    ["beneficiary", new Address(CREATOR).toScVal()],
-    [
-      "beneficiaries",
-      xdr.ScVal.scvVec([
-        xdr.ScVal.scvVec([new Address(CREATOR).toScVal(), nativeToScVal(10000, { type: "u32" })]),
-      ]),
-    ],
-    ["category", nativeToScVal("Disaster", { type: "string" })],
-    ["creator", new Address(CREATOR).toScVal()],
-    ["deadline", nativeToScVal(9_999_999_999n, { type: "u64" })],
-    ["description", nativeToScVal("An open campaign accepting donations", { type: "string" })],
-    ["id", nativeToScVal(BigInt(c.id), { type: "u64" })],
-    ["metadata_uri", nativeToScVal("", { type: "string" })],
-    ["raised_amount", nativeToScVal(c.raised, { type: "i128" })],
-    [
-      "status",
-      xdr.ScVal.scvMap([new xdr.ScMapEntry({ key: sym(c.status), val: xdr.ScVal.scvVoid() })]),
-    ],
-    ["target_amount", nativeToScVal(c.target, { type: "i128" })],
-    ["title", nativeToScVal(c.title, { type: "string" })],
-    ["twitter", nativeToScVal("", { type: "string" })],
-    ["website", nativeToScVal("", { type: "string" })],
-  ];
-  return xdr.ScVal.scvMap(
-    entries.map(([k, v]) => new xdr.ScMapEntry({ key: sym(k), val: v })),
-  ).toXDR("base64");
-}
-
-function simOk(id: number, retvalXdr: string) {
-  return {
-    jsonrpc: "2.0",
-    id,
-    result: {
-      transactionData: "",
-      minResourceFee: "100",
-      cost: { cpuInsns: "1000", memBytes: "1000" },
-      results: [{ xdr: retvalXdr }],
-      latestLedger: 1000,
-    },
-  };
-}
-
-function simError(id: number, message: string) {
-  return { jsonrpc: "2.0", id, result: { error: message, events: [], latestLedger: 1000 } };
-}
 
 async function mockSorobanRPC(page: Page) {
   await page.route("**/soroban/rpc*", async (route) => {
@@ -114,7 +60,7 @@ async function mockSorobanRPC(page: Page) {
           contentType: "application/json",
           body: JSON.stringify(
             wanted === ACTIVE_CAMPAIGN.id
-              ? simOk(id, campaignScVal())
+              ? ok(id, campaignScVal(ACTIVE_CAMPAIGN))
               : simError(id, "Campaign not found"),
           ),
         });
@@ -125,7 +71,7 @@ async function mockSorobanRPC(page: Page) {
         await route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: JSON.stringify(simOk(id, nativeToScVal(7, { type: "u32" }).toXDR("base64"))),
+          body: JSON.stringify(ok(id, nativeToScVal(7, { type: "u32" }).toXDR("base64"))),
         });
         return;
       }
@@ -134,7 +80,7 @@ async function mockSorobanRPC(page: Page) {
         await route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: JSON.stringify(simOk(id, nativeToScVal("XLM", { type: "string" }).toXDR("base64"))),
+          body: JSON.stringify(ok(id, nativeToScVal("XLM", { type: "string" }).toXDR("base64"))),
         });
         return;
       }
@@ -142,7 +88,7 @@ async function mockSorobanRPC(page: Page) {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify(simOk(id, xdr.ScVal.scvVoid().toXDR("base64"))),
+        body: JSON.stringify(ok(id, xdr.ScVal.scvVoid().toXDR("base64"))),
       });
       return;
     }
@@ -183,7 +129,9 @@ test.describe("Action gating with no wallet connected", () => {
   test("prompts to connect and blocks donate until a wallet is connected", async ({ page }) => {
     await page.goto(`/campaign/${ACTIVE_CAMPAIGN.id}`);
 
-    await expect(page.getByText(ACTIVE_CAMPAIGN.title).first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("heading", { name: ACTIVE_CAMPAIGN.title })).toBeVisible({
+      timeout: 15_000,
+    });
 
     // The connect prompt is the only wallet affordance offered.
     await expect(connectButton(page)).toBeVisible();
@@ -200,7 +148,10 @@ test.describe("Action gating with no wallet connected", () => {
 
     // Connecting through the real UI unblocks the flow.
     await connectButton(page).click();
-    await expect(page.getByText(/Wallet connected!/i)).toBeVisible({ timeout: 15_000 });
+    // Target the visible Sonner toast (not the toaster’s polite live region).
+    await expect(page.locator("[data-sonner-toast]").getByText(/Wallet connected!/i)).toBeVisible({
+      timeout: 15_000,
+    });
 
     await expect(donateButton(page)).toBeEnabled();
     await donateButton(page).click();
