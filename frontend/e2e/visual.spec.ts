@@ -1,20 +1,12 @@
 import { test, expect, type Page } from "@playwright/test";
-import { Address, Keypair, nativeToScVal, xdr } from "@stellar/stellar-sdk";
-import type { RpcRequestBody } from "./support/xdr";
+import { Keypair, nativeToScVal, xdr } from "@stellar/stellar-sdk";
+import { type RpcRequestBody, decodeInvocation } from "./support/xdr";
+import { campaignScVal, campaignsPagedScVal, ok, type CampaignSeed } from "./support/rpc-mock";
 
-const CREATOR = "GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFXYSFSSTY2FOWOWPPTXY";
-const TOKEN = "CDLZFC3SYJYDTIW67FYOFNPZNR2BAZZB54JZWJZWJZWJZWJZWJZWJZWZ";
+const CREATOR = Keypair.fromRawEd25519Seed(Buffer.alloc(32, 1)).publicKey();
+const TOKEN = Keypair.fromRawEd25519Seed(Buffer.alloc(32, 2)).publicKey();
 
-type Seed = {
-  id: number;
-  title: string;
-  status: "Active" | "Funded";
-  raised: bigint;
-  target: bigint;
-  description: string;
-};
-
-const CAMPAIGNS: Seed[] = [
+const CAMPAIGNS: CampaignSeed[] = [
   {
     id: 1,
     title: "Clean Water Infrastructure",
@@ -22,6 +14,11 @@ const CAMPAIGNS: Seed[] = [
     raised: 25_000_000n,
     target: 100_000_000n,
     description: "Providing clean drinking water to underserved communities.",
+    creator: CREATOR,
+    acceptedToken: TOKEN,
+    category: "relief",
+    website: "https://stellargive.org",
+    twitter: "https://twitter.com/stellargive",
   },
   {
     id: 2,
@@ -30,6 +27,11 @@ const CAMPAIGNS: Seed[] = [
     raised: 75_000_000n,
     target: 100_000_000n,
     description: "Rapid deployment of medical supplies and field hospitals.",
+    creator: CREATOR,
+    acceptedToken: TOKEN,
+    category: "relief",
+    website: "https://stellargive.org",
+    twitter: "https://twitter.com/stellargive",
   },
   {
     id: 3,
@@ -38,46 +40,13 @@ const CAMPAIGNS: Seed[] = [
     raised: 50_000_000n,
     target: 50_000_000n,
     description: "Building community libraries and funding teacher salaries.",
-  },
-];
-
-function sym(s: string) {
-  return nativeToScVal(s, { type: "symbol" });
-}
-
-function campaignScVal(c: Seed): string {
-  const mockCampaign = {
-    id: BigInt(c.id),
     creator: CREATOR,
-    beneficiary: CREATOR,
-    title: c.title,
-    description: c.description,
-    category: "Disaster",
-    target_amount: c.target,
-    raised_amount: c.raised,
-    deadline: 9_999_999_999n,
-    accepted_token: TOKEN,
-    status: { [c.status]: null },
-    metadata_uri: "",
+    acceptedToken: TOKEN,
+    category: "relief",
     website: "https://stellargive.org",
     twitter: "https://twitter.com/stellargive",
-  };
-  return nativeToScVal(mockCampaign).toXDR("base64");
-}
-
-function ok(id: number, retvalXdr: string) {
-  return {
-    jsonrpc: "2.0",
-    id,
-    result: {
-      transactionData: "",
-      minResourceFee: "100",
-      cost: { cpuInsns: "1000", memBytes: "1000" },
-      results: [{ xdr: retvalXdr }],
-      latestLedger: 1000,
-    },
-  };
-}
+  },
+];
 
 async function mockSorobanRPC(page: Page) {
   await page.route("**/soroban/rpc*", async (route) => {
@@ -105,72 +74,34 @@ async function mockSorobanRPC(page: Page) {
     }
 
     if (method === "simulateTransaction") {
-      const xdrString = body.params?.transaction ?? "";
-      const buffer = Buffer.from(xdrString, "base64");
+      const call = decodeInvocation(body.params?.transaction ?? "");
+      const fn = call?.fn ?? "";
 
-      let retval: xdr.ScVal | undefined;
-      if (buffer.includes("get_campaign")) {
-        const mockCampaign = {
-          id: 1n,
-          creator: CREATOR,
-          beneficiary: CREATOR,
-          title: "Clean Water Infrastructure",
-          description: "Providing clean drinking water to underserved communities.",
-          category: "relief",
-          target_amount: 100000000n, // 10 XLM
-          raised_amount: 25000000n, // 2.5 XLM
-          deadline: BigInt(Math.floor(Date.now() / 1000) + 86400 * 30),
-          accepted_token: TOKEN,
-          status: { Active: null },
-          metadata_uri: "",
-          website: "https://stellargive.org",
-          twitter: "https://twitter.com/stellargive",
-        };
-        retval = nativeToScVal(mockCampaign);
-      } else if (buffer.includes("get_campaigns_paged")) {
-        const mockCampaigns = CAMPAIGNS.map((c) => ({
-          id: BigInt(c.id),
-          creator: CREATOR,
-          beneficiary: CREATOR,
-          title: c.title,
-          description: c.description,
-          category: "relief",
-          target_amount: c.target,
-          raised_amount: c.raised,
-          deadline: BigInt(Math.floor(Date.now() / 1000) + 86400 * 30),
-          accepted_token: TOKEN,
-          status: { [c.status]: null },
-          metadata_uri: "",
-          website: "https://stellargive.org",
-          twitter: "https://twitter.com/stellargive",
-        }));
-        retval = nativeToScVal(mockCampaigns);
-      } else if (buffer.includes("balance")) {
-        retval = nativeToScVal(1000000000n, { type: "i128" });
-      } else if (buffer.includes("get_total_campaigns")) {
-        retval = nativeToScVal(BigInt(CAMPAIGNS.length), { type: "u64" });
-      } else if (buffer.includes("decimals")) {
-        retval = nativeToScVal(7, { type: "u32" });
-      } else if (buffer.includes("name") || buffer.includes("symbol")) {
-        retval = nativeToScVal("XLM", { type: "string" });
+      let retvalXdr: string;
+      if (fn === "get_campaign") {
+        const wanted = Number(call?.args?.[0] ?? 1);
+        const seed = CAMPAIGNS.find((c) => c.id === wanted) ?? CAMPAIGNS[0];
+        retvalXdr = campaignScVal(seed);
+      } else if (fn === "get_campaigns_paged") {
+        const offset = Number(call?.args?.[0] ?? 0);
+        const limit = Number(call?.args?.[1] ?? CAMPAIGNS.length);
+        retvalXdr = campaignsPagedScVal(CAMPAIGNS.slice(offset, offset + limit));
+      } else if (fn === "balance") {
+        retvalXdr = nativeToScVal(1_000_000_000n, { type: "i128" }).toXDR("base64");
+      } else if (fn === "get_total_campaigns") {
+        retvalXdr = nativeToScVal(BigInt(CAMPAIGNS.length), { type: "u64" }).toXDR("base64");
+      } else if (fn === "decimals") {
+        retvalXdr = nativeToScVal(7, { type: "u32" }).toXDR("base64");
+      } else if (fn === "name" || fn === "symbol") {
+        retvalXdr = nativeToScVal("XLM", { type: "string" }).toXDR("base64");
       } else {
-        retval = nativeToScVal(null);
+        retvalXdr = xdr.ScVal.scvVoid().toXDR("base64");
       }
 
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          id,
-          result: {
-            transactionData: "",
-            minResourceFee: "100",
-            cost: { cpuInsns: "1000", memBytes: "1000" },
-            results: [{ xdr: retval?.toXDR("base64") }],
-            latestLedger: 1000,
-          },
-        }),
+        body: JSON.stringify(ok(id, retvalXdr)),
       });
       return;
     }
